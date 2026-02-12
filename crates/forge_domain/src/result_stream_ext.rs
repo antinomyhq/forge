@@ -285,7 +285,7 @@ mod tests {
             usage: Usage {
                 prompt_tokens: TokenCount::Actual(20), // 10 + 10 accumulated
                 completion_tokens: TokenCount::Actual(15), // 5 + 10 accumulated
-                total_tokens: TokenCount::Actual(35), // 15 + 20 accumulated
+                total_tokens: TokenCount::Actual(35),  // 15 + 20 accumulated
                 cached_tokens: TokenCount::Actual(0),
                 cost: None,
             },
@@ -339,8 +339,8 @@ mod tests {
             usage: Usage {
                 prompt_tokens: TokenCount::Actual(1000), // From MessageStart
                 completion_tokens: TokenCount::Actual(50), // From MessageDelta
-                total_tokens: TokenCount::Actual(1050), // Sum of both
-                cached_tokens: TokenCount::Actual(300), // From MessageStart
+                total_tokens: TokenCount::Actual(1050),  // Sum of both
+                cached_tokens: TokenCount::Actual(300),  // From MessageStart
                 cost: None,
             },
             reasoning: None,
