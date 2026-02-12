@@ -1,0 +1,18 @@
+# Evaluation for checking appropriate todo_write tool usage
+run:
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+parallelism: 3
+timeout: 240
+early_exit: true
+validations:
+  - name: "Uses todo_write tool for multi-step tasks"
+    type: shell
+    command: |
+      # Check if todo_write was called at least once
+      jq -e '[.messages[]?.tool_calls[]? | select(.function?.name == "todo_write")] | length > 0' {{dir}}/context.json
+
+sources:
+  - value:
+      - model: "anthropic/claude-sonnet-4.5"
+  - csv: todo_write_usage_tasks.csv
