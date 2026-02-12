@@ -63,7 +63,7 @@ fn should_retry_grpc(error: &anyhow::Error) -> bool {
         | tonic::Code::ResourceExhausted // Rate limiting or quota, may recover
         | tonic::Code::Aborted           // Conflict or transaction abort, may succeed
         | tonic::Code::Internal          // Internal server error, might be transient
-        | tonic::Code::Unavailable       // Service unavailable, classic retry case
+        | tonic::Code::Unavailable // Service unavailable, classic retry case
     )
 }
 
