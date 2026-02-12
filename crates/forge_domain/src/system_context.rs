@@ -65,8 +65,8 @@ pub struct SystemContext {
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
 
-    /// File extension statistics sorted by count (descending), limited to top
-    /// 15
+    /// File extension statistics sorted by count (descending), limited to the
+    /// top `limit` extensions as defined in the `Extension` struct.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extensions: Option<Extension>,
 }
