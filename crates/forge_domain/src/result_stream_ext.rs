@@ -67,9 +67,9 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
         while let Some(message) = self.next().await {
             let message =
                 anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
-            // Process usage information
+            // Process usage information - accumulate instead of replace
             if let Some(current_usage) = message.usage.as_ref() {
-                usage = *current_usage;
+                usage = usage.accumulate(current_usage);
             }
 
             if !tool_interrupted {
@@ -243,7 +243,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        BoxStream, Content, TokenCount, ToolCall, ToolCallArguments, ToolCallId, ToolName,
+        BoxStream, Content, FinishReason, TokenCount, ToolCall, ToolCallArguments, ToolCallId,
+        ToolName,
     };
 
     #[tokio::test]
@@ -276,21 +277,75 @@ mod tests {
         // Actual: Convert stream to full message
         let actual = result_stream.into_full(false).await.unwrap();
 
-        // Expected: Combined content and latest usage
+        // Expected: Combined content and accumulated usage
         let expected = ChatCompletionMessageFull {
             content: "Hello world!".to_string(),
             tool_calls: vec![],
             thought_signature: None,
             usage: Usage {
-                prompt_tokens: TokenCount::Actual(10),
-                completion_tokens: TokenCount::Actual(10),
-                total_tokens: TokenCount::Actual(20),
+                prompt_tokens: TokenCount::Actual(20), // 10 + 10 accumulated
+                completion_tokens: TokenCount::Actual(15), // 5 + 10 accumulated
+                total_tokens: TokenCount::Actual(35), // 15 + 20 accumulated
                 cached_tokens: TokenCount::Actual(0),
                 cost: None,
             },
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_anthropic_streaming_usage_accumulation() {
+        // Fixture: Simulate Anthropic/Vertex AI Anthropic streaming pattern
+        // MessageStart event has input tokens, MessageDelta has output tokens
+        let messages = vec![
+            // MessageStart with input token usage
+            Ok(ChatCompletionMessage::default().usage(Usage {
+                prompt_tokens: TokenCount::Actual(1000),
+                completion_tokens: TokenCount::Actual(0),
+                total_tokens: TokenCount::Actual(1000),
+                cached_tokens: TokenCount::Actual(300),
+                cost: None,
+            })),
+            // Content deltas
+            Ok(ChatCompletionMessage::default().content(Content::part("Hello "))),
+            Ok(ChatCompletionMessage::default().content(Content::part("world!"))),
+            // MessageDelta with output token usage
+            Ok(ChatCompletionMessage::default()
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(0),
+                    completion_tokens: TokenCount::Actual(50),
+                    total_tokens: TokenCount::Actual(50),
+                    cached_tokens: TokenCount::Actual(0),
+                    cost: None,
+                })
+                .finish_reason(FinishReason::Stop)),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Usage should be accumulated from both MessageStart and MessageDelta
+        let expected = ChatCompletionMessageFull {
+            content: "Hello world!".to_string(),
+            tool_calls: vec![],
+            thought_signature: None,
+            usage: Usage {
+                prompt_tokens: TokenCount::Actual(1000), // From MessageStart
+                completion_tokens: TokenCount::Actual(50), // From MessageDelta
+                total_tokens: TokenCount::Actual(1050), // Sum of both
+                cached_tokens: TokenCount::Actual(300), // From MessageStart
+                cost: None,
+            },
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: Some(FinishReason::Stop),
         };
 
         assert_eq!(actual, expected);
