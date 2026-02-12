@@ -49,6 +49,7 @@ fn has_allowed_extension(path: &Path) -> bool {
 /// Permanent failures (client errors, unimplemented operations, auth issues)
 /// are not retried.
 fn should_retry_grpc(error: &anyhow::Error) -> bool {
+    warn!(error=?error,"Attempting Retry");
     let Some(status) = error.downcast_ref::<tonic::Status>() else {
         // Not a gRPC error, retry by default
         return true;
