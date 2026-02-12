@@ -310,7 +310,10 @@ mod tests {
         let system_prompt = SystemPrompt::new(services, env, agent);
 
         // Actual
-        let actual = system_prompt.fetch_extensions(MAX_EXTENSIONS).await.unwrap();
+        let actual = system_prompt
+            .fetch_extensions(MAX_EXTENSIONS)
+            .await
+            .unwrap();
 
         // Expected - sorted by count descending with percentages
         // Total files: 7 (4 rs + 2 md + 1 toml)
@@ -369,7 +372,10 @@ mod tests {
         let system_prompt = SystemPrompt::new(services, env, agent);
 
         // Actual
-        let actual = system_prompt.fetch_extensions(MAX_EXTENSIONS).await.unwrap();
+        let actual = system_prompt
+            .fetch_extensions(MAX_EXTENSIONS)
+            .await
+            .unwrap();
 
         // Expected - should have exactly 15 extensions shown (truncated from 20)
         assert_eq!(actual.extension_stats.len(), 15);
