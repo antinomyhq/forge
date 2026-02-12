@@ -62,7 +62,6 @@ fn should_retry_grpc(error: &anyhow::Error) -> bool {
         | tonic::Code::DeadlineExceeded  // Timeout, may succeed with more time
         | tonic::Code::ResourceExhausted // Rate limiting or quota, may recover
         | tonic::Code::Aborted           // Conflict or transaction abort, may succeed
-        | tonic::Code::Internal          // Internal server error, might be transient
         | tonic::Code::Unavailable // Service unavailable, classic retry case
     )
 }
@@ -1997,6 +1996,64 @@ mod tests {
             .unwrap();
 
         assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_should_retry_grpc() {
+        // Transient errors - should retry
+        assert!(should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::cancelled("cancelled")
+        )));
+        assert!(should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::unknown("unknown")
+        )));
+        assert!(should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::deadline_exceeded("timeout")
+        )));
+        assert!(should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::resource_exhausted("rate limited")
+        )));
+        assert!(should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::aborted("aborted")
+        )));
+        assert!(should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::unavailable("unavailable")
+        )));
+
+        // Non-gRPC errors - should retry by default
+        assert!(should_retry_grpc(&anyhow::anyhow!("generic error")));
+
+        // Permanent errors - should NOT retry
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::invalid_argument("invalid")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::not_found("not found")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::already_exists("exists")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::permission_denied("denied")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::failed_precondition("precondition")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::out_of_range("range")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::unimplemented("unimplemented")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::internal("internal")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::unauthenticated("unauthenticated")
+        )));
+        assert!(!should_retry_grpc(&anyhow::Error::new(
+            tonic::Status::data_loss("data loss")
+        )));
     }
 
     #[tokio::test]
