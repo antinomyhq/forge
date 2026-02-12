@@ -424,6 +424,21 @@ model: anthropic.claude-3-opus
 
 </details>
 
+<details>
+<summary><strong>Forge Services</strong></summary>
+
+```bash
+# .env
+FORGE_API_KEY=<your_forge_api_key>
+```
+
+```yaml
+# forge.yaml
+model: claude-3.7-sonnet
+```
+
+</details>
+
 </details>
 
 ---
@@ -481,11 +496,14 @@ FORGE_HTTP_ROOT_CERT_PATHS=/path/to/cert1.pem,/path/to/cert2.crt  # Paths to roo
 <details>
 <summary><strong>API Configuration</strong></summary>
 
-Override default API endpoints:
+Override default API endpoints and provider/model settings:
 
 ```bash
 # .env
 FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
+FORGE_OVERRIDE_MODEL=claude-3.7-sonnet   # Override model for all providers (takes precedence over configured models)
+FORGE_OVERRIDE_PROVIDER=anthropic         # Override default provider (takes precedence over configured provider)
+FORGE_WORKSPACE_SERVER_URL=http://localhost:8080  # URL for the indexing server (default: https://api.forgecode.dev/)
 ```
 
 </details>
@@ -520,20 +538,70 @@ The `FORGE_BIN` environment variable allows you to customize the command used by
 </details>
 
 <details>
+<summary><strong>Display Configuration</strong></summary>
+
+Configure display options for the Forge UI and ZSH theme:
+
+```bash
+# .env
+FORGE_CURRENCY_SYMBOL="$"         # Currency symbol for cost display in ZSH theme (default: "$")
+FORGE_CURRENCY_CONVERSION_RATE=1.0  # Conversion rate for currency display (default: 1.0)
+NERD_FONT=1                       # Enable Nerd Font icons in ZSH theme (default: auto-detected, set to "1" or "true" to enable, "0" or "false" to disable)
+USE_NERD_FONT=1                   # Alternative variable for enabling Nerd Font icons (same behavior as NERD_FONT)
+```
+
+The `FORGE_CURRENCY_SYMBOL` and `FORGE_CURRENCY_CONVERSION_RATE` variables control how costs are displayed in the ZSH theme right prompt. Use these to customize the currency display for your region or preferred currency.
+
+</details>
+
+<details>
 <summary><strong>System Configuration</strong></summary>
 
 System-level environment variables (usually set automatically):
 
 ```bash
 # .env
-FORGE_MAX_SEARCH_RESULT_BYTES=101024   # Maximum bytes for search results (default: 101024 - 10 KB)
+FORGE_MAX_SEARCH_RESULT_BYTES=10240   # Maximum bytes for search results (default: 10240 - 10 KB)
 FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)
-FORGE_SHOW_TASK_STATS=true             # Show task stats such as file changes, token usage etc. after completion (default: true)
 FORGE_MAX_CONVERSATIONS=100            # Maximum number of conversations to show in list (default: 100)
+FORGE_MAX_LINE_LENGTH=2000             # Maximum characters per line for file read operations (default: 2000)
+FORGE_STDOUT_MAX_LINE_LENGTH=2000      # Maximum characters per line for shell output (default: 2000)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
+
+</details>
+
+<details>
+<summary><strong>Semantic Search Configuration</strong></summary>
+
+Configure semantic search behavior for code understanding:
+
+```bash
+# .env
+FORGE_SEM_SEARCH_LIMIT=200            # Maximum number of results to return from initial vector search (default: 200)
+FORGE_SEM_SEARCH_TOP_K=20             # Top-k parameter for relevance filtering during semantic search (default: 20)
+```
+
+</details>
+
+<details>
+<summary><strong>Logging Configuration</strong></summary>
+
+Configure logging verbosity and output:
+
+```bash
+# .env
+FORGE_LOG=forge=info                  # Log filter level (default: forge=debug when tracking disabled, forge=info when tracking enabled)
+```
+
+The `FORGE_LOG` variable controls the logging level for Forge's internal operations using the standard tracing filter syntax. Common values:
+- `forge=error` - Only errors
+- `forge=warn` - Warnings and errors
+- `forge=info` - Informational messages (default when tracking enabled)
+- `forge=debug` - Debug information (default when tracking disabled)
+- `forge=trace` - Detailed tracing
 
 </details>
 
