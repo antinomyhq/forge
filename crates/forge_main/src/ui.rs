@@ -2815,12 +2815,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
+            ChatResponse::ToolCallStart(event) => {
                 writer.finish()?;
 
                 // Stop spinner only for tools that require stdout/stderr access
-                if tool_call.requires_stdout() {
+                if event.tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
+                }
+
+                // Signal the producer that stdout is ready so it can begin
+                // tool execution without racing with the spinner.
+                if let Some(notify) = &event.stdout_ready {
+                    notify.notify_one();
                 }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -2869,6 +2875,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::TaskComplete => {
                 writer.finish()?;
+                self.spinner.stop(None)?;
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),

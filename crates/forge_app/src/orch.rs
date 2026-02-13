@@ -74,10 +74,24 @@ impl<S: AgentService> Orchestrator<S> {
         for tool_call in tool_calls {
             // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
-            if is_system_tool {
-                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                    .await?;
-            }
+            let stdout_ready = if is_system_tool {
+                // For tools that require stdout, create a notify so we can wait
+                // for the consumer to stop the spinner before tool execution
+                // writes directly to stdout.
+                let notify = if tool_call.requires_stdout() {
+                    Some(Arc::new(tokio::sync::Notify::new()))
+                } else {
+                    None
+                };
+                let event = ToolCallStartEvent {
+                    tool_call: tool_call.clone(),
+                    stdout_ready: notify.clone(),
+                };
+                self.send(ChatResponse::ToolCallStart(event)).await?;
+                notify
+            } else {
+                None
+            };
 
             // Fire the ToolcallStart lifecycle event
             let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
@@ -88,6 +102,12 @@ impl<S: AgentService> Orchestrator<S> {
             self.hook
                 .handle(&toolcall_start_event, &mut self.conversation)
                 .await?;
+
+            // Wait for the consumer to signal that stdout is ready (spinner
+            // stopped) before executing tools that write directly to stdout.
+            if let Some(notify) = &stdout_ready {
+                notify.notified().await;
+            }
 
             // Execute the tool
             let tool_result = self

@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Local;
+use tokio::sync::Notify;
 
 use crate::{ToolCallFull, ToolName, ToolResult};
 
@@ -47,6 +49,31 @@ impl ChatResponseContent {
     }
 }
 
+/// Wraps a tool call with an optional readiness signal for stdout-requiring
+/// tools. When `stdout_ready` is `Some`, the consumer must call
+/// `notify.notify_one()` after it has prepared stdout (e.g. stopped the
+/// spinner) so the producer can safely begin writing tool output.
+#[derive(Clone)]
+pub struct ToolCallStartEvent {
+    pub tool_call: ToolCallFull,
+    pub stdout_ready: Option<Arc<Notify>>,
+}
+
+impl PartialEq for ToolCallStartEvent {
+    fn eq(&self, other: &Self) -> bool {
+        self.tool_call == other.tool_call
+    }
+}
+
+impl std::fmt::Debug for ToolCallStartEvent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ToolCallStartEvent")
+            .field("tool_call", &self.tool_call)
+            .field("stdout_ready", &self.stdout_ready.as_ref().map(|_| "Notify"))
+            .finish()
+    }
+}
+
 /// Events that are emitted by the agent for external consumption. This includes
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
@@ -54,7 +81,7 @@ pub enum ChatResponse {
     TaskMessage { content: ChatResponseContent },
     TaskReasoning { content: String },
     TaskComplete,
-    ToolCallStart(ToolCallFull),
+    ToolCallStart(ToolCallStartEvent),
     ToolCallEnd(ToolResult),
     RetryAttempt { cause: Cause, duration: Duration },
     Interrupt { reason: InterruptionReason },
