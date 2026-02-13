@@ -19,7 +19,7 @@ use url::Url;
 use crate::Walker;
 use crate::user::{User, UserUsage};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,

@@ -4,6 +4,24 @@ use serde_json::{Map, Value};
 
 use crate::{Environment, File, Model, Skill};
 
+/// Statistics for a file extension
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExtensionStat {
+    /// File extension (e.g., "rs", "md", "toml")
+    pub extension: String,
+    /// Number of files with this extension
+    pub count: usize,
+    /// Percentage of total files (formatted to 2 decimal places, e.g., "51.42")
+    pub percentage: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Extension {
+    pub extension_stats: Vec<ExtensionStat>,
+    pub is_truncated: bool,
+    pub limit: usize,
+}
+
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[setters(strip_option)]
 #[derive(Default)]
@@ -46,4 +64,9 @@ pub struct SystemContext {
     /// {{tool_names.write}}, etc.
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
+
+    /// File extension statistics sorted by count (descending), limited to the
+    /// top `limit` extensions as defined in the `Extension` struct.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<Extension>,
 }

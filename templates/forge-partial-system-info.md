@@ -7,3 +7,11 @@
 {{#each files}} - {{path}}{{#if is_dir}}/{{/if}}
 {{/each}}</file_list>
 {{/if}}
+{{#if extensions}}
+<workspace_extensions>
+File distribution by extension (percentages show share of total workspace files):
+{{#each extensions.extension_stats}} - {{extension}} ({{count}} files, {{percentage}}%)
+{{/each}}{{#if extensions.is_truncated}}
+Note: Showing top {{extensions.limit}} extensions only. Additional extensions exist but are not listed.
+{{/if}}</workspace_extensions>
+{{/if}}
