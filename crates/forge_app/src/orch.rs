@@ -21,7 +21,6 @@ pub struct Orchestrator<S> {
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
-    event: Event,
     error_tracker: ToolErrorTracker,
     hook: Arc<Hook>,
 }
@@ -32,14 +31,12 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         agent: Agent,
-        event: Event,
     ) -> Self {
         Self {
             conversation,
             environment,
             services,
             agent,
-            event,
             sender: Default::default(),
             tool_definitions: Default::default(),
             models: Default::default(),

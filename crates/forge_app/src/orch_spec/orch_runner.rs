@@ -112,7 +112,6 @@ impl Runner {
             setup.env.clone(),
             conversation,
             agent,
-            event,
         )
         .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)

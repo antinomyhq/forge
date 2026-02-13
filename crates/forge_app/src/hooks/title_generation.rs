@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use forge_domain::{Conversation, EndPayload, EventData, EventHandle, StartPayload};
+use forge_domain::{Conversation, EndPayload, Event, EventData, EventHandle, StartPayload};
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -13,13 +13,18 @@ use crate::title_generator::TitleGenerator;
 #[derive(Clone)]
 pub struct TitleGenerationHandler<S> {
     services: Arc<S>,
+    event: Event,
     title_handle: Arc<Mutex<Option<JoinHandle<Option<String>>>>>,
 }
 
 impl<S> TitleGenerationHandler<S> {
     /// Creates a new title generation handler
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services, title_handle: Arc::new(Mutex::new(None)) }
+    pub fn new(services: Arc<S>, event: Event) -> Self {
+        Self {
+            services,
+            event,
+            title_handle: Arc::new(Mutex::new(None)),
+        }
     }
 }
 
@@ -35,20 +40,10 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
             return Ok(());
         }
 
-        // Extract the first user message from the conversation context
-        let Some(user_prompt) = conversation.context.as_ref().and_then(|ctx| {
-            ctx.messages.iter().find_map(|entry| match &entry.message {
-                forge_domain::ContextMessage::Text(text_msg)
-                    if text_msg.has_role(forge_domain::Role::User) =>
-                {
-                    text_msg
-                        .raw_content
-                        .as_ref()
-                        .and_then(|val| val.as_user_prompt().cloned())
-                        .or(Some(text_msg.content.clone().into()))
-                }
-                _ => None,
-            })
+        // Extract user prompt from the event
+        let Some(user_prompt) = self.event.value.as_ref().and_then(|val| {
+            val.as_user_prompt()
+                .map(|p| p.clone())
         }) else {
             return Ok(());
         };
