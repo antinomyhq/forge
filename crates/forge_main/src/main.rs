@@ -10,6 +10,11 @@ use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Install default rustls crypto provider (ring) before any TLS connections
+    // This is required for rustls 0.23+ when multiple crypto providers are
+    // available
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Set up panic hook for better error display
     panic::set_hook(Box::new(|panic_info| {
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {

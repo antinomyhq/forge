@@ -3,6 +3,7 @@ mod capitalize_tool_names;
 mod drop_invalid_toolcalls;
 mod enforce_schema;
 mod reasoning_transform;
+mod remove_output_format;
 mod set_cache;
 
 pub use auth_system_message::AuthSystemMessage;
@@ -10,4 +11,5 @@ pub use capitalize_tool_names::CapitalizeToolNames;
 pub use drop_invalid_toolcalls::DropInvalidToolUse;
 pub use enforce_schema::EnforceStrictObjectSchema;
 pub use reasoning_transform::ReasoningTransform;
+pub use remove_output_format::RemoveOutputFormat;
 pub use set_cache::SetCache;
