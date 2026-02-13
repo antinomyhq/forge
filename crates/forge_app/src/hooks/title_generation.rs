@@ -20,11 +20,7 @@ pub struct TitleGenerationHandler<S> {
 impl<S> TitleGenerationHandler<S> {
     /// Creates a new title generation handler
     pub fn new(services: Arc<S>, event: Event) -> Self {
-        Self {
-            services,
-            event,
-            title_handle: Arc::new(Mutex::new(None)),
-        }
+        Self { services, event, title_handle: Arc::new(Mutex::new(None)) }
     }
 }
 
@@ -41,10 +37,12 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         }
 
         // Extract user prompt from the event
-        let Some(user_prompt) = self.event.value.as_ref().and_then(|val| {
-            val.as_user_prompt()
-                .map(|p| p.clone())
-        }) else {
+        let Some(user_prompt) = self
+            .event
+            .value
+            .as_ref()
+            .and_then(|val| val.as_user_prompt().cloned())
+        else {
             return Ok(());
         };
 
