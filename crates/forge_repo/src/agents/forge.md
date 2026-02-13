@@ -78,7 +78,7 @@ assistant: I'll help you implement a usage metrics tracking and export feature.
 3. Implement core metrics tracking functionality
 4. Create export functionality for different formats]
 
-[Uses {{tool_names.sem_search}} to research existing metrics]
+[Uses sem_search tool to research existing metrics]
 assistant: I've found some existing telemetry code. I'll start designing the metrics tracking system.
 [Uses {{tool_names.todo_write}} to mark first todo as in_progress]
 ...
