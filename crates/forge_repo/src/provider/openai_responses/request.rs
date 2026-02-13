@@ -146,9 +146,7 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
 ///
 /// # Errors
 /// Returns an error if schema serialization fails
-fn codex_tool_parameters(
-    schema: &schemars::schema::RootSchema,
-) -> anyhow::Result<serde_json::Value> {
+fn codex_tool_parameters(schema: &schemars::Schema) -> anyhow::Result<serde_json::Value> {
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
@@ -529,6 +527,67 @@ mod tests {
         forge_app::domain::ToolCallFull::new(name)
             .call_id(ToolCallId::new(call_id))
             .arguments(forge_app::domain::ToolCallArguments::from_json(args))
+    }
+
+    #[test]
+    fn test_codex_request_tools_snapshot() -> anyhow::Result<()> {
+        // Build a schema that exercises OpenAI strict-mode normalization:
+        // - object schema receives additionalProperties=false
+        // - required keys are sorted
+        // - nullable + enum(null) is converted to anyOf
+        let schema_value = serde_json::json!({
+            "type": "object",
+            "properties": {
+                // Intentionally out-of-order to verify required keys are sorted.
+                "zebra": {"type": "string"},
+                "alpha": {"type": "string"},
+                "output_mode": {
+                    "description": "Output mode",
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["content", "count", null]
+                }
+            }
+        });
+        let schema = schemars::Schema::try_from(schema_value).unwrap();
+
+        let tool = forge_app::domain::ToolDefinition::new("shell")
+            .description("Run a shell command")
+            .input_schema(schema);
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_tool(tool)
+            .tool_choice(ToolChoice::Auto);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        insta::assert_json_snapshot!("openai_responses_tools", actual.tools);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_all_catalog_tools_snapshot() -> anyhow::Result<()> {
+        use forge_app::domain::ToolCatalog;
+        use strum::IntoEnumIterator;
+
+        // Ensure we can serialize ALL built-in tool definitions into the OpenAI
+        // Responses API tool format with strict JSON schema normalization.
+        let tools = ToolCatalog::iter()
+            .map(|tool| tool.definition())
+            .collect::<Vec<_>>();
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .tools(tools)
+            .tool_choice(ToolChoice::Auto);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        insta::assert_json_snapshot!("openai_responses_all_catalog_tools", actual.tools);
+
+        Ok(())
     }
 
     #[test]

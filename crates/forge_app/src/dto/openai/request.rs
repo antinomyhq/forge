@@ -188,7 +188,7 @@ pub enum ResponseFormat {
     #[serde(rename = "json_schema")]
     JsonSchema {
         name: String,
-        schema: Box<schemars::schema::RootSchema>,
+        schema: Box<schemars::Schema>,
     },
 }
 
@@ -378,11 +378,12 @@ impl From<Context> for Request {
                 forge_domain::ResponseFormat::JsonSchema(schema) => {
                     // Extract name from schema title
                     let name = schema
-                        .schema
-                        .metadata
-                        .as_ref()
-                        .and_then(|m| m.title.clone())
-                        .expect("Schema must have a title in metadata");
+                        .as_value()
+                        .as_object()
+                        .and_then(|obj| obj.get("title"))
+                        .and_then(|t| t.as_str())
+                        .map(String::from)
+                        .expect("Schema must have a title");
 
                     ResponseFormat::JsonSchema { name, schema }
                 }
@@ -826,20 +827,14 @@ mod tests {
     fn test_tool_definition_conversion_missing_properties() {
         // Test case where input_schema is an object type but missing properties field
         let fixture = {
-            let mut schema = schemars::schema_for!(());
-            // Create an object schema without properties field
-            schema.schema.object = Some(Box::new(schemars::schema::ObjectValidation {
-                max_properties: None,
-                min_properties: None,
-                required: Default::default(),
-                properties: Default::default(), // Empty properties map
-                pattern_properties: Default::default(),
-                additional_properties: None,
-                property_names: None,
-            }));
-            schema.schema.instance_type = Some(schemars::schema::SingleOrVec::Single(Box::new(
-                schemars::schema::InstanceType::Object,
-            )));
+            // In schemars 1.0, Schema wraps serde_json::Value, so we create JSON directly
+            let schema_value = serde_json::json!({
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "title": "Null",
+                "type": "object",
+                "properties": {}
+            });
+            let schema = schemars::Schema::try_from(schema_value).unwrap();
 
             ToolDefinition::new("test_tool")
                 .description("Test tool")

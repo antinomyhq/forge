@@ -1,4 +1,3 @@
-// Tests for this module can be found in: tests/orch_*.rs
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,11 +7,10 @@ use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
-use tracing::{debug, info, warn};
+use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
-use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
@@ -97,21 +95,11 @@ impl<S: AgentService> Orchestrator<S> {
                 .call(&self.agent, tool_context, tool_call.clone())
                 .await;
 
-            if tool_result.is_error() {
-                warn!(
-                    agent_id = %self.agent.id,
-                    name = %tool_call.name,
-                    arguments = %tool_call.arguments.to_owned().into_string(),
-                    output = ?tool_result.output,
-                    "Tool call failed",
-                );
-            }
-
-            // Fire the ToolcallEnd lifecycle event
+            // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
             let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
-                ToolcallEndPayload::new(tool_result.clone()),
+                ToolcallEndPayload::new(tool_call.clone(), tool_result.clone()),
             ));
             self.hook
                 .handle(&toolcall_end_event, &mut self.conversation)
@@ -154,12 +142,6 @@ impl<S: AgentService> Orchestrator<S> {
             }
         };
 
-        debug!(
-            agent_id = %self.agent.id,
-            model_id = %model_id,
-            tool_supported,
-            "Tool support check"
-        );
         Ok(tool_supported)
     }
 
@@ -191,38 +173,9 @@ impl<S: AgentService> Orchestrator<S> {
             .into_full_streaming(!tool_supported, self.sender.clone())
             .await
     }
-    /// Checks if compaction is needed and performs it if necessary
-    fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
-        // Estimate token count for compaction decision
-        let token_count = context.token_count();
-        if self.agent.compact.should_compact(context, *token_count) {
-            info!(agent_id = %self.agent.id, "Compaction needed");
-            Compactor::new(self.agent.compact.clone(), self.environment.clone())
-                .compact(context.clone(), false)
-                .map(Some)
-        } else {
-            debug!(agent_id = %self.agent.id, "Compaction not needed");
-            Ok(None)
-        }
-    }
 
     // Create a helper method with the core functionality
     pub async fn run(&mut self) -> anyhow::Result<()> {
-        let event = self.event.clone();
-
-        debug!(
-            conversation_id = %self.conversation.id.clone(),
-            event_value = %format!("{:?}", event.value),
-            "Dispatching event"
-        );
-
-        debug!(
-            conversation_id = %self.conversation.id,
-            agent = %self.agent.id,
-            event = ?event,
-            "Initializing agent"
-        );
-
         let model_id = self.get_model();
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
@@ -271,22 +224,33 @@ impl<S: AgentService> Orchestrator<S> {
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
+                || {
+                    self.execute_chat_turn(
+                        &model_id,
+                        context.clone(),
+                        context.is_reasoning_supported(),
+                    )
+                },
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = self.agent.id.clone();
                     let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
                         let root_cause = error.root_cause();
-                        tracing::error!(agent_id = %agent_id, error = ?root_cause, model=%model_id, "Retry Attempt");
-                        let retry_event = ChatResponse::RetryAttempt {
-                            cause: error.into(),
-                            duration,
-                        };
+                        // Log retry attempts - critical for debugging API failures
+                        tracing::error!(
+                            agent_id = %agent_id,
+                            error = ?root_cause,
+                            model = %model_id,
+                            "Retry attempt due to error"
+                        );
+                        let retry_event =
+                            ChatResponse::RetryAttempt { cause: error.into(), duration };
                         let _ = sender.try_send(Ok(retry_event));
                     }
                 }),
-            ).await?;
+            )
+            .await?;
 
             // Fire the Response lifecycle event
             let response_event = LifecycleEvent::Response(EventData::new(
@@ -298,29 +262,12 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&response_event, &mut self.conversation)
                 .await?;
 
-            // TODO: Add a unit test in orch spec, to guarantee that compaction is
-            // triggered after receiving the response
-            // making a request NOTE: Ideally compaction should be implemented
-            // as a transformer
-            if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %self.agent.id, "Using compacted context from execution");
-                context = c_context;
-            } else {
-                debug!(agent_id = %self.agent.id, "No compaction was needed");
+            // Update context from conversation after hook runs (compaction may have
+            // modified it)
+            if let Some(updated_context) = &self.conversation.context {
+                context = updated_context.clone();
             }
 
-            info!(
-                conversation_id = %self.conversation.id,
-                conversation_length = context.messages.len(),
-                token_usage = format!("{}", message.usage.prompt_tokens),
-                total_tokens = format!("{}", message.usage.total_tokens),
-                cached_tokens = format!("{}", message.usage.cached_tokens),
-                cost = message.usage.cost.unwrap_or_default(),
-                finish_reason = message.finish_reason.as_ref().map_or("", |reason| reason.into()),
-                "Processing usage information"
-            );
-
-            debug!(agent_id = %self.agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
             is_complete =
@@ -385,6 +332,7 @@ impl<S: AgentService> Orchestrator<S> {
             if !should_yield && let Some(max_request_allowed) = max_requests_per_turn {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
+                    // Log warning - important for understanding conversation interruptions
                     warn!(
                         agent_id = %self.agent.id,
                         model_id = %model_id,
@@ -412,7 +360,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {
-            debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
             self.conversation.title = Some(title)
         }
 
