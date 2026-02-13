@@ -52,6 +52,13 @@ use crate::{TRACKER, banner, tracker};
 // File-specific constants
 const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
+/// Conversation dump format used by the /dump command
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+struct ConversationDump {
+    conversation: Conversation,
+    related_conversations: Vec<Conversation>,
+}
+
 /// Formats an MCP server config for display, redacting sensitive information.
 /// Returns the command/URL string only.
 fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
@@ -2246,6 +2253,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 AuthMethod::OAuthDevice(_) => "OAuth Device Flow".to_string(),
                 AuthMethod::OAuthCode(_) => "OAuth Authorization Code".to_string(),
                 AuthMethod::GoogleAdc => "Google Application Default Credentials (ADC)".to_string(),
+                AuthMethod::CodexDevice(_) => "OpenAI Codex Device Flow".to_string(),
             })
             .collect();
 
@@ -2496,9 +2504,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             id
         } else if let Some(ref path) = self.cli.conversation {
-            let conversation: Conversation =
-                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
-                    .context("Failed to parse Conversation")?;
+            let content = ForgeFS::read_utf8(path).await?;
+
+            // Try to parse as a dump file first (with "conversation" wrapper)
+            let conversation: Conversation = if let Ok(dump) =
+                serde_json::from_str::<ConversationDump>(&content)
+            {
+                dump.conversation
+            } else {
+                // Fall back to parsing as direct Conversation object
+                serde_json::from_str(&content)
+                    .context("Failed to parse conversation file. Expected either a ConversationDump or Conversation format")?
+            };
+
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;
             id
@@ -2738,13 +2756,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         open::that(path.as_str()).ok();
                     }
                 } else {
-                    // Default: Export as JSON
-                    use serde_json::json;
-
-                    let dump_data = json!({
-                        "conversation": &conversation,
-                        "related_conversations": related_conversations
-                    });
+                    let dump_data = ConversationDump {
+                        conversation: conversation.clone(),
+                        related_conversations: related_conversations.clone(),
+                    };
 
                     let path = format!("{timestamp}-dump.json");
                     let content = serde_json::to_string_pretty(&dump_data)?;
@@ -3154,6 +3169,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|val| val == "1")
             .unwrap_or(true); // Default to true
 
+        // Get currency symbol from environment variable, default to "$"
+        let currency_symbol =
+            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
+
+        // Get conversion ratio from environment variable, default to 1.0
+        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
+            .ok()
+            .and_then(|val| val.parse::<f64>().ok())
+            .unwrap_or(1.0);
+
         let rprompt = ZshRPrompt::default()
             .agent(
                 std::env::var("_FORGE_ACTIVE_AGENT")
@@ -3164,7 +3189,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
-            .use_nerd_font(use_nerd_font);
+            .use_nerd_font(use_nerd_font)
+            .currency_symbol(currency_symbol)
+            .conversion_ratio(conversion_ratio);
 
         Some(rprompt.to_string())
     }
