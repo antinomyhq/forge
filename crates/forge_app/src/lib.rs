@@ -8,6 +8,7 @@ mod changed_files;
 mod command_generator;
 mod compact;
 mod data_gen;
+mod doom_loop_detector;
 pub mod dto;
 mod error;
 mod file_tracking;

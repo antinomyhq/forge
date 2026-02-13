@@ -393,6 +393,81 @@ async fn test_multiple_consecutive_tool_calls() {
 }
 
 #[tokio::test]
+async fn test_doom_loop_detection_fails_third_call_with_system_message() {
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "loop.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Same content")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![
+            (tool_call.clone(), tool_result.clone()),
+            (tool_call.clone(), tool_result.clone()),
+            (tool_call.clone(), tool_result.clone()),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Call 1").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Call 2").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Call 3").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Test doom loop").await.unwrap();
+
+    let chat_responses: Vec<_> = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .collect();
+
+    // Verify the third tool call result is a failure with the system message
+    let tool_call_results: Vec<_> = chat_responses
+        .iter()
+        .filter_map(|response| match response {
+            ChatResponse::ToolCallEnd(result) => Some(result),
+            _ => None,
+        })
+        .collect();
+
+    // Should have 3 tool call results
+    assert_eq!(
+        tool_call_results.len(),
+        3,
+        "Should have 3 tool call results"
+    );
+
+    // First two should be successful
+    assert!(
+        !tool_call_results[0].is_error(),
+        "First call should succeed"
+    );
+    assert!(
+        !tool_call_results[1].is_error(),
+        "Second call should succeed"
+    );
+
+    // Third call should fail with system message
+    assert!(
+        tool_call_results[2].is_error(),
+        "Third call should fail due to doom loop"
+    );
+
+    let error_output = format!("{:?}", tool_call_results[2].output);
+    assert!(
+        error_output.contains("SYSTEM ALERT"),
+        "Error should contain SYSTEM ALERT"
+    );
+    assert!(
+        error_output.contains("repetitive loop"),
+        "Error should mention repetitive loop"
+    );
+    assert!(
+        error_output.contains("Reconsider your approach"),
+        "Error should provide actionable guidance"
+    );
+}
+
+#[tokio::test]
 async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
     let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant("Foo"),

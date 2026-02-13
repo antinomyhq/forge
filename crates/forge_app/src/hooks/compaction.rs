@@ -1,5 +1,7 @@
 use async_trait::async_trait;
-use forge_domain::{Agent, Conversation, Environment, EventData, EventHandle, ResponsePayload};
+use forge_domain::{
+    Agent, Conversation, Environment, EventData, EventHandle, HandleOperation, ResponsePayload,
+};
 use tracing::{debug, info};
 
 use crate::compact::Compactor;
@@ -33,19 +35,25 @@ impl EventHandle<EventData<ResponsePayload>> for CompactionHandler {
         &self,
         _event: &EventData<ResponsePayload>,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         if let Some(context) = &conversation.context {
             let token_count = context.token_count();
             if self.agent.compact.should_compact(context, *token_count) {
                 info!(agent_id = %self.agent.id, "Compaction triggered by hook");
-                let compacted =
-                    Compactor::new(self.agent.compact.clone(), self.environment.clone())
-                        .compact(context.clone(), false)?;
-                conversation.context = Some(compacted);
+                match Compactor::new(self.agent.compact.clone(), self.environment.clone())
+                    .compact(context.clone(), false)
+                {
+                    Ok(compacted) => {
+                        conversation.context = Some(compacted);
+                    }
+                    Err(err) => {
+                        return HandleOperation::agent_error(err);
+                    }
+                }
             } else {
                 debug!(agent_id = %self.agent.id, "Compaction not needed");
             }
         }
-        Ok(())
+        HandleOperation::Continue
     }
 }
