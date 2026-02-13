@@ -51,8 +51,8 @@ fn has_allowed_extension(path: &Path) -> bool {
 fn should_retry_grpc(error: &anyhow::Error) -> bool {
     // Check if this is a connection error (service offline)
     // Connection errors indicate the service is not running and retrying won't help
-    let error_msg = format!("{:#}", error);
-    if error_msg.contains("Connection refused") || error_msg.contains("tcp connect error") {
+    let error_msg = format!("{:#}", error).to_lowercase();
+    if error_msg.contains("connection refused") || error_msg.contains("tcp connect error") {
         return false;
     }
 
@@ -2101,6 +2101,25 @@ mod tests {
         assert!(
             !should_retry_grpc(&error),
             "Expected unavailable status with connection refused to NOT be retried"
+        );
+
+        // Test case-insensitive matching for connection errors
+        let error = anyhow::anyhow!("CONNECTION REFUSED (os error 61)");
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected uppercase CONNECTION REFUSED to NOT be retried"
+        );
+
+        let error = anyhow::anyhow!("TCP Connect Error: connection failed");
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected mixed case TCP Connect Error to NOT be retried"
+        );
+
+        let error = anyhow::anyhow!("Transport error: Tcp Connect Error");
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected title case Tcp Connect Error to NOT be retried"
         );
 
         // Verify that normal unavailable errors (without connection issues) ARE retried
