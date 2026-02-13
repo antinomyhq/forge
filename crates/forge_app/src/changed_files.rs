@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
-use forge_template::Element;
+use forge_template::{ElementBuilder, Output};
 
 use crate::utils::format_display_path;
 use crate::{EnvironmentService, FsReadService};
@@ -47,21 +47,25 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
         conversation.metrics = updated_metrics;
 
         let cwd = self.services.get_environment().cwd;
-        let file_elements: Vec<Element> = changes
-            .iter()
-            .map(|change| {
-                let display_path = format_display_path(&change.path, &cwd);
-                Element::new("file").text(display_path)
-            })
-            .collect();
+        
+        let mut files_element = ElementBuilder::new("files");
+        for change in &changes {
+            let display_path = format_display_path(&change.path, &cwd);
+            files_element = files_element.child(
+                ElementBuilder::new("file").text(display_path).build()
+            );
+        }
 
-        let notification = Element::new("information")
-            .append(
-                Element::new("critical")
-                    .text("The following files have been modified externally. Please re-read them if its relevant for the task."),
+        let notification = Output::new()
+            .element("information")
+            .child(
+                ElementBuilder::new("critical")
+                    .text("The following files have been modified externally. Please re-read them if its relevant for the task.")
+                    .build()
             )
-            .append(Element::new("files").append(file_elements))
-            .to_string();
+            .child(files_element.build())
+            .done()
+            .render_xml();
 
         let context = conversation.context.take().unwrap_or_default();
 
