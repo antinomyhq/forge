@@ -306,6 +306,19 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
             })
             .transpose()?;
 
+        // Add LLM-provided (server-executed) built-in tools. These are executed
+        // by the API server, not by the client, providing the model with web
+        // search and sandboxed Python execution capabilities at zero client cost.
+        let tools = tools.map(|mut t| {
+            t.push(oai::Tool::WebSearch(oai::WebSearchTool::default()));
+            t.push(oai::Tool::CodeInterpreter(oai::CodeInterpreterTool {
+                container: oai::CodeInterpreterToolContainer::Auto(
+                    oai::CodeInterpreterContainerAuto::default(),
+                ),
+            }));
+            t
+        });
+
         let tool_choice = context
             .tool_choice
             .map(oai::ToolChoiceParam::from_domain)
@@ -332,6 +345,13 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
 
         if let Some(tools) = tools {
             builder.tools(tools);
+
+            // Request server-executed tool outputs so the model receives the
+            // results of its web_search and code_interpreter calls.
+            let mut includes = Vec::new();
+            includes.push(oai::IncludeEnum::WebSearchCallActionSources);
+            includes.push(oai::IncludeEnum::CodeInterpreterCallOutputs);
+            builder.include(includes);
         }
 
         if let Some(tool_choice) = tool_choice {

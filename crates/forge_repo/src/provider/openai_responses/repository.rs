@@ -180,15 +180,20 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                     Ok(Event::Message(msg)) => {
                         let result = serde_json::from_str::<super::response::ResponsesStreamEvent>(
                             &msg.data,
-                        )
-                        .with_context(|| format!("Failed to parse SSE event: {}", msg.data));
+                        );
 
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
                                 Some(Ok(*inner))
                             }
-                            Err(e) => Some(Err(e)),
+                            Err(_) => {
+                                // Skip events that can't be deserialized (e.g.
+                                // server-executed tool events like web_search_call
+                                // or code_interpreter_call with partial data).
+                                tracing::debug!(data = %msg.data, "Skipping unrecognized SSE event");
+                                None
+                            }
                         }
                     }
                     Err(reqwest_eventsource::Error::StreamEnded) => None,
@@ -239,14 +244,18 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                     Ok(event) => {
                         let result = serde_json::from_str::<super::response::ResponsesStreamEvent>(
                             &event.data,
-                        )
-                        .with_context(|| format!("Failed to parse SSE event: {}", event.data));
+                        );
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
                                 Some(Ok(*inner))
                             }
-                            Err(e) => Some(Err(e)),
+                            Err(_) => {
+                                // Skip events that can't be deserialized (e.g.
+                                // server-executed tool events with partial data).
+                                tracing::debug!(data = %event.data, "Skipping unrecognized SSE event");
+                                None
+                            }
                         }
                     }
                     Err(e) => Some(Err(anyhow::anyhow!("SSE parse error: {}", e))),
