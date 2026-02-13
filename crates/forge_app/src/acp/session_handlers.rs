@@ -339,7 +339,7 @@ impl<S: Services> AcpAdapter<S> {
             args.session_id.clone(),
             acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
                 acp::ContentBlock::Text(acp::TextContent::new(format!(
-                    "Model changed to: **{}\n\n",
+                    "Model changed to: {}\n\n",
                     model_id
                 ))),
             )),
