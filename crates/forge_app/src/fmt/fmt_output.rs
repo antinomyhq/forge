@@ -30,6 +30,9 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+            ToolOperation::TodoWrite { output } => {
+                Some(ChatResponseContent::ToolOutput(format_todos(output)))
+            }
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
@@ -43,6 +46,48 @@ impl FormatContent for ToolOperation {
     }
 }
 
+/// Formats todos as markdown-style checkboxes
+fn format_todos(todos: &[forge_domain::Todo]) -> String {
+    use forge_domain::TodoStatus;
+
+    if todos.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::new();
+
+    // ANSI codes
+    let dim_start = "\x1b[2m";
+    let dim_end = "\x1b[0m";
+    let strikethrough_start = "\x1b[9m";
+    let strikethrough_end = "\x1b[29m";
+
+    // Display all todos in order with checkbox symbols
+    // Indent to align with title text (after timestamp)
+    for todo in todos {
+        let checkbox = match todo.status {
+            TodoStatus::Completed => "",
+            TodoStatus::InProgress => "",
+            TodoStatus::Pending => "",
+        };
+
+        let content = match todo.status {
+            TodoStatus::Completed => format!(
+                "{}{}{}",
+                strikethrough_start, todo.content, strikethrough_end
+            ),
+            _ => todo.content.clone(),
+        };
+
+        // Indent to align with "Update" in "Update Todos" title
+        // Format: "● [HH:MM:SS] " = 13 chars (bullet+space + [HH:MM:SS] + space)
+        result.push_str(&format!(
+            "             {}{} {}{}\n",
+            dim_start, checkbox, content, dim_end
+        ));
+    }
+    result
+}
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -530,6 +575,114 @@ mod tests {
             assert_eq!(title.sub_title, None);
         } else {
             panic!("Expected Title content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_empty() {
+        let fixture = ToolOperation::TodoWrite { output: vec![] };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert_eq!(text, "");
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_mixed_statuses() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { output: todos };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("Task 1"));
+            assert!(text.contains("Task 2"));
+            assert!(text.contains("[9mTask 3[29m"));
+            // Verify indentation (13 spaces)
+            for line in text.lines() {
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
+            }
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_all_completed() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Completed),
+            Todo::new("Task 2").id("2").status(TodoStatus::Completed),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { output: todos };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("[9mTask 1[29m"));
+            assert!(text.contains("[9mTask 2[29m"));
+            for line in text.lines() {
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
+            }
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_realistic() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Implement user authentication")
+                .id("1")
+                .status(TodoStatus::Completed),
+            Todo::new("Walk the dog")
+                .id("2")
+                .status(TodoStatus::Pending),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { output: todos };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("[9mImplement user authentication[29m"));
+            assert!(text.contains("Walk the dog"));
+            for line in text.lines() {
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
+            }
+        } else {
+            panic!("Expected ToolOutput content");
         }
     }
 }

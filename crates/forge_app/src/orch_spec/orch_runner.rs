@@ -204,6 +204,24 @@ impl AttachmentService for Runner {
 }
 
 #[async_trait::async_trait]
+impl crate::TodoService for Runner {
+    async fn update_todos(
+        &self,
+        _conversation_id: &forge_domain::ConversationId,
+        _todos: Vec<forge_domain::Todo>,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        Ok(Vec::new())
+    }
+
+    async fn get_todos(
+        &self,
+        _conversation_id: &forge_domain::ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        Ok(Vec::new())
+    }
+}
+
+#[async_trait::async_trait]
 impl SkillFetchService for Runner {
     async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
         unimplemented!("SkillFetchService not implemented for test Runner")
