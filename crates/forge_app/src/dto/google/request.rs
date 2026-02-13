@@ -475,6 +475,7 @@ impl From<ContextMessage> for Content {
             ContextMessage::Text(text_message) => Content::from(text_message),
             ContextMessage::Tool(tool_result) => Content::from(tool_result),
             ContextMessage::Image(image) => Content::from(image),
+            ContextMessage::Document(document) => Content::from(document),
         }
     }
 }
@@ -523,6 +524,12 @@ impl From<forge_domain::Image> for Content {
     }
 }
 
+impl From<forge_domain::Document> for Content {
+    fn from(document: forge_domain::Document) -> Self {
+        Content { role: Some(Role::User), parts: vec![Part::from(document)] }
+    }
+}
+
 impl From<forge_domain::ToolCallFull> for Part {
     fn from(tool_call: forge_domain::ToolCallFull) -> Self {
         Part::FunctionCall {
@@ -553,6 +560,18 @@ impl From<forge_domain::Image> for Part {
             inline_data: ImageSource {
                 mime_type: Some(image.mime_type().to_string()),
                 data: Some(image.data().to_string()),
+            },
+            cache_control: None,
+        }
+    }
+}
+
+impl From<forge_domain::Document> for Part {
+    fn from(document: forge_domain::Document) -> Self {
+        Part::Image {
+            inline_data: ImageSource {
+                mime_type: Some(document.mime_type().to_string()),
+                data: Some(document.base64_data().to_string()),
             },
             cache_control: None,
         }

@@ -151,7 +151,7 @@ impl<S: Services> ToolRegistry<S> {
 
             // Validate tool modality support before execution
             // Only resolve the current model when modality validation is needed.
-            if matches!(&tool_input, ToolCatalog::Read(input) if Self::has_image_extension(&input.file_path))
+            if matches!(&tool_input, ToolCatalog::Read(input) if Self::has_visual_extension(&input.file_path))
             {
                 let model = self.get_current_model().await;
                 Self::validate_tool_modality(&tool_input, model.as_ref())?;
@@ -360,59 +360,87 @@ impl<S> ToolRegistry<S> {
     /// Checks if a file path has an image extension.
     /// This is a lightweight check that doesn't require reading the file.
     fn has_image_extension(path: &str) -> bool {
-        const IMAGE_EXTENSIONS: &[&str] = &[
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".pdf",
-        ];
+        const IMAGE_EXTENSIONS: &[&str] =
+            &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
 
         let path_lower = path.to_lowercase();
         IMAGE_EXTENSIONS.iter().any(|ext| path_lower.ends_with(ext))
+    }
+
+    /// Checks if a file path has a document extension (e.g., PDF).
+    /// This is a lightweight check that doesn't require reading the file.
+    fn has_document_extension(path: &str) -> bool {
+        const DOCUMENT_EXTENSIONS: &[&str] = &[".pdf"];
+
+        let path_lower = path.to_lowercase();
+        DOCUMENT_EXTENSIONS
+            .iter()
+            .any(|ext| path_lower.ends_with(ext))
+    }
+
+    /// Checks if a file path has an image or document extension that requires
+    /// special modality support.
+    fn has_visual_extension(path: &str) -> bool {
+        Self::has_image_extension(path) || Self::has_document_extension(path)
+    }
+
+    /// Returns a formatted string of supported modalities for the given model.
+    fn format_supported_modalities(model: Option<&Model>) -> String {
+        model
+            .map(|m| {
+                m.input_modalities
+                    .iter()
+                    .map(|im| im.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            })
+            .unwrap_or_else(|| "unknown".to_string())
     }
 
     /// Validates if a tool's modality requirements are supported by the current
     /// model.
     ///
     /// # Validation Process
-    /// Checks if the tool requires image input support and if the model
+    /// Checks if the tool requires image or file input support and if the model
     /// supports it. Currently, only the `read` tool can potentially require
-    /// image modality.
+    /// image or file modality.
     fn validate_tool_modality(
         tool_input: &ToolCatalog,
         model: Option<&Model>,
     ) -> Result<(), Error> {
-        // Check if this tool might require image support
-        // Currently, only the read tool can return image content
         if let ToolCatalog::Read(input) = tool_input {
-            // Check if the file extension suggests it's an image
             if Self::has_image_extension(&input.file_path) {
                 // Check if the model supports image input
                 let supports_image = model
-                    .and_then(|m| {
+                    .map(|m| {
                         m.input_modalities
                             .iter()
-                            .find(|im| matches!(im, InputModality::Image))
+                            .any(|im| matches!(im, InputModality::Image))
                     })
-                    .is_some();
+                    .unwrap_or(false);
 
                 if !supports_image {
-                    let tool_name = ToolKind::Read.name();
-                    let required_modality = "image".to_string();
-                    let supported_modalities = model
-                        .map(|m| {
-                            m.input_modalities
-                                .iter()
-                                .map(|im| match im {
-                                    InputModality::Text => "text".to_string(),
-                                    InputModality::Image => "image".to_string(),
-                                })
-                                .collect::<Vec<_>>()
-                                .join(", ")
-                        })
-                        .unwrap_or_else(|| "unknown".to_string());
-
                     return Err(Error::UnsupportedModality {
-                        tool_name,
-                        required_modality,
-                        supported_modalities,
+                        tool_name: ToolKind::Read.name(),
+                        required_modality: "image".to_string(),
+                        supported_modalities: Self::format_supported_modalities(model),
+                    });
+                }
+            } else if Self::has_document_extension(&input.file_path) {
+                // Check if the model supports file/document input
+                let supports_file = model
+                    .map(|m| {
+                        m.input_modalities
+                            .iter()
+                            .any(|im| matches!(im, InputModality::File))
+                    })
+                    .unwrap_or(false);
+
+                if !supports_file {
+                    return Err(Error::UnsupportedModality {
+                        tool_name: ToolKind::Read.name(),
+                        required_modality: "file".to_string(),
+                        supported_modalities: Self::format_supported_modalities(model),
                     });
                 }
             }
@@ -941,7 +969,9 @@ fn test_has_image_extension() {
     assert!(ToolRegistry::<()>::has_image_extension(
         "../images/photo.jpg"
     ));
-    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.pdf"));
+    assert!(!ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.pdf"
+    ));
 
     // Test non-image files
     assert!(!ToolRegistry::<()>::has_image_extension(
@@ -957,6 +987,25 @@ fn test_has_image_extension() {
         "file.with.dots.png"
     ));
     assert!(ToolRegistry::<()>::has_image_extension(".png")); // Hidden file with .png extension
+}
+
+#[test]
+fn test_has_document_extension() {
+    // Test document extensions (case-insensitive)
+    assert!(ToolRegistry::<()>::has_document_extension(
+        "/path/to/file.pdf"
+    ));
+    assert!(ToolRegistry::<()>::has_document_extension(
+        "/path/to/file.PDF"
+    ));
+
+    // Test non-document files
+    assert!(!ToolRegistry::<()>::has_document_extension(
+        "/path/to/file.png"
+    ));
+    assert!(!ToolRegistry::<()>::has_document_extension(
+        "/path/to/file.txt"
+    ));
 }
 
 #[test]

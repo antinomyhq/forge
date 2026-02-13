@@ -229,7 +229,7 @@ impl ToolOperation {
                     tracing::info!(
                         path = %input.file_path,
                         tool = %tool_name,
-                        "Visual content read (image/PDF)"
+                        "Visual content read (image)"
                     );
                     *metrics = metrics.clone().insert(
                         input.file_path.clone(),
@@ -238,6 +238,22 @@ impl ToolOperation {
                     );
 
                     return forge_domain::ToolOutput::image(image.clone());
+                }
+
+                // Check if content is a document (PDF)
+                if let Some(document) = output.content.as_document() {
+                    tracing::info!(
+                        path = %input.file_path,
+                        tool = %tool_name,
+                        "Document content read (PDF)"
+                    );
+                    *metrics = metrics.clone().insert(
+                        input.file_path.clone(),
+                        FileOperation::new(tool_kind)
+                            .content_hash(Some(output.content_hash.clone())),
+                    );
+
+                    return forge_domain::ToolOutput::document(document.clone());
                 }
 
                 // Handle text content
@@ -674,6 +690,9 @@ mod tests {
             }
             ToolValue::Image(image) => {
                 writeln!(result, "Image with mime type: {}", image.mime_type()).unwrap();
+            }
+            ToolValue::Document(doc) => {
+                writeln!(result, "Document with mime type: {}", doc.mime_type()).unwrap();
             }
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();

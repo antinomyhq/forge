@@ -1,7 +1,7 @@
 use nom::Parser;
 use nom::bytes::complete::tag;
 
-use crate::Image;
+use crate::{Document, Image};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct Attachment {
@@ -12,6 +12,7 @@ pub struct Attachment {
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AttachmentContent {
     Image(Image),
+    Document(Document),
     FileContent {
         content: String,
         start_line: u64,
@@ -37,9 +38,17 @@ impl AttachmentContent {
         }
     }
 
+    pub fn as_document(&self) -> Option<&Document> {
+        match self {
+            AttachmentContent::Document(doc) => Some(doc),
+            _ => None,
+        }
+    }
+
     pub fn contains(&self, text: &str) -> bool {
         match self {
             AttachmentContent::Image(_) => false,
+            AttachmentContent::Document(_) => false,
             AttachmentContent::FileContent { content, .. } => content.contains(text),
             AttachmentContent::DirectoryListing { .. } => false,
         }
