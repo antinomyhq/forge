@@ -2080,7 +2080,7 @@ mod tests {
         // Test the exact scenario from the bug report:
         // Status code is Unavailable, but the underlying error is a connection refused
         // This should NOT retry because the service is offline
-        
+
         // Simulate the actual error message format from tonic transport errors
         let error = anyhow::anyhow!(
             "code: 'The service is currently unavailable', message: \"tcp connect error\", \
@@ -2088,7 +2088,7 @@ mod tests {
             \"tcp connect error\", 127.0.0.1:8080, Os {{ code: 61, kind: ConnectionRefused, \
             message: \"Connection refused\" }})))"
         );
-        
+
         assert!(
             !should_retry_grpc(&error),
             "Expected connection refused error to NOT be retried"
@@ -2097,7 +2097,7 @@ mod tests {
         // Test with wrapped tonic::Status::unavailable containing connection error
         let error = anyhow::Error::new(tonic::Status::unavailable("tcp connect error"))
             .context("Connection refused (os error 61)");
-        
+
         assert!(
             !should_retry_grpc(&error),
             "Expected unavailable status with connection refused to NOT be retried"
@@ -2105,7 +2105,7 @@ mod tests {
 
         // Verify that normal unavailable errors (without connection issues) ARE retried
         let error = anyhow::Error::new(tonic::Status::unavailable("service temporarily down"));
-        
+
         assert!(
             should_retry_grpc(&error),
             "Expected normal unavailable status to be retried"
