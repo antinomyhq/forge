@@ -77,6 +77,18 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
 
                 // Stream content delta if sender is available
                 if let Some(ref sender) = sender {
+                    if let Some(reasoning_part) = message.reasoning.as_ref() {
+                        let delta = reasoning_part.as_str();
+                        if !delta.is_empty() {
+                            // Ignore send errors - the receiver may have been dropped
+                            let _ = sender
+                                .send(Ok(ChatResponse::TaskReasoning {
+                                    content: delta.to_string(),
+                                }))
+                                .await;
+                        }
+                    }
+
                     if let Some(content_part) = message.content.as_ref() {
                         let delta = content_part.as_str();
                         if !delta.is_empty() {
@@ -87,18 +99,6 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                                         text: delta.to_string(),
                                         partial: true,
                                     },
-                                }))
-                                .await;
-                        }
-                    }
-
-                    if let Some(reasoning_part) = message.reasoning.as_ref() {
-                        let delta = reasoning_part.as_str();
-                        if !delta.is_empty() {
-                            // Ignore send errors - the receiver may have been dropped
-                            let _ = sender
-                                .send(Ok(ChatResponse::TaskReasoning {
-                                    content: delta.to_string(),
                                 }))
                                 .await;
                         }
