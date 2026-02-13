@@ -557,7 +557,9 @@ mod tests {
 
         // Ensure we can serialize ALL built-in tool definitions into the OpenAI
         // Responses API tool format with strict JSON schema normalization.
-        let tools = ToolCatalog::iter().map(|tool| tool.definition()).collect::<Vec<_>>();
+        let tools = ToolCatalog::iter()
+            .map(|tool| tool.definition())
+            .collect::<Vec<_>>();
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Hello", None))
