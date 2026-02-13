@@ -10,7 +10,7 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, TracingHandler};
+use crate::hooks::{CompactionHandler, TitleGenerationHandler, TracingHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{
@@ -143,8 +143,9 @@ impl<S: Services> ForgeApp<S> {
 
         // Create the orchestrator with all necessary dependencies
         let tracing_handler = TracingHandler::new();
+        let title_handler = TitleGenerationHandler::new(services.clone());
         let hook = Hook::default()
-            .on_start(tracing_handler.clone())
+            .on_start(tracing_handler.clone().and(title_handler.clone()))
             .on_request(tracing_handler.clone())
             .on_response(
                 tracing_handler
@@ -153,7 +154,7 @@ impl<S: Services> ForgeApp<S> {
             )
             .on_toolcall_start(tracing_handler.clone())
             .on_toolcall_end(tracing_handler.clone())
-            .on_end(tracing_handler);
+            .on_end(tracing_handler.and(title_handler));
 
         let orch = Orchestrator::new(
             services.clone(),
