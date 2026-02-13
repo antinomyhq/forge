@@ -19,10 +19,7 @@ pub struct TitleGenerationHandler<S> {
 impl<S> TitleGenerationHandler<S> {
     /// Creates a new title generation handler
     pub fn new(services: Arc<S>) -> Self {
-        Self {
-            services,
-            title_handle: Arc::new(Mutex::new(None)),
-        }
+        Self { services, title_handle: Arc::new(Mutex::new(None)) }
     }
 }
 
@@ -44,7 +41,10 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
                 forge_domain::ContextMessage::Text(text_msg)
                     if text_msg.has_role(forge_domain::Role::User) =>
                 {
-                    text_msg.raw_content.as_ref().and_then(|val| val.as_user_prompt().cloned())
+                    text_msg
+                        .raw_content
+                        .as_ref()
+                        .and_then(|val| val.as_user_prompt().cloned())
                         .or(Some(text_msg.content.clone().into()))
                 }
                 _ => None,
