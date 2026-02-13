@@ -22,7 +22,7 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub tools: Vec<ToolDefinition>,
+    pub tools: Vec<ToolEntry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_k: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -104,11 +104,23 @@ impl TryFrom<forge_domain::Context> for Request {
                 .filter(|message| !message.has_role(forge_domain::Role::System))
                 .map(|msg| Message::try_from(msg.message))
                 .collect::<std::result::Result<Vec<_>, _>>()?,
-            tools: request
-                .tools
-                .into_iter()
-                .map(ToolDefinition::try_from)
-                .collect::<std::result::Result<Vec<_>, _>>()?,
+            tools: {
+                let mut tools: Vec<ToolEntry> = request
+                    .tools
+                    .into_iter()
+                    .map(ToolDefinition::try_from)
+                    .collect::<std::result::Result<Vec<_>, _>>()?
+                    .into_iter()
+                    .map(ToolEntry::Function)
+                    .collect();
+                // Add server-executed web search tool
+                tools.push(ToolEntry::WebSearch(WebSearchTool {
+                    r#type: "web_search_20250305".to_string(),
+                    name: "web_search".to_string(),
+                    max_uses: None,
+                }));
+                tools
+            },
             system: Some(system_messages),
             temperature: request.temperature.map(|t| t.value()),
             top_p: request.top_p.map(|t| t.value()),
@@ -476,6 +488,26 @@ impl From<forge_domain::ToolChoice> for ToolChoice {
             forge_domain::ToolChoice::None => ToolChoice::Auto { disable_parallel_tool_use: None },
         }
     }
+}
+
+/// A tool entry in the Anthropic tools array. Supports both function tools and
+/// server-executed built-in tools like web search.
+#[derive(Serialize)]
+#[serde(untagged)]
+pub enum ToolEntry {
+    /// Standard function tool definition.
+    Function(ToolDefinition),
+    /// Server-executed web search tool (Anthropic handles execution).
+    WebSearch(WebSearchTool),
+}
+
+/// Anthropic's server-executed web search tool definition.
+#[derive(Serialize)]
+pub struct WebSearchTool {
+    pub r#type: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_uses: Option<u32>,
 }
 
 #[derive(Serialize)]

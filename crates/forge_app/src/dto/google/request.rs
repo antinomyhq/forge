@@ -361,18 +361,26 @@ impl From<Context> for Request {
         }
 
         // Convert tools
-        let tools = if !context.tools.is_empty() {
-            Some(vec![Tool::FunctionDeclarations {
-                function_declarations: Some(
-                    context
-                        .tools
-                        .into_iter()
-                        .map(FunctionDeclaration::from)
-                        .collect(),
-                ),
-            }])
-        } else {
-            None
+        let tools = {
+            let mut tool_list = Vec::new();
+
+            if !context.tools.is_empty() {
+                tool_list.push(Tool::FunctionDeclarations {
+                    function_declarations: Some(
+                        context
+                            .tools
+                            .into_iter()
+                            .map(FunctionDeclaration::from)
+                            .collect(),
+                    ),
+                });
+            }
+
+            // Add server-executed built-in tools
+            tool_list.push(Tool::GoogleSearch { google_search: GoogleSearchTool {} });
+            tool_list.push(Tool::CodeExecution { code_execution: serde_json::json!({}) });
+
+            Some(tool_list)
         };
 
         // Build generation config
