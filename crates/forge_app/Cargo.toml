@@ -38,12 +38,17 @@ url.workspace = true
 reqwest.workspace = true
 bytes.workspace = true
 reqwest-eventsource.workspace = true
+uuid.workspace = true
 schemars.workspace = true
 glob.workspace = true
 lazy_static.workspace = true
 
 tonic.workspace = true
 
+# ACP dependencies
+agent-client-protocol.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
+base64.workspace = true
 
 [dev-dependencies]
 forge_test_kit.workspace = true

@@ -58,6 +58,25 @@ impl Transformer for TransformToolCalls {
                             crate::ToolValue::Image(image) => {
                                 new_messages.push(ContextMessage::Image(image).into());
                             }
+                            crate::ToolValue::FileDiff(file_diff) => {
+                                // Convert FileDiff to text representation for models that don't support diffs
+                                let diff_text = format!(
+                                    "File: {}\n\nNew content:\n{}",
+                                    file_diff.path, file_diff.new_text
+                                );
+                                new_messages
+                                    .push(ContextMessage::user(diff_text, self.model.clone()).into());
+                            }
+                            crate::ToolValue::Markdown(md) => {
+                                new_messages.push(ContextMessage::user(md, self.model.clone()).into());
+                            }
+                            crate::ToolValue::Pair(llm_value, _) => {
+                                // For models, use the LLM value (typically XML)
+                                if let Some(text) = llm_value.as_str() {
+                                    new_messages
+                                        .push(ContextMessage::user(text, self.model.clone()).into());
+                                }
+                            }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => new_messages
                                 .push(ContextMessage::user(value, self.model.clone()).into()),

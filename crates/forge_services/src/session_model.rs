@@ -1,37 +1,80 @@
 use std::sync::Arc;
 
 use forge_app::SessionModelService;
-use forge_domain::{ModelId, SessionId};
+use forge_domain::{ModelId, SessionId, SessionRepository};
 
 /// Session model management service
 ///
 /// Manages session-specific model overrides and effective model resolution.
-pub struct ForgeSessionModelService<F> {
-    _infra: Arc<F>,
+/// This service manages session → model_override mapping only.
+/// Does not depend on other services. The app layer orchestrates combining overrides
+/// with provider services to fetch actual model details.
+pub struct ForgeSessionModelService<R> {
+    repository: Arc<R>,
 }
 
-impl<F> ForgeSessionModelService<F> {
+impl<R> ForgeSessionModelService<R> {
     /// Creates a new session model service
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { _infra: infra }
+    ///
+    /// # Arguments
+    /// * `repository` - Repository for session persistence
+    pub fn new(repository: Arc<R>) -> Self {
+        Self { repository }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> SessionModelService for ForgeSessionModelService<F> {
+impl<R: SessionRepository> SessionModelService for ForgeSessionModelService<R> {
     async fn set_session_model(
         &self,
-        _session_id: &SessionId,
-        _model_id: &ModelId,
+        session_id: &SessionId,
+        model_id: &ModelId,
     ) -> anyhow::Result<()> {
-        anyhow::bail!("SessionModelService not yet implemented")
+        // Load session state
+        let state = self
+            .repository
+            .load_session(session_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Session not found: {}", session_id))?;
+
+        // Update model override using setter
+        let updated_state = state.model_override(model_id.clone());
+
+        // Save updated state
+        self.repository.save_session(session_id, &updated_state).await?;
+
+        Ok(())
     }
 
-    async fn get_effective_model(&self, _session_id: &SessionId) -> anyhow::Result<ModelId> {
-        anyhow::bail!("SessionModelService not yet implemented")
+    async fn get_effective_model(&self, session_id: &SessionId) -> anyhow::Result<ModelId> {
+        // Load session state
+        let state = self
+            .repository
+            .load_session(session_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Session not found: {}", session_id))?;
+
+        // Return override if set
+        // If no override, the app layer should get the agent's model
+        state
+            .model_override
+            .ok_or_else(|| anyhow::anyhow!("No model override set for session. App layer should get agent's default model via SessionAgentService"))
     }
 
-    async fn clear_model_override(&self, _session_id: &SessionId) -> anyhow::Result<()> {
-        anyhow::bail!("SessionModelService not yet implemented")
+    async fn clear_model_override(&self, session_id: &SessionId) -> anyhow::Result<()> {
+        // Load session state
+        let mut state = self
+            .repository
+            .load_session(session_id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Session not found: {}", session_id))?;
+
+        // Clear override directly (setters don't work well for clearing Options)
+        state.model_override = None;
+
+        // Save updated state
+        self.repository.save_session(session_id, &state).await?;
+
+        Ok(())
     }
 }

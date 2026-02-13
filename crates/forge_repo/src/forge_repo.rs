@@ -30,6 +30,7 @@ use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fuzzy_search::ForgeFuzzySearchRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
+use crate::session::ForgeSessionRepository;
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
 use crate::workspace::ForgeWorkspaceRepository;
@@ -53,6 +54,7 @@ pub struct ForgeRepo<F> {
     skill_repository: Arc<ForgeSkillRepository<F>>,
     validation_repository: Arc<ForgeValidationRepository<F>>,
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
+    session_repository: Arc<ForgeSessionRepository>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
@@ -83,6 +85,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
         let fuzzy_search_repository = Arc::new(ForgeFuzzySearchRepository::new(infra.clone()));
+        let session_repository = Arc::new(ForgeSessionRepository::new());
         Self {
             infra,
             file_snapshot_service,
@@ -97,6 +100,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             skill_repository,
             validation_repository,
             fuzzy_search_repository,
+            session_repository,
         }
     }
 }
@@ -653,5 +657,35 @@ impl<F: forge_domain::ConsoleWriter> forge_domain::ConsoleWriter for ForgeRepo<F
 
     fn flush_err(&self) -> std::io::Result<()> {
         self.infra.flush_err()
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::SessionRepository for ForgeRepo<F> {
+    async fn save_session(
+        &self,
+        session_id: &forge_domain::SessionId,
+        state: &forge_domain::SessionState,
+    ) -> anyhow::Result<()> {
+        self.session_repository.save_session(session_id, state).await
+    }
+
+    async fn load_session(
+        &self,
+        session_id: &forge_domain::SessionId,
+    ) -> anyhow::Result<Option<forge_domain::SessionState>> {
+        self.session_repository.load_session(session_id).await
+    }
+
+    async fn delete_session(&self, session_id: &forge_domain::SessionId) -> anyhow::Result<()> {
+        self.session_repository.delete_session(session_id).await
+    }
+
+    async fn list_sessions(&self) -> anyhow::Result<Vec<forge_domain::SessionId>> {
+        self.session_repository.list_sessions().await
+    }
+
+    async fn cleanup_expired_sessions(&self, ttl: std::time::Duration) -> anyhow::Result<usize> {
+        self.session_repository.cleanup_expired_sessions(ttl).await
     }
 }
