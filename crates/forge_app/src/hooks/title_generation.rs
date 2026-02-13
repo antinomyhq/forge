@@ -44,7 +44,8 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
                 forge_domain::ContextMessage::Text(text_msg)
                     if text_msg.has_role(forge_domain::Role::User) =>
                 {
-                    text_msg.get_user_prompt()
+                    text_msg.raw_content.as_ref().and_then(|val| val.as_user_prompt().cloned())
+                        .or(Some(text_msg.content.clone().into()))
                 }
                 _ => None,
             })

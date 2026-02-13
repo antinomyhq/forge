@@ -19,7 +19,7 @@ use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
     Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
-    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage, UserPrompt,
+    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Response format for structured output
@@ -330,17 +330,6 @@ impl TextMessage {
 
     pub fn has_role(&self, role: Role) -> bool {
         self.role == role
-    }
-
-    /// Gets the user prompt content, preferring raw_content over rendered content
-    ///
-    /// Returns the raw user prompt if available, otherwise returns the rendered content.
-    /// Always returns `Some` value as a fallback to the content field.
-    pub fn get_user_prompt(&self) -> Option<UserPrompt> {
-        self.raw_content
-            .as_ref()
-            .and_then(|val| val.as_user_prompt().cloned())
-            .or(Some(self.content.clone().into()))
     }
 
     pub fn assistant(
