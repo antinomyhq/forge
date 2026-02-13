@@ -310,7 +310,10 @@ impl<S: AgentService> Orchestrator<S> {
             );
 
             if is_complete {
-                let pending_todos = self.services.get_pending_todos(&self.conversation.id).await?;
+                let pending_todos = self
+                    .services
+                    .get_pending_todos(&self.conversation.id)
+                    .await?;
                 if !pending_todos.is_empty() {
                     let reminder = format!(
                         "You have {} pending todo items. Please complete them before finishing the task.",

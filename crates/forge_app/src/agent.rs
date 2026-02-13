@@ -5,8 +5,7 @@ use forge_domain::{
     ToolCallContext, ToolCallFull, ToolResult,
 };
 
-use crate::services::AppConfigService;
-use crate::services::TodoService;
+use crate::services::{AppConfigService, TodoService};
 use crate::tool_registry::ToolRegistry;
 use crate::{ConversationService, ProviderService, Services};
 
