@@ -1,0 +1,24 @@
+---
+source: crates/forge_app/src/tool_registry.rs
+expression: format_tool_output(actual)
+---
+<mcp_output
+  start_line="1"
+  end_line="2"
+  total_lines="3"
+  file_path="[TEMP_FILE]"
+>
+<body><![CDATA[Line 1
+Line 2]]></body>
+<truncated>Content truncated to first 2 of 3 lines. Full content available at: [TEMP_FILE]</truncated>
+</mcp_output>
+---
+<mcp_output
+  start_line="1"
+  end_line="0"
+  total_lines="2"
+  file_path="[TEMP_FILE]"
+>
+<body><![CDATA[]]></body>
+<truncated>Content truncated to first 0 of 2 lines. Full content available at: [TEMP_FILE]</truncated>
+</mcp_output>
