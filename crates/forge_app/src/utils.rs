@@ -399,10 +399,7 @@ mod tests {
         enforce_strict_schema(&mut schema, false);
 
         // In non-strict mode, nullable should be preserved as-is
-        assert_eq!(
-            schema["properties"]["output_mode"]["nullable"],
-            json!(true)
-        );
+        assert_eq!(schema["properties"]["output_mode"]["nullable"], json!(true));
         assert!(schema["properties"]["output_mode"].get("anyOf").is_none());
     }
 }
