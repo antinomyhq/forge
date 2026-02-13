@@ -428,11 +428,7 @@ impl OutputRenderer for XmlRenderer {
                 } else {
                     result.push_str(&format!("<{}", name));
                     for (key, value) in attrs {
-                        result.push_str(&format!(
-                            "\n  {}=\"{}\"",
-                            key,
-                            html_escape::encode_double_quoted_attribute(value)
-                        ));
+                        result.push_str(&format!("\n  {key}=\"{value}\""));
                     }
                     result.push_str("\n>");
                 }
@@ -883,6 +879,7 @@ mod test {
 
     #[test]
     fn test_special_characters_in_attributes() {
+        // Matches Element behavior - attributes are NOT escaped
         let output = Output::new()
             .element("test")
             .attr("quote", r#"He said "hello""#)
@@ -891,8 +888,224 @@ mod test {
             .done();
 
         let xml = output.render_xml();
-        assert!(xml.contains("&quot;"));
-        assert!(xml.contains("&amp;"));
-        assert!(xml.contains("&lt;"));
+        // Attributes are not escaped to match Element behavior
+        assert!(xml.contains(r#"quote="He said "hello"""#));
+        assert!(xml.contains(r#"ampersand="Tom & Jerry""#));
+        assert!(xml.contains(r#"less="x < 5""#));
+    }
+
+    // ============================================================================
+    // XML Rendering Compatibility Tests (matching Element behavior)
+    // ============================================================================
+
+    #[test]
+    fn test_xml_simple_element_no_attrs() {
+        // Element behavior: <div></div>
+        let output = Output::new().element("div").done();
+        let expected = "<div></div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_element_with_single_attr() {
+        // Element behavior: attributes cause multiline format
+        let output = Output::new().element("div").attr("class", "test").done();
+        let expected = "<div\n  class=\"test\"\n>\n</div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_element_with_text_content() {
+        // Element behavior: text content is HTML-escaped
+        let output = Output::new()
+            .element("div")
+            .text("<script>alert('XSS')</script>")
+            .done();
+        let expected = "<div>&lt;script&gt;alert('XSS')&lt;/script&gt;</div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_element_with_cdata_content() {
+        // Element behavior: CDATA is not escaped
+        let output = Output::new()
+            .element("code")
+            .attr("lang", "rust")
+            .cdata("fn main() {\n    let x = \"<div>\";\n}")
+            .done();
+
+        let xml = output.render_xml();
+        assert!(xml.contains("<![CDATA["));
+        assert!(xml.contains("fn main()"));
+        assert!(xml.contains(r#"let x = "<div>";"#));
+        assert!(xml.contains("]]>"));
+    }
+
+    #[test]
+    fn test_xml_element_with_children() {
+        // Element behavior: children on new lines
+        let output = Output::new()
+            .element("div")
+            .attr("class", "test")
+            .child(ElementBuilder::new("span").build())
+            .done();
+
+        let expected = "<div\n  class=\"test\"\n>\n<span></span>\n</div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_element_with_multiple_children() {
+        // Element behavior: each child on new line
+        let output = Output::new()
+            .element("div")
+            .attr("class", "test")
+            .child(ElementBuilder::new("span").build())
+            .child(ElementBuilder::new("p").build())
+            .done();
+
+        let expected = "<div\n  class=\"test\"\n>\n<span></span>\n<p></p>\n</div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_nested_children_with_attrs() {
+        // Element behavior: nested elements with attributes
+        let output = Output::new()
+            .element("div")
+            .attr("class", "test")
+            .child(
+                ElementBuilder::new("span")
+                    .attr("class", "child")
+                    .build(),
+            )
+            .child(ElementBuilder::new("p").attr("class", "child").build())
+            .done();
+
+        let expected = "<div\n  class=\"test\"\n>\n<span\n  class=\"child\"\n>\n</span>\n<p\n  class=\"child\"\n>\n</p>\n</div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_text_with_children() {
+        // Element behavior: text followed by children
+        let output = Output::new()
+            .element("div")
+            .attr("class", "test")
+            .text("Hello, world!")
+            .child(
+                ElementBuilder::new("span")
+                    .attr("class", "child")
+                    .build(),
+            )
+            .done();
+
+        let expected = "<div\n  class=\"test\"\n>Hello, world!\n<span\n  class=\"child\"\n>\n</span>\n</div>";
+        assert_eq!(output.render_xml(), expected);
+    }
+
+    #[test]
+    fn test_xml_closing_tag_format() {
+        // Element behavior: closing tag on same line if no attrs and no children
+        let no_attrs_no_children = Output::new().element("div").done();
+        assert_eq!(no_attrs_no_children.render_xml(), "<div></div>");
+
+        // Closing tag on new line if has attributes
+        let with_attrs = Output::new().element("div").attr("id", "1").done();
+        assert_eq!(with_attrs.render_xml(), "<div\n  id=\"1\"\n>\n</div>");
+
+        // Closing tag on new line if has children
+        let with_children = Output::new()
+            .element("div")
+            .child(ElementBuilder::new("span").build())
+            .done();
+        assert_eq!(
+            with_children.render_xml(),
+            "<div>\n<span></span>\n</div>"
+        );
+    }
+
+    #[test]
+    fn test_xml_multiple_attributes() {
+        // Element behavior: each attribute on new line with 2-space indent
+        let output = Output::new()
+            .element("div")
+            .attr("id", "main")
+            .attr("class", "container")
+            .attr("data-test", "true")
+            .done();
+
+        let xml = output.render_xml();
+        assert!(xml.contains("\n  id=\"main\""));
+        assert!(xml.contains("\n  class=\"container\""));
+        assert!(xml.contains("\n  data-test=\"true\""));
+    }
+
+    #[test]
+    fn test_xml_deep_nesting() {
+        // Element behavior: deep nesting maintains structure
+        let output = Output::new()
+            .element("root")
+            .child(
+                ElementBuilder::new("level1")
+                    .child(
+                        ElementBuilder::new("level2")
+                            .child(
+                                ElementBuilder::new("level3")
+                                    .child(
+                                        ElementBuilder::new("level4")
+                                            .attr("depth", "4")
+                                            .text("Deep content")
+                                            .build(),
+                                    )
+                                    .build(),
+                            )
+                            .build(),
+                    )
+                    .build(),
+            )
+            .done();
+
+        let xml = output.render_xml();
+        assert!(xml.contains("<root>"));
+        assert!(xml.contains("<level1>"));
+        assert!(xml.contains("<level2>"));
+        assert!(xml.contains("<level3>"));
+        assert!(xml.contains("<level4"));
+        assert!(xml.contains(r#"depth="4""#));
+        assert!(xml.contains("Deep content"));
+    }
+
+    #[test]
+    fn test_xml_unescaped_attributes() {
+        // Element behavior: attributes are NOT escaped (matches Element line 82)
+        let output = Output::new()
+            .element("element")
+            .attr("message", "Error: \"file not found\" & path invalid")
+            .attr("code", "<script>alert('xss')</script>")
+            .done();
+
+        let xml = output.render_xml();
+        assert!(xml.contains(r#"message="Error: "file not found" & path invalid""#));
+        assert!(xml.contains(r#"code="<script>alert('xss')</script>""#));
+    }
+
+    #[test]
+    fn test_xml_text_vs_cdata_escaping() {
+        // Text content is escaped
+        let with_text = Output::new()
+            .element("div")
+            .text("<script>alert('XSS')</script>")
+            .done();
+        assert!(with_text.render_xml().contains("&lt;script&gt;"));
+
+        // CDATA content is NOT escaped
+        let with_cdata = Output::new()
+            .element("div")
+            .cdata("<script>alert('XSS')</script>")
+            .done();
+        let xml = with_cdata.render_xml();
+        assert!(xml.contains("<![CDATA[<script>alert('XSS')</script>]]>"));
+        assert!(!xml.contains("&lt;"));
     }
 }
