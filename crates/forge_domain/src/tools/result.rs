@@ -1,5 +1,5 @@
 use derive_setters::Setters;
-use forge_template::Element;
+use forge_template::{ElementBuilder, Output};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConversationId, Image, ToolCallFull, ToolCallId, ToolName};
@@ -58,9 +58,20 @@ impl ToolResult {
                 }
 
                 self.output = ToolOutput::text(
-                    Element::new("tool_call_error")
-                        .append(Element::new("cause").cdata(message.join("\n")))
-                        .append(Element::new("reflection").text(REFLECTION_PROMPT)),
+                    Output::new()
+                        .element("tool_call_error")
+                        .child(
+                            ElementBuilder::new("cause")
+                                .cdata(message.join("\n"))
+                                .build()
+                        )
+                        .child(
+                            ElementBuilder::new("reflection")
+                                .text(REFLECTION_PROMPT)
+                                .build()
+                        )
+                        .done()
+                        .render_xml(),
                 )
                 .is_error(true);
             }
@@ -121,9 +132,14 @@ impl ToolOutput {
         }
     }
 
-    /// Creates a paired output from an Element and Markdown string
-    pub fn from_element_and_markdown(element: Element, markdown: impl ToString) -> Self {
-        Self::paired(element.to_string(), markdown.to_string())
+    /// Creates a paired output from an Output and Markdown string
+    pub fn from_output_and_markdown(output: &Output, markdown: impl ToString) -> Self {
+        Self::paired(output.render_xml(), markdown.to_string())
+    }
+    
+    /// Creates a paired output from an Output (renders both XML and Markdown)
+    pub fn from_output(output: &Output) -> Self {
+        Self::paired(output.render_xml(), output.render_markdown())
     }
 
     pub fn combine_mut(&mut self, value: ToolOutput) {

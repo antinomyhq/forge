@@ -3,7 +3,7 @@ use std::ops::Deref;
 
 use derive_more::derive::{Display, From};
 use derive_setters::Setters;
-use forge_template::Element;
+use forge_template::{ElementBuilder, Output};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
@@ -113,49 +113,68 @@ impl ContextMessage {
     pub fn to_text(&self) -> String {
         match self {
             ContextMessage::Text(message) => {
-                let mut message_element = Element::new("message").attr("role", message.role);
+                let mut output = Output::new().element("message").attr("role", message.role.to_string());
 
-                message_element =
-                    message_element.append(Element::new("content").text(&message.content));
+                output = output.child(
+                    ElementBuilder::new("content")
+                        .text(&message.content)
+                        .build()
+                );
 
                 if let Some(tool_calls) = &message.tool_calls {
                     for call in tool_calls {
-                        message_element = message_element.append(
-                            Element::new("forge_tool_call")
+                        output = output.child(
+                            ElementBuilder::new("forge_tool_call")
                                 .attr("name", &call.name)
-                                .cdata(call.arguments.clone().into_string()),
+                                .cdata(call.arguments.clone().into_string())
+                                .build()
                         );
                     }
                 }
 
                 if let Some(thought_signature) = &message.thought_signature {
-                    message_element = message_element
-                        .append(Element::new("thought_signature").text(thought_signature));
+                    output = output.child(
+                        ElementBuilder::new("thought_signature")
+                            .text(thought_signature)
+                            .build()
+                    );
                 }
 
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
-                            message_element =
-                                message_element.append(Element::new("reasoning_detail").text(text));
+                            output = output.child(
+                                ElementBuilder::new("reasoning_detail")
+                                    .text(text)
+                                    .build()
+                            );
                         }
                     }
                 }
 
-                message_element.render()
+                output.done().render_xml()
             }
             ContextMessage::Tool(result) => {
                 let filtered_output = filter_base64_images_from_tool_output(&result.output);
-                Element::new("message")
+                Output::new()
+                    .element("message")
                     .attr("role", "tool")
-                    .append(
-                        Element::new("forge_tool_result")
+                    .child(
+                        ElementBuilder::new("forge_tool_result")
                             .attr("name", &result.name)
-                            .cdata(serde_json::to_string(&filtered_output).unwrap()),
+                            .cdata(serde_json::to_string(&filtered_output).unwrap())
+                            .build()
                     )
-                    .render()
+                    .done()
+                    .render_xml()
             }
-            ContextMessage::Image(_) => Element::new("image").attr("path", "[base64 URL]").render(),
+            ContextMessage::Image(_) => {
+                Output::new()
+                    .element("image")
+                    .attr("path", "[base64 URL]")
+                    .done()
+                    .render_xml()
+            }
         }
     }
 
@@ -463,14 +482,16 @@ impl Context {
             ctx.add_message(match attachment.content {
                 AttachmentContent::Image(image) => ContextMessage::Image(image),
                 AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
-                    let elm = Element::new("file_content")
+                    let output = Output::new()
+                        .element("file_content")
                         .attr("path", attachment.path)
-                        .attr("start_line", start_line)
-                        .attr("end_line", end_line)
-                        .attr("total_lines", total_lines)
-                        .cdata(content);
+                        .attr("start_line", start_line.to_string())
+                        .attr("end_line", end_line.to_string())
+                        .attr("total_lines", total_lines.to_string())
+                        .cdata(content)
+                        .done();
 
-                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+                    let mut message = TextMessage::new(Role::User, output.render_xml()).droppable(true);
 
                     if let Some(model) = model_id.clone() {
                         message = message.model(model);
@@ -479,14 +500,20 @@ impl Context {
                     message.into()
                 }
                 AttachmentContent::DirectoryListing { entries } => {
-                    let elm = Element::new("directory_listing")
-                        .attr("path", attachment.path)
-                        .append(entries.into_iter().map(|entry| {
-                            let tag_name = if entry.is_dir { "dir" } else { "file" };
-                            Element::new(tag_name).text(entry.path)
-                        }));
+                    let mut output = Output::new()
+                        .element("directory_listing")
+                        .attr("path", attachment.path);
+                    
+                    for entry in entries {
+                        let tag_name = if entry.is_dir { "dir" } else { "file" };
+                        output = output.child(
+                            ElementBuilder::new(tag_name)
+                                .text(entry.path)
+                                .build()
+                        );
+                    }
 
-                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+                    let mut message = TextMessage::new(Role::User, output.done().render_xml()).droppable(true);
 
                     if let Some(model) = model_id.clone() {
                         message = message.model(model);
