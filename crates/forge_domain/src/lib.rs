@@ -46,6 +46,9 @@ mod temperature;
 mod template;
 mod tools;
 
+mod fuzzy_search;
+pub mod line_numbers;
+mod session;
 mod tool_order;
 mod top_k;
 mod top_p;
@@ -58,7 +61,9 @@ mod xml;
 
 pub use agent::*;
 pub use agent_definition::*;
+pub use app_config::*;
 pub use attachment::*;
+pub use auth::*;
 pub use chat_request::*;
 pub use chat_response::*;
 pub use compact::*;
@@ -77,6 +82,7 @@ pub use group_by_key::*;
 pub use hook::*;
 pub use http_config::*;
 pub use image::*;
+pub use line_numbers::*;
 pub use max_tokens::*;
 pub use mcp::*;
 pub use mcp_servers::*;
@@ -92,6 +98,7 @@ pub use reasoning::*;
 pub use repo::*;
 pub use result_stream_ext::*;
 pub use retry_config::*;
+pub use session::*;
 pub use session_metrics::*;
 pub use shell::*;
 pub use skill::*;
@@ -110,12 +117,6 @@ pub use validation::*;
 pub use workflow::*;
 pub use workspace::*;
 pub use xml::*;
-pub mod line_numbers;
-pub use app_config::*;
-pub use auth::*;
-pub use line_numbers::*;
 
 /// Type alias for tokio mpsc Sender that sends ChatResponse results
 pub type ArcSender = tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>;
-
-mod fuzzy_search;

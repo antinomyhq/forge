@@ -12,7 +12,11 @@ mod error;
 mod forge_services;
 mod instructions;
 mod mcp;
+mod mcp_import;
 mod policy;
+mod session;
+mod session_agent;
+mod session_model;
 
 mod provider_auth;
 mod provider_service;
@@ -30,8 +34,12 @@ pub use discovery::*;
 pub use error::*;
 pub use forge_services::*;
 pub use instructions::*;
+pub use mcp_import::*;
 pub use policy::*;
 pub use provider_auth::*;
+pub use session::*;
+pub use session_agent::*;
+pub use session_model::*;
 
 /// Converts a type from its external representation into its domain model
 /// representation.
