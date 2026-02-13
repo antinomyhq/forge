@@ -49,7 +49,14 @@ fn has_allowed_extension(path: &Path) -> bool {
 /// Permanent failures (client errors, unimplemented operations, auth issues)
 /// are not retried.
 fn should_retry_grpc(error: &anyhow::Error) -> bool {
-    warn!(error=?error,"Attempting Retry");
+    // Check if this is a connection error (service offline)
+    // Connection errors indicate the service is not running and retrying won't help
+    let error_msg = format!("{:#}", error).to_lowercase();
+    if error_msg.contains("connection refused") || error_msg.contains("tcp connect error") {
+        return false;
+    }
+
+    warn!(error=?error,"Attempting to retry");
     let Some(status) = error.downcast_ref::<tonic::Status>() else {
         // Not a gRPC error, retry by default
         return true;
@@ -2055,6 +2062,73 @@ mod tests {
         assert!(!should_retry_grpc(&anyhow::Error::new(
             tonic::Status::data_loss("data loss")
         )));
+
+        // Connection errors - should NOT retry (service offline)
+        assert!(!should_retry_grpc(&anyhow::anyhow!(
+            "Connection refused (os error 61)"
+        )));
+        assert!(!should_retry_grpc(&anyhow::anyhow!(
+            "tcp connect error: Connection refused"
+        )));
+        assert!(!should_retry_grpc(&anyhow::anyhow!(
+            "transport error: tcp connect error"
+        )));
+    }
+
+    #[test]
+    fn test_should_retry_grpc_unavailable_with_connection_refused() {
+        // Test the exact scenario from the bug report:
+        // Status code is Unavailable, but the underlying error is a connection refused
+        // This should NOT retry because the service is offline
+
+        // Simulate the actual error message format from tonic transport errors
+        let error = anyhow::anyhow!(
+            "code: 'The service is currently unavailable', message: \"tcp connect error\", \
+            source: tonic::transport::Error(Transport, ConnectError(ConnectError(\
+            \"tcp connect error\", 127.0.0.1:8080, Os {{ code: 61, kind: ConnectionRefused, \
+            message: \"Connection refused\" }})))"
+        );
+
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected connection refused error to NOT be retried"
+        );
+
+        // Test with wrapped tonic::Status::unavailable containing connection error
+        let error = anyhow::Error::new(tonic::Status::unavailable("tcp connect error"))
+            .context("Connection refused (os error 61)");
+
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected unavailable status with connection refused to NOT be retried"
+        );
+
+        // Test case-insensitive matching for connection errors
+        let error = anyhow::anyhow!("CONNECTION REFUSED (os error 61)");
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected uppercase CONNECTION REFUSED to NOT be retried"
+        );
+
+        let error = anyhow::anyhow!("TCP Connect Error: connection failed");
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected mixed case TCP Connect Error to NOT be retried"
+        );
+
+        let error = anyhow::anyhow!("Transport error: Tcp Connect Error");
+        assert!(
+            !should_retry_grpc(&error),
+            "Expected title case Tcp Connect Error to NOT be retried"
+        );
+
+        // Verify that normal unavailable errors (without connection issues) ARE retried
+        let error = anyhow::Error::new(tonic::Status::unavailable("service temporarily down"));
+
+        assert!(
+            should_retry_grpc(&error),
+            "Expected normal unavailable status to be retried"
+        );
     }
 
     #[tokio::test]
