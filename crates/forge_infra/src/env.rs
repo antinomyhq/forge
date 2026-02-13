@@ -95,6 +95,7 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
+            background: parse_env::<bool>("FORGE_BACKGROUND").unwrap_or(false),
         }
     }
 
