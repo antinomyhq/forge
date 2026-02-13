@@ -5,10 +5,11 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, Provider,
-    ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
-    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Document,
+    Environment, File, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
+    ModelId, Node, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress,
+    SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
+    WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -48,6 +49,7 @@ pub struct ReadOutput {
 pub enum Content {
     File(String),
     Image(Image),
+    Document(Document),
 }
 
 impl Content {
@@ -59,16 +61,28 @@ impl Content {
         Self::Image(image)
     }
 
+    pub fn document(document: Document) -> Self {
+        Self::Document(document)
+    }
+
     pub fn file_content(&self) -> &str {
         match self {
             Self::File(content) => content,
             Self::Image(_) => "",
+            Self::Document(_) => "",
         }
     }
 
     pub fn as_image(&self) -> Option<&Image> {
         match self {
             Self::Image(img) => Some(img),
+            _ => None,
+        }
+    }
+
+    pub fn as_document(&self) -> Option<&Document> {
+        match self {
+            Self::Document(doc) => Some(doc),
             _ => None,
         }
     }
