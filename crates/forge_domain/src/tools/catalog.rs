@@ -55,7 +55,50 @@ pub enum ToolCatalog {
     TodoWrite(TodoWrite),
     #[serde(alias = "Task")]
     Task(TaskInput),
+    Lsp(LspTool),
 }
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/lsp.md"]
+pub struct LspTool {
+    /// The LSP operation to perform
+    pub operation: LspOperation,
+    /// The absolute or relative path to the file
+    pub file_path: String,
+    /// The line number (1-based, as shown in editors)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line: Option<u32>,
+    /// The character offset (1-based, as shown in editors)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub character: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, AsRefStr, EnumIter, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LspOperation {
+    #[default]
+    GoToDefinition,
+    FindReferences,
+    Hover,
+    DocumentSymbol,
+    WorkspaceSymbol,
+    GoToImplementation,
+    PrepareCallHierarchy,
+    IncomingCalls,
+    OutgoingCalls,
+    GetDiagnostics,
+}
+
+impl JsonSchema for LspOperation {
+    fn schema_name() -> Cow<'static, str> {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
+    }
+}
+
 
 /// Input structure for agent tool calls. This serves as the generic schema
 /// for dynamically registered agent tools, allowing users to specify tasks
@@ -765,6 +808,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Skill(v) => v.description(),
             ToolCatalog::TodoWrite(v) => v.description(),
             ToolCatalog::Task(v) => v.description(),
+            ToolCatalog::Lsp(v) => v.description(),
         }
     }
 }
@@ -813,6 +857,7 @@ impl ToolCatalog {
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
             ToolCatalog::TodoWrite(_) => r#gen.into_root_schema_for::<TodoWrite>(),
             ToolCatalog::Task(_) => r#gen.into_root_schema_for::<TaskInput>(),
+            ToolCatalog::Lsp(_) => r#gen.into_root_schema_for::<LspTool>(),
         };
 
         // Apply transform to add nullable property and remove null from type
@@ -920,6 +965,15 @@ impl ToolCatalog {
                 url: input.url.clone(),
                 cwd,
                 message: format!("Fetch content from URL: {}", input.url),
+            }),
+            ToolCatalog::Lsp(input) => Some(crate::policies::PermissionOperation::Read {
+                path: std::path::PathBuf::from(&input.file_path),
+                cwd,
+                message: format!(
+                    "LSP operation {:?} on file: {}",
+                    input.operation,
+                    display_path_for(&input.file_path)
+                ),
             }),
             // Operations that don't require permission checks
             ToolCatalog::SemSearch(_)

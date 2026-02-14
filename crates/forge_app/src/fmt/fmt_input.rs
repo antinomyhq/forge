@@ -123,6 +123,14 @@ impl FormatContent for ToolCatalog {
             ToolCatalog::Task(input) => {
                 Some(TitleFormat::debug("Task").sub_title(&input.agent_id).into())
             }
+            ToolCatalog::Lsp(input) => {
+                let display_path = display_path_for(&input.file_path);
+                Some(
+                    TitleFormat::debug("LSP")
+                        .sub_title(format!("{:?} {}", input.operation, display_path))
+                        .into(),
+                )
+            }
         }
     }
 }

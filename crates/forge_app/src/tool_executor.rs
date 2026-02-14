@@ -10,8 +10,8 @@ use crate::services::{Services, ShellService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
-    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    TodoService, WorkspaceService,
+    ImageReadService, LspService, NetFetchService, PlanCreateService, ProviderService,
+    SkillFetchService, TodoService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -35,6 +35,7 @@ impl<
         + PlanCreateService
         + SkillFetchService
         + TodoService
+        + LspService
         + AgentRegistry
         + ProviderService
         + Services,
@@ -320,6 +321,11 @@ impl<
                 let output = crate::TodoWriteOutput { todos };
 
                 ToolOperation::TodoWrite { output }
+            }
+            ToolCatalog::Lsp(mut input) => {
+                input.file_path = self.normalize_path(input.file_path);
+                let output = self.services.execute_lsp(input).await?;
+                ToolOperation::Lsp { output }
             }
             ToolCatalog::Task(_) => {
                 // Task tools are handled in ToolRegistry before reaching here

@@ -77,6 +77,9 @@ pub enum ToolOperation {
     TodoWrite {
         output: TodoWriteOutput,
     },
+    Lsp {
+        output: forge_domain::ToolOutput,
+    },
 }
 
 /// Trait for stream elements that can be converted to XML elements
@@ -651,6 +654,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
+            ToolOperation::Lsp { output } => output,
         }
     }
 }

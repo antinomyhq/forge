@@ -77,6 +77,9 @@ impl Transformer for StripWorkingDir {
                         SummaryTool::Undo { path } => {
                             *path = self.strip_prefix(path);
                         }
+                        SummaryTool::Lsp { path, .. } => {
+                            *path = self.strip_prefix(path);
+                        }
                         SummaryTool::Shell { .. }
                         | SummaryTool::Search { .. }
                         | SummaryTool::SemSearch { .. }

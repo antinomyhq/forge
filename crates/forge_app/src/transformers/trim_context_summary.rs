@@ -37,6 +37,8 @@ enum Operation<'a> {
     Task(&'a str),
     /// MCP tool call by name
     Mcp(&'a str),
+    /// LSP tool call
+    Lsp { operation: &'a str, path: &'a str },
     /// Todo write operation
     TodoWrite,
 }
@@ -60,6 +62,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Task { agent_id } => Operation::Task(agent_id),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
+        SummaryTool::Lsp { operation, path } => Operation::Lsp { operation, path },
         SummaryTool::TodoWrite { .. } => Operation::TodoWrite,
     }
 }

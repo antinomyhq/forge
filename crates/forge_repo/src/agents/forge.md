@@ -17,7 +17,8 @@ tools:
   - fetch
   - skill
   - todo_write
-  - mcp_*
+  - lsp
+  # - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>

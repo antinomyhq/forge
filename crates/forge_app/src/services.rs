@@ -575,6 +575,11 @@ pub trait ProviderAuthService: Send + Sync {
 
 /// Todo management service for task tracking
 #[async_trait::async_trait]
+pub trait LspService: Send + Sync {
+    async fn execute_lsp(&self, tool: forge_domain::LspTool) -> anyhow::Result<ToolOutput>;
+}
+
+#[async_trait::async_trait]
 pub trait TodoService: Send + Sync {
     /// Updates or creates todos for a conversation
     ///
@@ -638,6 +643,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkspaceService: WorkspaceService;
     type SkillFetchService: SkillFetchService;
     type TodoService: TodoService;
+    type LspService: LspService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -669,6 +675,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workspace_service(&self) -> &Self::WorkspaceService;
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
     fn todo_service(&self) -> &Self::TodoService;
+    fn lsp_service(&self) -> &Self::LspService;
 }
 
 #[async_trait::async_trait]
@@ -1194,5 +1201,12 @@ impl<I: Services> TodoService for I {
         conversation_id: &ConversationId,
     ) -> anyhow::Result<Vec<forge_domain::Todo>> {
         self.todo_service().get_todos(conversation_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> LspService for I {
+    async fn execute_lsp(&self, tool: forge_domain::LspTool) -> anyhow::Result<ToolOutput> {
+        self.lsp_service().execute_lsp(tool).await
     }
 }

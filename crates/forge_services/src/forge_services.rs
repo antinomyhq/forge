@@ -28,7 +28,8 @@ use crate::template::ForgeTemplateService;
 use crate::todo_service::ForgeTodoService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
-    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgeLspService, ForgePlanCreate, ForgeShell,
+    ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -91,6 +92,7 @@ pub struct ForgeServices<
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
     todo_service: Arc<ForgeTodoService<F>>,
+    lsp_service: Arc<ForgeLspService<F>>,
 }
 
 impl<
@@ -152,6 +154,7 @@ impl<
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
         let todo_service = Arc::new(ForgeTodoService::new(infra.clone()));
+        let lsp_service = Arc::new(ForgeLspService::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -184,6 +187,7 @@ impl<
             skill_service,
             chat_service,
             todo_service,
+            lsp_service,
         }
     }
 }
@@ -254,6 +258,7 @@ impl<
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F>;
     type SkillFetchService = ForgeSkillFetch<F>;
     type TodoService = ForgeTodoService<F>;
+    type LspService = ForgeLspService<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -367,5 +372,9 @@ impl<
 
     fn todo_service(&self) -> &Self::TodoService {
         &self.todo_service
+    }
+
+    fn lsp_service(&self) -> &Self::LspService {
+        &self.lsp_service
     }
 }
