@@ -1,4 +1,5 @@
 mod console;
+mod curl;
 pub mod executor;
 
 mod auth;
