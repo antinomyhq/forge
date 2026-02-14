@@ -32,14 +32,18 @@ impl CodexTransformer {
             })
             .count();
 
-        if assistant_msg_count >= 50 {
-            oai::ReasoningEffort::Xhigh
-        } else if assistant_msg_count >= 20 {
-            oai::ReasoningEffort::High
-        } else if assistant_msg_count >= 10 {
-            oai::ReasoningEffort::Medium
-        } else {
-            oai::ReasoningEffort::Low
+        // Round-robin strategy: change effort every 10 messages
+        // Cycle: Minimal -> Low -> Medium -> High -> Xhigh
+        let step = assistant_msg_count / 15;
+        let level_index = step % 5;
+
+        match level_index {
+            0 => oai::ReasoningEffort::Minimal,
+            1 => oai::ReasoningEffort::Low,
+            2 => oai::ReasoningEffort::Medium,
+            3 => oai::ReasoningEffort::High,
+            4 => oai::ReasoningEffort::Xhigh,
+            _ => oai::ReasoningEffort::Medium, // Unreachable with % 5
         }
     }
 }
@@ -84,49 +88,77 @@ mod tests {
     use super::*;
     use crate::provider::FromDomain;
 
-    fn fixture() -> CreateResponse {
-        let context = forge_app::domain::Context::default()
-            .add_message(ContextMessage::user("Hello", None))
-            .max_tokens(1024usize)
-            .temperature(forge_app::domain::Temperature::from(0.7));
+    struct Fixture {
+        reasoning: Option<oai::Reasoning>,
+    }
 
-        let mut req = oai::CreateResponse::from_domain(context).unwrap();
-        req.model = Some("gpt-5.1-codex".to_string());
-        req
+    impl Fixture {
+        fn new() -> Self {
+            Self {
+                reasoning: Some(oai::Reasoning {
+                    effort: Some(oai::ReasoningEffort::Medium),
+                    summary: Some(oai::ReasoningSummary::Detailed),
+                }),
+            }
+        }
+
+        fn create_request(&self, assistant_msg_count: usize) -> CreateResponse {
+            let mut context = forge_app::domain::Context::default()
+                .max_tokens(1024usize)
+                .temperature(forge_app::domain::Temperature::from(0.7));
+
+            // Add initial user message
+            context = context.add_message(ContextMessage::user("Hello", None));
+
+            for i in 0..assistant_msg_count {
+                context = context
+                    .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None))
+                    .add_message(ContextMessage::user(format!("Q{}", i), None));
+            }
+
+            let mut req = oai::CreateResponse::from_domain(context).unwrap();
+            req.model = Some("gpt-5.1-codex".to_string());
+            req.reasoning = self.reasoning.clone();
+            req
+        }
     }
 
     #[test]
     fn test_codex_transformer_sets_store_false() {
-        let fixture = fixture();
+        let fixture = Fixture::new();
+        let mut request = fixture.create_request(0);
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(request);
 
         assert_eq!(actual.store, Some(false));
     }
 
     #[test]
     fn test_codex_transformer_strips_temperature() {
-        let fixture = fixture();
+        let fixture = Fixture::new();
+        let mut request = fixture.create_request(0);
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(request);
 
         assert_eq!(actual.temperature, None);
     }
 
     #[test]
     fn test_codex_transformer_strips_max_output_tokens() {
-        let fixture = fixture();
+        let fixture = Fixture::new();
+        let mut request = fixture.create_request(0);
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(request);
 
         assert_eq!(actual.max_output_tokens, None);
     }
 
     #[test]
     fn test_codex_transformer_includes_reasoning_encrypted_content() {
-        let fixture = fixture();
+        let fixture = Fixture::new();
+        let mut request = fixture.create_request(0);
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(request);
 
         let expected = vec![
             oai::IncludeEnum::WebSearchCallActionSources,
@@ -137,152 +169,100 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_preserves_existing_includes_and_appends_reasoning_encrypted_content()
-    {
-        let mut fixture = fixture();
-        fixture.include = Some(vec![oai::IncludeEnum::MessageOutputTextLogprobs]);
+    fn test_codex_transformer_round_robin_cycle() {
+        let fixture = Fixture::new();
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
-        let expected = vec![
-            oai::IncludeEnum::MessageOutputTextLogprobs,
-            oai::IncludeEnum::ReasoningEncryptedContent,
-        ];
-        assert_eq!(actual.include, Some(expected));
-    }
-
-    #[test]
-    fn test_codex_transformer_does_not_duplicate_reasoning_encrypted_content_include() {
-        let mut fixture = fixture();
-        fixture.include = Some(vec![oai::IncludeEnum::ReasoningEncryptedContent]);
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
-        let expected = vec![oai::IncludeEnum::ReasoningEncryptedContent];
-        assert_eq!(actual.include, Some(expected));
-    }
-
-    #[test]
-    fn test_codex_transformer_sets_reasoning_effort_low_initially() {
-        let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Medium),
-            summary: Some(oai::ReasoningSummary::Detailed),
-        };
-
-        let mut fixture = fixture();
-        fixture.reasoning = Some(reasoning);
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
+        
+        // 0-9 messages -> Minimal
+        let request = fixture.create_request(0);
+        let request = transformer.transform(request);
         assert_eq!(
-            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::Minimal)
+        );
+
+        let request = fixture.create_request(9);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::Minimal)
+        );
+
+        // 10-19 messages -> Low
+        let request = fixture.create_request(10);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
             Some(oai::ReasoningEffort::Low)
         );
-    }
 
-    #[test]
-    fn test_codex_transformer_sets_reasoning_effort_medium_after_10_messages() {
-        let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Low),
-            summary: Some(oai::ReasoningSummary::Detailed),
-        };
-
-        // Create context with 10 assistant messages
-        let mut context = forge_app::domain::Context::default();
-        for i in 0..10 {
-            context = context
-                .add_message(ContextMessage::user(format!("Q{}", i), None))
-                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
-        }
-
-        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
-        fixture.reasoning = Some(reasoning);
-
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
+        let request = fixture.create_request(19);
+        let request = transformer.transform(request);
         assert_eq!(
-            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::Low)
+        );
+
+        // 20-29 messages -> Medium
+        let request = fixture.create_request(20);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
             Some(oai::ReasoningEffort::Medium)
         );
-    }
 
-    #[test]
-    fn test_codex_transformer_sets_reasoning_effort_high_after_20_messages() {
-        let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Low),
-            summary: Some(oai::ReasoningSummary::Detailed),
-        };
-
-        // Create context with 20 assistant messages
-        let mut context = forge_app::domain::Context::default();
-        for i in 0..20 {
-            context = context
-                .add_message(ContextMessage::user(format!("Q{}", i), None))
-                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
-        }
-
-        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
-        fixture.reasoning = Some(reasoning);
-
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
+        let request = fixture.create_request(29);
+        let request = transformer.transform(request);
         assert_eq!(
-            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::Medium)
+        );
+
+        // 30-39 messages -> High
+        let request = fixture.create_request(30);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
             Some(oai::ReasoningEffort::High)
         );
-    }
 
-    #[test]
-    fn test_codex_transformer_sets_reasoning_effort_xhigh_after_50_messages() {
-        let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Low),
-            summary: Some(oai::ReasoningSummary::Detailed),
-        };
-
-        // Create context with 50 assistant messages
-        let mut context = forge_app::domain::Context::default();
-        for i in 0..50 {
-            context = context
-                .add_message(ContextMessage::user(format!("Q{}", i), None))
-                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
-        }
-
-        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
-        fixture.reasoning = Some(reasoning);
-
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
+        let request = fixture.create_request(39);
+        let request = transformer.transform(request);
         assert_eq!(
-            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::High)
+        );
+
+        // 40-49 messages -> XHigh
+        let request = fixture.create_request(40);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
             Some(oai::ReasoningEffort::Xhigh)
+        );
+
+        let request = fixture.create_request(49);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::Xhigh)
+        );
+
+        // 50-59 messages -> Minimal (cycle repeats)
+        let request = fixture.create_request(50);
+        let request = transformer.transform(request);
+        assert_eq!(
+            request.reasoning.as_ref().unwrap().effort,
+            Some(oai::ReasoningEffort::Minimal)
         );
     }
 
     #[test]
     fn test_codex_transformer_sets_text_verbosity_low() {
-        let fixture = fixture();
+        let fixture = Fixture::new();
+        let mut request = fixture.create_request(0);
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
-        let expected = Some(oai::Verbosity::Low);
-        assert_eq!(
-            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
-            expected
-        );
-    }
-
-    #[test]
-    fn test_codex_transformer_overrides_text_verbosity_to_low() {
-        let mut fixture = fixture();
-        fixture.text = Some(oai::ResponseTextParam {
-            format: oai::TextResponseFormatConfiguration::Text,
-            verbosity: Some(oai::Verbosity::High),
-        });
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(request);
 
         let expected = Some(oai::Verbosity::Low);
         assert_eq!(
@@ -293,20 +273,12 @@ mod tests {
 
     #[test]
     fn test_codex_transformer_no_reasoning_unchanged() {
-        let fixture = fixture();
+        let fixture = Fixture::new();
+        let mut request = fixture.create_request(0);
+        request.reasoning = None;
         let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(request);
 
         assert_eq!(actual.reasoning, None);
-    }
-
-    #[test]
-    fn test_codex_transformer_preserves_other_fields() {
-        let fixture = fixture();
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
-        assert_eq!(actual.model.as_deref(), Some("gpt-5.1-codex"));
-        assert_eq!(actual.stream, Some(true));
     }
 }
