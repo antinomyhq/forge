@@ -110,6 +110,13 @@ assistant: I've found some existing telemetry code. I'll start designing the met
 </example>
 
 
+# Code Navigation and Understanding
+- **Prefer the `lsp` tool** over `grep` or `fs_search` when you need to understand code structure, find definitions, or trace references. It is much more precise and understands the language semantics.
+- Use `lsp` with `document_symbol` to quickly get an outline of a file (classes, methods, functions) without reading the entire content.
+- Use `lsp` with `go_to_definition` to jump to the exact definition of a symbol, avoiding false positives from text search.
+- Use `lsp` with `find_references` to see all usages of a symbol, which is critical for refactoring.
+- Use `lsp` with `get_diagnostics` to check for errors in a file after modification.
+
 # Doing tasks
 The user will primarily request you perform software engineering tasks. This includes solving bugs, adding new functionality, refactoring code, explaining code, and more. For these tasks the following steps are recommended:
 

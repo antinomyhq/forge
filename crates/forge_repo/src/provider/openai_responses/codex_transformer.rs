@@ -36,7 +36,23 @@ impl Transformer for CodexTransformer {
         text.verbosity = Some(oai::Verbosity::Low);
 
         if let Some(reasoning) = request.reasoning.as_mut() {
-            reasoning.effort = Some(oai::ReasoningEffort::Xhigh);
+            let assistant_msg_count = match &request.input {
+                oai::InputParam::Items(items) => items
+                    .iter()
+                    .filter(|item| matches!(item, oai::InputItem::EasyMessage(msg) if msg.role == oai::Role::Assistant))
+                    .count(),
+                _ => 0,
+            };
+
+            let effort = if assistant_msg_count < 2 {
+                oai::ReasoningEffort::Xhigh
+            } else if assistant_msg_count < 50 {
+                oai::ReasoningEffort::Medium
+            } else {
+                oai::ReasoningEffort::High
+            };
+
+            reasoning.effort = Some(effort);
             reasoning.summary = Some(oai::ReasoningSummary::Concise);
         }
 
@@ -128,7 +144,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_high_and_summary_auto() {
+    fn test_codex_transformer_sets_reasoning_effort_xhigh_initially() {
         let reasoning = oai::Reasoning {
             effort: Some(oai::ReasoningEffort::Low),
             summary: Some(oai::ReasoningSummary::Detailed),
@@ -141,11 +157,71 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
-            Some(oai::ReasoningEffort::High)
+            Some(oai::ReasoningEffort::Xhigh)
         );
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.summary),
-            Some(oai::ReasoningSummary::Auto)
+            Some(oai::ReasoningSummary::Concise)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_medium_after_2_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 2 assistant messages
+        let context = forge_app::domain::Context::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_message(ContextMessage::assistant("Hi", None, None, None))
+            .add_message(ContextMessage::user("Next", None))
+            .add_message(ContextMessage::assistant("Ok", None, None, None))
+            .max_tokens(1024usize)
+            .temperature(forge_app::domain::Temperature::from(0.7));
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.model = Some("gpt-5.1-codex".to_string());
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::Medium)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_high_after_50_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 50 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..50 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
+        }
+        context = context
+            .max_tokens(1024usize)
+            .temperature(forge_app::domain::Temperature::from(0.7));
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.model = Some("gpt-5.1-codex".to_string());
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::High)
         );
     }
 
