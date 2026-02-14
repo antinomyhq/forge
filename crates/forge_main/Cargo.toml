@@ -46,7 +46,7 @@ strum_macros.workspace = true
 
 convert_case.workspace = true
 update-informer = { version = "1.2.0", default-features = false, features = [
-    "npm",
+    "github",
     "ureq",
     "rustls-tls",
 ] }
