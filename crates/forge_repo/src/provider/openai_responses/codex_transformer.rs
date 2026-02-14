@@ -36,8 +36,8 @@ impl Transformer for CodexTransformer {
         text.verbosity = Some(oai::Verbosity::Low);
 
         if let Some(reasoning) = request.reasoning.as_mut() {
-            reasoning.effort = Some(oai::ReasoningEffort::High);
-            reasoning.summary = Some(oai::ReasoningSummary::Auto);
+            reasoning.effort = Some(oai::ReasoningEffort::Xhigh);
+            reasoning.summary = Some(oai::ReasoningSummary::Concise);
         }
 
         request
