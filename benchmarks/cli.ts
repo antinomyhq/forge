@@ -363,6 +363,7 @@ async function main() {
   // Print summary
   logger.info(
     {
+      eval_name: displayName,
       total: results.length,
       passed: successCount,
       validation_failed: warningCount,
