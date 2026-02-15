@@ -429,3 +429,47 @@ expression: tools
     "agent_id"
   ]
 }
+{
+  "title": "LspTool",
+  "type": "object",
+  "properties": {
+    "character": {
+      "description": "The character offset (1-based, as shown in editors)",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "file_path": {
+      "description": "The absolute or relative path to the file",
+      "type": "string"
+    },
+    "line": {
+      "description": "The line number (1-based, as shown in editors)",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "operation": {
+      "description": "The LSP operation to perform",
+      "type": "string",
+      "enum": [
+        "go_to_definition",
+        "find_references",
+        "hover",
+        "document_symbol",
+        "workspace_symbol",
+        "go_to_implementation",
+        "prepare_call_hierarchy",
+        "incoming_calls",
+        "outgoing_calls",
+        "get_diagnostics"
+      ]
+    }
+  },
+  "required": [
+    "operation",
+    "file_path"
+  ]
+}

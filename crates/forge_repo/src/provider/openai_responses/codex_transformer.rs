@@ -38,8 +38,10 @@ impl CodexTransformer {
             oai::ReasoningEffort::High
         } else if assistant_msg_count >= 10 {
             oai::ReasoningEffort::Medium
-        } else {
+        } else if assistant_msg_count >= 5 {
             oai::ReasoningEffort::Low
+        } else {
+            oai::ReasoningEffort::Minimal
         }
     }
 }
@@ -128,11 +130,7 @@ mod tests {
         let mut transformer = CodexTransformer;
         let actual = transformer.transform(fixture);
 
-        let expected = vec![
-            oai::IncludeEnum::WebSearchCallActionSources,
-            oai::IncludeEnum::CodeInterpreterCallOutputs,
-            oai::IncludeEnum::ReasoningEncryptedContent,
-        ];
+        let expected = vec![oai::IncludeEnum::ReasoningEncryptedContent];
         assert_eq!(actual.include, Some(expected));
     }
 
@@ -163,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_low_initially() {
+    fn test_codex_transformer_sets_reasoning_effort_minimal_initially() {
         let reasoning = oai::Reasoning {
             effort: Some(oai::ReasoningEffort::Medium),
             summary: Some(oai::ReasoningSummary::Detailed),
@@ -176,7 +174,7 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
-            Some(oai::ReasoningEffort::Low)
+            Some(oai::ReasoningEffort::Minimal)
         );
     }
 
