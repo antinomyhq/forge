@@ -308,6 +308,7 @@ assistant: [Uses the {{tool_names.task}} tool]
 </example>
 
 IMPORTANT: Always use the {{tool_names.todo_write}} tool to plan and track tasks throughout the conversation.
+{{/if}}
 
 # Code References
 
