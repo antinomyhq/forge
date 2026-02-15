@@ -88,11 +88,11 @@ pub enum TodoStatus {
 }
 
 impl JsonSchema for TodoStatus {
-    fn schema_name() -> String {
+    fn schema_name() -> Cow<'static, str> {
         <Self as SimpleEnumSchema>::simple_enum_schema_name()
     }
 
-    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
         <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
     }
 }
