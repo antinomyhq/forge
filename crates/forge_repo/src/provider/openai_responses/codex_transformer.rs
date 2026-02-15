@@ -32,14 +32,16 @@ impl CodexTransformer {
             })
             .count();
 
-        if assistant_msg_count >= 50 {
+        if assistant_msg_count >= 80 {
             oai::ReasoningEffort::Xhigh
-        } else if assistant_msg_count >= 20 {
+        } else if assistant_msg_count >= 40 {
             oai::ReasoningEffort::High
-        } else if assistant_msg_count >= 10 {
+        } else if assistant_msg_count >= 20 {
             oai::ReasoningEffort::Medium
-        } else if assistant_msg_count >= 5 {
+        } else if assistant_msg_count >= 10 {
             oai::ReasoningEffort::Low
+        } else if assistant_msg_count== 0 {
+            oai::ReasoningEffort::Xhigh
         } else {
             oai::ReasoningEffort::Minimal
         }
