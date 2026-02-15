@@ -1009,9 +1009,6 @@ What would you like to work on today?</pre>
   "title": "NetFetch",
   "description": "Input type for the net fetch tool",
   "type": "object",
-  "required": [
-    "url"
-  ],
   "properties": {
     "raw": {
       "description": "Get raw content without any markdown conversion (default: false)",
@@ -1022,7 +1019,10 @@ What would you like to work on today?</pre>
       "description": "URL to fetch",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "url"
+  ]
 }</pre>
 </div>
 </details>
@@ -1052,11 +1052,6 @@ What would you like to work on today?</pre>
   "title": "FSPatch",
   "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if search pattern isn't found.\\n\\nUsage Guidelines:\\n-When editing text from Read tool output, ensure you preserve new lines and the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + ':'. Everything after that is the actual file content to match. Never include any part of the line number prefix in the search or content",
   "type": "object",
-  "required": [
-    "content",
-    "operation",
-    "path"
-  ],
   "properties": {
     "content": {
       "description": "The text to replace it with (must be different from search)",
@@ -1082,7 +1077,12 @@ What would you like to work on today?</pre>
       "type": "string",
       "nullable": true
     }
-  }
+  },
+  "required": [
+    "content",
+    "operation",
+    "path"
+  ]
 }</pre>
 </div>
 </details>
@@ -1110,9 +1110,6 @@ What would you like to work on today?</pre>
   "title": "FSRead",
   "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string with line number prefixes by default. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with the start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "end_line": {
       "description": "Optional end position in lines (inclusive). If provided, reading will end at this line position.",
@@ -1126,8 +1123,8 @@ What would you like to work on today?</pre>
     },
     "show_line_numbers": {
       "description": "If true, prefixes each line with its line index (starting at 1). Defaults to true.",
-      "default": true,
-      "type": "boolean"
+      "type": "boolean",
+      "default": true
     },
     "start_line": {
       "description": "Optional start position in lines (1-based). If provided, reading will start from this line position.",
@@ -1135,7 +1132,10 @@ What would you like to work on today?</pre>
       "format": "int32",
       "nullable": true
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }</pre>
 </div>
 </details>
@@ -1162,15 +1162,15 @@ What would you like to work on today?</pre>
   "title": "ReadImage",
   "description": "Reads image files from the file system and returns them in base64-encoded format for vision-capable models. Supports common image formats: JPEG, PNG, WebP, and GIF. The path must be absolute and point to an existing file. Use this tool when you need to process, analyze, or display images with vision models. Do NOT use this for text files - use the `read` tool instead. Do NOT use for other binary files like PDFs, videos, or archives. The tool will fail if the file doesn't exist or if the format is unsupported. Returns the image content encoded in base64 format ready for vision model consumption.",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "path": {
       "description": "The absolute path to the image file (e.g., /home/user/image.png). Relative paths are not supported. The file must exist and be readable.",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }</pre>
 </div>
 </details>
@@ -1192,15 +1192,15 @@ What would you like to work on today?</pre>
   "title": "FSRemove",
   "description": "Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation cannot be undone, so use it carefully.",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "path": {
       "description": "The path of the file to remove (absolute path required)",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }</pre>
 </div>
 </details>
@@ -1221,9 +1221,6 @@ What would you like to work on today?</pre>
   "title": "AgentInput",
   "description": "Input structure for agent tool calls. This serves as the generic schema for dynamically registered agent tools, allowing users to specify tasks for specific agents.",
   "type": "object",
-  "required": [
-    "tasks"
-  ],
   "properties": {
     "tasks": {
       "description": "A list of clear and detailed descriptions of the tasks to be performed by the agent in parallel. Provide sufficient context and specific requirements to enable the agent to understand and execute the work accurately.",
@@ -1232,7 +1229,10 @@ What would you like to work on today?</pre>
         "type": "string"
       }
     }
-  }
+  },
+  "required": [
+    "tasks"
+  ]
 }</pre>
 </div>
 </details>
@@ -1260,9 +1260,6 @@ What would you like to work on today?</pre>
   "title": "FSSearch",
   "description": "Recursively searches directories for files by content (regex) and/or name (glob pattern). Provides context-rich results with line numbers for content matches. Two modes: content search (when regex provided) or file finder (when regex omitted). Uses case-insensitive Rust regex syntax. Requires absolute paths. Avoids binary files and excluded directories. Best for code exploration, API usage discovery, configuration settings, or finding patterns across projects. For large pages, returns the first 200 lines and stores the complete content in a temporary file for subsequent access.",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "file_pattern": {
       "description": "Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
@@ -1290,7 +1287,10 @@ What would you like to work on today?</pre>
       "format": "int32",
       "nullable": true
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }</pre>
 </div>
 </details>
@@ -1320,9 +1320,6 @@ What would you like to work on today?</pre>
   "title": "SemanticSearch",
   "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns file:line locations with code context, ranked by relevance. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
   "type": "object",
-  "required": [
-    "queries"
-  ],
   "properties": {
     "file_extension": {
       "description": "Optional file extension filter (e.g., \".rs\", \".ts\", \".py\"). If provided, only files with this extension will be included in the search results.",
@@ -1335,10 +1332,6 @@ What would you like to work on today?</pre>
       "items": {
         "description": "A paired query and use_case for semantic search. Each query must have a corresponding use_case for document reranking.",
         "type": "object",
-        "required": [
-          "query",
-          "use_case"
-        ],
         "properties": {
           "query": {
             "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
@@ -1348,10 +1341,17 @@ What would you like to work on today?</pre>
             "description": "A short natural-language description of what you are trying to find. This is the query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what the agent is searching for - should not be the query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin&lt;Box&lt;Result&gt;&gt; in Rust?\" - \"How to fix error E0277 for the ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing the DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
             "type": "string"
           }
-        }
+        },
+        "required": [
+          "query",
+          "use_case"
+        ]
       }
     }
-  }
+  },
+  "required": [
+    "queries"
+  ]
 }</pre>
 </div>
 </details>
@@ -1377,10 +1377,6 @@ What would you like to work on today?</pre>
   "title": "Shell",
   "description": "Executes shell commands with safety measures using restricted bash (rbash). Prevents potentially harmful operations like absolute path execution and directory changes. Use for file system interaction, running utilities, installing packages, or executing build commands. For operations requiring unrestricted access, advise users to run forge CLI with '-u' flag. Returns complete output including stdout, stderr, and exit code for diagnostic purposes.",
   "type": "object",
-  "required": [
-    "command",
-    "cwd"
-  ],
   "properties": {
     "command": {
       "description": "The shell command to execute.",
@@ -1402,7 +1398,11 @@ What would you like to work on today?</pre>
       "description": "Whether to preserve ANSI escape codes in the output. If true, ANSI escape codes will be preserved in the output. If false (default), ANSI escape codes will be stripped from the output.",
       "type": "boolean"
     }
-  }
+  },
+  "required": [
+    "command",
+    "cwd"
+  ]
 }</pre>
 </div>
 </details>
@@ -1426,15 +1426,15 @@ What would you like to work on today?</pre>
   "title": "SkillFetch",
   "description": "Fetches detailed information about a specific skill. Use this tool to load skill content and instructions when you need to understand how to perform a specialized task. Skills provide domain-specific knowledge, workflows, and best practices. Only invoke skills that are listed in the available skills section. Do not invoke a skill that is already active.",
   "type": "object",
-  "required": [
-    "name"
-  ],
   "properties": {
     "name": {
       "description": "The name of the skill to fetch (e.g., \"pdf\", \"code_review\")",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "name"
+  ]
 }</pre>
 </div>
 </details>
@@ -1456,15 +1456,15 @@ What would you like to work on today?</pre>
   "title": "FSUndo",
   "description": "Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "path": {
       "description": "The absolute path of the file to revert to its previous state.",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }</pre>
 </div>
 </details>
@@ -1489,10 +1489,6 @@ What would you like to work on today?</pre>
   "title": "FSWrite",
   "description": "Use it to create a new file at a specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
   "type": "object",
-  "required": [
-    "content",
-    "path"
-  ],
   "properties": {
     "content": {
       "description": "The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified.",
@@ -1506,7 +1502,11 @@ What would you like to work on today?</pre>
       "description": "The path of the file to write to (absolute path required)",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "content",
+    "path"
+  ]
 }</pre>
 </div>
 </details>

@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -6,8 +7,7 @@ use convert_case::{Case, Casing};
 use derive_more::From;
 use eserde::Deserialize;
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use schemars::schema::RootSchema;
+use schemars::{JsonSchema, Schema};
 use serde::Serialize;
 use serde_json::Map;
 use strum::IntoEnumIterator;
@@ -286,25 +286,108 @@ pub enum OutputMode {
 /// corresponding use_case for document reranking.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct SearchQuery {
-    /// Describe WHAT the code does or its purpose. Include domain-specific
-    /// terms and technical context. Good: "retry mechanism with exponential
-    /// backoff", "streaming responses from LLM API", "OAuth token refresh
-    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
-    /// about the behavior and functionality you're looking for.
+    /// The semantic embedding query that describes WHAT the code does or its
+    /// purpose. This query is converted to a vector embedding and used to find
+    /// semantically similar code chunks in the vector database.
+    ///
+    /// **Guidelines for effective embedding queries:**
+    /// - Use specific, targeted technical terms and domain concepts
+    /// - Describe behavior, functionality, patterns, or implementation approach
+    /// - Include concrete keywords like technology names, algorithms, data
+    ///   structures
+    /// - Balance specificity (focused results) with generality (avoid missing
+    ///   relevant code)
+    /// - Keep queries focused - overly broad queries cause timeouts and poor
+    ///   results
+    /// - **Align keywords with intent**: For documentation, use "README",
+    ///   "guide", "setup"; for implementation, use "function", "logic",
+    ///   "handler"
+    ///
+    /// **Good examples:**
+    /// - "exponential backoff retry mechanism with configurable delays"
+    /// - "streaming LLM responses with SSE chunked transfer encoding"
+    /// - "OAuth2 token refresh with automatic retry and expiry check"
+    /// - "Diesel database migration runner with transaction support"
+    /// - "semantic search reranker using cross-encoder model"
+    /// - "README documentation configuration setup semantic search"
+    /// - "markdown guide API documentation tool definitions"
+    ///
+    /// **Bad examples:**
+    /// - "retry" (too generic, will match everything)
+    /// - "authentication" (overly broad - specify what aspect: login, tokens,
+    ///   middleware?)
+    /// - "tool definitions schemas" (too vague - be more specific about
+    ///   structure or location)
+    /// - "how system works" (meta-question, not searchable concept)
+    /// - "function that validates" (focus on what it validates, not that it's a
+    ///   function)
     pub query: String,
 
-    /// A short natural-language description of what you are trying to find.
-    /// This is the query used for document reranking. The query MUST:
-    /// - express a single, focused information need
-    /// - describe exactly what the agent is searching for
-    /// - should not be the query verbatim
-    /// - be concise (1–2 sentences)
+    /// The reranking query that describes your INTENT and WHY you need this
+    /// code. This query is used by the reranker model to filter and
+    /// prioritize the most relevant results from the initial embedding
+    /// search based on your specific use case.
     ///
-    /// Examples:
-    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
-    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
-    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
-    /// - "How to design a clean architecture service layer with typed errors?"
+    /// **Purpose:** While `query` casts a wide net for similar code, `use_case`
+    /// narrows it down by intent: implementation vs docs vs tests, reading
+    /// vs modifying code, understanding architecture vs finding bugs, etc.
+    ///
+    /// **Guidelines for effective reranking queries:**
+    /// - **MANDATORY FOR CODE**: ALWAYS include codebase construct keywords
+    ///   (struct, trait, impl, interface, class, function, fn, definition,
+    ///   implementation, declaration, type) when searching for code
+    /// - **WHY CRITICAL**: The reranker gives HIGH WEIGHTAGE to these keywords
+    ///   - "struct" → prioritizes struct definitions
+    ///   - "trait impl" → prioritizes trait implementations
+    ///   - "function" / "fn" → prioritizes function definitions
+    ///   - Without these, you get documentation instead of code!
+    /// - Clearly state your goal: understand, modify, debug, find examples,
+    ///   etc.
+    /// - Specify the TYPE of code you need: implementation, tests, docs,
+    ///   config, architecture
+    /// - Include WHY context: "to fix a bug", "to add a feature", "to
+    ///   understand flow"
+    /// - Be explicit about what to AVOID: "not tests", "not documentation",
+    ///   "not examples"
+    /// - **Match intent to file types**: documentation intent → avoid
+    ///   requesting "implementation code"; implementation intent → avoid
+    ///   requesting "documentation"
+    /// - Keep it concise (1-2 sentences) but informative
+    /// - MUST be different from the embedding query - add intent/context
+    ///
+    /// **Good examples (ALWAYS include construct keywords):**
+    /// - "I need the struct definition and trait implementation for Diesel
+    ///   migrations to understand the transaction handling, not setup docs"
+    /// - "Show me the function implementation for semantic search reranker so I
+    ///   can modify it to support file type filtering"
+    /// - "Find the type declarations and interface definitions for the tool
+    ///   registry, not the usage examples"
+    /// - "I'm debugging a timeout issue and need the function implementation
+    ///   that handles streaming responses, not the API documentation"
+    /// - "Show me the struct definitions and trait implementations for
+    ///   authentication, not the setup guide"
+    /// - "I need the impl block for workspace sync to understand how it detects
+    ///   file changes"
+    /// - "Find the fn definitions for embedding generation batching logic"
+    /// - "I need documentation explaining how to configure semantic search, not
+    ///   the implementation code"
+    /// - "Find the README or setup guide that explains the tool registration
+    ///   process, avoiding implementation details"
+    ///
+    /// **Bad examples (missing construct keywords = FAILS):**
+    /// - "I need code that handles authentication" ❌ MISSING:
+    ///   struct/trait/impl/function
+    /// - "Show me the database logic" ❌ MISSING: trait/impl/function keywords
+    /// - "I need the workspace sync implementation" ❌ MISSING: struct/impl/fn
+    ///   - too generic
+    /// - "Find the reranker code" ❌ MISSING: struct/trait/impl/function
+    /// - "exponential backoff retry mechanism" ❌ MISSING: WHY + construct
+    ///   keywords
+    /// - "find authentication code" ❌ MISSING: which construct? struct? trait?
+    ///   impl?
+    /// - "tool definitions" ❌ MISSING: struct? trait? type? be specific
+    /// - "how it works" (too vague - specify what you want to understand)
+    /// - Long rambling explanation without clear intent (keep it focused)
     pub use_case: String,
 }
 
@@ -368,26 +451,24 @@ pub enum PatchOperation {
 /// JSON schemas that represent enums as simple string enumerations
 /// rather than complex oneOf structures.
 trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
-    fn simple_enum_schema_name() -> String {
+    fn simple_enum_schema_name() -> Cow<'static, str> {
         std::any::type_name::<Self>()
             .split("::")
             .last()
             .unwrap_or("Enum")
             .to_string()
+            .into()
     }
 
-    fn simple_enum_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
-        use schemars::schema::{InstanceType, Schema, SchemaObject};
+    fn simple_enum_schema(_gen: &mut schemars::generate::SchemaGenerator) -> Schema {
+        use schemars::json_schema;
         let variants: Vec<serde_json::Value> = Self::iter()
             .map(|variant| variant.as_ref().to_case(Case::Snake).into())
             .collect();
-        Schema::Object(SchemaObject {
-            instance_type: Some(InstanceType::String.into()),
-            enum_values: Some(variants),
-            metadata: Some(Box::new(schemars::schema::Metadata {
-                ..Default::default()
-            })),
-            ..Default::default()
+
+        json_schema!({
+            "type": "string",
+            "enum": variants
         })
     }
 }
@@ -397,21 +478,21 @@ trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
 impl<T> SimpleEnumSchema for T where T: AsRef<str> + IntoEnumIterator {}
 
 impl JsonSchema for PatchOperation {
-    fn schema_name() -> String {
+    fn schema_name() -> Cow<'static, str> {
         <Self as SimpleEnumSchema>::simple_enum_schema_name()
     }
 
-    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> Schema {
         <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
     }
 }
 
 impl JsonSchema for OutputMode {
-    fn schema_name() -> String {
+    fn schema_name() -> Cow<'static, str> {
         <Self as SimpleEnumSchema>::simple_enum_schema_name()
     }
 
-    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> Schema {
         <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
     }
 }
@@ -680,19 +761,18 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
 }
 
 impl ToolCatalog {
-    pub fn schema(&self) -> RootSchema {
-        use schemars::r#gen::SchemaSettings;
+    pub fn schema(&self) -> Schema {
+        use schemars::generate::SchemaSettings;
+        use schemars::transform::{AddNullable, Transform};
+
         let r#gen = SchemaSettings::default()
             .with(|s| {
-                // incase of null, add nullable property.
-                s.option_nullable = true;
-                // incase of option type, don't add null in type.
-                s.option_add_null_type = false;
                 s.meta_schema = None;
                 s.inline_subschemas = true;
             })
             .into_generator();
-        match self {
+
+        let mut schema = match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
@@ -706,7 +786,12 @@ impl ToolCatalog {
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
             ToolCatalog::TodoWrite(_) => r#gen.into_root_schema_for::<TodoWrite>(),
-        }
+        };
+
+        // Apply transform to add nullable property and remove null from type
+        AddNullable::default().transform(&mut schema);
+
+        schema
     }
 
     pub fn definition(&self) -> ToolDefinition {
@@ -1528,40 +1613,33 @@ mod tests {
 
     #[test]
     fn test_unit_enum_schema_generation() {
-        use schemars::r#gen::SchemaSettings;
+        use schemars::generate::SchemaSettings;
 
         use crate::{OutputMode, PatchOperation};
 
         // Test PatchOperation schema
-        let r#gen = SchemaSettings::default().into_generator();
-        let patch_schema = r#gen.into_root_schema_for::<PatchOperation>();
+        let settings = SchemaSettings::default().into_generator();
+        let patch_schema = settings.into_root_schema_for::<PatchOperation>();
 
-        // Verify it generates a simple string enum, not a oneOf
-        assert_eq!(
-            patch_schema.schema.instance_type,
-            Some(schemars::schema::SingleOrVec::Single(Box::new(
-                schemars::schema::InstanceType::String
-            )))
-        );
-        assert!(patch_schema.schema.enum_values.is_some());
-        let enum_values = patch_schema.schema.enum_values.unwrap();
+        // In schemars 1.0, Schema wraps serde_json::Value, so we check the JSON
+        // directly
+        let schema_value = patch_schema.as_value();
+        assert_eq!(schema_value.get("type"), Some(&serde_json::json!("string")));
+
+        let enum_values = schema_value.get("enum").and_then(|v| v.as_array()).unwrap();
         assert_eq!(enum_values.len(), 5);
         assert_eq!(enum_values[0], serde_json::json!("prepend"));
         assert_eq!(enum_values[1], serde_json::json!("append"));
 
         // Test OutputMode schema
-        let r#gen = SchemaSettings::default().into_generator();
-        let output_schema = r#gen.into_root_schema_for::<OutputMode>();
+        let settings = SchemaSettings::default().into_generator();
+        let output_schema = settings.into_root_schema_for::<OutputMode>();
 
         // Verify it also generates a simple string enum
-        assert_eq!(
-            output_schema.schema.instance_type,
-            Some(schemars::schema::SingleOrVec::Single(Box::new(
-                schemars::schema::InstanceType::String
-            )))
-        );
-        assert!(output_schema.schema.enum_values.is_some());
-        let enum_values = output_schema.schema.enum_values.unwrap();
+        let schema_value = output_schema.as_value();
+        assert_eq!(schema_value.get("type"), Some(&serde_json::json!("string")));
+
+        let enum_values = schema_value.get("enum").and_then(|v| v.as_array()).unwrap();
         assert_eq!(enum_values.len(), 3);
         assert_eq!(enum_values[0], serde_json::json!("content"));
         assert_eq!(enum_values[1], serde_json::json!("files_with_matches"));

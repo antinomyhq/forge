@@ -55,12 +55,13 @@ humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
 url.workspace = true
-rust-embed = { version = "8.5", features = ["interpolate-folder-path"] }
+rust-embed = { version = "8.11", features = ["interpolate-folder-path"] }
 indexmap.workspace = true
 async-recursion.workspace = true
 
 forge_markdown_stream.workspace = true
 terminal_size = "0.4"
+rustls.workspace = true
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = "3.4"
@@ -70,7 +71,7 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
-serial_test = "3.2"
+serial_test = "3.3"
 fake = { version = "4.4.0", features = ["derive"] }
 forge_domain = { path = "../forge_domain" }
 strip-ansi-escapes = "0.2"

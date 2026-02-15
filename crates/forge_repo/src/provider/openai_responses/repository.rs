@@ -178,10 +178,18 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                     Ok(Event::Open) => None,
                     Ok(Event::Message(msg)) if ["[DONE]", ""].contains(&msg.data.as_str()) => None,
                     Ok(Event::Message(msg)) => {
-                        // Parse the SSE event data as ResponseStreamEvent
-                        let result = serde_json::from_str::<oai::ResponseStreamEvent>(&msg.data)
-                            .with_context(|| format!("Failed to parse SSE event: {}", msg.data));
-                        Some(result)
+                        let result = serde_json::from_str::<super::response::ResponsesStreamEvent>(
+                            &msg.data,
+                        )
+                        .with_context(|| format!("Failed to parse SSE event: {}", msg.data));
+
+                        match result {
+                            Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
+                                Some(Ok(*inner))
+                            }
+                            Err(e) => Some(Err(e)),
+                        }
                     }
                     Err(reqwest_eventsource::Error::StreamEnded) => None,
                     Err(e) => Some(Err(anyhow::Error::from(e))),
@@ -229,14 +237,13 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                 match event_result {
                     Ok(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
                     Ok(event) => {
-                        let result =
-                            serde_json::from_str::<super::response::CodexStreamEvent>(&event.data)
-                                .with_context(|| {
-                                    format!("Failed to parse SSE event: {}", event.data)
-                                });
+                        let result = serde_json::from_str::<super::response::ResponsesStreamEvent>(
+                            &event.data,
+                        )
+                        .with_context(|| format!("Failed to parse SSE event: {}", event.data));
                         match result {
-                            Ok(super::response::CodexStreamEvent::Keepalive { .. }) => None,
-                            Ok(super::response::CodexStreamEvent::Response(inner)) => {
+                            Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
                                 Some(Ok(*inner))
                             }
                             Err(e) => Some(Err(e)),
