@@ -629,10 +629,12 @@ impl<F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReader
     }
 }
 
-// TODO: Tests need to be rewritten to work with remote-only workspace management
+// TODO: Tests need to be rewritten to work with remote-only workspace
+// management
 #[cfg(test)]
 mod tests {
-    // Tests removed - need to be updated to work without local workspace persistence
+    // Tests removed - need to be updated to work without local workspace
+    // persistence
     /*
     use std::collections::HashMap;
     use std::path::PathBuf;
