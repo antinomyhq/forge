@@ -46,6 +46,7 @@ pub enum ToolCatalog {
     SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
+    MultiPatch(FSMultiPatch),
     Undo(FSUndo),
     Shell(Shell),
     Fetch(NetFetch),
@@ -584,6 +585,31 @@ pub struct FSPatch {
     pub replace_all: bool,
 }
 
+/// A single edit operation in a multi-patch
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct PatchEdit {
+    /// The text to replace
+    pub old_string: String,
+    
+    /// The text to replace it with (must be different from old_string)
+    pub new_string: String,
+    
+    /// Replace all occurrences of old_string (default false)
+    #[serde(default)]
+    #[schemars(default)]
+    pub replace_all: bool,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_multi_patch.md"]
+pub struct FSMultiPatch {
+    /// The absolute path to the file to modify
+    pub file_path: String,
+    
+    /// Array of edit operations to perform sequentially on the file
+    pub edits: Vec<PatchEdit>,
+}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_undo.md"]
 pub struct FSUndo {
@@ -794,6 +820,7 @@ impl ToolDescription for ToolCatalog {
     fn description(&self) -> String {
         match self {
             ToolCatalog::Patch(v) => v.description(),
+            ToolCatalog::MultiPatch(v) => v.description(),
             ToolCatalog::Shell(v) => v.description(),
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
@@ -843,6 +870,7 @@ impl ToolCatalog {
 
         let mut schema = match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            ToolCatalog::MultiPatch(_) => r#gen.into_root_schema_for::<FSMultiPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
@@ -955,6 +983,11 @@ impl ToolCatalog {
                 path: std::path::PathBuf::from(&input.file_path),
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.file_path)),
+            }),
+            ToolCatalog::MultiPatch(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.file_path),
+                cwd,
+                message: format!("Modify file with {} edits: {}", input.edits.len(), display_path_for(&input.file_path)),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),

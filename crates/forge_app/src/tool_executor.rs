@@ -251,6 +251,14 @@ impl<
                     .await?;
                 (input, output).into()
             }
+            ToolCatalog::MultiPatch(input) => {
+                let normalized_path = self.normalize_path(input.file_path.clone());
+                let output = self
+                    .services
+                    .multi_patch(normalized_path, input.edits.clone())
+                    .await?;
+                (input, output).into()
+            }
             ToolCatalog::Undo(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self.services.undo(normalized_path).await?;
@@ -348,9 +356,15 @@ impl<
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
 
-        // Enforce read-before-edit for patch
-        if let ToolCatalog::Patch(input) = &tool_input {
-            self.require_prior_read(context, &input.file_path, "edit it")?;
+        // Enforce read-before-edit for patch operations
+        let file_path = match &tool_input {
+            ToolCatalog::Patch(input) => Some(&input.file_path),
+            ToolCatalog::MultiPatch(input) => Some(&input.file_path),
+            _ => None,
+        };
+        
+        if let Some(path) = file_path {
+            self.require_prior_read(context, path, "edit it")?;
         }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;

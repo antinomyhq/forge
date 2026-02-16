@@ -291,6 +291,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.file_path }),
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
+            ToolCatalog::MultiPatch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
             ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
             ToolCatalog::FsSearch(input) => {

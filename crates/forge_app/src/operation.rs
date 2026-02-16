@@ -6,7 +6,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    CodebaseSearchResults, Environment, FSMultiPatch, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
@@ -51,6 +51,10 @@ pub enum ToolOperation {
     },
     FsPatch {
         input: FSPatch,
+        output: PatchOutput,
+    },
+    FsMultiPatch {
+        input: FSMultiPatch,
         output: PatchOutput,
     },
     FsUndo {
@@ -453,6 +457,29 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(root)
             }
             ToolOperation::FsPatch { input, output } => {
+                let diff_result = DiffFormat::format(&output.before, &output.after);
+                let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+
+                let mut elm = Element::new("file_diff")
+                    .attr("path", &input.file_path)
+                    .attr("total_lines", output.after.lines().count())
+                    .cdata(diff);
+
+                if !output.errors.is_empty() {
+                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
+                }
+
+                *metrics = metrics.clone().insert(
+                    input.file_path.clone(),
+                    FileOperation::new(tool_kind)
+                        .lines_added(diff_result.lines_added())
+                        .lines_removed(diff_result.lines_removed())
+                        .content_hash(Some(output.content_hash.clone())),
+                );
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::FsMultiPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
 

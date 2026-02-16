@@ -404,6 +404,13 @@ pub trait FsPatchService: Send + Sync {
         content: String,
         replace_all: bool,
     ) -> anyhow::Result<PatchOutput>;
+
+    /// Applies multiple patches to a single file in sequence
+    async fn multi_patch(
+        &self,
+        path: String,
+        edits: Vec<forge_domain::PatchEdit>,
+    ) -> anyhow::Result<PatchOutput>;
 }
 
 #[async_trait::async_trait]
@@ -871,6 +878,16 @@ impl<I: Services> FsPatchService for I {
     ) -> anyhow::Result<PatchOutput> {
         self.fs_patch_service()
             .patch(path, search, content, replace_all)
+            .await
+    }
+    
+    async fn multi_patch(
+        &self,
+        path: String,
+        edits: Vec<forge_domain::PatchEdit>,
+    ) -> anyhow::Result<PatchOutput> {
+        self.fs_patch_service()
+            .multi_patch(path, edits)
             .await
     }
 }
