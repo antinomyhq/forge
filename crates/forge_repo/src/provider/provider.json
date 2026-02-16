@@ -453,7 +453,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.2-codex",
@@ -463,7 +463,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.2-chat-latest",
