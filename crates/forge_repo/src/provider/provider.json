@@ -456,6 +456,16 @@
         "input_modalities": ["text", "image"]
       },
       {
+        "id": "gpt-5.2-codex",
+        "name": "GPT-5.2 Codex",
+        "description": "Latest iteration of GPT-5 codex series",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
         "id": "gpt-5.2-chat-latest",
         "name": "GPT-5.2 Chat Latest",
         "description": "Latest GPT-5.2 optimized for chat",

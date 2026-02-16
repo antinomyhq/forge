@@ -317,11 +317,11 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
         // search and sandboxed Python execution capabilities at zero client cost.
         let tools = tools.map(|mut t| {
             t.push(oai::Tool::WebSearch(oai::WebSearchTool::default()));
-            t.push(oai::Tool::CodeInterpreter(oai::CodeInterpreterTool {
-                container: oai::CodeInterpreterToolContainer::Auto(
-                    oai::CodeInterpreterContainerAuto::default(),
-                ),
-            }));
+            // t.push(oai::Tool::CodeInterpreter(oai::CodeInterpreterTool {
+            //     container: oai::CodeInterpreterToolContainer::Auto(
+            //         oai::CodeInterpreterContainerAuto::default(),
+            //     ),
+            // }));
             t
         });
 
@@ -352,13 +352,13 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
         if let Some(tools) = tools {
             builder.tools(tools);
 
-            // Request server-executed tool outputs so the model receives the
-            // results of its web_search and code_interpreter calls.
-            let includes = vec![
-                oai::IncludeEnum::WebSearchCallActionSources,
-                oai::IncludeEnum::CodeInterpreterCallOutputs,
-            ];
-            builder.include(includes);
+            // // Request server-executed tool outputs so the model receives the
+            // // results of its web_search and code_interpreter calls.
+            // let includes = vec![
+            //     oai::IncludeEnum::WebSearchCallActionSources,
+            //     oai::IncludeEnum::CodeInterpreterCallOutputs,
+            // ];
+            // builder.include(includes);
         }
 
         if let Some(tool_choice) = tool_choice {
