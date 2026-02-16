@@ -31,7 +31,7 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         let mut guard = self.title_handle.lock().await;
-        
+
         // Early return if title or task already exists
         if conversation.title.is_some() || guard.is_some() {
             return Ok(());
@@ -171,7 +171,10 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         conversation.title = Some("existing".into());
 
-        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(StartPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(handler.title_handle.lock().await.is_none());
     }
@@ -181,9 +184,19 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         *handler.title_handle.lock().await = Some(tokio::spawn(async { Some("original".into()) }));
 
-        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(StartPayload), &mut conversation)
+            .await
+            .unwrap();
 
-        let result = handler.title_handle.lock().await.take().unwrap().await.unwrap();
+        let result = handler
+            .title_handle
+            .lock()
+            .await
+            .take()
+            .unwrap()
+            .await
+            .unwrap();
         assert_eq!(result, Some("original".into()));
     }
 
@@ -192,7 +205,10 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         *handler.title_handle.lock().await = Some(tokio::spawn(async { Some("generated".into()) }));
 
-        handler.handle(&event(EndPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(EndPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert_eq!(conversation.title, Some("generated".into()));
     }
@@ -202,7 +218,10 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         *handler.title_handle.lock().await = Some(tokio::spawn(async { panic!("fail") }));
 
-        handler.handle(&event(EndPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(EndPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(conversation.title.is_none());
     }
@@ -210,7 +229,10 @@ mod tests {
     #[tokio::test]
     async fn test_drop_aborts_pending_task() {
         let (handler, _) = setup("test message");
-        let handle = tokio::spawn(async { tokio::time::sleep(tokio::time::Duration::from_secs(60)).await; Some("x".into()) });
+        let handle = tokio::spawn(async {
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+            Some("x".into())
+        });
         let abort = handle.abort_handle();
         *handler.title_handle.lock().await = Some(handle);
 
