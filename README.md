@@ -516,7 +516,7 @@ Configuring the tool calls settings:
 ```bash
 # .env
 FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
-FORGE_MAX_IMAGE_SIZE=262144    # Maximum image file size in bytes for read_image operations (default: 262144 - 256 KB)
+FORGE_MAX_IMAGE_SIZE=1048576    # Maximum image file size in bytes for read_image operations (default: 1048576 - 1 MB)
 FORGE_DUMP_AUTO_OPEN=false     # Automatically open dump files in browser (default: false)
 FORGE_DEBUG_REQUESTS=/path/to/debug/requests.json  # Write debug HTTP request files to specified path (supports absolute and relative paths)
 ```
