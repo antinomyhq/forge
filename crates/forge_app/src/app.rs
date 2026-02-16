@@ -143,7 +143,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Create the orchestrator with all necessary dependencies
         let tracing_handler = TracingHandler::new();
-        let title_handler = TitleGenerationHandler::new(services.clone(), chat.event.clone());
+        let title_handler = TitleGenerationHandler::new(services.clone());
         let hook = Hook::default()
             .on_start(tracing_handler.clone().and(title_handler.clone()))
             .on_request(tracing_handler.clone())
