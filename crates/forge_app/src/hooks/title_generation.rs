@@ -94,7 +94,12 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
 
 impl<S> Drop for TitleGenerationHandler<S> {
     fn drop(&mut self) {
-        if let Some(handle) = self.title_handle.try_lock().ok().and_then(|mut guard| guard.take()) {
+        if let Some(handle) = self
+            .title_handle
+            .try_lock()
+            .ok()
+            .and_then(|mut guard| guard.take())
+        {
             handle.abort();
         }
     }
@@ -157,36 +162,51 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_skips_if_title_exists() {
-        let fixture = TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Write a function"));
+        let fixture =
+            TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Write a function"));
         let mut conversation = Conversation::generate().title(Some("Existing Title".to_string()));
         let event_data = EventData::new(test_agent(), test_model_id(), StartPayload);
 
-        fixture.handle(&event_data, &mut conversation).await.unwrap();
+        fixture
+            .handle(&event_data, &mut conversation)
+            .await
+            .unwrap();
 
         // No task should have been spawned
         let guard = fixture.title_handle.lock().await;
-        assert!(guard.is_none(), "No handle should be stored when title already exists");
+        assert!(
+            guard.is_none(),
+            "No handle should be stored when title already exists"
+        );
     }
 
     #[tokio::test]
     async fn test_start_skips_if_task_already_in_progress() {
-        let fixture = TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Write a function"));
+        let fixture =
+            TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Write a function"));
         let mut conversation = Conversation::generate();
         let event_data = EventData::new(test_agent(), test_model_id(), StartPayload);
 
         // First call spawns a task
-        fixture.handle(&event_data, &mut conversation).await.unwrap();
+        fixture
+            .handle(&event_data, &mut conversation)
+            .await
+            .unwrap();
         let guard = fixture.title_handle.lock().await;
         assert!(guard.is_some(), "Handle should be stored after first call");
         drop(guard);
 
         // Second call should not overwrite the existing handle
-        fixture.handle(&event_data, &mut conversation).await.unwrap();
+        fixture
+            .handle(&event_data, &mut conversation)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
     async fn test_end_sets_title_from_completed_task() {
-        let fixture = TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Test prompt"));
+        let fixture =
+            TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Test prompt"));
 
         // Inject a completed task handle that returns a title
         let title_handle = tokio::spawn(async { Some("Generated Title".to_string()) });
@@ -203,7 +223,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_end_handles_task_failure() {
-        let fixture = TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Test prompt"));
+        let fixture =
+            TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Test prompt"));
 
         // Inject a task handle that panics (simulates JoinError)
         let title_handle: JoinHandle<Option<String>> =
@@ -221,7 +242,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_aborts_pending_task() {
-        let fixture = TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Test prompt"));
+        let fixture =
+            TitleGenerationHandler::new(Arc::new(MockAgentService), test_event("Test prompt"));
 
         // Inject a long-running task
         let title_handle: JoinHandle<Option<String>> = tokio::spawn(async {
