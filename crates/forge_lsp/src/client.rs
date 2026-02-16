@@ -2,16 +2,16 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 use lsp_types::{
-    ClientCapabilities, InitializeParams, InitializeResult, InitializedParams,
-    TextDocumentIdentifier, TextDocumentItem, Url, PublishDiagnosticsParams, Diagnostic
+    ClientCapabilities, Diagnostic, InitializeParams, InitializeResult, InitializedParams,
+    PublishDiagnosticsParams, TextDocumentIdentifier, TextDocumentItem, Url,
 };
-use serde_json::{Value, json};
-use tokio::sync::{Mutex, oneshot};
+use serde_json::{json, Value};
+use tokio::sync::{oneshot, Mutex};
 use tokio::time::timeout;
-use tracing::{info, error};
+use tracing::{error, info};
 
 use crate::transport::{LspTransport, LspWriter};
 
@@ -40,7 +40,8 @@ impl LspClient {
             writer: writer.clone(),
             next_id: AtomicI64::new(1),
             pending_requests: pending_requests.clone(),
-            root_uri: Url::from_directory_path(root_path).map_err(|_| anyhow!("Invalid root path"))?,
+            root_uri: Url::from_directory_path(root_path)
+                .map_err(|_| anyhow!("Invalid root path"))?,
             diagnostics: diagnostics.clone(),
             open_files: open_files.clone(),
         };
@@ -56,11 +57,11 @@ impl LspClient {
                             // It's a response
                             if let Some((_, sender)) = pending_requests_clone.remove(&id) {
                                 if let Some(error) = msg.get("error") {
-                                     let _ = sender.send(Err(anyhow!("LSP Error: {}", error)));
+                                    let _ = sender.send(Err(anyhow!("LSP Error: {}", error)));
                                 } else if let Some(result) = msg.get("result") {
-                                     let _ = sender.send(Ok(result.clone()));
+                                    let _ = sender.send(Ok(result.clone()));
                                 } else {
-                                     let _ = sender.send(Ok(Value::Null));
+                                    let _ = sender.send(Ok(Value::Null));
                                 }
                             }
                         } else {
@@ -68,19 +69,25 @@ impl LspClient {
                             if let Some(method) = msg.get("method").and_then(|m| m.as_str()) {
                                 if method == "textDocument/publishDiagnostics" {
                                     if let Some(params) = msg.get("params") {
-                                        match serde_json::from_value::<PublishDiagnosticsParams>(params.clone()) {
+                                        match serde_json::from_value::<PublishDiagnosticsParams>(
+                                            params.clone(),
+                                        ) {
                                             Ok(params) => {
-                                                diagnostics_clone.insert(params.uri, params.diagnostics);
+                                                diagnostics_clone
+                                                    .insert(params.uri, params.diagnostics);
                                             }
                                             Err(e) => {
-                                                error!("Failed to parse publishDiagnostics params: {}", e);
+                                                error!(
+                                                    "Failed to parse publishDiagnostics params: {}",
+                                                    e
+                                                );
                                             }
                                         }
                                     }
                                 }
                             }
                         }
-                    },
+                    }
                     Ok(None) => break, // EOF
                     Err(e) => {
                         error!("Error reading LSP message: {}", e);
@@ -103,7 +110,11 @@ impl LspClient {
         Ok(client)
     }
 
-    async fn send_request<R: serde::de::DeserializeOwned>(&self, method: &str, params: Value) -> Result<R> {
+    async fn send_request<R: serde::de::DeserializeOwned>(
+        &self,
+        method: &str,
+        params: Value,
+    ) -> Result<R> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let request = json!({
             "jsonrpc": "2.0",
@@ -161,18 +172,26 @@ impl LspClient {
             ..Default::default()
         };
 
-        let result: InitializeResult = self.send_request("initialize", serde_json::to_value(params)?).await?;
+        let result: InitializeResult = self
+            .send_request("initialize", serde_json::to_value(params)?)
+            .await?;
 
-        self.send_notification("initialized", serde_json::to_value(InitializedParams {})?).await?;
+        self.send_notification("initialized", serde_json::to_value(InitializedParams {})?)
+            .await?;
 
         info!("LSP Initialized: {:?}", result.capabilities);
 
         Ok(())
     }
 
-    pub async fn did_open(&self, path: &std::path::Path, language_id: &str, content: String) -> Result<()> {
+    pub async fn did_open(
+        &self,
+        path: &std::path::Path,
+        language_id: &str,
+        content: String,
+    ) -> Result<()> {
         let uri = Url::from_file_path(path).map_err(|_| anyhow!("Invalid file path"))?;
-        
+
         if self.open_files.contains_key(&uri) {
             return Ok(());
         }
@@ -186,12 +205,18 @@ impl LspClient {
             },
         };
 
-        self.send_notification("textDocument/didOpen", serde_json::to_value(params)?).await?;
+        self.send_notification("textDocument/didOpen", serde_json::to_value(params)?)
+            .await?;
         self.open_files.insert(uri, true);
         Ok(())
     }
 
-    pub async fn goto_definition(&self, path: &std::path::Path, line: u32, character: u32) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
+    pub async fn goto_definition(
+        &self,
+        path: &std::path::Path,
+        line: u32,
+        character: u32,
+    ) -> Result<Option<lsp_types::GotoDefinitionResponse>> {
         let uri = Url::from_file_path(path).map_err(|_| anyhow!("Invalid file path"))?;
         let params = lsp_types::GotoDefinitionParams {
             text_document_position_params: lsp_types::TextDocumentPositionParams {
@@ -202,11 +227,18 @@ impl LspClient {
             partial_result_params: Default::default(),
         };
 
-        let result: Option<lsp_types::GotoDefinitionResponse> = self.send_request("textDocument/definition", serde_json::to_value(params)?).await?;
+        let result: Option<lsp_types::GotoDefinitionResponse> = self
+            .send_request("textDocument/definition", serde_json::to_value(params)?)
+            .await?;
         Ok(result)
     }
 
-    pub async fn find_references(&self, path: &std::path::Path, line: u32, character: u32) -> Result<Option<Vec<lsp_types::Location>>> {
+    pub async fn find_references(
+        &self,
+        path: &std::path::Path,
+        line: u32,
+        character: u32,
+    ) -> Result<Option<Vec<lsp_types::Location>>> {
         let uri = Url::from_file_path(path).map_err(|_| anyhow!("Invalid file path"))?;
         let params = lsp_types::ReferenceParams {
             text_document_position: lsp_types::TextDocumentPositionParams {
@@ -218,11 +250,18 @@ impl LspClient {
             context: lsp_types::ReferenceContext { include_declaration: true },
         };
 
-        let result: Option<Vec<lsp_types::Location>> = self.send_request("textDocument/references", serde_json::to_value(params)?).await?;
+        let result: Option<Vec<lsp_types::Location>> = self
+            .send_request("textDocument/references", serde_json::to_value(params)?)
+            .await?;
         Ok(result)
     }
 
-    pub async fn hover(&self, path: &std::path::Path, line: u32, character: u32) -> Result<Option<lsp_types::Hover>> {
+    pub async fn hover(
+        &self,
+        path: &std::path::Path,
+        line: u32,
+        character: u32,
+    ) -> Result<Option<lsp_types::Hover>> {
         let uri = Url::from_file_path(path).map_err(|_| anyhow!("Invalid file path"))?;
         let params = lsp_types::HoverParams {
             text_document_position_params: lsp_types::TextDocumentPositionParams {
@@ -232,11 +271,16 @@ impl LspClient {
             work_done_progress_params: Default::default(),
         };
 
-        let result: Option<lsp_types::Hover> = self.send_request("textDocument/hover", serde_json::to_value(params)?).await?;
+        let result: Option<lsp_types::Hover> = self
+            .send_request("textDocument/hover", serde_json::to_value(params)?)
+            .await?;
         Ok(result)
     }
 
-    pub async fn document_symbol(&self, path: &std::path::Path) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
+    pub async fn document_symbol(
+        &self,
+        path: &std::path::Path,
+    ) -> Result<Option<lsp_types::DocumentSymbolResponse>> {
         let uri = Url::from_file_path(path).map_err(|_| anyhow!("Invalid file path"))?;
         let params = lsp_types::DocumentSymbolParams {
             text_document: TextDocumentIdentifier { uri },
@@ -244,18 +288,25 @@ impl LspClient {
             partial_result_params: Default::default(),
         };
 
-        let result: Option<lsp_types::DocumentSymbolResponse> = self.send_request("textDocument/documentSymbol", serde_json::to_value(params)?).await?;
+        let result: Option<lsp_types::DocumentSymbolResponse> = self
+            .send_request("textDocument/documentSymbol", serde_json::to_value(params)?)
+            .await?;
         Ok(result)
     }
 
-    pub async fn workspace_symbol(&self, query: &str) -> Result<Option<Vec<lsp_types::SymbolInformation>>> {
+    pub async fn workspace_symbol(
+        &self,
+        query: &str,
+    ) -> Result<Option<Vec<lsp_types::SymbolInformation>>> {
         let params = lsp_types::WorkspaceSymbolParams {
             query: query.to_string(),
             work_done_progress_params: Default::default(),
             partial_result_params: Default::default(),
         };
 
-        let result: Option<Vec<lsp_types::SymbolInformation>> = self.send_request("workspace/symbol", serde_json::to_value(params)?).await?;
+        let result: Option<Vec<lsp_types::SymbolInformation>> = self
+            .send_request("workspace/symbol", serde_json::to_value(params)?)
+            .await?;
         Ok(result)
     }
 

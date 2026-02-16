@@ -99,7 +99,6 @@ impl JsonSchema for LspOperation {
     }
 }
 
-
 /// Input structure for agent tool calls. This serves as the generic schema
 /// for dynamically registered agent tools, allowing users to specify tasks
 /// for specific agents.

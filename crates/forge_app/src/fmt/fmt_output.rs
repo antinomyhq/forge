@@ -33,13 +33,9 @@ impl FormatContent for ToolOperation {
             ToolOperation::TodoWrite { output } => {
                 Some(ChatResponseContent::Markdown { text: format_todos(output), partial: false })
             }
-            ToolOperation::Lsp { output } => {
-                if let Some(text) = output.as_str() {
-                    Some(ChatResponseContent::Markdown { text: text.to_string(), partial: false })
-                } else {
-                    None
-                }
-            }
+            ToolOperation::Lsp { output } => output.as_str().map(|text| {
+                ChatResponseContent::Markdown { text: text.to_string(), partial: false }
+            }),
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }

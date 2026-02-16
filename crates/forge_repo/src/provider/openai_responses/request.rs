@@ -354,9 +354,10 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
 
             // Request server-executed tool outputs so the model receives the
             // results of its web_search and code_interpreter calls.
-            let mut includes = Vec::new();
-            includes.push(oai::IncludeEnum::WebSearchCallActionSources);
-            includes.push(oai::IncludeEnum::CodeInterpreterCallOutputs);
+            let includes = vec![
+                oai::IncludeEnum::WebSearchCallActionSources,
+                oai::IncludeEnum::CodeInterpreterCallOutputs,
+            ];
             builder.include(includes);
         }
 

@@ -1,9 +1,9 @@
-use std::sync::Arc;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{Result, anyhow};
 use forge_app::LspService;
-use forge_domain::{LspTool, ToolOutput, LspOperation};
+use forge_domain::{LspOperation, LspTool, ToolOutput};
 use forge_lsp::LspManager;
 
 use crate::utils::assert_absolute_path;
@@ -16,10 +16,7 @@ pub struct ForgeLspService<I> {
 
 impl<I> ForgeLspService<I> {
     pub fn new(infra: Arc<I>) -> Self {
-        Self {
-            infra,
-            manager: Arc::new(LspManager::new()),
-        }
+        Self { infra, manager: Arc::new(LspManager::new()) }
     }
 }
 
@@ -30,7 +27,7 @@ impl<I: Send + Sync> LspService for ForgeLspService<I> {
         assert_absolute_path(&path)?;
 
         if !path.exists() && !matches!(tool.operation, LspOperation::WorkspaceSymbol) {
-             return Err(anyhow!("File not found: {}", tool.file_path));
+            return Err(anyhow!("File not found: {}", tool.file_path));
         }
 
         let client = self.manager.get_client(&path).await?;
@@ -66,17 +63,18 @@ impl<I: Send + Sync> LspService for ForgeLspService<I> {
                 let output = serde_json::to_string_pretty(&result)?;
                 Ok(ToolOutput::text(output))
             }
-            LspOperation::WorkspaceSymbol => {
-                Ok(ToolOutput::text("WorkspaceSymbol not fully supported yet (missing query parameter)"))
-            }
+            LspOperation::WorkspaceSymbol => Ok(ToolOutput::text(
+                "WorkspaceSymbol not fully supported yet (missing query parameter)",
+            )),
             LspOperation::GetDiagnostics => {
                 let result = client.get_diagnostics(&path).await?;
                 let output = serde_json::to_string_pretty(&result)?;
                 Ok(ToolOutput::text(output))
             }
-            _ => {
-                Ok(ToolOutput::text(format!("LSP operation {:?} not implemented yet", tool.operation)))
-            }
+            _ => Ok(ToolOutput::text(format!(
+                "LSP operation {:?} not implemented yet",
+                tool.operation
+            ))),
         }
     }
 }

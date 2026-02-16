@@ -128,11 +128,7 @@ mod tests {
         let mut transformer = CodexTransformer;
         let actual = transformer.transform(fixture);
 
-        let expected = vec![
-            oai::IncludeEnum::WebSearchCallActionSources,
-            oai::IncludeEnum::CodeInterpreterCallOutputs,
-            oai::IncludeEnum::ReasoningEncryptedContent,
-        ];
+        let expected = vec![oai::IncludeEnum::ReasoningEncryptedContent];
         assert_eq!(actual.include, Some(expected));
     }
 
@@ -192,7 +188,12 @@ mod tests {
         for i in 0..10 {
             context = context
                 .add_message(ContextMessage::user(format!("Q{}", i), None))
-                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
         }
 
         let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
@@ -219,7 +220,12 @@ mod tests {
         for i in 0..20 {
             context = context
                 .add_message(ContextMessage::user(format!("Q{}", i), None))
-                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
         }
 
         let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
@@ -246,7 +252,12 @@ mod tests {
         for i in 0..50 {
             context = context
                 .add_message(ContextMessage::user(format!("Q{}", i), None))
-                .add_message(ContextMessage::assistant(format!("A{}", i), None, None, None));
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
         }
 
         let mut fixture = oai::CreateResponse::from_domain(context).unwrap();

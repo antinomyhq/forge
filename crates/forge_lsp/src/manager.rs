@@ -1,13 +1,13 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use dashmap::DashMap;
 
 use crate::client::LspClient;
 use crate::install::find_or_install;
 use crate::language::get_language_id;
-use crate::server::{get_server_definitions, find_root, ServerDefinition};
+use crate::server::{find_root, get_server_definitions, ServerDefinition};
 
 pub struct LspManager {
     clients: DashMap<String, Arc<LspClient>>, // Key: Root Path + Server ID
@@ -23,9 +23,12 @@ impl LspManager {
     }
 
     pub async fn get_client(&self, file_path: &Path) -> Result<Arc<LspClient>> {
-        let language_id = get_language_id(file_path).ok_or_else(|| anyhow!("Unsupported file extension"))?;
+        let language_id =
+            get_language_id(file_path).ok_or_else(|| anyhow!("Unsupported file extension"))?;
 
-        let definition = self.server_definitions.iter()
+        let definition = self
+            .server_definitions
+            .iter()
             .find(|def| def.language_ids.iter().any(|id| id == language_id))
             .ok_or_else(|| anyhow!("No LSP server defined for language: {}", language_id))?;
 
@@ -39,7 +42,8 @@ impl LspManager {
         }
 
         // Ensure server is installed and get the executable path
-        let executable_path = find_or_install(&definition.command, definition.installation.as_ref())?;
+        let executable_path =
+            find_or_install(&definition.command, definition.installation.as_ref())?;
         let executable_str = executable_path.to_string_lossy().to_string();
 
         // Create new client

@@ -175,6 +175,12 @@ impl<
                     .services
                     .write(normalized_path, input.content.clone(), input.overwrite)
                     .await?;
+
+                // Enforce read-before-write check if file was overwritten
+                if input.overwrite && output.before.is_some() {
+                    self.require_prior_read(context, &input.file_path, "overwrite it")?;
+                }
+
                 (input, output).into()
             }
             ToolCatalog::FsSearch(input) => {
@@ -345,13 +351,6 @@ impl<
         // Enforce read-before-edit for patch
         if let ToolCatalog::Patch(input) = &tool_input {
             self.require_prior_read(context, &input.file_path, "edit it")?;
-        }
-
-        // Enforce read-before-edit for overwrite writes
-        if let ToolCatalog::Write(input) = &tool_input
-            && input.overwrite
-        {
-            self.require_prior_read(context, &input.file_path, "overwrite it")?;
         }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;

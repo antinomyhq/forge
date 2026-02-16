@@ -1,8 +1,9 @@
 use std::process::Stdio;
+
+use anyhow::{anyhow, Context, Result};
+use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
-use anyhow::{Result, anyhow, Context};
-use serde_json::Value;
 use tracing::error;
 
 pub struct LspTransport {
@@ -19,7 +20,11 @@ pub struct LspWriter {
 }
 
 impl LspTransport {
-    pub fn new(command: &str, args: &[String], cwd: Option<&std::path::Path>) -> Result<(Self, LspReader, LspWriter)> {
+    pub fn new(
+        command: &str,
+        args: &[String],
+        cwd: Option<&std::path::Path>,
+    ) -> Result<(Self, LspReader, LspWriter)> {
         let mut cmd = Command::new(command);
         cmd.args(args);
         cmd.stdin(Stdio::piped());
@@ -31,11 +36,22 @@ impl LspTransport {
             cmd.current_dir(cwd);
         }
 
-        let mut child = cmd.spawn().context(format!("Failed to spawn LSP server: {}", command))?;
+        let mut child = cmd
+            .spawn()
+            .context(format!("Failed to spawn LSP server: {}", command))?;
 
-        let stdin = child.stdin.take().ok_or_else(|| anyhow!("Failed to open stdin"))?;
-        let stdout = child.stdout.take().ok_or_else(|| anyhow!("Failed to open stdout"))?;
-        let stderr = child.stderr.take().ok_or_else(|| anyhow!("Failed to open stderr"))?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| anyhow!("Failed to open stdin"))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| anyhow!("Failed to open stdout"))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| anyhow!("Failed to open stderr"))?;
 
         // Spawn a task to read stderr and log it
         tokio::spawn(async move {
