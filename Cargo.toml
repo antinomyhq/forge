@@ -20,7 +20,7 @@ async-recursion = "1.1.1"
 async-trait = "0.1.89"
 aws-config = { version = "1.8.13", features = ["behavior-version-latest"], default-features = false }
 aws-sdk-bedrockruntime = { version = "1.124.0", features = ["behavior-version-latest"], default-features = false }
-aws-credential-types = "1.2.11"
+aws-credential-types = "1.2.12"
 aws-smithy-types = "1.4.3"
 aws-smithy-runtime-api = "1.11.3"
 aws-smithy-async = { version = "1.2.11", features = ["rt-tokio"] }
@@ -28,8 +28,8 @@ aws-smithy-runtime = { version = "1.10", features = ["connector-hyper-0-14-x", "
 base64 = "0.22.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.43", features = ["serde"] }
-clap = { version = "4.5.57", features = ["derive"] }
-clap_complete = "4.5.65"
+clap = { version = "4.5.58", features = ["derive"] }
+clap_complete = "4.5.66"
 colored = "3.1.1"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
@@ -41,7 +41,7 @@ derive_setters = "0.1.9"
 dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenvy = "0.15.7"
-futures = "0.3.31"
+futures = "0.3.32"
 gh-workflow = "0.8.1"
 glob = "0.3.3"
 grep-searcher = "0.1.14"
@@ -84,8 +84,8 @@ similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.1"
 strum_macros = "0.27.1"
-syn = { version = "2.0.114", features = ["derive", "parsing"] }
-sysinfo = "0.38.0"
+syn = { version = "2.0.116", features = ["derive", "parsing"] }
+sysinfo = "0.38.2"
 tempfile = "3.25.0"
 termimad = "0.34.1"
 syntect = { version = "5", default-features = false, features = ["default-syntaxes", "default-themes", "regex-onig"] }
@@ -102,7 +102,7 @@ tokio = { version = "1.49.0", features = [
 ] }
 tokio-stream = "0.1.18"
 tokio-util = "0.7"
-tonic = { version = "0.14.3", features = ["tls-webpki-roots"] }
+tonic = { version = "0.14.4", features = ["tls-webpki-roots"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
