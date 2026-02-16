@@ -3,8 +3,8 @@ use std::sync::Arc;
 use forge_domain::Metrics;
 use tracing::debug;
 
-use crate::utils::parallel_map;
 use crate::FsReadService;
+use crate::utils::parallel_map;
 
 /// Information about a detected file change
 #[derive(Debug, Clone, PartialEq)]
