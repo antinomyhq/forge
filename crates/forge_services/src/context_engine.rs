@@ -1,14 +1,12 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use backon::{ExponentialBuilder, Retryable};
 use forge_app::{
-    EnvironmentInfra, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService,
-    WorkspaceStatus, compute_hash,
+    FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService, WorkspaceStatus,
+    compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -43,37 +41,6 @@ fn has_allowed_extension(path: &Path) -> bool {
     }
 }
 
-/// Determines if a gRPC error should trigger a retry attempt.
-///
-/// Only retries transient errors that might succeed on subsequent attempts.
-/// Permanent failures (client errors, unimplemented operations, auth issues)
-/// are not retried.
-fn should_retry_grpc(error: &anyhow::Error) -> bool {
-    // Check if this is a connection error (service offline)
-    // Connection errors indicate the service is not running and retrying won't help
-    let error_msg = format!("{:#}", error).to_lowercase();
-    if error_msg.contains("connection refused") || error_msg.contains("tcp connect error") {
-        return false;
-    }
-
-    warn!(error=?error,"Attempting to retry");
-    let Some(status) = error.downcast_ref::<tonic::Status>() else {
-        // Not a gRPC error, retry by default
-        return true;
-    };
-
-    // Only retry transient errors that might succeed on subsequent attempts
-    matches!(
-        status.code(),
-        tonic::Code::Cancelled           // Operation cancelled, may succeed if retried
-        | tonic::Code::Unknown           // Unknown error, might be transient
-        | tonic::Code::DeadlineExceeded  // Timeout, may succeed with more time
-        | tonic::Code::ResourceExhausted // Rate limiting or quota, may recover
-        | tonic::Code::Aborted           // Conflict or transaction abort, may succeed
-        | tonic::Code::Unavailable // Service unavailable, classic retry case
-    )
-}
-
 /// Service for indexing workspaces and performing semantic search
 pub struct ForgeWorkspaceService<F> {
     infra: Arc<F>,
@@ -91,28 +58,6 @@ impl<F> ForgeWorkspaceService<F> {
         Self { infra }
     }
 
-    /// Execute an operation with retry logic based on the retry configuration
-    async fn with_retry<Fut, T>(&self, operation: impl Fn() -> Fut) -> Result<T>
-    where
-        F: EnvironmentInfra,
-        Fut: std::future::Future<Output = Result<T>>,
-    {
-        let env = self.infra.get_environment();
-        let retry_config = &env.retry_config;
-
-        let mut builder = ExponentialBuilder::default()
-            .with_min_delay(Duration::from_millis(retry_config.min_delay_ms))
-            .with_factor(retry_config.backoff_factor as f32)
-            .with_max_times(retry_config.max_retry_attempts)
-            .with_jitter();
-
-        if let Some(max_delay) = retry_config.max_delay {
-            builder = builder.with_max_delay(Duration::from_secs(max_delay));
-        }
-
-        operation.retry(builder).when(should_retry_grpc).await
-    }
-
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(
         &self,
@@ -121,18 +66,16 @@ impl<F> ForgeWorkspaceService<F> {
         auth_token: &forge_domain::ApiKey,
     ) -> Vec<FileHash>
     where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
 
-        self.with_retry(|| {
-            self.infra
-                .list_workspace_files(&workspace_files, auth_token)
-        })
-        .await
-        .unwrap_or_default()
+        self.infra
+            .list_workspace_files(&workspace_files, auth_token)
+            .await
+            .unwrap_or_default()
     }
 
     /// Deletes a batch of files from the server.
@@ -144,11 +87,12 @@ impl<F> ForgeWorkspaceService<F> {
         paths: Vec<String>,
     ) -> Result<()>
     where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository,
     {
         let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
 
-        self.with_retry(|| self.infra.delete_files(&deletion, token))
+        self.infra
+            .delete_files(&deletion, token)
             .await
             .context("Failed to delete files")
     }
@@ -162,11 +106,12 @@ impl<F> ForgeWorkspaceService<F> {
         files: Vec<forge_domain::FileRead>,
     ) -> Result<()>
     where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository,
     {
         let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
 
-        self.with_retry(|| self.infra.upload_files(&upload, token))
+        self.infra
+            .upload_files(&upload, token)
             .await
             .context("Failed to upload files")?;
         Ok(())
@@ -184,8 +129,7 @@ impl<F> ForgeWorkspaceService<F> {
             + ProviderRepository
             + WorkspaceIndexRepository
             + WalkerInfra
-            + FileReaderInfra
-            + EnvironmentInfra,
+            + FileReaderInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -221,7 +165,8 @@ impl<F> ForgeWorkspaceService<F> {
         let workspace_id = if is_new_workspace {
             // Create an workspace.
             let id = self
-                .with_retry(|| self.infra.create_workspace(&workspace_path, &token))
+                .infra
+                .create_workspace(&workspace_path, &token)
                 .await
                 .context("Failed to create workspace on server")?;
 
@@ -526,7 +471,6 @@ impl<
         + WorkspaceIndexRepository
         + WalkerInfra
         + FileReaderInfra
-        + EnvironmentInfra
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
@@ -578,7 +522,8 @@ impl<
         );
 
         let results = self
-            .with_retry(|| self.infra.search(&search_query, &token))
+            .infra
+            .search(&search_query, &token)
             .await
             .context("Failed to search")?;
 
@@ -589,7 +534,9 @@ impl<
     async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         let (token, _) = self.get_workspace_credentials().await?;
 
-        self.with_retry(|| self.infra.as_ref().list_workspaces(&token))
+        self.infra
+            .as_ref()
+            .list_workspaces(&token)
             .await
             .context("Failed to list workspaces")
     }
@@ -603,13 +550,11 @@ impl<
         let workspace = self.find_workspace_by_path(path, &user_id).await?;
 
         if let Some(workspace) = workspace {
-            self.with_retry(|| {
-                self.infra
-                    .as_ref()
-                    .get_workspace(&workspace.workspace_id, &token)
-            })
-            .await
-            .context("Failed to get workspace info")
+            self.infra
+                .as_ref()
+                .get_workspace(&workspace.workspace_id, &token)
+                .await
+                .context("Failed to get workspace info")
         } else {
             Ok(None)
         }
@@ -619,7 +564,9 @@ impl<
     async fn delete_workspace(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         let (token, _) = self.get_workspace_credentials().await?;
 
-        self.with_retry(|| self.infra.as_ref().delete_workspace(workspace_id, &token))
+        self.infra
+            .as_ref()
+            .delete_workspace(workspace_id, &token)
             .await
             .context("Failed to delete workspace from server")?;
 
@@ -701,7 +648,8 @@ impl<
     async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         // Authenticate with the indexing service
         let auth = self
-            .with_retry(|| self.infra.authenticate())
+            .infra
+            .authenticate()
             .await
             .context("Failed to authenticate with indexing service")?;
 
@@ -2004,131 +1952,6 @@ mod tests {
             .unwrap();
 
         assert!(actual.is_none());
-    }
-
-    #[test]
-    fn test_should_retry_grpc() {
-        // Transient errors - should retry
-        assert!(should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::cancelled("cancelled")
-        )));
-        assert!(should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::unknown("unknown")
-        )));
-        assert!(should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::deadline_exceeded("timeout")
-        )));
-        assert!(should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::resource_exhausted("rate limited")
-        )));
-        assert!(should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::aborted("aborted")
-        )));
-        assert!(should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::unavailable("unavailable")
-        )));
-
-        // Non-gRPC errors - should retry by default
-        assert!(should_retry_grpc(&anyhow::anyhow!("generic error")));
-
-        // Permanent errors - should NOT retry
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::invalid_argument("invalid")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::not_found("not found")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::already_exists("exists")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::permission_denied("denied")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::failed_precondition("precondition")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::out_of_range("range")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::unimplemented("unimplemented")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::internal("internal")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::unauthenticated("unauthenticated")
-        )));
-        assert!(!should_retry_grpc(&anyhow::Error::new(
-            tonic::Status::data_loss("data loss")
-        )));
-
-        // Connection errors - should NOT retry (service offline)
-        assert!(!should_retry_grpc(&anyhow::anyhow!(
-            "Connection refused (os error 61)"
-        )));
-        assert!(!should_retry_grpc(&anyhow::anyhow!(
-            "tcp connect error: Connection refused"
-        )));
-        assert!(!should_retry_grpc(&anyhow::anyhow!(
-            "transport error: tcp connect error"
-        )));
-    }
-
-    #[test]
-    fn test_should_retry_grpc_unavailable_with_connection_refused() {
-        // Test the exact scenario from the bug report:
-        // Status code is Unavailable, but the underlying error is a connection refused
-        // This should NOT retry because the service is offline
-
-        // Simulate the actual error message format from tonic transport errors
-        let error = anyhow::anyhow!(
-            "code: 'The service is currently unavailable', message: \"tcp connect error\", \
-            source: tonic::transport::Error(Transport, ConnectError(ConnectError(\
-            \"tcp connect error\", 127.0.0.1:8080, Os {{ code: 61, kind: ConnectionRefused, \
-            message: \"Connection refused\" }})))"
-        );
-
-        assert!(
-            !should_retry_grpc(&error),
-            "Expected connection refused error to NOT be retried"
-        );
-
-        // Test with wrapped tonic::Status::unavailable containing connection error
-        let error = anyhow::Error::new(tonic::Status::unavailable("tcp connect error"))
-            .context("Connection refused (os error 61)");
-
-        assert!(
-            !should_retry_grpc(&error),
-            "Expected unavailable status with connection refused to NOT be retried"
-        );
-
-        // Test case-insensitive matching for connection errors
-        let error = anyhow::anyhow!("CONNECTION REFUSED (os error 61)");
-        assert!(
-            !should_retry_grpc(&error),
-            "Expected uppercase CONNECTION REFUSED to NOT be retried"
-        );
-
-        let error = anyhow::anyhow!("TCP Connect Error: connection failed");
-        assert!(
-            !should_retry_grpc(&error),
-            "Expected mixed case TCP Connect Error to NOT be retried"
-        );
-
-        let error = anyhow::anyhow!("Transport error: Tcp Connect Error");
-        assert!(
-            !should_retry_grpc(&error),
-            "Expected title case Tcp Connect Error to NOT be retried"
-        );
-
-        // Verify that normal unavailable errors (without connection issues) ARE retried
-        let error = anyhow::Error::new(tonic::Status::unavailable("service temporarily down"));
-
-        assert!(
-            should_retry_grpc(&error),
-            "Expected normal unavailable status to be retried"
-        );
     }
 
     #[tokio::test]
