@@ -192,10 +192,18 @@ mod tests {
         *fixture.title_handle.lock().await = Some(existing_handle);
 
         // Second start should not overwrite the existing handle
-        fixture.handle(&event_data, &mut conversation).await.unwrap();
+        fixture
+            .handle(&event_data, &mut conversation)
+            .await
+            .unwrap();
 
         // The original handle should still be there and produce "Original"
-        let handle = fixture.title_handle.lock().await.take().expect("Handle should still exist");
+        let handle = fixture
+            .title_handle
+            .lock()
+            .await
+            .take()
+            .expect("Handle should still exist");
         let actual = handle.await.unwrap();
         let expected = Some("Original".to_string());
         assert_eq!(actual, expected);
