@@ -31,8 +31,8 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         event: &EventData<StartPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        // Early return if title already exists
-        if conversation.title.is_some() {
+        // Early return if title or task already exists
+        if conversation.title.is_some() || self.title_handle.lock().await.is_some() {
             return Ok(());
         }
 
@@ -88,5 +88,13 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
         }
 
         Ok(())
+    }
+}
+
+impl<S> Drop for TitleGenerationHandler<S> {
+    fn drop(&mut self) {
+        if let Some(handle) = self.title_handle.try_lock().ok().and_then(|mut guard| guard.take()) {
+            handle.abort();
+        }
     }
 }
