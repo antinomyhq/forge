@@ -31,8 +31,9 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         event: &EventData<StartPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
+        let mut guard = self.title_handle.lock().await;
         // Early return if title or task already exists
-        if conversation.title.is_some() || self.title_handle.lock().await.is_some() {
+        if conversation.title.is_some() || guard.is_some() {
             return Ok(());
         }
 
@@ -57,7 +58,7 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
 
         let handle = tokio::spawn(async move { generator.generate().await.ok().flatten() });
 
-        *self.title_handle.lock().await = Some(handle);
+        *guard = Some(handle);
 
         Ok(())
     }
