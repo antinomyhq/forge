@@ -3427,7 +3427,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if quiet {
             let workspace = self.api.get_workspace_info(path).await?;
             if workspace.is_none() {
-                std::process::exit(1);
+                anyhow::bail!("Workspace not found. Run `workspace sync` to index it.");
             }
             return Ok(());
         }
