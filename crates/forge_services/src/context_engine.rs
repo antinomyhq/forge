@@ -414,29 +414,35 @@ impl<F> ForgeWorkspaceService<F> {
             "No valid source files found to index"
         );
 
-        // Read all filtered files
+        // Read all filtered files with parallelism limited to CPU core count
         let infra = self.infra.clone();
-        let read_tasks = filtered_files.into_iter().map(|walked| {
-            let infra = infra.clone();
-            let file_path = dir_path.join(&walked.path);
-            let relative_path = walked.path.clone();
-            async move {
-                infra
-                    .read_utf8(&file_path)
-                    .await
-                    .map(|content| {
-                        let hash = compute_hash(&content);
-                        FileNode { file_path: relative_path.clone(), content, hash }
-                    })
-                    .map_err(|e| {
-                        warn!(path = %relative_path, error = ?e, "Failed to read file");
-                        e
-                    })
-                    .ok()
-            }
-        });
+        let dir_path = dir_path.to_path_buf();
 
-        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
+        let all_files: Vec<_> =
+            forge_app::utils::parallel_map(filtered_files, |walked| {
+                let infra = infra.clone();
+                let file_path = dir_path.join(&walked.path);
+                let relative_path = walked.path.clone();
+                async move {
+                    infra
+                        .read_utf8(&file_path)
+                        .await
+                        .map(|content| {
+                            let hash = compute_hash(&content);
+                            FileNode { file_path: relative_path.clone(), content, hash }
+                        })
+                        .map_err(|e| {
+                            warn!(path = %relative_path, error = ?e, "Failed to read file");
+                            e
+                        })
+                        .ok()
+                }
+            })
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
         Ok(all_files)
     }
 }
