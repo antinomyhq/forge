@@ -158,12 +158,20 @@ mod tests {
         (handler, conversation)
     }
 
+    fn event<T: Send + Sync>(payload: T) -> EventData<T> {
+        EventData::new(
+            Agent::new("t", "t".to_string().into(), ModelId::new("t")),
+            ModelId::new("t"),
+            payload,
+        )
+    }
+
     #[tokio::test]
     async fn test_start_skips_if_title_exists() {
         let (handler, mut conversation) = setup("test message");
         conversation.title = Some("existing".into());
 
-        handler.handle(&EventData::new(Agent::new("t", "t".to_string().into(), ModelId::new("t")), ModelId::new("t"), StartPayload), &mut conversation).await.unwrap();
+        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
 
         assert!(handler.title_handle.lock().await.is_none());
     }
@@ -173,7 +181,7 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         *handler.title_handle.lock().await = Some(tokio::spawn(async { Some("original".into()) }));
 
-        handler.handle(&EventData::new(Agent::new("t", "t".to_string().into(), ModelId::new("t")), ModelId::new("t"), StartPayload), &mut conversation).await.unwrap();
+        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
 
         let result = handler.title_handle.lock().await.take().unwrap().await.unwrap();
         assert_eq!(result, Some("original".into()));
@@ -184,7 +192,7 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         *handler.title_handle.lock().await = Some(tokio::spawn(async { Some("generated".into()) }));
 
-        handler.handle(&EventData::new(Agent::new("t", "t".to_string().into(), ModelId::new("t")), ModelId::new("t"), EndPayload), &mut conversation).await.unwrap();
+        handler.handle(&event(EndPayload), &mut conversation).await.unwrap();
 
         assert_eq!(conversation.title, Some("generated".into()));
     }
@@ -194,7 +202,7 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         *handler.title_handle.lock().await = Some(tokio::spawn(async { panic!("fail") }));
 
-        handler.handle(&EventData::new(Agent::new("t", "t".to_string().into(), ModelId::new("t")), ModelId::new("t"), EndPayload), &mut conversation).await.unwrap();
+        handler.handle(&event(EndPayload), &mut conversation).await.unwrap();
 
         assert!(conversation.title.is_none());
     }
