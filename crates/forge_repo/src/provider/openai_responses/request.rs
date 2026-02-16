@@ -171,14 +171,22 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
     fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
         let prompt_cache_key = context.conversation_id.as_ref().map(ToString::to_string);
 
-        let mut instructions: Vec<String> = Vec::new();
+        let mut instructions: Option<String> = None;
         let mut items: Vec<oai::InputItem> = Vec::new();
 
         for entry in context.messages {
             match entry.message {
                 ContextMessage::Text(message) => match message.role {
                     Role::System => {
-                        instructions.push(message.content);
+                        if instructions.is_none() {
+                            instructions = Some(message.content);
+                        } else {
+                            items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                                r#type: oai::MessageType::Message,
+                                role: oai::Role::Developer,
+                                content: oai::EasyInputContent::Text(message.content),
+                            }));
+                        }
                     }
                     Role::User => {
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
@@ -264,8 +272,6 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                 }
             }
         }
-
-        let instructions = (!instructions.is_empty()).then(|| instructions.join("\n\n"));
 
         let max_output_tokens = context
             .max_tokens
@@ -1050,7 +1056,23 @@ mod tests {
 
         let actual = oai::CreateResponse::from_domain(context)?;
 
-        assert_eq!(actual.instructions.as_deref(), Some("System 1\n\nSystem 2"));
+        assert_eq!(actual.instructions.as_deref(), Some("System 1"));
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        // System 2 (Developer) + User
+        assert_eq!(items.len(), 2);
+
+        let oai::InputItem::EasyMessage(dev_msg) = &items[0] else {
+            anyhow::bail!("Expected first item to be a message");
+        };
+        assert_eq!(dev_msg.role, oai::Role::Developer);
+        assert_eq!(
+            dev_msg.content,
+            oai::EasyInputContent::Text("System 2".to_string())
+        );
 
         Ok(())
     }
