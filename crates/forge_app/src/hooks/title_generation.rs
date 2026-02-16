@@ -187,20 +187,18 @@ mod tests {
         let mut conversation = Conversation::generate();
         let event_data = EventData::new(test_agent(), test_model_id(), StartPayload);
 
-        // First call spawns a task
-        fixture
-            .handle(&event_data, &mut conversation)
-            .await
-            .unwrap();
-        let guard = fixture.title_handle.lock().await;
-        assert!(guard.is_some(), "Handle should be stored after first call");
-        drop(guard);
+        // Pre-inject a known handle to simulate an in-progress task
+        let existing_handle = tokio::spawn(async { Some("Original".to_string()) });
+        *fixture.title_handle.lock().await = Some(existing_handle);
 
-        // Second call should not overwrite the existing handle
-        fixture
-            .handle(&event_data, &mut conversation)
-            .await
-            .unwrap();
+        // Second start should not overwrite the existing handle
+        fixture.handle(&event_data, &mut conversation).await.unwrap();
+
+        // The original handle should still be there and produce "Original"
+        let handle = fixture.title_handle.lock().await.take().expect("Handle should still exist");
+        let actual = handle.await.unwrap();
+        let expected = Some("Original".to_string());
+        assert_eq!(actual, expected);
     }
 
     #[tokio::test]
