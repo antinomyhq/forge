@@ -119,6 +119,11 @@ if is_git_bash_or_mintty() {
 - ✅ Multi-line editing works in MinTTY terminals
 - ✅ Other terminals (PowerShell, cmd.exe, Windows Terminal) unaffected
 
+**Note:** This fix enables using code-forge with **zsh installed in Git Bash** (e.g., via MSYS2 or manual installation). For zsh shell integration (`forge zsh doctor`, keyboard shortcuts, etc.) to work properly on Git Bash, you need zsh installed - the default bash shell in Git Bash won't work.
+
+### ZSH Script Execution Fix
+Additionally, `forge zsh doctor` and other zsh commands now work correctly in Git Bash by explicitly passing environment variables (PATH, HOME, USERPROFILE, ZDOTDIR) to the zsh subprocess. This ensures the scripts can locate user configuration files and execute properly.
+
 ## Dependencies Added
 
 ```toml
