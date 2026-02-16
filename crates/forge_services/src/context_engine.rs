@@ -64,7 +64,7 @@ impl<F> ForgeWorkspaceService<F> {
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
-    ) -> Vec<FileHash>
+    ) -> anyhow::Result<Vec<FileHash>>
     where
         F: WorkspaceIndexRepository,
     {
@@ -75,7 +75,6 @@ impl<F> ForgeWorkspaceService<F> {
         self.infra
             .list_workspace_files(&workspace_files, auth_token)
             .await
-            .unwrap_or_default()
     }
 
     /// Deletes a batch of files from the server.
@@ -176,7 +175,7 @@ impl<F> ForgeWorkspaceService<F> {
             Vec::new()
         } else {
             self.fetch_remote_hashes(&user_id, &workspace_id, &token)
-                .await
+                .await?
         };
 
         emit(SyncProgress::ComparingFiles {
@@ -223,9 +222,11 @@ impl<F> ForgeWorkspaceService<F> {
                 let user_id = user_id.clone();
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
+                let path_for_log = path.clone();
                 async move {
                     self.delete(&user_id, &workspace_id, &token, vec![path])
                         .await?;
+                    info!(path = %path_for_log, "File deleted successfully");
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -252,9 +253,11 @@ impl<F> ForgeWorkspaceService<F> {
                 let user_id = user_id.clone();
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
+                let file_path = file.path.clone();
                 async move {
                     self.upload(&user_id, &workspace_id, &token, vec![file])
                         .await?;
+                    info!(path = %file_path, "File synced successfully");
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -590,7 +593,7 @@ impl<F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReader
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
-            .await;
+            .await?;
 
         let plan = WorkspaceStatus::new(local_files, remote_files);
         Ok(plan.file_statuses())
