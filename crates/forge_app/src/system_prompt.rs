@@ -83,20 +83,27 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
         let mut stats: Vec<_> = counts
             .into_iter()
             .map(|(extension, count)| {
-                let percentage_value = count as f32 / total_files as f32 * 100.0;
-                let percentage = format!("{:.2}", percentage_value);
-                ExtensionStat { extension: extension.to_owned(), count, percentage }
+                let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
+                ExtensionStat {
+                    extension: extension.to_owned(),
+                    count,
+                    percentage: percentage.to_string(),
+                }
             })
             .collect();
 
         stats.sort_by_key(|stat| std::cmp::Reverse(stat.count));
 
-        // Track if we're truncating
-        let original_count = stats.len();
-        let is_truncated = original_count > max_extensions;
+        // Track total extensions before truncating
+        let total_extensions = stats.len();
         stats.truncate(max_extensions);
 
-        Some(Extension { extension_stats: stats, is_truncated, limit: max_extensions })
+        Some(Extension {
+            extension_stats: stats,
+            git_tracked_files: total_files,
+            max_extensions,
+            total_extensions,
+        })
     }
 
     pub async fn add_system_message(
@@ -322,21 +329,22 @@ mod tests {
                 ExtensionStat {
                     extension: "rs".to_string(),
                     count: 4,
-                    percentage: "57.14".to_string(),
+                    percentage: "57".to_string(),
                 },
                 ExtensionStat {
                     extension: "md".to_string(),
                     count: 2,
-                    percentage: "28.57".to_string(),
+                    percentage: "29".to_string(),
                 },
                 ExtensionStat {
                     extension: "toml".to_string(),
                     count: 1,
-                    percentage: "14.29".to_string(),
+                    percentage: "14".to_string(),
                 },
             ],
-            is_truncated: false,
-            limit: MAX_EXTENSIONS,
+            max_extensions: MAX_EXTENSIONS,
+            git_tracked_files: 7,
+            total_extensions: 3,
         };
 
         assert_eq!(actual, expected);
@@ -379,8 +387,10 @@ mod tests {
 
         // Expected - should have exactly 15 extensions shown (truncated from 20)
         assert_eq!(actual.extension_stats.len(), 15);
-        assert_eq!(actual.is_truncated, true);
-        assert_eq!(actual.limit, MAX_EXTENSIONS);
+        assert_eq!(actual.max_extensions, MAX_EXTENSIONS);
+        assert_eq!(actual.git_tracked_files, 210); // Sum of 20+19+...+1
+        assert_eq!(actual.total_extensions, 20); // 20 distinct extensions
+        assert!(actual.total_extensions > actual.max_extensions); // Derive is_truncated
 
         // Verify they are sorted by count descending
         assert_eq!(actual.extension_stats[0].extension, "ext1");

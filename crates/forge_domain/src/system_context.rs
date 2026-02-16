@@ -18,8 +18,9 @@ pub struct ExtensionStat {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Extension {
     pub extension_stats: Vec<ExtensionStat>,
-    pub is_truncated: bool,
-    pub limit: usize,
+    pub max_extensions: usize,
+    pub git_tracked_files: usize,
+    pub total_extensions: usize,
 }
 
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]

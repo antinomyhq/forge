@@ -9,25 +9,26 @@ You are Forge
 <current_working_directory>/Users/tushar</current_working_directory>
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
-<workspace_extensions>
+<workspace_extensions command="git ls-files">
+Summary: 210 total files
 File distribution by extension (percentages show share of total workspace files):
- - ext1 (20 files, 9.52%)
- - ext2 (19 files, 9.05%)
- - ext3 (18 files, 8.57%)
- - ext4 (17 files, 8.10%)
- - ext5 (16 files, 7.62%)
- - ext6 (15 files, 7.14%)
- - ext7 (14 files, 6.67%)
- - ext8 (13 files, 6.19%)
- - ext9 (12 files, 5.71%)
- - ext10 (11 files, 5.24%)
- - ext11 (10 files, 4.76%)
- - ext12 (9 files, 4.29%)
- - ext13 (8 files, 3.81%)
- - ext14 (7 files, 3.33%)
- - ext15 (6 files, 2.86%)
+ - ext1 (20 files, 10%)
+ - ext2 (19 files, 9%)
+ - ext3 (18 files, 9%)
+ - ext4 (17 files, 8%)
+ - ext5 (16 files, 8%)
+ - ext6 (15 files, 7%)
+ - ext7 (14 files, 7%)
+ - ext8 (13 files, 6%)
+ - ext9 (12 files, 6%)
+ - ext10 (11 files, 5%)
+ - ext11 (10 files, 5%)
+ - ext12 (9 files, 4%)
+ - ext13 (8 files, 4%)
+ - ext14 (7 files, 3%)
+ - ext15 (6 files, 3%)
 
-Note: Showing top 15 extensions only. Additional extensions exist but are not listed.
+Note: Showing top 15 of 20 extensions.
 </workspace_extensions>
 </system_information>
 
