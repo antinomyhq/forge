@@ -263,6 +263,10 @@ pub enum WorkspaceCommand {
         /// Path to the directory to get information for
         #[arg(default_value = ".")]
         path: PathBuf,
+
+        /// Suppress output; exit with 0 if workspace exists, 1 otherwise
+        #[arg(short, long)]
+        quiet: bool,
     },
 
     /// Delete one or more workspaces.

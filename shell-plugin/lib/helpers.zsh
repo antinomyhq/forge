@@ -106,9 +106,10 @@ function _forge_log() {
 # Helper function to check if a workspace is indexed
 # Usage: _forge_is_workspace_indexed <workspace_path>
 # Returns: 0 if workspace is indexed, 1 otherwise
+# Uses --quiet to skip expensive status computation (file walking, hashing)
 function _forge_is_workspace_indexed() {
     local workspace_path="$1"
-    $_FORGE_BIN workspace info "$workspace_path" >/dev/null 2>&1
+    $_FORGE_BIN workspace info --quiet "$workspace_path" 2>/dev/null
     return $?
 }
 

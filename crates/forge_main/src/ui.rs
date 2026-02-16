@@ -630,8 +630,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.on_query(path, params).await?;
                     }
 
-                    crate::cli::WorkspaceCommand::Info { path } => {
-                        self.on_workspace_info(path).await?;
+                    crate::cli::WorkspaceCommand::Info { path, quiet } => {
+                        self.on_workspace_info(path, quiet).await?;
                     }
                     crate::cli::WorkspaceCommand::Delete { workspace_ids } => {
                         self.on_delete_workspaces(workspace_ids).await?;
@@ -3419,7 +3419,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Displays workspace information for a given path.
-    async fn on_workspace_info(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+    async fn on_workspace_info(
+        &mut self,
+        path: std::path::PathBuf,
+        quiet: bool,
+    ) -> anyhow::Result<()> {
+        if quiet {
+            let workspace = self.api.get_workspace_info(path).await?;
+            if workspace.is_none() {
+                std::process::exit(1);
+            }
+            return Ok(());
+        }
+
         self.spinner.start(Some("Fetching workspace info..."))?;
 
         // Fetch workspace info and status in parallel
