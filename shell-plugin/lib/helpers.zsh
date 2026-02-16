@@ -125,14 +125,13 @@ function _forge_start_background_sync() {
     local workspace_path=$(pwd -P)
     
     # Check if workspace is indexed before attempting sync
+    {
     if ! _forge_is_workspace_indexed "$workspace_path"; then
         return 0
     fi
-    
     # Run sync once in background
     # Close all output streams immediately to prevent any flashing
     # Redirect stdin to /dev/null to prevent hanging if sync tries to read input
-    {
         exec >/dev/null 2>&1 </dev/null
         setopt NO_NOTIFY NO_MONITOR
         $_FORGE_BIN workspace sync "$workspace_path"
