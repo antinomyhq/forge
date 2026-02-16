@@ -32,7 +32,6 @@ use crate::fuzzy_search::ForgeFuzzySearchRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
-use crate::workspace::ForgeWorkspaceRepository;
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -47,7 +46,6 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
-    indexing_repository: Arc<ForgeWorkspaceRepository>,
     codebase_repo: Arc<ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
@@ -76,8 +74,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
-
         let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
@@ -91,7 +87,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             mcp_cache_repository,
             provider_repository,
             chat_repository,
-            indexing_repository,
             codebase_repo,
             agent_repository,
             skill_repository,
@@ -494,32 +489,6 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
-    async fn upsert(
-        &self,
-        workspace_id: &forge_domain::WorkspaceId,
-        user_id: &forge_domain::UserId,
-        path: &std::path::Path,
-    ) -> anyhow::Result<()> {
-        self.indexing_repository
-            .upsert(workspace_id, user_id, path)
-            .await
-    }
-
-    async fn list(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
-        self.indexing_repository.list().await
-    }
-
-    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
-        self.indexing_repository.get_user_id().await
-    }
-
-    async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
-        self.indexing_repository.delete(workspace_id).await
     }
 }
 
