@@ -26,7 +26,6 @@ use forge_tracker::ToolCallPayload;
 use futures::future;
 use merge::Merge;
 use tokio_stream::StreamExt;
-use tracing::debug;
 use url::Url;
 
 use crate::cli::{
@@ -2796,7 +2795,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         message: ChatResponse,
         writer: &mut StreamingWriter<A>,
     ) -> Result<()> {
-        debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
             return Ok(());
         }
