@@ -4,11 +4,12 @@ This document describes the Windows-specific functionality added to code-forge t
 
 ## Overview
 
-Three critical features were implemented to provide full Windows support:
+Four critical features were implemented to provide full Windows support:
 
 1. **Text Encoding Detection** - Automatic handling of Windows code pages
 2. **PowerShell Support** - Native PowerShell integration with type-safe shell abstraction
 3. **Program Resolution** - Windows script execution support for MCP servers
+4. **Git Bash Compatibility** - Fixed readline arrow key issues in Git Bash/MinTTY terminals
 
 ## 1. Text Encoding Detection
 
@@ -86,6 +87,37 @@ Windows cannot execute script files (`.cmd`, `.bat`) without file extensions, br
 2 tests covering:
 - Basic resolution functionality
 - Platform-specific behavior
+
+## 4. Git Bash Compatibility
+
+### Problem
+When running code-forge in Git Bash or MinTTY terminals on Windows, arrow keys (up/down) and delete key stop working after the first input. This is caused by bracketed paste mode interfering with terminal escape sequences in these terminals.
+
+### Solution
+- Added automatic detection of Git Bash and MinTTY terminals
+- Disabled bracketed paste mode specifically for these terminals  
+- Detection uses environment variables: `MSYSTEM`, `MSYS`, and `TERM`
+
+### Code Location
+- `crates/forge_main/src/editor.rs:66-94` - Git Bash/MinTTY detection
+- `crates/forge_main/src/editor.rs:113-127` - Conditional bracketed paste
+
+### Detection Logic
+```rust
+// Checks for:
+// 1. MSYSTEM env var (MINGW64, MINGW32, MSYS)
+// 2. TERM=xterm or TERM=cygwin (MinTTY indicators)
+// 3. MSYS env var (Git Bash marker)
+if is_git_bash_or_mintty() { 
+    use_bracketed_paste = false;
+}
+```
+
+### Impact
+- ✅ Arrow keys work correctly in Git Bash
+- ✅ Delete key functions properly
+- ✅ Multi-line editing works in MinTTY terminals
+- ✅ Other terminals (PowerShell, cmd.exe, Windows Terminal) unaffected
 
 ## Dependencies Added
 
@@ -170,6 +202,7 @@ cargo test --package forge_infra --lib program_resolver
 - ✅ **No more corrupted output** for non-English locales
 - ✅ **Modern PowerShell support** instead of legacy cmd.exe
 - ✅ **MCP servers work** with Node.js-based tools
+- ✅ **Arrow keys work in Git Bash** - no more broken readline navigation
 - ✅ **Seamless experience** matching Unix/macOS
 
 ### For Developers
@@ -201,6 +234,7 @@ cargo test --package forge_infra --lib program_resolver
 | Text Encoding Detection | ✅ Full | ❌ None | ✅ Full |
 | PowerShell Support | ✅ Full | ❌ None | ✅ Full |
 | Program Resolution | ✅ Full | ❌ None | ✅ Full |
+| Git Bash Compatibility | ❌ N/A | ❌ Broken | ✅ Fixed |
 | Shell Type Abstraction | ✅ Enum | ❌ String | ✅ Enum |
 | Windows Env Vars | ✅ 20+ vars | ⚠️ Generic | ⚠️ Generic |
 | Platform-specific Timeouts | ✅ Yes | ❌ No | ❌ No |
@@ -223,6 +257,10 @@ crates/forge_infra/
 │   ├── text_encoding.rs          # NEW: Encoding detection logic
 │   ├── shell_type.rs             # NEW: Shell type abstraction
 │   └── program_resolver.rs       # NEW: Windows program resolution
+
+crates/forge_main/
+└── src/
+    └── editor.rs                  # MODIFIED: Git Bash/MinTTY detection
 ```
 
 ## References
