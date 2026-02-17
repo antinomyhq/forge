@@ -81,7 +81,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
             max_line_length: parse_env::<usize>("FORGE_MAX_LINE_LENGTH").unwrap_or(2000),
-            max_read_batch_size: parse_env::<usize>("FORGE_MAX_READ_BATCH_SIZE")
+            max_file_read_batch_size: parse_env::<usize>("FORGE_MAX_FILE_READ_BATCH_SIZE")
                 .unwrap_or_else(|| {
                     std::thread::available_parallelism()
                         .map(|n| n.get() * 2)
