@@ -98,6 +98,32 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .context("Failed to delete files")
     }
 
+    /// Deletes files from the workspace and updates the progress counter.
+    ///
+    /// Returns the number of files that were successfully deleted.
+    async fn delete_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+        token: &forge_domain::ApiKey,
+        files_to_delete: Vec<String>,
+    ) -> Result<usize>
+    where
+        F: WorkspaceIndexRepository,
+    {
+        if files_to_delete.is_empty() {
+            return Ok(0);
+        }
+
+        self.delete(user_id, workspace_id, token, files_to_delete.clone()).await?;
+
+        for path in &files_to_delete {
+            info!(path = %path, "File deleted successfully");
+        }
+
+        Ok(files_to_delete.len())
+    }
+
     /// Uploads a batch of files to the server.
     async fn upload(
         &self,
@@ -200,33 +226,18 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         emit(counter.sync_progress()).await;
 
-        let mut delete_stream = futures::stream::iter(files_to_delete)
-            .map(|path| {
-                let user_id = user_id.clone();
-                let workspace_id = workspace_id.clone();
-                let token = token.clone();
-                let path_for_log = path.clone();
-                async move {
-                    self.delete(&user_id, &workspace_id, &token, vec![path])
-                        .await?;
-                    info!(path = %path_for_log, "File deleted successfully");
-                    Ok::<_, anyhow::Error>(1)
-                }
-            })
-            .buffer_unordered(batch_size);
-
-        // Process deletions as they complete, updating progress incrementally
-        while let Some(result) = delete_stream.next().await {
-            match result {
-                Ok(count) => {
-                    counter.complete(count);
-                    emit(counter.sync_progress()).await;
-                }
-                Err(e) => {
-                    warn!("Failed to delete file during sync: {:#}", e);
-                    failed_files += 1;
-                    // Continue processing remaining deletions
-                }
+        // Delete all files in a single batched call
+        match self
+            .delete_files(&user_id, &workspace_id, &token, files_to_delete.clone())
+            .await
+        {
+            Ok(deleted_count) => {
+                counter.complete(deleted_count);
+                emit(counter.sync_progress()).await;
+            }
+            Err(e) => {
+                warn!("Failed to delete files during sync: {:#}", e);
+                failed_files += files_to_delete.len();
             }
         }
 
