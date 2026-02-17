@@ -4,6 +4,7 @@ use anyhow::Result;
 use forge_app::FileReaderInfra;
 use futures::{StreamExt, stream};
 
+#[derive(Clone)]
 pub struct ForgeFileReadService;
 
 impl Default for ForgeFileReadService {
@@ -36,7 +37,7 @@ impl FileReaderInfra for ForgeFileReadService {
 
         stream::iter(batches).then(move |batch| async move {
             let futures = batch.into_iter().map(|path| async move {
-                let content = forge_fs::ForgeFS::read_utf8(&path).await?;
+                let content = self.read_utf8(&path).await?;
                 Ok::<_, anyhow::Error>((path, content))
             });
 
