@@ -16,8 +16,31 @@ use forge_domain::Transformer;
 pub struct CodexTransformer;
 
 impl CodexTransformer {
-    fn determine_effort(_request: &CreateResponse) -> oai::ReasoningEffort {
-        oai::ReasoningEffort::Medium
+    fn determine_effort(request: &CreateResponse) -> oai::ReasoningEffort {
+        let items = match &request.input {
+            oai::InputParam::Items(items) => items,
+            _ => return oai::ReasoningEffort::Medium,
+        };
+
+        let assistant_msg_count = items
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item,
+                    oai::InputItem::EasyMessage(msg) if msg.role == oai::Role::Assistant
+                )
+            })
+            .count();
+
+        if assistant_msg_count >= 80 {
+            oai::ReasoningEffort::Xhigh
+        } else if assistant_msg_count >= 50 {
+            oai::ReasoningEffort::High
+        } else if assistant_msg_count >= 15 {
+            oai::ReasoningEffort::Medium
+        } else {
+            oai::ReasoningEffort::Low
+        }
     }
 }
 
@@ -26,8 +49,9 @@ impl Transformer for CodexTransformer {
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         request.store = Some(false);
-        request.temperature = None;
+        request.temperature = Some(0.2);
         request.max_output_tokens = None;
+        request.top_p = None;
 
         let includes = request.include.get_or_insert_with(Vec::new);
         if !includes.contains(&oai::IncludeEnum::ReasoningEncryptedContent) {
