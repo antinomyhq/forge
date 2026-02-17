@@ -17,6 +17,7 @@ strip = true
 [workspace.dependencies]
 anyhow = "1.0.101"
 async-recursion = "1.1.1"
+async-stream = "0.3"
 async-trait = "0.1.89"
 aws-config = { version = "1.8.13", features = ["behavior-version-latest"], default-features = false }
 aws-sdk-bedrockruntime = { version = "1.124.0", features = ["behavior-version-latest"], default-features = false }
