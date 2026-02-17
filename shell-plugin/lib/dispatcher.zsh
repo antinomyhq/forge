@@ -193,10 +193,10 @@ function forge-accept-line() {
             _forge_action_sync
         ;;
         sync-status)
-            _forge_action_sync_status "$input_text"
+            _forge_action_sync_status
         ;;
         sync-info)
-            _forge_action_sync_info "$input_text"
+            _forge_action_sync_info
         ;;
         login)
             _forge_action_login "$input_text"
