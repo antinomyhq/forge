@@ -12,11 +12,12 @@ use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
     UserId, WorkspaceId, WorkspaceIndexRepository,
 };
-use crate::error::Error;
 use forge_stream::MpscStream;
 use futures::future::join_all;
-use futures::stream::{StreamExt, Stream, TryStreamExt};
+use futures::stream::{Stream, StreamExt, TryStreamExt};
 use tracing::{info, warn};
+
+use crate::error::Error;
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
