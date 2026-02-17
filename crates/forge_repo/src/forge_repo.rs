@@ -25,7 +25,7 @@ use url::Url;
 use crate::agent::ForgeAgentRepository;
 use crate::app_config::AppConfigRepositoryImpl;
 use crate::context_engine::ForgeContextEngineRepository;
-use crate::conversation::ConversationRepositoryImpl;
+use crate::conversation::{ConversationRepositoryImpl, TodoRepositoryImpl};
 use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fuzzy_search::ForgeFuzzySearchRepository;
@@ -43,6 +43,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
+    todo_repository: Arc<TodoRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
@@ -65,6 +66,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             db_pool.clone(),
             env.workspace_hash(),
         ));
+        let todo_repository = Arc::new(TodoRepositoryImpl::new(db_pool.clone()));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -87,6 +89,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             infra,
             file_snapshot_service,
             conversation_repository,
+            todo_repository,
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
@@ -665,25 +668,23 @@ impl<F: FileReaderInfra + FileWriterInfra + EnvironmentInfra + Send + Sync>
         conversation_id: &forge_domain::ConversationId,
         todos: Vec<forge_domain::Todo>,
     ) -> anyhow::Result<()> {
-        let env = self.infra.get_environment();
-        let path = env
-            .base_path
-            .join("todos")
-            .join(format!("{}.json", conversation_id));
-
-        // Serialize todos to JSON with pretty printing for readability
-        let content = serde_json::to_string_pretty(&todos)?;
-
-        // Write using file infrastructure
-        self.infra.write(&path, Bytes::from(content)).await?;
-
-        Ok(())
+        self.todo_repository
+            .save_todos(conversation_id, todos)
+            .await
     }
 
     async fn get_todos(
         &self,
         conversation_id: &forge_domain::ConversationId,
     ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        // Try DB first
+        let todos = self.todo_repository.get_todos(conversation_id).await?;
+
+        if !todos.is_empty() {
+            return Ok(todos);
+        }
+
+        // Fallback to file for migration
         let env = self.infra.get_environment();
         let path = env
             .base_path
@@ -694,18 +695,19 @@ impl<F: FileReaderInfra + FileWriterInfra + EnvironmentInfra + Send + Sync>
         match self.infra.read_utf8(&path).await {
             Ok(content) => {
                 // Parse JSON content
-                let todos: Vec<forge_domain::Todo> = serde_json::from_str(&content)?;
-                Ok(todos)
-            }
-            Err(e) => {
-                // Check if the error is because the file doesn't exist
-                if let Some(io_err) = e.downcast_ref::<std::io::Error>()
-                    && io_err.kind() == std::io::ErrorKind::NotFound
-                {
-                    // File doesn't exist yet, return empty list
-                    return Ok(Vec::new());
+                let file_todos: Vec<forge_domain::Todo> = serde_json::from_str(&content)?;
+
+                // Migrate to DB if not empty
+                if !file_todos.is_empty() {
+                    self.todo_repository
+                        .save_todos(conversation_id, file_todos.clone())
+                        .await?;
                 }
-                Err(e)
+                Ok(file_todos)
+            }
+            Err(_e) => {
+                // If file doesn't exist or other error, return empty/DB result
+                Ok(todos)
             }
         }
     }

@@ -905,6 +905,7 @@ pub(super) struct ConversationRecord {
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: Option<chrono::NaiveDateTime>,
     pub metrics: Option<String>,
+    pub todos: Option<String>,
 }
 
 impl ConversationRecord {
@@ -922,6 +923,11 @@ impl ConversationRecord {
         let updated_at = context.as_ref().map(|_| chrono::Utc::now().naive_utc());
         let metrics_record = MetricsRecord::from(&conversation.metrics);
         let metrics = serde_json::to_string(&metrics_record).ok();
+        let todos = if conversation.todos.is_empty() {
+            None
+        } else {
+            serde_json::to_string(&conversation.todos).ok()
+        };
 
         Self {
             conversation_id: conversation.id.into_string(),
@@ -931,6 +937,7 @@ impl ConversationRecord {
             updated_at,
             workspace_id: workspace_id.id() as i64,
             metrics,
+            todos,
         }
     }
 }
@@ -973,10 +980,16 @@ impl TryFrom<ConversationRecord> for forge_domain::Conversation {
                 forge_domain::Metrics::default().started_at(record.created_at.and_utc())
             });
 
+        let todos = record
+            .todos
+            .and_then(|t| serde_json::from_str::<Vec<forge_domain::Todo>>(&t).ok())
+            .unwrap_or_default();
+
         Ok(forge_domain::Conversation::new(id)
             .context(context)
             .title(record.title)
             .metrics(metrics)
+            .todos(todos)
             .metadata(
                 forge_domain::MetaData::new(record.created_at.and_utc())
                     .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),

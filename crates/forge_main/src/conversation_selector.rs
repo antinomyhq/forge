@@ -102,6 +102,7 @@ mod tests {
             context: None,
             metrics: Metrics::default().started_at(now),
             metadata: MetaData { created_at: now, updated_at: Some(now) },
+            todos: vec![],
         }
     }
 

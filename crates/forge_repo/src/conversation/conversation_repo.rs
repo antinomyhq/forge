@@ -8,7 +8,7 @@ use crate::database::DatabasePool;
 use crate::database::schema::conversations;
 
 pub struct ConversationRepositoryImpl {
-    pool: Arc<DatabasePool>,
+    pub(crate) pool: Arc<DatabasePool>,
     wid: WorkspaceHash,
 }
 
@@ -349,6 +349,7 @@ mod tests {
             updated_at: None,
             workspace_id: 0,
             metrics: None,
+            todos: None,
         };
 
         let actual = Conversation::try_from(fixture)?;
@@ -792,6 +793,7 @@ mod tests {
             updated_at: None,
             workspace_id: 0,
             metrics: None,
+            todos: None,
         };
 
         let result = Conversation::try_from(fixture);
@@ -889,6 +891,47 @@ mod tests {
         // Verify new conversation exists
         let new_check = repo.get_conversation(&new_conversation_id).await?;
         assert!(new_check.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_preserves_todos_updated_by_repository() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation_id = ConversationId::generate();
+        
+        // 1. Create conversation with initial todos
+        let todo1 = forge_domain::Todo::new("Task 1");
+        let conversation = Conversation::new(conversation_id)
+            .title(Some("Test Conversation".to_string()))
+            .todos(vec![todo1.clone()]);
+
+        repo.upsert_conversation(conversation.clone()).await?;
+
+        // Verify initial todos
+        let retrieved = repo.get_conversation(&conversation_id).await?.unwrap();
+        assert_eq!(retrieved.todos.len(), 1);
+        assert_eq!(retrieved.todos[0].content, "Task 1");
+
+        // 2. Update todos via TodoRepository (simulating TodoService/Tool execution)
+        let todo2 = forge_domain::Todo::new("Task 2");
+        let todo_repo = crate::conversation::TodoRepositoryImpl::new(repo.pool.clone());
+        use forge_domain::TodoRepository;
+        todo_repo.save_todos(&conversation_id, vec![todo2]).await?;
+
+        // Verify DB has new todos
+        let retrieved_after_tool = repo.get_conversation(&conversation_id).await?.unwrap();
+        assert_eq!(retrieved_after_tool.todos.len(), 1);
+        assert_eq!(retrieved_after_tool.todos[0].content, "Task 2");
+
+        // 3. Upsert conversation with STALE todos (original conversation struct)
+        // This simulates the Orchestrator saving the stale conversation state
+        repo.upsert_conversation(conversation).await?;
+
+        // Verify DB STILL has new todos (Task 2), not reverted to Task 1
+        let final_retrieved = repo.get_conversation(&conversation_id).await?.unwrap();
+        assert_eq!(final_retrieved.todos.len(), 1);
+        assert_eq!(final_retrieved.todos[0].content, "Task 2");
 
         Ok(())
     }
