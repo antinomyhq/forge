@@ -594,7 +594,8 @@ impl<
         let workspace = self
             .find_workspace_by_path(path, &token)
             .await?
-            .ok_or(forge_domain::Error::WorkspaceNotFound)?;
+            .ok_or(forge_domain::Error::WorkspaceNotFound)
+            .context("Workspace not initialized. Please run 'workspace init' first.")?;
 
         let search_query =
             forge_domain::CodeBase::new(user_id, workspace.workspace_id.clone(), params);
@@ -689,7 +690,7 @@ impl<
         let workspace = self
             .find_workspace_by_path(path.clone(), &token)
             .await?
-            .context("Workspace not indexed. Please run `workspace sync` first.")?;
+            .context("Workspace not initialized. Please run 'workspace init' first.")?;
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
