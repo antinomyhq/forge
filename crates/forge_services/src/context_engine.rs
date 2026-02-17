@@ -199,43 +199,12 @@ impl<F> ForgeWorkspaceService<F> {
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Find workspace by exact match or ancestor
-        let workspace = self.find_workspace_by_path(path.clone(), &user_id).await?;
+        let workspace = self.find_workspace_by_path(path.clone(), &user_id).await?
+            .filter(|w| w.user_id == user_id)
+            .ok_or(Error::WorkspaceNotFound)?;
 
-        let (workspace_id, workspace_path, is_new_workspace) = match workspace {
-            Some(workspace) if workspace.user_id == user_id => {
-                (workspace.workspace_id, workspace.path, false)
-            }
-            Some(workspace) => {
-                // Found workspace but different user - delete and create new
-                if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
-                    warn!(error = %e, "Failed to delete old workspace entry from local database");
-                }
-                (WorkspaceId::generate(), path.clone(), true)
-            }
-            None => {
-                // No workspace found - create new
-                (WorkspaceId::generate(), path.clone(), true)
-            }
-        };
-
-        let workspace_id = if is_new_workspace {
-            // Create an workspace.
-            let id = self
-                .with_retry(|| self.infra.create_workspace(&workspace_path, &token))
-                .await
-                .context("Failed to create workspace on server")?;
-
-            // Save workspace in database to avoid creating multiple workspaces
-            self.infra
-                .upsert(&id, &user_id, &workspace_path)
-                .await
-                .context("Failed to save workspace")?;
-
-            emit(SyncProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
-            id
-        } else {
-            workspace_id
-        };
+        let workspace_id = workspace.workspace_id;
+        let workspace_path = workspace.path;
 
         // Read all files and compute hashes from the workspace root path
         emit(SyncProgress::DiscoveringFiles { path: workspace_path.clone() }).await;
@@ -243,12 +212,7 @@ impl<F> ForgeWorkspaceService<F> {
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        let remote_files = if is_new_workspace {
-            Vec::new()
-        } else {
-            self.fetch_remote_hashes(&user_id, &workspace_id, &token)
-                .await
-        };
+        let remote_files = self.fetch_remote_hashes(&user_id, &workspace_id, &token).await;
 
         emit(SyncProgress::ComparingFiles {
             remote_files: remote_files.len(),
@@ -1124,16 +1088,27 @@ mod tests {
     #[tokio::test]
     async fn test_sync_filters_non_source_files() {
         // Setup with various file types - source and text files should be synced,
-        // binaries filtered
+        // binaries filtered. Need a workspace to exist for sync to work.
         let mut files = HashMap::new();
         files.insert("source.rs".to_string(), "fn main() {}".to_string());
         files.insert("image.png".to_string(), "binary content".to_string());
         files.insert("document.pdf".to_string(), "pdf content".to_string());
         files.insert("readme.md".to_string(), "# Readme".to_string());
 
+        // Create a workspace so sync can proceed
+        let current_dir = std::env::current_dir().unwrap();
+        let user_id = UserId::generate();
+        let workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: current_dir.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
         let mock = MockInfra {
             files,
-            workspace: None,
+            workspace: Some(workspace),
             authenticated: true,
             ..Default::default()
         };
@@ -1537,15 +1512,6 @@ mod tests {
             events.push(event.unwrap());
         }
 
-        // Verify workspace was reused (no WorkspaceCreated event)
-        let has_workspace_created = events
-            .iter()
-            .any(|e| matches!(e, forge_domain::SyncProgress::WorkspaceCreated { .. }));
-        assert!(
-            !has_workspace_created,
-            "Expected no WorkspaceCreated event when reusing ancestor"
-        );
-
         // Verify completion event exists
         let completion_event = events
             .iter()
@@ -1555,6 +1521,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_creates_new_workspace_when_no_ancestor() {
+        // Sync should fail if no workspace exists - only init_workspace creates workspaces
         let mock = MockInfra {
             files: [("src/main.rs", "fn main() {}")]
                 .iter()
@@ -1568,25 +1535,28 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
+        // sync_workspace returns a stream - errors are sent through the stream
         let mut stream = service
             .sync_workspace(PathBuf::from("."), 20)
             .await
             .unwrap();
 
-        // Collect all events
-        let mut events = Vec::new();
+        // Collect events and check for error
+        let mut has_error = false;
         while let Some(event) = stream.next().await {
-            events.push(event.unwrap());
+            if let Err(e) = event {
+                has_error = true;
+                assert!(
+                    e.to_string().to_lowercase().contains("workspace not found"),
+                    "Expected WorkspaceNotFound error, got: {}",
+                    e
+                );
+                break;
+            }
         }
 
-        // Verify workspace was created
-        let has_workspace_created = events
-            .iter()
-            .any(|e| matches!(e, forge_domain::SyncProgress::WorkspaceCreated { .. }));
-        assert!(
-            has_workspace_created,
-            "Expected WorkspaceCreated event when no ancestor exists"
-        );
+        // Verify an error was sent through the stream
+        assert!(has_error, "Expected error when no workspace exists");
     }
 
     #[tokio::test]
@@ -1695,15 +1665,6 @@ mod tests {
         while let Some(event) = stream.next().await {
             events.push(event.unwrap());
         }
-
-        // Verify no new workspace was created (reused exact match)
-        let has_workspace_created = events
-            .iter()
-            .any(|e| matches!(e, forge_domain::SyncProgress::WorkspaceCreated { .. }));
-        assert!(
-            !has_workspace_created,
-            "Expected no WorkspaceCreated event when exact match exists"
-        );
     }
 
     #[tokio::test]

@@ -10,11 +10,6 @@ use crate::WorkspaceId;
 pub enum SyncProgress {
     /// Sync operation is starting
     Starting,
-    /// A new workspace was created on the server
-    WorkspaceCreated {
-        /// The ID of the newly created workspace
-        workspace_id: WorkspaceId,
-    },
     /// Discovering files in the directory
     DiscoveringFiles {
         /// Path being scanned

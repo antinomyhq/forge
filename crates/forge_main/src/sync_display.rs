@@ -15,9 +15,6 @@ impl SyncProgressDisplay for SyncProgress {
     fn message(&self) -> Option<String> {
         match self {
             Self::Starting => Some("Initializing sync".to_string()),
-            Self::WorkspaceCreated { workspace_id } => {
-                Some(format!("Created Workspace: {}", workspace_id))
-            }
             Self::DiscoveringFiles { path: _ } => None,
             Self::FilesDiscovered { count: _ } => None,
             Self::ComparingFiles { .. } => None,
