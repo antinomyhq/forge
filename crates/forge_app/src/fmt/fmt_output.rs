@@ -67,7 +67,7 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
     for todo in todos {
         let checkbox = match todo.status {
             TodoStatus::Completed => "",
-            TodoStatus::InProgress => "",
+            TodoStatus::InProgress => "󱨈",
             TodoStatus::Pending => "",
         };
 
