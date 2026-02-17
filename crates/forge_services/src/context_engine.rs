@@ -417,29 +417,36 @@ impl<F> ForgeWorkspaceService<F> {
             "No valid source files found to index"
         );
 
-        // Read all filtered files
-        let infra = self.infra.clone();
-        let read_tasks = filtered_files.into_iter().map(|walked| {
-            let infra = infra.clone();
-            let file_path = dir_path.join(&walked.path);
-            let relative_path = walked.path.clone();
-            async move {
-                infra
-                    .read_utf8(&file_path)
-                    .await
-                    .map(|content| {
+        // Use read_batch_utf8 with streaming for better memory efficiency with large file sets
+        let file_paths: Vec<PathBuf> = filtered_files
+            .iter()
+            .map(|walked| dir_path.join(&walked.path))
+            .collect();
+        
+        let batch_size = 50; // Reasonable batch size for workspace indexing
+        let stream = self.infra.read_batch_utf8(batch_size, file_paths);
+        futures::pin_mut!(stream);
+        
+        let mut all_files = Vec::new();
+        while let Some(batch_result) = stream.next().await {
+            match batch_result {
+                Ok(batch) => {
+                    for (absolute_path, content) in batch {
                         let hash = compute_hash(&content);
-                        FileNode { file_path: relative_path.clone(), content, hash }
-                    })
-                    .map_err(|e| {
-                        warn!(path = %relative_path, error = ?e, "Failed to read file");
-                        e
-                    })
-                    .ok()
+                        let absolute_path_str = absolute_path.to_string_lossy().to_string();
+                        all_files.push(FileNode {
+                            file_path: absolute_path_str,
+                            content,
+                            hash,
+                        });
+                    }
+                }
+                Err(e) => {
+                    warn!(error = ?e, "Failed to read file batch");
+                }
             }
-        });
-
-        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
+        }
+        
         Ok(all_files)
     }
 }
