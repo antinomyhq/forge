@@ -3605,17 +3605,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
-        self.spinner
-            .start(Some("Initializing workspace"))?;
+        self.spinner.start(Some("Initializing workspace"))?;
 
         let workspace_id = self.api.init_workspace(path.clone()).await?;
 
         self.spinner.stop(None)?;
 
         // Resolve and display the path
-        let canonical_path = path
-            .canonicalize()
-            .unwrap_or_else(|_| path.clone());
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
 
         self.writeln_title(
             TitleFormat::info("Workspace initialized successfully")

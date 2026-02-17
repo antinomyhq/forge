@@ -1596,7 +1596,7 @@ mod tests {
                 .iter()
                 .map(|(p, c)| (p.to_string(), c.to_string()))
                 .collect(),
-            workspace: None,          // No workspace yet
+            workspace: None, // No workspace yet
             ancestor_workspace: None,
             authenticated: true,
             ..Default::default()
@@ -1642,10 +1642,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
         // Initialize workspace - should reuse existing
-        let workspace_id = service
-            .init_workspace(current_dir)
-            .await
-            .unwrap();
+        let workspace_id = service.init_workspace(current_dir).await.unwrap();
 
         // Verify we got the same workspace ID
         assert_eq!(workspace_id, existing_workspace_id);
