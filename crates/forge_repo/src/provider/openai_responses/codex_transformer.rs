@@ -16,31 +16,8 @@ use forge_domain::Transformer;
 pub struct CodexTransformer;
 
 impl CodexTransformer {
-    fn determine_effort(request: &CreateResponse) -> oai::ReasoningEffort {
-        let items = match &request.input {
-            oai::InputParam::Items(items) => items,
-            _ => return oai::ReasoningEffort::Medium,
-        };
-
-        let assistant_msg_count = items
-            .iter()
-            .filter(|item| {
-                matches!(
-                    item,
-                    oai::InputItem::EasyMessage(msg) if msg.role == oai::Role::Assistant
-                )
-            })
-            .count();
-
-        if assistant_msg_count >= 50 {
-            oai::ReasoningEffort::Xhigh
-        } else if assistant_msg_count >= 20 {
-            oai::ReasoningEffort::High
-        } else if assistant_msg_count >= 10 {
-            oai::ReasoningEffort::Medium
-        } else {
-            oai::ReasoningEffort::Low
-        }
+    fn determine_effort(_request: &CreateResponse) -> oai::ReasoningEffort {
+        oai::ReasoningEffort::Medium
     }
 }
 
