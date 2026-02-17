@@ -124,7 +124,11 @@ impl<F> ForgeWorkspaceService<F> {
         emit: E,
     ) -> Result<()>
     where
-        F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReaderInfra + EnvironmentInfra,
+        F: ProviderRepository
+            + WorkspaceIndexRepository
+            + WalkerInfra
+            + FileReaderInfra
+            + EnvironmentInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -417,16 +421,17 @@ impl<F> ForgeWorkspaceService<F> {
             "No valid source files found to index"
         );
 
-        // Use read_batch_utf8 with streaming for better memory efficiency with large file sets
+        // Use read_batch_utf8 with streaming for better memory efficiency with large
+        // file sets
         let file_paths: Vec<PathBuf> = filtered_files
             .iter()
             .map(|walked| dir_path.join(&walked.path))
             .collect();
-        
+
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let stream = self.infra.read_batch_utf8(batch_size, file_paths);
         futures::pin_mut!(stream);
-        
+
         let mut all_files = Vec::new();
         while let Some(batch_result) = stream.next().await {
             match batch_result {
@@ -434,11 +439,7 @@ impl<F> ForgeWorkspaceService<F> {
                     for (absolute_path, content) in batch {
                         let hash = compute_hash(&content);
                         let absolute_path_str = absolute_path.to_string_lossy().to_string();
-                        all_files.push(FileNode {
-                            file_path: absolute_path_str,
-                            content,
-                            hash,
-                        });
+                        all_files.push(FileNode { file_path: absolute_path_str, content, hash });
                     }
                 }
                 Err(e) => {
@@ -446,14 +447,20 @@ impl<F> ForgeWorkspaceService<F> {
                 }
             }
         }
-        
+
         Ok(all_files)
     }
 }
 
 #[async_trait]
-impl<F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReaderInfra + EnvironmentInfra + 'static>
-    WorkspaceService for ForgeWorkspaceService<F>
+impl<
+    F: ProviderRepository
+        + WorkspaceIndexRepository
+        + WalkerInfra
+        + FileReaderInfra
+        + EnvironmentInfra
+        + 'static,
+> WorkspaceService for ForgeWorkspaceService<F>
 {
     async fn sync_workspace(
         &self,
