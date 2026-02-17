@@ -99,6 +99,9 @@ pub enum Error {
     #[error("Workspace already initialized with id: {0}")]
     WorkspaceAlreadyInitialized(WorkspaceId),
 
+    #[error("Failed to sync {count} file(s)")]
+    SyncFailed { count: usize },
+
     #[error("No default provider set.")]
     NoDefaultProvider,
 
@@ -148,6 +151,10 @@ impl Error {
 
     pub fn no_default_model(provider: ProviderId) -> Self {
         Self::NoDefaultModel(provider)
+    }
+
+    pub fn sync_failed(count: usize) -> Self {
+        Self::SyncFailed { count }
     }
 }
 
