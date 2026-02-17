@@ -12,6 +12,7 @@ use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
     UserId, WorkspaceId, WorkspaceIndexRepository,
 };
+use crate::error::Error;
 use forge_stream::MpscStream;
 use futures::future::join_all;
 use futures::stream::{StreamExt, TryStreamExt};
@@ -436,7 +437,7 @@ impl<F> ForgeWorkspaceService<F> {
             );
 
             if filtered_files.is_empty() {
-                yield Err(anyhow::anyhow!("No valid source files found to index"));
+                yield Err(Error::NoSourceFilesFound.into());
                 return;
             }
 
