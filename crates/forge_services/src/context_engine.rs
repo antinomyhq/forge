@@ -144,6 +144,55 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(())
     }
 
+    /// Uploads files in parallel, returning a stream of results.
+///
+/// The caller is responsible for processing the stream and tracking progress.
+    fn upload_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+        token: &forge_domain::ApiKey,
+        local_files: &[forge_domain::FileNode],
+        files_to_upload: Vec<String>,
+        batch_size: usize,
+    ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send
+    where
+        F: WorkspaceIndexRepository,
+    {
+        let user_id = user_id.clone();
+        let workspace_id = workspace_id.clone();
+        let token = token.clone();
+
+        let local_files_map = local_files
+            .iter()
+            .map(|f| (f.file_path.as_str(), f))
+            .collect::<HashMap<_, _>>();
+
+        let files_to_upload_with_content = files_to_upload
+            .into_iter()
+            .filter_map(|path| {
+                local_files_map
+                    .get(path.as_str())
+                    .map(|f| forge_domain::FileRead::new(f.file_path.clone(), f.content.clone()))
+            })
+            .collect::<Vec<_>>();
+
+        futures::stream::iter(files_to_upload_with_content)
+            .map(move |file| {
+                let user_id = user_id.clone();
+                let workspace_id = workspace_id.clone();
+                let token = token.clone();
+                let file_path = file.path.clone();
+                async move {
+                    self.upload(&user_id, &workspace_id, &token, vec![file])
+                        .await?;
+                    info!(path = %file_path, "File synced successfully");
+                    Ok::<_, anyhow::Error>(1)
+                }
+            })
+            .buffer_unordered(batch_size)
+    }
+
     /// Internal sync implementation that emits progress events.
     async fn sync_codebase_internal<E, Fut>(
         &self,
@@ -241,34 +290,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             }
         }
 
-        // Upload new/changed files with concurrency limit
-        let local_files_map = local_files
-            .iter()
-            .map(|f| (f.file_path.as_str(), f))
-            .collect::<HashMap<_, _>>();
-
-        let files_to_upload_with_content = files_to_upload
-            .into_iter()
-            .filter_map(|path| {
-                local_files_map
-                    .get(path.as_str())
-                    .map(|f| forge_domain::FileRead::new(f.file_path.clone(), f.content.clone()))
-            })
-            .collect::<Vec<_>>();
-        let mut upload_stream = futures::stream::iter(files_to_upload_with_content)
-            .map(|file| {
-                let user_id = user_id.clone();
-                let workspace_id = workspace_id.clone();
-                let token = token.clone();
-                let file_path = file.path.clone();
-                async move {
-                    self.upload(&user_id, &workspace_id, &token, vec![file])
-                        .await?;
-                    info!(path = %file_path, "File synced successfully");
-                    Ok::<_, anyhow::Error>(1)
-                }
-            })
-            .buffer_unordered(batch_size);
+        // Upload files in parallel
+        let mut upload_stream = self.upload_files(
+            &user_id,
+            &workspace_id,
+            &token,
+            &local_files,
+            files_to_upload,
+            batch_size,
+        );
 
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
