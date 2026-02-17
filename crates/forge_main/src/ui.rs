@@ -26,7 +26,6 @@ use forge_tracker::ToolCallPayload;
 use futures::future;
 use merge::Merge;
 use tokio_stream::StreamExt;
-use tracing::debug;
 use url::Url;
 
 use crate::cli::{
@@ -638,6 +637,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                     crate::cli::WorkspaceCommand::Status { path, porcelain } => {
                         self.on_workspace_status(path, porcelain).await?;
+                    }
+                    crate::cli::WorkspaceCommand::Init { path } => {
+                        self.on_workspace_init(path).await?;
                     }
                 }
                 return Ok(());
@@ -2796,7 +2798,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         message: ChatResponse,
         writer: &mut StreamingWriter<A>,
     ) -> Result<()> {
-        debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
             return Ok(());
         }
@@ -2811,7 +2812,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(text)?;
                 }
                 ChatResponseContent::Markdown { text, partial: _ } => {
-                    tracing::info!(message = %text, "Agent Response");
                     writer.write(&text)?;
                 }
             },
@@ -3169,6 +3169,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|val| val == "1")
             .unwrap_or(true); // Default to true
 
+        // Get currency symbol from environment variable, default to "$"
+        let currency_symbol =
+            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
+
+        // Get conversion ratio from environment variable, default to 1.0
+        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
+            .ok()
+            .and_then(|val| val.parse::<f64>().ok())
+            .unwrap_or(1.0);
+
         let rprompt = ZshRPrompt::default()
             .agent(
                 std::env::var("_FORGE_ACTIVE_AGENT")
@@ -3179,7 +3189,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
-            .use_nerd_font(use_nerd_font);
+            .use_nerd_font(use_nerd_font)
+            .currency_symbol(currency_symbol)
+            .conversion_ratio(conversion_ratio);
 
         Some(rprompt.to_string())
     }
@@ -3585,6 +3597,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         } else {
             self.writeln(info)?;
         }
+
+        Ok(())
+    }
+
+    /// Initialize workspace for a directory without syncing files
+    async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Initializing workspace"))?;
+
+        let workspace_id = self.api.init_workspace(path.clone()).await?;
+
+        self.spinner.stop(None)?;
+
+        // Resolve and display the path
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+
+        self.writeln_title(
+            TitleFormat::info("Workspace initialized successfully")
+                .sub_title(format!("Path: {}", canonical_path.display()))
+                .sub_title(format!("Workspace ID: {}", workspace_id)),
+        )?;
 
         Ok(())
     }

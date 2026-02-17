@@ -42,6 +42,12 @@ pub struct FileHash {
     pub hash: String,
 }
 
+impl From<super::node::FileNode> for FileHash {
+    fn from(node: super::node::FileNode) -> Self {
+        Self { path: node.file_path, hash: node.hash }
+    }
+}
+
 /// Status of a file in relation to the server
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum SyncStatus {

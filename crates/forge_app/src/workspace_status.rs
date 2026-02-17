@@ -1,28 +1,25 @@
 use std::collections::{BTreeSet, HashMap};
 
-use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
+use forge_domain::{FileHash, FileStatus, SyncProgress, SyncStatus};
 
 /// Result of comparing local and server files
 ///
-/// This struct stores local and remote file information and provides methods
+/// This struct stores remote file information and provides methods
 /// to compute synchronization operations on-demand. It can derive file statuses
 /// and identify which files need to be uploaded, deleted, or modified.
 pub struct WorkspaceStatus {
-    /// Local files with their content and hashes
-    local_files: Vec<FileNode>,
     /// Remote file hashes from the server
     remote_files: Vec<FileHash>,
 }
 
 impl WorkspaceStatus {
-    /// Creates a sync plan from local files and remote file hashes.
+    /// Creates a sync plan from remote file hashes.
     ///
     /// # Arguments
     ///
-    /// * `local_files` - Vector of local files with their content and hashes
     /// * `remote_files` - Vector of remote file hashes from the server
-    pub fn new(local_files: Vec<FileNode>, remote_files: Vec<FileHash>) -> Self {
-        Self { local_files, remote_files }
+    pub fn new(remote_files: Vec<FileHash>) -> Self {
+        Self { remote_files }
     }
 
     /// Derives file sync statuses by comparing local and remote files.
@@ -34,12 +31,11 @@ impl WorkspaceStatus {
     /// - `Modified`: File exists in both but with different hashes
     /// - `New`: File exists only locally
     /// - `Deleted`: File exists only remotely
-    pub fn file_statuses(&self) -> Vec<FileStatus> {
+    pub fn file_statuses(&self, local_files: Vec<FileHash>) -> Vec<FileStatus> {
         // Build hash maps for efficient lookup
-        let local_hashes: HashMap<&str, &str> = self
-            .local_files
+        let local_hashes: HashMap<&str, &str> = local_files
             .iter()
-            .map(|f| (f.file_path.as_str(), f.hash.as_str()))
+            .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
         let remote_hashes: HashMap<&str, &str> = self
             .remote_files
@@ -78,38 +74,16 @@ impl WorkspaceStatus {
     ///
     /// A tuple of (files_to_delete, files_to_upload) where:
     /// - `files_to_delete`: Vector of file paths to delete from remote
-    /// - `files_to_upload`: Vector of files to upload to remote
-    pub fn get_operations(&self) -> (Vec<String>, Vec<forge_domain::FileRead>) {
-        let statuses = self.file_statuses();
+    /// - `files_to_upload`: Vector of file paths to upload to remote
+    pub fn get_operations(&self, local_files: Vec<FileHash>) -> (Vec<String>, Vec<String>) {
+        let statuses = self.file_statuses(local_files);
         let mut files_to_delete = Vec::new();
         let mut files_to_upload = Vec::new();
 
-        // Create a map for quick lookup of local files
-        let local_files_map: HashMap<&str, &FileNode> = self
-            .local_files
-            .iter()
-            .map(|f| (f.file_path.as_str(), f))
-            .collect();
-
         for status in statuses {
             match status.status {
-                SyncStatus::Modified => {
-                    // Note: Modified files already exist in the database and will be
-                    // automatically deleted by the backend.
-                    if let Some(file) = local_files_map.get(status.path.as_str()) {
-                        files_to_upload.push(forge_domain::FileRead::new(
-                            file.file_path.clone(),
-                            file.content.clone(),
-                        ));
-                    }
-                }
-                SyncStatus::New => {
-                    if let Some(file) = local_files_map.get(status.path.as_str()) {
-                        files_to_upload.push(forge_domain::FileRead::new(
-                            file.file_path.clone(),
-                            file.content.clone(),
-                        ));
-                    }
+                SyncStatus::Modified | SyncStatus::New => {
+                    files_to_upload.push(status.path);
                 }
                 SyncStatus::Deleted => {
                     files_to_delete.push(status.path);
@@ -123,7 +97,6 @@ impl WorkspaceStatus {
         (files_to_delete, files_to_upload)
     }
 }
-
 /// Tracks progress of sync operations
 pub struct SyncProgressCounter {
     total_files: usize,
@@ -162,21 +135,9 @@ mod tests {
     #[test]
     fn test_file_statuses() {
         let local = vec![
-            FileNode {
-                file_path: "a.rs".into(),
-                content: "content_a".into(),
-                hash: "hash_a".into(),
-            },
-            FileNode {
-                file_path: "b.rs".into(),
-                content: "modified_content".into(),
-                hash: "new_hash".into(),
-            },
-            FileNode {
-                file_path: "d.rs".into(),
-                content: "content_d".into(),
-                hash: "hash_d".into(),
-            },
+            FileHash { path: "a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "b.rs".into(), hash: "new_hash".into() },
+            FileHash { path: "d.rs".into(), hash: "hash_d".into() },
         ];
         let remote = vec![
             FileHash { path: "a.rs".into(), hash: "hash_a".into() },
@@ -184,8 +145,8 @@ mod tests {
             FileHash { path: "c.rs".into(), hash: "hash_c".into() },
         ];
 
-        let plan = WorkspaceStatus::new(local, remote);
-        let actual = plan.file_statuses();
+        let plan = WorkspaceStatus::new(remote);
+        let actual = plan.file_statuses(local);
 
         let expected = vec![
             forge_domain::FileStatus::new("a.rs".to_string(), forge_domain::SyncStatus::InSync),

@@ -675,6 +675,14 @@ mod env_tests {
             Err(anyhow::anyhow!("File not found"))
         }
 
+        fn read_batch_utf8(
+            &self,
+            _batch_size: usize,
+            _paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            futures::stream::empty()
+        }
+
         async fn read(&self, _path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
             Err(anyhow::anyhow!("File not found"))
         }
@@ -1145,6 +1153,15 @@ mod env_tests {
         impl FileReaderInfra for CustomMockInfra {
             async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
                 tokio::fs::read_to_string(path).await.map_err(Into::into)
+            }
+
+            fn read_batch_utf8(
+                &self,
+                _batch_size: usize,
+                _paths: Vec<PathBuf>,
+            ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send
+            {
+                futures::stream::empty()
             }
 
             async fn read(&self, path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
