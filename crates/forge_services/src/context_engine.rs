@@ -173,7 +173,7 @@ impl<F> ForgeWorkspaceService<F> {
         // Read all files and compute hashes from the workspace root path
         emit(SyncProgress::DiscoveringFiles { path: workspace_path.clone() }).await;
         let local_files: Vec<FileNode> = self
-            .read_files(&workspace_path)
+            .read_files(batch_size, &workspace_path)
             .try_collect()
             .await?;
         let total_file_count = local_files.len();
@@ -386,6 +386,7 @@ impl<F> ForgeWorkspaceService<F> {
     /// Only includes files with allowed extensions.
     fn read_files(
         &self,
+        batch_size: usize,
         dir_path: &Path,
     ) -> impl futures::Stream<Item = Result<FileNode>> + Send
     where
@@ -448,7 +449,6 @@ impl<F> ForgeWorkspaceService<F> {
                 .map(|walked| dir_path.join(&walked.path))
                 .collect();
 
-            let batch_size = infra.get_environment().max_file_read_batch_size;
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
 
@@ -617,7 +617,8 @@ impl<
             .await?
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
-        let local_files: Vec<FileNode> = self.read_files(&path).try_collect().await?;
+        let batch_size = self.infra.get_environment().max_file_read_batch_size;
+        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_collect().await?;
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
