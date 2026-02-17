@@ -227,6 +227,37 @@ pub mod tests {
             }
         }
 
+        fn read_batch_utf8(
+            &self,
+            batch_size: usize,
+            paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            use futures::{stream, StreamExt};
+            let batches: Vec<Vec<PathBuf>> = paths
+                .chunks(batch_size)
+                .map(|chunk| chunk.to_vec())
+                .collect();
+            
+            // Clone all file data upfront since we can't share Mutex across async boundaries
+            let files_data: Vec<(PathBuf, Bytes)> = self.files.lock().unwrap().clone();
+            
+            stream::iter(batches)
+                .then(move |batch| {
+                    let files_data = files_data.clone();
+                    async move {
+                        let results: Vec<(PathBuf, String)> = batch
+                            .into_iter()
+                            .filter_map(|path| {
+                                files_data.iter().find(|v| v.0 == path).and_then(|(_, content)| {
+                                    String::from_utf8(content.to_vec()).ok().map(|s| (path, s))
+                                })
+                            })
+                            .collect();
+                        Ok(results)
+                    }
+                })
+        }
+
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
             let files = self.files.lock().unwrap();
             match files.iter().find(|v| v.0 == path) {
@@ -433,6 +464,14 @@ pub mod tests {
     impl FileReaderInfra for MockCompositeService {
         async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
             self.file_service.read_utf8(path).await
+        }
+
+        fn read_batch_utf8(
+            &self,
+            batch_size: usize,
+            paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            self.file_service.read_batch_utf8(batch_size, paths)
         }
 
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {

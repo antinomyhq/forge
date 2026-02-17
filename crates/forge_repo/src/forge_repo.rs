@@ -284,6 +284,15 @@ where
     async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
         self.infra.read_utf8(path).await
     }
+
+    fn read_batch_utf8(
+        &self,
+        batch_size: usize,
+        paths: Vec<PathBuf>,
+    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        self.infra.read_batch_utf8(batch_size, paths)
+    }
+
     async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
         self.infra.read(path).await
     }
