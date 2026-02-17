@@ -725,6 +725,43 @@ impl<
 
         Ok(auth)
     }
+
+    async fn init_workspace(&self, path: PathBuf) -> Result<WorkspaceId> {
+        let (token, user_id) = self.get_workspace_credentials().await?;
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Find workspace by exact match or ancestor
+        let workspace = self.find_workspace_by_path(path.clone(), &user_id).await?;
+
+        // Check if workspace already exists
+        if let Some(workspace) = workspace {
+            if workspace.user_id == user_id {
+                // Workspace already exists for this user
+                return Ok(workspace.workspace_id);
+            } else {
+                // Found workspace but different user - delete old one
+                if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
+                    warn!(error = %e, "Failed to delete old workspace entry from local database");
+                }
+            }
+        }
+
+        // Create new workspace on server
+        let workspace_id = self
+            .with_retry(|| self.infra.create_workspace(&path, &token))
+            .await
+            .context("Failed to create workspace on server")?;
+
+        // Save workspace in database
+        self.infra
+            .upsert(&workspace_id, &user_id, &path)
+            .await
+            .context("Failed to save workspace")?;
+
+        Ok(workspace_id)
+    }
 }
 
 #[cfg(test)]
@@ -1550,6 +1587,68 @@ mod tests {
             has_workspace_created,
             "Expected WorkspaceCreated event when no ancestor exists"
         );
+    }
+
+    #[tokio::test]
+    async fn test_init_workspace_creates_new_workspace() {
+        let mock = MockInfra {
+            files: [("src/main.rs", "fn main() {}")]
+                .iter()
+                .map(|(p, c)| (p.to_string(), c.to_string()))
+                .collect(),
+            workspace: None,          // No workspace yet
+            ancestor_workspace: None,
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
+
+        // Initialize workspace without syncing
+        let workspace_id = service
+            .init_workspace(std::env::current_dir().unwrap())
+            .await
+            .unwrap();
+
+        // Verify we got a valid workspace ID
+        assert!(!workspace_id.to_string().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_init_workspace_reuses_existing_workspace() {
+        let current_dir = std::env::current_dir().unwrap();
+        let user_id = UserId::generate();
+        let existing_workspace_id = WorkspaceId::generate();
+
+        let existing_workspace = Workspace {
+            workspace_id: existing_workspace_id.clone(),
+            user_id: user_id.clone(),
+            path: current_dir.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            files: [("src/main.rs", "fn main() {}")]
+                .iter()
+                .map(|(p, c)| (p.to_string(), c.to_string()))
+                .collect(),
+            workspace: Some(existing_workspace),
+            ancestor_workspace: None,
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
+
+        // Initialize workspace - should reuse existing
+        let workspace_id = service
+            .init_workspace(current_dir)
+            .await
+            .unwrap();
+
+        // Verify we got the same workspace ID
+        assert_eq!(workspace_id, existing_workspace_id);
     }
 
     #[tokio::test]

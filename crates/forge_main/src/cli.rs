@@ -281,6 +281,13 @@ pub enum WorkspaceCommand {
         #[arg(short, long)]
         porcelain: bool,
     },
+
+    /// Initialize workspace for a directory without syncing files.
+    Init {
+        /// Path to the directory to initialize as a workspace
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
 }
 
 /// Command group for listing resources.
