@@ -2,7 +2,6 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
-use crate::error::Error;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
@@ -194,8 +193,10 @@ impl<F> ForgeWorkspaceService<F> {
         })
         .await;
 
-        let plan = WorkspaceStatus::new(local_files, remote_files);
-        let statuses = plan.file_statuses();
+        let plan = WorkspaceStatus::new(remote_files);
+        let local_file_hashes: Vec<forge_domain::FileHash> =
+            local_files.clone().into_iter().map(Into::into).collect();
+        let statuses = plan.file_statuses(local_file_hashes.clone());
 
         // Compute counts from statuses
         let added = statuses
@@ -219,7 +220,7 @@ impl<F> ForgeWorkspaceService<F> {
             emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
         }
 
-        let (files_to_delete, files_to_upload) = plan.get_operations();
+        let (files_to_delete, files_to_upload) = plan.get_operations(local_file_hashes);
 
         let total_operations = files_to_delete.len() + files_to_upload.len();
         let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
@@ -258,7 +259,20 @@ impl<F> ForgeWorkspaceService<F> {
         }
 
         // Upload new/changed files with concurrency limit
-        let mut upload_stream = futures::stream::iter(files_to_upload)
+        let local_files_map = local_files
+            .iter()
+            .map(|f| (f.file_path.as_str(), f))
+            .collect::<HashMap<_, _>>();
+
+        let files_to_upload_with_content = files_to_upload
+            .into_iter()
+            .filter_map(|path| {
+                local_files_map
+                    .get(path.as_str())
+                    .map(|f| forge_domain::FileRead::new(f.file_path.clone(), f.content.clone()))
+            })
+            .collect::<Vec<_>>();
+        let mut upload_stream = futures::stream::iter(files_to_upload_with_content)
             .map(|file| {
                 let user_id = user_id.clone();
                 let workspace_id = workspace_id.clone();
@@ -628,8 +642,10 @@ impl<
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
             .await?;
 
-        let plan = WorkspaceStatus::new(local_files, remote_files);
-        Ok(plan.file_statuses())
+        let plan = WorkspaceStatus::new(remote_files);
+        let local_file_hashes: Vec<forge_domain::FileHash> =
+            local_files.into_iter().map(Into::into).collect();
+        Ok(plan.file_statuses(local_file_hashes))
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
