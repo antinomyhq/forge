@@ -698,18 +698,29 @@ impl<
             .is_some())
     }
 
-    async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
+    async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>
+    where
+        F: EnvironmentInfra,
+    {
         // Authenticate with the indexing service
         let auth = self
             .with_retry(|| self.infra.authenticate())
             .await
             .context("Failed to authenticate with indexing service")?;
 
+        // Get workspace server URL from environment
+        let env = self.infra.get_environment();
+        let workspace_server_url = env.workspace_server_url.to_string();
+
         // Convert to AuthCredential and store
         let mut url_params = HashMap::new();
         url_params.insert(
             "user_id".to_string().into(),
             auth.user_id.to_string().into(),
+        );
+        url_params.insert(
+            "FORGE_WORKSPACE_SERVER_URL".to_string().into(),
+            workspace_server_url.into(),
         );
 
         let credential = AuthCredential {
@@ -925,6 +936,10 @@ mod tests {
 
                 let mut url_params = std::collections::HashMap::new();
                 url_params.insert("user_id".to_string().into(), user_id.to_string().into());
+                url_params.insert(
+                    "FORGE_WORKSPACE_SERVER_URL".to_string().into(),
+                    "https://api.forgecode.dev/".to_string().into(),
+                );
 
                 Ok(Some(AuthCredential {
                     id: ProviderId::FORGE_SERVICES,
