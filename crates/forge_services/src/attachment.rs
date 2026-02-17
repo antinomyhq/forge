@@ -132,6 +132,7 @@ pub mod tests {
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
     use forge_domain::FileInfo;
+    use futures::stream;
 
     use crate::attachment::ForgeChatRequest;
 
@@ -229,36 +230,10 @@ pub mod tests {
 
         fn read_batch_utf8(
             &self,
-            batch_size: usize,
-            paths: Vec<PathBuf>,
+            _: usize,
+            _: Vec<PathBuf>,
         ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
-            use futures::{StreamExt, stream};
-            let batches: Vec<Vec<PathBuf>> = paths
-                .chunks(batch_size)
-                .map(|chunk| chunk.to_vec())
-                .collect();
-
-            // Clone all file data upfront since we can't share Mutex across async
-            // boundaries
-            let files_data: Vec<(PathBuf, Bytes)> = self.files.lock().unwrap().clone();
-
-            stream::iter(batches).then(move |batch| {
-                let files_data = files_data.clone();
-                async move {
-                    let results: Vec<(PathBuf, String)> = batch
-                        .into_iter()
-                        .filter_map(|path| {
-                            files_data
-                                .iter()
-                                .find(|v| v.0 == path)
-                                .and_then(|(_, content)| {
-                                    String::from_utf8(content.to_vec()).ok().map(|s| (path, s))
-                                })
-                        })
-                        .collect();
-                    Ok(results)
-                }
-            })
+            stream::empty()
         }
 
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
