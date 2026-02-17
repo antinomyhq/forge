@@ -2811,7 +2811,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(text)?;
                 }
                 ChatResponseContent::Markdown { text, partial: _ } => {
-                    tracing::info!(message = %text, "Agent Response");
                     writer.write(&text)?;
                 }
             },
