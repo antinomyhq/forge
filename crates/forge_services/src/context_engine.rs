@@ -115,7 +115,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             return Ok(0);
         }
 
-        self.delete(user_id, workspace_id, token, files_to_delete.clone()).await?;
+        self.delete(user_id, workspace_id, token, files_to_delete.clone())
+            .await?;
 
         for path in &files_to_delete {
             info!(path = %path, "File deleted successfully");
@@ -145,8 +146,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     }
 
     /// Uploads files in parallel, returning a stream of results.
-///
-/// The caller is responsible for processing the stream and tracking progress.
+    ///
+    /// The caller is responsible for processing the stream and tracking progress.
     fn upload_files(
         &self,
         user_id: &UserId,
@@ -314,6 +315,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 }
             }
         }
+
         info!(
             workspace_id = %workspace_id,
             total_files = total_file_count,
@@ -327,7 +329,12 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         })
         .await;
 
-        Ok(())
+        // Fail if there were any failed files
+        if failed_files > 0 {
+            Err(forge_domain::Error::sync_failed(failed_files).into())
+        } else {
+            Ok(())
+        }
     }
 
     /// Gets the forge services credential and extracts workspace auth
