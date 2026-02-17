@@ -11,8 +11,8 @@ use forge_app::{
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    UserId, WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
+    AuthCredential, AuthDetails, Error, FileHash, FileNode, ProviderId, ProviderRepository,
+    SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -739,7 +739,7 @@ impl<
         if let Some(workspace) = workspace {
             if workspace.user_id == user_id {
                 // Workspace already exists for this user
-                anyhow::bail!("Workspace already initialized at path: {}", path.display());
+                return Err(Error::WorkspaceAlreadyInitialized(workspace.workspace_id).into());
             } else {
                 // Found workspace but different user - delete old one
                 if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
