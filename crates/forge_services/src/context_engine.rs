@@ -14,7 +14,7 @@ use forge_domain::{
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
-use futures::stream::StreamExt;
+use futures::stream::{StreamExt, TryStreamExt};
 use tracing::{info, warn};
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
@@ -171,7 +171,10 @@ impl<F> ForgeWorkspaceService<F> {
 
         // Read all files and compute hashes from the workspace root path
         emit(SyncProgress::DiscoveringFiles { path: workspace_path.clone() }).await;
-        let local_files = self.read_files(&workspace_path).await?;
+        let local_files: Vec<FileNode> = self
+            .read_files(&workspace_path)
+            .try_collect()
+            .await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
@@ -380,75 +383,90 @@ impl<F> ForgeWorkspaceService<F> {
         Ok(best_match.map(|(w, _)| w.clone()))
     }
     /// Only includes files with allowed extensions.
-    async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
+    fn read_files(
+        &self,
+        dir_path: &Path,
+    ) -> impl futures::Stream<Item = Result<FileNode>> + Send
     where
         F: WalkerInfra + FileReaderInfra + EnvironmentInfra,
     {
-        info!("Walking directory to discover files");
-        let walker_config = Walker::unlimited()
-            .cwd(dir_path.to_path_buf())
-            .skip_binary(true); // Walker filters binary files
+        let dir_path = dir_path.to_path_buf();
+        let infra = self.infra.clone();
 
-        let walked_files = self
-            .infra
-            .walk(walker_config)
-            .await
-            .context("Failed to walk directory")?
-            .into_iter()
-            .filter(|f| !f.is_dir())
-            .collect::<Vec<_>>();
+        async_stream::stream! {
+            info!("Walking directory to discover files");
+            let walker_config = Walker::unlimited()
+                .cwd(dir_path.clone())
+                .skip_binary(true); // Walker filters binary files
 
-        info!(
-            file_count = walked_files.len(),
-            "Discovered files from walker"
-        );
-
-        // Filter files by allowed extension (pure function, no I/O)
-        let filtered_files: Vec<_> = walked_files
-            .into_iter()
-            .filter(|walked| {
-                let file_path = dir_path.join(&walked.path);
-                has_allowed_extension(&file_path)
-            })
-            .collect();
-
-        info!(
-            filtered_count = filtered_files.len(),
-            "Files after extension filtering"
-        );
-        anyhow::ensure!(
-            !filtered_files.is_empty(),
-            "No valid source files found to index"
-        );
-
-        // Use read_batch_utf8 with streaming for better memory efficiency with large
-        // file sets
-        let file_paths: Vec<PathBuf> = filtered_files
-            .iter()
-            .map(|walked| dir_path.join(&walked.path))
-            .collect();
-
-        let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let stream = self.infra.read_batch_utf8(batch_size, file_paths);
-        futures::pin_mut!(stream);
-
-        let mut all_files = Vec::new();
-        while let Some(batch_result) = stream.next().await {
-            match batch_result {
-                Ok(batch) => {
-                    for (absolute_path, content) in batch {
-                        let hash = compute_hash(&content);
-                        let absolute_path_str = absolute_path.to_string_lossy().to_string();
-                        all_files.push(FileNode { file_path: absolute_path_str, content, hash });
-                    }
-                }
+            let walked_files = match infra
+                .walk(walker_config)
+                .await
+                .context("Failed to walk directory")
+            {
+                Ok(files) => files,
                 Err(e) => {
-                    warn!(error = ?e, "Failed to read file batch");
+                    yield Err(e);
+                    return;
+                }
+            };
+
+            let walked_files: Vec<_> = walked_files
+                .into_iter()
+                .filter(|f| !f.is_dir())
+                .collect();
+
+            info!(
+                file_count = walked_files.len(),
+                "Discovered files from walker"
+            );
+
+            // Filter files by allowed extension (pure function, no I/O)
+            let filtered_files: Vec<_> = walked_files
+                .into_iter()
+                .filter(|walked| {
+                    let file_path = dir_path.join(&walked.path);
+                    has_allowed_extension(&file_path)
+                })
+                .collect();
+
+            info!(
+                filtered_count = filtered_files.len(),
+                "Files after extension filtering"
+            );
+
+            if filtered_files.is_empty() {
+                yield Err(anyhow::anyhow!("No valid source files found to index"));
+                return;
+            }
+
+            // Use read_batch_utf8 with streaming for better memory efficiency with large
+            // file sets
+            let file_paths: Vec<PathBuf> = filtered_files
+                .iter()
+                .map(|walked| dir_path.join(&walked.path))
+                .collect();
+
+            let batch_size = infra.get_environment().max_file_read_batch_size;
+            let stream = infra.read_batch_utf8(batch_size, file_paths);
+            futures::pin_mut!(stream);
+
+            while let Some(batch_result) = stream.next().await {
+                match batch_result {
+                    Ok(batch) => {
+                        for (absolute_path, content) in batch {
+                            let hash = compute_hash(&content);
+                            let absolute_path_str = absolute_path.to_string_lossy().to_string();
+                            yield Ok(FileNode { file_path: absolute_path_str, content, hash });
+                        }
+                    }
+                    Err(e) => {
+                        warn!(error = ?e, "Failed to read file batch");
+                        yield Err(e);
+                    }
                 }
             }
         }
-
-        Ok(all_files)
     }
 }
 
@@ -598,7 +616,7 @@ impl<
             .await?
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
-        let local_files = self.read_files(&path).await?;
+        let local_files: Vec<FileNode> = self.read_files(&path).try_collect().await?;
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
