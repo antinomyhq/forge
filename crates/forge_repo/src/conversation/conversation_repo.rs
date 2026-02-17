@@ -899,7 +899,7 @@ mod tests {
     async fn test_upsert_preserves_todos_updated_by_repository() -> anyhow::Result<()> {
         let repo = repository()?;
         let conversation_id = ConversationId::generate();
-        
+
         // 1. Create conversation with initial todos
         let todo1 = forge_domain::Todo::new("Task 1");
         let conversation = Conversation::new(conversation_id)
