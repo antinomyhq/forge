@@ -1642,10 +1642,14 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
         // Initialize workspace - should reuse existing
-        let workspace_id = service.init_workspace(current_dir).await.unwrap();
-
-        // Verify we got the same workspace ID
-        assert_eq!(workspace_id, existing_workspace_id);
+        let result = service.init_workspace(current_dir).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        let domain_error = err.downcast_ref::<Error>();
+        assert!(matches!(
+            domain_error,
+            Some(Error::WorkspaceAlreadyInitialized(id)) if id == &existing_workspace_id
+        ));
     }
 
     #[tokio::test]
