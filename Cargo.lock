@@ -886,6 +886,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "convert_case"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1281,7 +1290,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
 dependencies = [
- "convert_case",
+ "convert_case 0.10.0",
  "proc-macro2",
  "quote",
  "rustc_version",
@@ -1749,7 +1758,7 @@ dependencies = [
  "bytes",
  "chrono",
  "console 0.16.2",
- "convert_case",
+ "convert_case 0.11.0",
  "derive_more",
  "derive_setters",
  "fake",
@@ -1819,7 +1828,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "chrono",
- "convert_case",
+ "convert_case 0.11.0",
  "derive-getters",
  "derive_more",
  "derive_setters",
@@ -1938,7 +1947,7 @@ dependencies = [
  "clap_complete",
  "colored",
  "console 0.16.2",
- "convert_case",
+ "convert_case 0.11.0",
  "derive_setters",
  "fake",
  "forge_api",
@@ -2196,7 +2205,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
- "convert_case",
+ "convert_case 0.11.0",
  "derive_more",
  "dirs",
  "forge_domain",

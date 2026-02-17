@@ -34,7 +34,7 @@ clap_complete = "4.5.65"
 colored = "3.1.1"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
-convert_case = "0.10.0"
+convert_case = "0.11.0"
 
 crossterm = "0.29.0"
 derive_more = { version = "2.1.1", features = ["from", "display", "debug", "deref", "as_ref"] }
