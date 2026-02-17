@@ -220,7 +220,7 @@ pub trait API: Sync + Send {
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
 
-    /// Initialize a workspace without syncing files
+    /// Initialize a new empty workspace
     async fn init_workspace(&self, path: PathBuf) -> Result<forge_domain::WorkspaceId>;
 
     /// Migrate environment variable-based credentials to file-based
