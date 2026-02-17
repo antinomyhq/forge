@@ -15,7 +15,7 @@ use forge_domain::{
 use crate::error::Error;
 use forge_stream::MpscStream;
 use futures::future::join_all;
-use futures::stream::{StreamExt, TryStreamExt};
+use futures::stream::{StreamExt, Stream, TryStreamExt};
 use tracing::{info, warn};
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
@@ -174,7 +174,7 @@ impl<F> ForgeWorkspaceService<F> {
         emit(SyncProgress::DiscoveringFiles { path: workspace_path.clone() }).await;
         let local_files: Vec<FileNode> = self
             .read_files(batch_size, &workspace_path)
-            .try_collect()
+            .try_concat()
             .await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
@@ -388,7 +388,7 @@ impl<F> ForgeWorkspaceService<F> {
         &self,
         batch_size: usize,
         dir_path: &Path,
-    ) -> impl futures::Stream<Item = Result<FileNode>> + Send
+    ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
     where
         F: WalkerInfra + FileReaderInfra + EnvironmentInfra,
     {
@@ -455,11 +455,13 @@ impl<F> ForgeWorkspaceService<F> {
             while let Some(batch_result) = stream.next().await {
                 match batch_result {
                     Ok(batch) => {
+                        let mut file_nodes = Vec::new();
                         for (absolute_path, content) in batch {
                             let hash = compute_hash(&content);
                             let absolute_path_str = absolute_path.to_string_lossy().to_string();
-                            yield Ok(FileNode { file_path: absolute_path_str, content, hash });
+                            file_nodes.push(FileNode { file_path: absolute_path_str, content, hash });
                         }
+                        yield Ok(file_nodes);
                     }
                     Err(e) => {
                         warn!(error = ?e, "Failed to read file batch");
@@ -618,7 +620,7 @@ impl<
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_collect().await?;
+        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
