@@ -8,6 +8,15 @@ use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
 use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
+/// Ensure cursor is visible before exit
+fn restore_cursor() {
+    use std::io::Write;
+    // Use raw ANSI escape code to show cursor - more reliable than crossterm
+    // when the program is exiting
+    let _ = std::io::stdout().write_all(b"\x1b[?25h");
+    let _ = std::io::stdout().flush();
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Install default rustls crypto provider (ring) before any TLS connections
@@ -15,8 +24,20 @@ async fn main() -> Result<()> {
     // available
     let _ = rustls::crypto::ring::default_provider().install_default();
 
+    // Set up Ctrl+C handler to ensure cursor is restored
+    // This is critical because dialoguer hides the cursor and may not restore it
+    // if interrupted
+    ctrlc::set_handler(move || {
+        restore_cursor();
+        std::process::exit(130); // 128 + SIGINT(2) = 130
+    })
+    .expect("Error setting Ctrl-C handler");
+
     // Set up panic hook for better error display
     panic::set_hook(Box::new(|panic_info| {
+        // Ensure cursor is visible before showing error
+        restore_cursor();
+
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             s.to_string()
         } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
@@ -62,6 +83,10 @@ async fn main() -> Result<()> {
     let restricted = cli.restricted;
     let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
     ui.run().await;
+
+    // Ensure terminal is in a good state before exiting
+    // This is critical when the program exits after interactive prompts
+    restore_cursor();
 
     Ok(())
 }
