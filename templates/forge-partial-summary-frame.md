@@ -38,11 +38,11 @@ Use the following summary frames as the authoritative reference for all coding s
 **Task Plan:**
 {{#each tool_call.tool.todo_write.todos}}
 {{#if (eq status "pending")}}
-- [ ] {{content}}
+- [TODO] {{content}}
 {{else if (eq status "in_progress")}}
-- [~] {{content}}
+- [IN_PROGRESS] {{content}}
 {{else if (eq status "completed")}}
-- [x] ~~{{content}}~~
+- [DONE] ~~{{content}}~~
 {{/if}}
 {{/each}}
 {{/if~}}

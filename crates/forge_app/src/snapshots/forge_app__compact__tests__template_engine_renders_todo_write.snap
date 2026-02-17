@@ -15,9 +15,9 @@ Create a task plan
 ### 2. Assistant
 
 **Task Plan:**
-- [x] ~~Implement user authentication~~
-- [~] Add database migrations
-- [ ] Write documentation
+- [DONE] ~~Implement user authentication~~
+- [IN_PROGRESS] Add database migrations
+- [TODO] Write documentation
 
 
 ---
