@@ -220,8 +220,14 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Initialize workspace (finds existing or creates new)
-        let (is_new_workspace, workspace_id) = self._init_workspace(path.clone()).await?;
+        // Find existing workspace (does not create new workspaces)
+        let workspace = self
+            .find_workspace_by_path(path.clone(), &token)
+            .await?
+            .ok_or(forge_domain::Error::WorkspaceNotFound)
+            .context("Workspace not initialized. Please run 'workspace init' first.")?;
+
+        let workspace_id = workspace.workspace_id;
 
         // Read all files and compute hashes from the workspace root path
         emit(SyncProgress::DiscoveringFiles { path: path.clone() }).await;
@@ -229,13 +235,9 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        let remote_files = if is_new_workspace {
-            Vec::new()
-        } else {
-            self.fetch_remote_hashes(&user_id, &workspace_id, &token)
-                .await?
-        };
-
+        let remote_files = self
+            .fetch_remote_hashes(&user_id, &workspace_id, &token)
+            .await?;
         emit(SyncProgress::ComparingFiles {
             remote_files: remote_files.len(),
             local_files: total_file_count,
