@@ -147,7 +147,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
     /// Uploads files in parallel, returning a stream of results.
     ///
-    /// The caller is responsible for processing the stream and tracking progress.
+    /// The caller is responsible for processing the stream and tracking
+    /// progress.
     fn upload_files(
         &self,
         user_id: &UserId,
