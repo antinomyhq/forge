@@ -199,7 +199,9 @@ impl<F> ForgeWorkspaceService<F> {
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Find workspace by exact match or ancestor
-        let workspace = self.find_workspace_by_path(path.clone(), &user_id).await?
+        let workspace = self
+            .find_workspace_by_path(path.clone(), &user_id)
+            .await?
             .filter(|w| w.user_id == user_id)
             .ok_or(Error::WorkspaceNotFound)?;
 
@@ -212,7 +214,9 @@ impl<F> ForgeWorkspaceService<F> {
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        let remote_files = self.fetch_remote_hashes(&user_id, &workspace_id, &token).await;
+        let remote_files = self
+            .fetch_remote_hashes(&user_id, &workspace_id, &token)
+            .await;
 
         emit(SyncProgress::ComparingFiles {
             remote_files: remote_files.len(),
@@ -1521,7 +1525,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_creates_new_workspace_when_no_ancestor() {
-        // Sync should fail if no workspace exists - only init_workspace creates workspaces
+        // Sync should fail if no workspace exists - only init_workspace creates
+        // workspaces
         let mock = MockInfra {
             files: [("src/main.rs", "fn main() {}")]
                 .iter()
