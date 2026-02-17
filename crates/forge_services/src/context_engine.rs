@@ -5,8 +5,8 @@ use std::sync::{Arc, OnceLock};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService, WorkspaceStatus,
-    compute_hash,
+    EnvironmentInfra, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService,
+    WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -124,7 +124,7 @@ impl<F> ForgeWorkspaceService<F> {
         emit: E,
     ) -> Result<()>
     where
-        F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReaderInfra,
+        F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReaderInfra + EnvironmentInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -378,7 +378,7 @@ impl<F> ForgeWorkspaceService<F> {
     /// Only includes files with allowed extensions.
     async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
     where
-        F: WalkerInfra + FileReaderInfra,
+        F: WalkerInfra + FileReaderInfra + EnvironmentInfra,
     {
         info!("Walking directory to discover files");
         let walker_config = Walker::unlimited()
@@ -423,7 +423,7 @@ impl<F> ForgeWorkspaceService<F> {
             .map(|walked| dir_path.join(&walked.path))
             .collect();
         
-        let batch_size = 50; // Reasonable batch size for workspace indexing
+        let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let stream = self.infra.read_batch_utf8(batch_size, file_paths);
         futures::pin_mut!(stream);
         
@@ -452,7 +452,7 @@ impl<F> ForgeWorkspaceService<F> {
 }
 
 #[async_trait]
-impl<F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReaderInfra + 'static>
+impl<F: ProviderRepository + WorkspaceIndexRepository + WalkerInfra + FileReaderInfra + EnvironmentInfra + 'static>
     WorkspaceService for ForgeWorkspaceService<F>
 {
     async fn sync_workspace(
