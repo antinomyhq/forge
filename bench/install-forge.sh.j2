@@ -1,5 +1,51 @@
 #!/bin/bash
-set -e
+#!/bin/sh
+set +m 2>/dev/null || true  # Disable job control (suppresses TTY warning in bash)
+set -eu
+
+export DEBIAN_FRONTEND=noninteractive
+
+# Default timezone
+DEFAULT_TZ="Etc/UTC"
+
+# Detect OS and install dependencies
+if [ -r /etc/os-release ]; then
+  . /etc/os-release
+  case "${ID:-}" in
+    alpine)
+      apk update
+      apk add --no-cache curl ca-certificates git build-base bash python3 py3-pip tzdata unzip tmux
+      # Set system-wide timezone
+      ln -sf /usr/share/zoneinfo/${DEFAULT_TZ} /etc/localtime
+      echo "${DEFAULT_TZ}" > /etc/timezone
+      ;;
+    ubuntu|debian)
+      apt-get update
+      apt-get install -y curl ca-certificates git build-essential tzdata unzip tmux
+      # Set system-wide timezone
+      ln -sf /usr/share/zoneinfo/${DEFAULT_TZ} /etc/localtime
+      echo "${DEFAULT_TZ}" > /etc/timezone
+      dpkg-reconfigure -f noninteractive tzdata 2>/dev/null || true
+      ;;
+    *)
+      echo "Unsupported OS: ${ID:-unknown}"
+      exit 1
+      ;;
+  esac
+fi
+
+if command -v python3 >/dev/null 2>&1 && python3 -m pip --version >/dev/null 2>&1; then
+  echo "System python3 path is $(command -v python3)"
+  PIP_BREAK_SYSTEM_PACKAGES=1 python3 -m pip install pyright
+  echo "System pyright installed at $(command -v pyright)"
+  pyright --version
+fi
+
+# Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Source uv environment (POSIX compatible, no job control issues)
+. "$HOME/.local/bin/env"
 
 # Forge binary is uploaded by harbor's setup process
 # Just ensure it's executable
