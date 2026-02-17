@@ -9,15 +9,15 @@ use forge_app::{
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    UserId, WorkspaceId, WorkspaceIndexRepository,
+    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository,
+    SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
 use futures::stream::{Stream, StreamExt, TryStreamExt};
 use tracing::{info, warn};
 
-use crate::error::Error;
+use crate::error::Error as ServiceError;
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
@@ -54,7 +54,7 @@ impl<F> Clone for ForgeWorkspaceService<F> {
     }
 }
 
-impl<F> ForgeWorkspaceService<F> {
+impl<F: 'static> ForgeWorkspaceService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
@@ -143,38 +143,14 @@ impl<F> ForgeWorkspaceService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Find workspace by exact match or ancestor from remote server
-        let workspace = self.find_workspace_by_path(path.clone(), &token).await?;
-
-        let (workspace_id, workspace_path, is_new_workspace) = match workspace {
-            Some(workspace_info) => {
-                // Found existing workspace - reuse it
-                (workspace_info.workspace_id, path.clone(), false)
-            }
-            None => {
-                // No workspace found - create new
-                (WorkspaceId::generate(), path.clone(), true)
-            }
-        };
-
-        let workspace_id = if is_new_workspace {
-            // Create workspace on server
-            let id = self
-                .infra
-                .create_workspace(&workspace_path, &token)
-                .await
-                .context("Failed to create workspace on server")?;
-
-            emit(SyncProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
-            id
-        } else {
-            workspace_id
-        };
+        // Initialize workspace (finds existing or creates new)
+        let is_new_workspace = self.find_workspace_by_path(path.clone(), &token).await?.is_none();
+        let workspace_id = self.init_workspace(path.clone()).await?;
 
         // Read all files and compute hashes from the workspace root path
-        emit(SyncProgress::DiscoveringFiles { path: workspace_path.clone() }).await;
+        emit(SyncProgress::DiscoveringFiles { path: path.clone() }).await;
         let local_files: Vec<FileNode> = self
-            .read_files(batch_size, &workspace_path)
+            .read_files(batch_size, &path)
             .try_concat()
             .await?;
         let total_file_count = local_files.len();
@@ -454,7 +430,7 @@ impl<F> ForgeWorkspaceService<F> {
             );
 
             if filtered_files.is_empty() {
-                yield Err(Error::NoSourceFilesFound.into());
+                yield Err(ServiceError::NoSourceFilesFound.into());
                 return;
             }
 
@@ -683,6 +659,39 @@ impl<
             .context("Failed to store authentication credentials")?;
 
         Ok(auth)
+    }
+
+    async fn init_workspace(&self, path: PathBuf) -> Result<WorkspaceId> {
+        let (token, _user_id) = self.get_workspace_credentials().await?;
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Find workspace by exact match or ancestor from remote server
+        let workspace = self.find_workspace_by_path(path.clone(), &token).await?;
+
+        let (workspace_id, workspace_path, is_new_workspace) = match workspace {
+            Some(workspace_info) => {
+                // Found existing workspace - reuse it
+                (workspace_info.workspace_id, path.clone(), false)
+            }
+            None => {
+                // No workspace found - create new
+                (WorkspaceId::generate(), path.clone(), true)
+            }
+        };
+
+        let workspace_id = if is_new_workspace {
+            // Create workspace on server
+            self.infra
+                .create_workspace(&workspace_path, &token)
+                .await
+                .context("Failed to create workspace on server")?
+        } else {
+            workspace_id
+        };
+
+        Ok(workspace_id)
     }
 }
 
