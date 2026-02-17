@@ -33,19 +33,18 @@ impl FileReaderInfra for ForgeFileReadService {
             .chunks(batch_size)
             .map(|chunk| chunk.to_vec())
             .collect();
-        
-        stream::iter(batches)
-            .then(move |batch| async move {
-                let futures = batch.into_iter().map(|path| async move {
-                    let content = forge_fs::ForgeFS::read_utf8(&path).await?;
-                    Ok::<_, anyhow::Error>((path, content))
-                });
-                
-                futures::future::join_all(futures)
-                    .await
-                    .into_iter()
-                    .collect::<Result<Vec<_>, _>>()
-            })
+
+        stream::iter(batches).then(move |batch| async move {
+            let futures = batch.into_iter().map(|path| async move {
+                let content = forge_fs::ForgeFS::read_utf8(&path).await?;
+                Ok::<_, anyhow::Error>((path, content))
+            });
+
+            futures::future::join_all(futures)
+                .await
+                .into_iter()
+                .collect::<Result<Vec<_>, _>>()
+        })
     }
 
     async fn read(&self, path: &Path) -> Result<Vec<u8>> {
@@ -64,10 +63,12 @@ impl FileReaderInfra for ForgeFileReadService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use futures::StreamExt;
     use std::io::Write;
+
+    use futures::StreamExt;
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_read_batch_utf8() {
@@ -91,7 +92,7 @@ mod tests {
         // Read with batch size of 2
         let stream = fixture.read_batch_utf8(2, paths.clone());
         futures::pin_mut!(stream);
-        
+
         // First batch should have 2 files
         let batch1 = stream.next().await.unwrap().unwrap();
         assert_eq!(batch1.len(), 2);
@@ -99,13 +100,13 @@ mod tests {
         assert_eq!(batch1[0].1.trim(), "content1");
         assert_eq!(batch1[1].0, paths[1]);
         assert_eq!(batch1[1].1.trim(), "content2");
-        
+
         // Second batch should have 1 file
         let batch2 = stream.next().await.unwrap().unwrap();
         assert_eq!(batch2.len(), 1);
         assert_eq!(batch2[0].0, paths[2]);
         assert_eq!(batch2[0].1.trim(), "content3");
-        
+
         // No more batches
         assert!(stream.next().await.is_none());
     }
@@ -120,19 +121,16 @@ mod tests {
         writeln!(file1, "test1").unwrap();
         writeln!(file2, "test2").unwrap();
 
-        let paths = vec![
-            file1.path().to_path_buf(),
-            file2.path().to_path_buf(),
-        ];
+        let paths = vec![file1.path().to_path_buf(), file2.path().to_path_buf()];
 
         // Read with batch size larger than number of files
         let stream = fixture.read_batch_utf8(10, paths.clone());
         futures::pin_mut!(stream);
-        
+
         // Should get all files in one batch
         let batch = stream.next().await.unwrap().unwrap();
         assert_eq!(batch.len(), 2);
-        
+
         // No more batches
         assert!(stream.next().await.is_none());
     }
