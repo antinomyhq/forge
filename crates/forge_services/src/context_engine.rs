@@ -417,11 +417,9 @@ impl<F> ForgeWorkspaceService<F> {
             "No valid source files found to index"
         );
 
-        // Read all filtered files with parallelism limited to CPU core count
+        // Read all filtered files
         let infra = self.infra.clone();
-        let dir_path = dir_path.to_path_buf();
-
-        let all_files: Vec<_> = forge_app::utils::parallel_map(filtered_files, |walked| {
+        let read_tasks = filtered_files.into_iter().map(|walked| {
             let infra = infra.clone();
             let file_path = dir_path.join(&walked.path);
             let relative_path = walked.path.clone();
@@ -439,12 +437,9 @@ impl<F> ForgeWorkspaceService<F> {
                     })
                     .ok()
             }
-        })
-        .await
-        .into_iter()
-        .flatten()
-        .collect();
+        });
 
+        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
         Ok(all_files)
     }
 }

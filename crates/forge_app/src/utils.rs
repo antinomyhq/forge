@@ -1,7 +1,5 @@
 use std::path::Path;
 
-use futures::stream::{self, StreamExt};
-
 use crate::{Match, MatchResult};
 
 /// Formats a path for display, converting absolute paths to relative when
@@ -89,58 +87,6 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
         }
         None => format_display_path(Path::new(&matched.path), base_dir),
     }
-}
-
-/// Returns the number of CPU cores available for parallel execution
-///
-/// Detects the number of available CPU cores using
-/// `std::thread::available_parallelism()`. Falls back to 1 if detection fails.
-///
-/// # Returns
-/// * The number of CPU cores, or 1 if detection fails
-pub fn get_concurrency_limit() -> usize {
-    std::thread::available_parallelism()
-        .map(|n| n.get())
-        .unwrap_or(1)
-}
-
-/// Executes async operations in parallel with bounded concurrency
-///
-/// Processes items from an iterator by applying an async function to each item,
-/// limiting the number of concurrent operations to the number of CPU cores.
-/// This prevents resource exhaustion when processing large collections.
-///
-/// # Arguments
-/// * `items` - Iterator of items to process
-/// * `f` - Async function to apply to each item
-///
-/// # Returns
-/// * Vector of results from all operations
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use forge_app::utils::parallel_map;
-///
-/// let files = vec!["file1.txt", "file2.txt", "file3.txt"];
-/// let results = parallel_map(files, |file| async move {
-///     // Read file and compute hash
-///     read_and_hash(file).await
-/// }).await;
-/// ```
-pub async fn parallel_map<I, T, F, Fut, R>(items: I, f: F) -> Vec<R>
-where
-    I: IntoIterator<Item = T>,
-    F: Fn(T) -> Fut,
-    Fut: std::future::Future<Output = R>,
-{
-    let concurrency = get_concurrency_limit();
-
-    stream::iter(items)
-        .map(f)
-        .buffer_unordered(concurrency)
-        .collect()
-        .await
 }
 
 /// Computes SHA-256 hash of the given content
@@ -299,40 +245,6 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-
-    #[test]
-    fn test_get_concurrency_limit_returns_positive_number() {
-        let actual = get_concurrency_limit();
-        assert!(actual > 0, "Concurrency limit should be at least 1");
-    }
-
-    #[tokio::test]
-    async fn test_parallel_map_processes_all_items() {
-        let items = vec![1, 2, 3, 4, 5];
-        let actual = parallel_map(items, |x| async move { x * 2 }).await;
-        let expected = vec![2, 4, 6, 8, 10];
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_parallel_map_with_empty_input() {
-        let items: Vec<i32> = vec![];
-        let actual = parallel_map(items, |x| async move { x * 2 }).await;
-        let expected: Vec<i32> = vec![];
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_parallel_map_with_async_operations() {
-        let items = vec!["hello", "world", "rust"];
-        let actual = parallel_map(items, |s| async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
-            s.to_uppercase()
-        })
-        .await;
-        let expected = vec!["HELLO", "WORLD", "RUST"];
-        assert_eq!(actual, expected);
-    }
 
     #[test]
     fn test_normalize_json_schema_anthropic_mode() {

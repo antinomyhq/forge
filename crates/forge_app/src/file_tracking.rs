@@ -4,7 +4,6 @@ use forge_domain::Metrics;
 use tracing::debug;
 
 use crate::FsReadService;
-use crate::utils::parallel_map;
 
 /// Information about a detected file change
 #[derive(Debug, Clone, PartialEq)]
@@ -40,51 +39,58 @@ impl<F: FsReadService> FileChangeDetector<F> {
     /// * `tracked_files` - Map of file paths to their last known hashes (None
     ///   if unreadable)
     pub async fn detect(&self, metrics: &Metrics) -> Vec<FileChange> {
-        let file_operations: Vec<_> = metrics
+        let futures: Vec<_> = metrics
             .file_operations
             .iter()
-            .map(|(path, file_metrics)| (path.clone(), file_metrics.content_hash.clone()))
+            .map(|(path, file_metrics)| {
+                let file_path = std::path::PathBuf::from(path);
+                let last_hash = file_metrics.content_hash.clone();
+
+                async move {
+                    // Get current hash from the full raw file content (not the
+                    // truncated/formatted content returned to the LLM).
+                    // ReadOutput.content_hash is always computed from the
+                    // unprocessed file, so it is directly comparable with the
+                    // stored hash.
+                    let current_hash = self.read_file_hash(&file_path).await.ok();
+
+                    // Check if hash has changed
+                    if current_hash != last_hash {
+                        debug!(
+                            path = %file_path.display(),
+                            last_hash = ?last_hash,
+                            current_hash = ?current_hash,
+                            "Detected file change"
+                        );
+                        Some(FileChange { path: file_path, content_hash: current_hash })
+                    } else {
+                        None
+                    }
+                }
+            })
             .collect();
 
-        let fs_read_service = self.fs_read_service.clone();
-        let mut changes: Vec<FileChange> = parallel_map(file_operations, |(path, last_hash)| {
-            let file_path = std::path::PathBuf::from(path);
-            let fs_read_service = fs_read_service.clone();
-            async move {
-                // Get current hash from the full raw file content (not the
-                // truncated/formatted content returned to the LLM).
-                // ReadOutput.content_hash is always computed from the
-                // unprocessed file, so it is directly comparable with the
-                // stored hash.
-                let current_hash = fs_read_service
-                    .read(file_path.to_string_lossy().to_string(), None, None)
-                    .await
-                    .ok()
-                    .map(|output| output.content_hash);
-
-                // Check if hash has changed
-                if current_hash != last_hash {
-                    debug!(
-                        path = %file_path.display(),
-                        last_hash = ?last_hash,
-                        current_hash = ?current_hash,
-                        "Detected file change"
-                    );
-                    Some(FileChange { path: file_path, content_hash: current_hash })
-                } else {
-                    None
-                }
-            }
-        })
-        .await
-        .into_iter()
-        .flatten()
-        .collect();
+        let mut changes: Vec<FileChange> = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
 
         // Sort by path for deterministic ordering
         changes.sort_by(|a, b| a.path.cmp(&b.path));
 
         changes
+    }
+
+    /// Reads a file and returns its content hash computed from the full raw
+    /// content, bypassing any line truncation or range limiting.
+    async fn read_file_hash(&self, path: &std::path::Path) -> anyhow::Result<String> {
+        let output = self
+            .fs_read_service
+            .read(path.to_string_lossy().to_string(), None, None)
+            .await?;
+
+        Ok(output.content_hash)
     }
 }
 
