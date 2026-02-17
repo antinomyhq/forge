@@ -739,7 +739,7 @@ impl<
         if let Some(workspace) = workspace {
             if workspace.user_id == user_id {
                 // Workspace already exists for this user
-                return Ok(workspace.workspace_id);
+                anyhow::bail!("Workspace already initialized at path: {}", path.display());
             } else {
                 // Found workspace but different user - delete old one
                 if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
