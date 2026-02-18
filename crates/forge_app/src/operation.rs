@@ -263,7 +263,7 @@ impl ToolOperation {
                 } else {
                     content.to_string()
                 };
-                let elm = Output::new()
+                let xml = Output::new()
                     .element("file")
                     .attr("path", &input.file_path)
                     .attr(
@@ -286,7 +286,14 @@ impl ToolOperation {
                     FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
                 );
 
-                forge_domain::ToolOutput::text(elm)
+                // Generate markdown for ACP display
+                let markdown = crate::operation_markdown::format_read(
+                    &input.file_path,
+                    &output,
+                    input.show_line_numbers,
+                );
+
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsWrite { input, output } => {
                 let diff_result = DiffFormat::format(
@@ -324,7 +331,17 @@ impl ToolOperation {
                     b
                 };
 
-                forge_domain::ToolOutput::text(Output::new().part(builder.build()).render_xml())
+                let xml = Output::new().part(builder.build()).render_xml();
+                
+                // Generate markdown for ACP display
+                let markdown = crate::operation_markdown::format_write(
+                    &input.file_path,
+                    &output,
+                    &input.content,
+                    env.cwd.as_path(),
+                );
+
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsRemove { input, output } => {
                 // None since file was removed
@@ -338,13 +355,21 @@ impl ToolOperation {
                 );
 
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
-                let elem = Output::new()
+                let xml = Output::new()
                     .element("file_removed")
                     .attr("path", display_path)
                     .attr("status", "completed")
                     .done()
                     .render_xml();
-                forge_domain::ToolOutput::text(elem)
+                
+                // Generate markdown for ACP display
+                let markdown = crate::operation_markdown::format_remove(
+                    &input.path,
+                    &output,
+                    env.cwd.as_path(),
+                );
+
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
 
             ToolOperation::FsSearch { input, output } => match output {
@@ -402,11 +427,18 @@ impl ToolOperation {
                         TruncationMode::Full => {}
                     };
                     
-                    let elm = Output::new()
+                    let xml = Output::new()
                         .part(builder.cdata(truncated_output.data.join("\n")).build())
                         .render_xml();
 
-                    forge_domain::ToolOutput::text(elm)
+                    // Generate markdown for ACP display
+                    let markdown = crate::operation_markdown::format_search(
+                        &input.pattern,
+                        &out,
+                        max_lines,
+                    );
+
+                    forge_domain::ToolOutput::paired(xml, markdown)
                 }
                 None => {
                     let mut builder = ElementBuilder::new("search_results");
@@ -422,8 +454,12 @@ impl ToolOperation {
                         builder = builder.attr("file_type", file_type);
                     }
                     
-                    let elm = Output::new().part(builder.build()).render_xml();
-                    forge_domain::ToolOutput::text(elm)
+                    let xml = Output::new().part(builder.build()).render_xml();
+                    
+                    // Generate markdown for ACP display
+                    let markdown = crate::operation_markdown::format_search_empty(&input.pattern);
+
+                    forge_domain::ToolOutput::paired(xml, markdown)
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
@@ -478,8 +514,13 @@ impl ToolOperation {
                     }
                 }
 
-                let root = Output::new().part(root_builder.build()).render_xml();
-                forge_domain::ToolOutput::text(root)
+                let xml = Output::new().part(root_builder.build()).render_xml();
+                
+                // Generate markdown for ACP display
+                let query = output.queries.first().map(|q| q.query.as_str()).unwrap_or("search");
+                let markdown = crate::operation_markdown::format_codebase_search(query, total_results);
+
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
@@ -537,50 +578,54 @@ impl ToolOperation {
 
                 match (&output.before_undo, &output.after_undo) {
                     (None, None) => {
-                        let elm = Output::new()
+                        let xml = Output::new()
                             .element("file_undo")
-                            .attr("path", input.path)
+                            .attr("path", &input.path)
                             .attr("status", "no_changes")
                             .done()
                             .render_xml();
-                        forge_domain::ToolOutput::text(elm)
+                        let markdown = crate::operation_markdown::format_undo(&input.path, "unchanged (no changes to undo)");
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (None, Some(after)) => {
-                        let elm = Output::new()
+                        let xml = Output::new()
                             .element("file_undo")
-                            .attr("path", input.path)
+                            .attr("path", &input.path)
                             .attr("status", "created")
                             .attr("total_lines", after.lines().count().to_string())
                             .cdata(after)
                             .done()
                             .render_xml();
-                        forge_domain::ToolOutput::text(elm)
+                        let markdown = crate::operation_markdown::format_undo(&input.path, "created (undid removal)");
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (Some(before), None) => {
-                        let elm = Output::new()
+                        let xml = Output::new()
                             .element("file_undo")
-                            .attr("path", input.path)
+                            .attr("path", &input.path)
                             .attr("status", "removed")
                             .attr("total_lines", before.lines().count().to_string())
                             .cdata(before)
                             .done()
                             .render_xml();
-                        forge_domain::ToolOutput::text(elm)
+                        let markdown = crate::operation_markdown::format_undo(&input.path, "removed (undid creation)");
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (Some(before), Some(after)) => {
                         // This diff is between modified state (before_undo) and snapshot
                         // state (after_undo)
                         let diff = DiffFormat::format(before, after);
 
-                        let elm = Output::new()
+                        let xml = Output::new()
                             .element("file_undo")
-                            .attr("path", input.path)
+                            .attr("path", &input.path)
                             .attr("status", "restored")
                             .cdata(strip_ansi_codes(diff.diff()))
                             .done()
                             .render_xml();
+                        let markdown = crate::operation_markdown::format_undo(&input.path, "restored to previous state");
 
-                        forge_domain::ToolOutput::text(elm)
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                 }
             }

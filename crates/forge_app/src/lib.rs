@@ -21,6 +21,7 @@ mod init_conversation_metrics;
 mod interruption_service;
 mod mcp_executor;
 mod operation;
+mod operation_markdown;
 mod orch;
 #[cfg(test)]
 mod orch_spec;

@@ -304,3 +304,202 @@ pub(crate) fn build_session_mode_state(
         available_modes,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use forge_domain::{FileDiff, Image, ToolOutput, ToolValue};
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_markdown_sent_to_acp_not_xml() {
+        // Setup: Create a paired output with XML for LLM and Markdown for display
+        let xml = "<file>test content</file>";
+        let markdown = "## File: test.txt\n\nContent here";
+        let fixture = ToolOutput::paired(xml, markdown);
+
+        // Execute: Convert to ACP
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should have one text content with markdown (not XML)
+        assert_eq!(actual.len(), 1, "Should have one content item");
+
+        if let Some(acp::ToolCallContent::Content(content)) = actual.first() {
+            if let acp::ContentBlock::Text(text) = &content.content {
+                assert_eq!(text.text, markdown, "Should send markdown to ACP");
+                assert!(!text.text.contains("<file>"), "Should not contain XML tags");
+                assert!(text.text.contains("## File:"), "Should contain markdown header");
+            } else {
+                panic!("Expected text content block");
+            }
+        } else {
+            panic!("Expected content, got: {:?}", actual);
+        }
+    }
+
+    #[test]
+    fn test_plain_markdown_sent_to_acp() {
+        // Setup: Create output with just markdown (no pair)
+        let markdown = "## Result\n\nOperation completed successfully";
+        let fixture = ToolOutput::markdown(markdown);
+
+        // Execute
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should send markdown as text content
+        assert_eq!(actual.len(), 1);
+        
+        if let Some(acp::ToolCallContent::Content(content)) = actual.first() {
+            if let acp::ContentBlock::Text(text) = &content.content {
+                assert_eq!(text.text, markdown);
+                assert!(text.text.contains("## Result"));
+            } else {
+                panic!("Expected text content block");
+            }
+        } else {
+            panic!("Expected content");
+        }
+    }
+
+    #[test]
+    fn test_file_diff_sent_to_acp() {
+        // Setup: Create a paired output with XML and FileDiff
+        let xml = "<file_diff path=\"test.txt\">diff content</file_diff>";
+        let file_diff = FileDiff {
+            path: "test.txt".to_string(),
+            old_text: Some("old content".to_string()),
+            new_text: "new content".to_string(),
+        };
+
+        let fixture = ToolOutput {
+            is_error: false,
+            values: vec![ToolValue::Pair(
+                Box::new(ToolValue::Text(xml.to_string())),
+                Box::new(ToolValue::FileDiff(file_diff.clone())),
+            )],
+        };
+
+        // Execute
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should be converted to ACP Diff
+        assert_eq!(actual.len(), 1);
+
+        if let Some(acp::ToolCallContent::Diff(diff)) = actual.first() {
+            assert_eq!(diff.path.to_str().unwrap(), "test.txt");
+            assert_eq!(diff.new_text, "new content");
+            assert_eq!(diff.old_text.as_deref(), Some("old content"));
+        } else {
+            panic!("Expected diff content, got: {:?}", actual);
+        }
+    }
+
+    #[test]
+    fn test_empty_markdown_filtered() {
+        // Setup: Create output with empty markdown
+        let fixture = ToolOutput::markdown("");
+
+        // Execute
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should not send empty content
+        assert_eq!(actual.len(), 0, "Empty markdown should be filtered out");
+    }
+
+    #[test]
+    fn test_image_sent_to_acp() {
+        // Setup: Create output with an image
+        let image_data = vec![1, 2, 3, 4];
+        let image = Image::new_bytes(image_data.clone(), "image/png".to_string());
+        let fixture = ToolOutput::image(image.clone());
+
+        // Execute
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should be converted to ACP image content
+        assert_eq!(actual.len(), 1);
+
+        if let Some(acp::ToolCallContent::Content(content)) = actual.first() {
+            if let acp::ContentBlock::Image(img) = &content.content {
+                // Image data is base64 encoded
+                assert_eq!(img.data, image.data());
+                assert_eq!(img.mime_type, "image/png");
+            } else {
+                panic!("Expected image content block");
+            }
+        } else {
+            panic!("Expected content");
+        }
+    }
+
+    #[test]
+    fn test_multiple_values_with_markdown() {
+        // Setup: Create output with multiple values including paired XML/Markdown
+        let xml1 = "<result>Result 1</result>";
+        let md1 = "## Result 1\n\nFirst result";
+        let xml2 = "<result>Result 2</result>";
+        let md2 = "## Result 2\n\nSecond result";
+
+        let fixture = ToolOutput {
+            is_error: false,
+            values: vec![
+                ToolValue::Pair(
+                    Box::new(ToolValue::Text(xml1.to_string())),
+                    Box::new(ToolValue::Markdown(md1.to_string())),
+                ),
+                ToolValue::Pair(
+                    Box::new(ToolValue::Text(xml2.to_string())),
+                    Box::new(ToolValue::Markdown(md2.to_string())),
+                ),
+            ],
+        };
+
+        // Execute
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should have two content blocks
+        assert_eq!(actual.len(), 2, "Should have two markdown items");
+
+        for (idx, content) in actual.iter().enumerate() {
+            if let acp::ToolCallContent::Content(content) = content {
+                if let acp::ContentBlock::Text(text) = &content.content {
+                    assert!(text.text.contains("## Result"), "Should contain markdown header");
+                    assert!(!text.text.contains("<result>"), "Should not contain XML tags");
+                } else {
+                    panic!("Expected text content block at index {}", idx);
+                }
+            } else {
+                panic!("Expected content at index {}", idx);
+            }
+        }
+    }
+
+    #[test]
+    fn test_text_skipped_when_file_diff_present() {
+        // Setup: When FileDiff is present, plain text (CLI diff) should be skipped
+        let cli_diff = "--- old\n+++ new\n-old line\n+new line";
+        let file_diff = FileDiff {
+            path: "test.txt".to_string(),
+            old_text: Some("old content".to_string()),
+            new_text: "new content".to_string(),
+        };
+
+        let fixture = ToolOutput {
+            is_error: false,
+            values: vec![
+                ToolValue::Text(cli_diff.to_string()),
+                ToolValue::FileDiff(file_diff),
+            ],
+        };
+
+        // Execute
+        let actual = ToolOutputConverter::convert(&fixture);
+
+        // Expected: Should only send FileDiff, not the text diff
+        assert_eq!(actual.len(), 1, "Should only have FileDiff");
+        assert!(
+            matches!(actual.first(), Some(acp::ToolCallContent::Diff(_))),
+            "Should be a Diff, not text"
+        );
+    }
+}
