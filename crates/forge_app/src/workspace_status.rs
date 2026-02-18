@@ -201,10 +201,22 @@ mod tests {
         let actual = plan.file_statuses(local);
 
         let expected = vec![
-            forge_domain::FileStatus::new("/workspace/a.rs".to_string(), forge_domain::SyncStatus::InSync),
-            forge_domain::FileStatus::new("/workspace/b.rs".to_string(), forge_domain::SyncStatus::Modified),
-            forge_domain::FileStatus::new("/workspace/c.rs".to_string(), forge_domain::SyncStatus::Deleted),
-            forge_domain::FileStatus::new("/workspace/d.rs".to_string(), forge_domain::SyncStatus::New),
+            forge_domain::FileStatus::new(
+                "/workspace/a.rs".to_string(),
+                forge_domain::SyncStatus::InSync,
+            ),
+            forge_domain::FileStatus::new(
+                "/workspace/b.rs".to_string(),
+                forge_domain::SyncStatus::Modified,
+            ),
+            forge_domain::FileStatus::new(
+                "/workspace/c.rs".to_string(),
+                forge_domain::SyncStatus::Deleted,
+            ),
+            forge_domain::FileStatus::new(
+                "/workspace/d.rs".to_string(),
+                forge_domain::SyncStatus::New,
+            ),
         ];
 
         assert_eq!(actual, expected);
