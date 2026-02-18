@@ -3,12 +3,13 @@
 # Provider selection helper
 
 # Helper function to select a provider from the list
-# Usage: _forge_select_provider [filter_status] [current_provider] [filter_type]
+# Usage: _forge_select_provider [filter_status] [current_provider] [filter_type] [query]
 # Returns: selected provider line (via stdout)
 function _forge_select_provider() {
     local filter_status="${1:-}"
     local current_provider="${2:-}"
     local filter_type="${3:-}"
+    local query="${4:-}"
     local output
     
     # Build the command with type filter if specified
@@ -46,6 +47,11 @@ function _forge_select_provider() {
         --prompt="Provider ❯ "
         --with-nth=1,3..
     )
+    
+    # Add query parameter if provided
+    if [[ -n "$query" ]]; then
+        fzf_args+=(--query="$query")
+    fi
     
     # Position cursor on current provider if available
     if [[ -n "$current_provider" ]]; then

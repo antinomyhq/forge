@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, SessionId, SessionState, Skill, Snapshot, UserId, Workspace,
+    ResultStream, SearchMatch, SessionId, SessionState, Skill, Snapshot,
     WorkspaceAuth, WorkspaceId,
 };
 
@@ -115,40 +115,6 @@ pub trait ProviderRepository: Send + Sync {
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
     async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
-}
-
-/// Repository for managing workspace metadata in local database
-#[async_trait::async_trait]
-pub trait WorkspaceRepository: Send + Sync {
-    /// Save or update a workspace
-    async fn upsert(
-        &self,
-        workspace_id: &WorkspaceId,
-        user_id: &UserId,
-        path: &std::path::Path,
-    ) -> anyhow::Result<()>;
-
-    /// Find all workspaces for a user
-    ///
-    /// Returns all workspaces belonging to the specified user.
-    /// Path matching and selection logic should be handled in the service
-    /// layer.
-    ///
-    /// # Arguments
-    /// * `user_id` - Only return workspaces belonging to this user
-    ///
-    /// # Returns
-    /// A vector of all workspaces for the user (may be empty)
-    ///
-    /// # Errors
-    /// Returns an error if there's a database error
-    async fn list(&self) -> anyhow::Result<Vec<Workspace>>;
-
-    /// Get user ID from any workspace, or None if no workspaces exist
-    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
-
-    /// Delete workspace from local database
-    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
 /// Repository for managing workspace indexing and search operations
