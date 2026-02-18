@@ -57,24 +57,29 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             return None;
         }
 
-        // Count files by extension
+        // Count files by extension (files without extensions are tracked as
+        // "(no ext)")
         let mut counts = HashMap::<&str, usize>::new();
-        output
+        let all_files: Vec<&str> = output
             .output
             .stdout
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty())
-            .filter_map(|line| {
-                let file_name = line.rsplit_once(['/', '\\']).map_or(line, |(_, f)| f);
+            .collect();
+
+        let total_files = all_files.len();
+
+        all_files
+            .iter()
+            .map(|line| {
+                let file_name = line.rsplit_once(['/', '\\']).map_or(*line, |(_, f)| f);
                 file_name
                     .rsplit_once('.')
                     .filter(|(prefix, _)| !prefix.is_empty())
-                    .map(|(_, ext)| ext)
+                    .map_or("(no ext)", |(_, ext)| ext)
             })
             .for_each(|ext| *counts.entry(ext).or_default() += 1);
-
-        let total_files: usize = counts.values().sum();
         if total_files == 0 {
             return None;
         }
@@ -92,7 +97,10 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             })
             .collect();
 
-        stats.sort_by_key(|stat| std::cmp::Reverse(stat.count));
+        stats.sort_by(|a, b| {
+            let count_cmp = b.count.cmp(&a.count); // descending by count
+            count_cmp.then_with(|| a.extension.cmp(&b.extension)) // then alphabetically
+        });
 
         // Track total extensions before truncating
         let total_extensions = stats.len();
@@ -303,7 +311,7 @@ mod tests {
         // Fixture
         let shell_output = ShellOutput {
             output: forge_domain::CommandOutput {
-                stdout: "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\n".to_string(),
+                stdout: "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\nMakefile\nLICENSE\n".to_string(),
                 stderr: String::new(),
                 command: "git ls-files".to_string(),
                 exit_code: Some(0),
@@ -323,28 +331,33 @@ mod tests {
             .unwrap();
 
         // Expected - sorted by count descending with percentages
-        // Total files: 7 (4 rs + 2 md + 1 toml)
+        // Total files: 9 (4 rs + 2 md + 2 no ext + 1 toml)
         let expected = forge_domain::Extension {
             extension_stats: vec![
                 ExtensionStat {
                     extension: "rs".to_string(),
                     count: 4,
-                    percentage: "57".to_string(),
+                    percentage: "44".to_string(),
+                },
+                ExtensionStat {
+                    extension: "(no ext)".to_string(),
+                    count: 2,
+                    percentage: "22".to_string(),
                 },
                 ExtensionStat {
                     extension: "md".to_string(),
                     count: 2,
-                    percentage: "29".to_string(),
+                    percentage: "22".to_string(),
                 },
                 ExtensionStat {
                     extension: "toml".to_string(),
                     count: 1,
-                    percentage: "14".to_string(),
+                    percentage: "11".to_string(),
                 },
             ],
             max_extensions: MAX_EXTENSIONS,
-            git_tracked_files: 7,
-            total_extensions: 3,
+            git_tracked_files: 9,
+            total_extensions: 4,
         };
 
         assert_eq!(actual, expected);
