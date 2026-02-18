@@ -104,6 +104,18 @@ function _forge_action_sync() {
     _forge_exec workspace sync </dev/null
 }
 
+# Action handler: Show sync status of workspace files
+function _forge_action_sync_status() {
+    echo
+    _forge_exec workspace status "."
+}
+
+# Action handler: Show workspace info with sync details
+function _forge_action_sync_info() {
+    echo
+    _forge_exec workspace info "."
+}
+
 # Helper function to select and set config values with fzf
 function _forge_select_and_set_config() {
     local show_command="$1"
