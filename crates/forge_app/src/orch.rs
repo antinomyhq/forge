@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::{Agent, *};
-use forge_template::Element;
+use forge_template::Output;
 use tokio::task::JoinHandle;
 use tracing::warn;
 
@@ -296,7 +296,11 @@ impl<S: AgentService> Orchestrator<S> {
                     });
                     let text = TemplateEngine::default()
                         .render("forge-tool-retry-message.md", &context)?;
-                    let message = Element::new("retry").text(text);
+                    let message = Output::new()
+                        .element("retry")
+                        .text(text)
+                        .done()
+                        .render_xml();
 
                     result.output.combine_mut(ToolOutput::text(message));
                 }

@@ -6,15 +6,14 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
-use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
+use forge_main::cli::AcpCommand;
+use forge_main::{Cli, Sandbox, TitleDisplayExt, TopLevelCommand, UI, tracker};
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     // Install default rustls crypto provider (ring) before any TLS connections
     // This is required for rustls 0.23+ when multiple crypto providers are
     // available
     let _ = rustls::crypto::ring::default_provider().install_default();
-
     // Set up panic hook for better error display
     panic::set_hook(Box::new(|panic_info| {
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
@@ -31,8 +30,29 @@ async fn main() -> Result<()> {
     }));
 
     // Initialize and run the UI
-    let mut cli = Cli::parse();
+    let cli = Cli::parse();
 
+    // Check if this is an ACP start command - handle it specially
+    // because it needs a single-threaded runtime with LocalSet
+    if let Some(TopLevelCommand::Acp(ref acp_cmd)) = cli.subcommands {
+        return match &acp_cmd.command {
+            AcpCommand::Start { .. } => {
+                // For stdio mode, we need a special runtime
+                let cwd = cli
+                    .directory
+                    .clone()
+                    .unwrap_or_else(|| std::env::current_dir().unwrap());
+                forge_main::acp_runner::run_acp_stdio_server(cwd)
+            }
+        };
+    }
+
+    // For all other commands, use the normal async runtime
+    run_async(cli)
+}
+
+#[tokio::main]
+async fn run_async(mut cli: Cli) -> Result<()> {
     // Check if there's piped input
     if !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();

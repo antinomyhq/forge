@@ -8,7 +8,7 @@ use forge_domain::{
     Model, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind,
     ToolName, ToolOutput, ToolResult,
 };
-use forge_template::Element;
+use forge_template::Output;
 use futures::future::join_all;
 use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
@@ -121,8 +121,11 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
 
                 return Ok(ToolOutput::text(
-                    Element::new("permission_denied")
-                        .cdata("User has denied the permission to execute this tool"),
+                    Output::new()
+                        .element("permission_denied")
+                        .cdata("User has denied the permission to execute this tool")
+                        .done()
+                        .render_xml(),
                 ));
             }
 

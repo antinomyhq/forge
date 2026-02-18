@@ -5,7 +5,7 @@ use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
     ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
-use forge_template::Element;
+use forge_template::{ElementBuilder, Output};
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
@@ -100,9 +100,12 @@ impl<S: Services> AgentExecutor<S> {
             // Create tool output
             Ok(ToolOutput::ai(
                 conversation.id,
-                Element::new("task_completed")
+                Output::new()
+                    .element("task_completed")
                     .attr("task", &task)
-                    .append(Element::new("output").text(output)),
+                    .child(ElementBuilder::new("output").text(output).build())
+                    .done()
+                    .render_xml(),
             ))
         } else {
             Err(Error::EmptyToolResponse.into())

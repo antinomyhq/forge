@@ -15,6 +15,7 @@ opt-level = 3
 strip = true
 
 [workspace.dependencies]
+agent-client-protocol = { version = "0.9", features = ["unstable_session_model"] }
 anyhow = "1.0.101"
 async-recursion = "1.1.1"
 async-stream = "0.3"
