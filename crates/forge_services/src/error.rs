@@ -55,4 +55,8 @@ pub enum Error {
     /// Invalid authentication context for the flow type.
     #[error("Invalid context: {0}")]
     InvalidContext(String),
+
+    /// No valid source files found to index.
+    #[error("No valid source files found to index")]
+    NoSourceFilesFound,
 }
