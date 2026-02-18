@@ -214,7 +214,11 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let (is_new_workspace, workspace_id) = self._init_workspace(path.clone()).await?;
 
         // Read all files and compute hashes from the workspace root path
-        emit(SyncProgress::DiscoveringFiles { path: path.clone() }).await;
+        emit(SyncProgress::DiscoveringFiles {
+            path: path.clone(),
+            workspace_id: workspace_id.clone(),
+        })
+        .await;
         let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
@@ -283,13 +287,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
 
         // Upload files in parallel
-        let mut upload_stream = self.upload_files(
-            &user_id,
-            &workspace_id,
-            &token,
-            nodes_to_upload,
-            batch_size,
-        );
+        let mut upload_stream =
+            self.upload_files(&user_id, &workspace_id, &token, nodes_to_upload, batch_size);
 
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
@@ -683,8 +682,10 @@ impl<
         let canonical_path = PathBuf::from(&workspace.working_dir);
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let local_files: Vec<FileNode> =
-            self.read_files(batch_size, &canonical_path).try_concat().await?;
+        let local_files: Vec<FileNode> = self
+            .read_files(batch_size, &canonical_path)
+            .try_concat()
+            .await?;
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
