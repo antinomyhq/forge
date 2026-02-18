@@ -9,39 +9,39 @@ use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
 /// to compute synchronization operations on-demand. It can derive file statuses
 /// and identify which files need to be uploaded, deleted, or modified.
 ///
-/// All paths stored internally are relative to the `base_dir` provided at
-/// construction time.
+/// All paths stored internally are absolute, resolved against the `base_dir`
+/// provided at construction time.
 pub struct WorkspaceStatus {
-    /// Base directory used to relativize all paths.
+    /// Base directory used to absolutize all paths.
     base_dir: PathBuf,
-    /// Remote file hashes from the server, with paths relative to `base_dir`.
+    /// Remote file hashes from the server, with absolute paths.
     remote_files: Vec<FileHash>,
 }
 
 impl WorkspaceStatus {
     /// Creates a sync plan from remote file hashes.
     ///
-    /// Paths in `remote_files` that are absolute and start with `base_dir` are
-    /// stripped to relative paths. Paths that are already relative are kept
-    /// as-is.
+    /// Paths in `remote_files` that are relative are joined with `base_dir` to
+    /// produce absolute paths. Paths that are already absolute are kept as-is.
     ///
     /// # Arguments
     ///
-    /// * `base_dir` - The workspace root directory used to relativize paths
+    /// * `base_dir` - The workspace root directory used to absolutize paths
     /// * `remote_files` - Vector of remote file hashes from the server
     pub fn new(base_dir: impl Into<PathBuf>, remote_files: Vec<FileHash>) -> Self {
         let base_dir = base_dir.into();
         let remote_files = remote_files
             .into_iter()
-            .map(|f| FileHash { path: relativize(&base_dir, &f.path), hash: f.hash })
+            .map(|f| FileHash { path: absolutize(&base_dir, &f.path), hash: f.hash })
             .collect();
         Self { base_dir, remote_files }
     }
 
     /// Derives file sync statuses by comparing local and remote files.
     ///
-    /// Paths in `local_files` are relativized against the `base_dir` before
-    /// comparison, ensuring consistent relative-path keys in the result.
+    /// Both local and remote paths are expected to be absolute. Paths in
+    /// `local_files` that are relative are joined with `base_dir` before
+    /// comparison.
     ///
     /// # Returns
     ///
@@ -53,7 +53,7 @@ impl WorkspaceStatus {
     pub fn file_statuses(&self, local_files: Vec<FileHash>) -> Vec<FileStatus> {
         let local_files: Vec<FileHash> = local_files
             .into_iter()
-            .map(|f| FileHash { path: relativize(&self.base_dir, &f.path), hash: f.hash })
+            .map(|f| FileHash { path: absolutize(&self.base_dir, &f.path), hash: f.hash })
             .collect();
 
         // Build hash maps for efficient lookup
@@ -96,18 +96,21 @@ impl WorkspaceStatus {
     /// # Returns
     ///
     /// A tuple of (files_to_delete, files_to_upload) where:
-    /// - `files_to_delete`: Vector of file paths to delete from remote
+    /// - `files_to_delete`: Vector of absolute file paths to delete from remote
     /// - `files_to_upload`: Vector of `FileNode`s to upload to remote
     pub fn get_operations(&self, local_files: Vec<FileNode>) -> (Vec<String>, Vec<FileNode>) {
-        // Build a lookup map from relative path to FileNode for resolving uploads.
+        // Build a lookup map from absolute path to FileNode for resolving uploads.
         let local_map: HashMap<String, FileNode> = local_files
             .into_iter()
-            .map(|f| (relativize(&self.base_dir, &f.file_path), f))
+            .map(|f| (absolutize(&self.base_dir, &f.file_path), f))
             .collect();
 
         let local_hashes: Vec<FileHash> = local_map
-            .values()
-            .map(|f| FileHash { path: relativize(&self.base_dir, &f.file_path), hash: f.hash.clone() })
+            .keys()
+            .map(|abs_path| {
+                let hash = local_map[abs_path].hash.clone();
+                FileHash { path: abs_path.clone(), hash }
+            })
             .collect();
 
         let statuses = self.file_statuses(local_hashes);
@@ -134,18 +137,15 @@ impl WorkspaceStatus {
     }
 }
 
-/// Strips `base_dir` from `path` if `path` is absolute and starts with
-/// `base_dir`, returning the relative portion as a `String`. If `path` is
-/// already relative, or does not start with `base_dir`, it is returned
-/// unchanged.
-fn relativize(base_dir: &Path, path: &str) -> String {
+/// Joins `base_dir` with `path` if `path` is relative, returning an absolute
+/// path string. If `path` is already absolute it is returned unchanged.
+fn absolutize(base_dir: &Path, path: &str) -> String {
     let p = Path::new(path);
     if p.is_absolute() {
-        if let Ok(rel) = p.strip_prefix(base_dir) {
-            return rel.to_string_lossy().into_owned();
-        }
+        path.to_owned()
+    } else {
+        base_dir.join(p).to_string_lossy().into_owned()
     }
-    path.to_owned()
 }
 
 /// Tracks progress of sync operations
@@ -192,19 +192,19 @@ mod tests {
             FileHash { path: "/workspace/d.rs".into(), hash: "hash_d".into() },
         ];
         let remote = vec![
-            FileHash { path: "/workspace/a.rs".into(), hash: "hash_a".into() },
-            FileHash { path: "/workspace/b.rs".into(), hash: "old_hash".into() },
-            FileHash { path: "/workspace/c.rs".into(), hash: "hash_c".into() },
+            FileHash { path: "a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "b.rs".into(), hash: "old_hash".into() },
+            FileHash { path: "c.rs".into(), hash: "hash_c".into() },
         ];
 
         let plan = WorkspaceStatus::new(base, remote);
         let actual = plan.file_statuses(local);
 
         let expected = vec![
-            forge_domain::FileStatus::new("a.rs".to_string(), forge_domain::SyncStatus::InSync),
-            forge_domain::FileStatus::new("b.rs".to_string(), forge_domain::SyncStatus::Modified),
-            forge_domain::FileStatus::new("c.rs".to_string(), forge_domain::SyncStatus::Deleted),
-            forge_domain::FileStatus::new("d.rs".to_string(), forge_domain::SyncStatus::New),
+            forge_domain::FileStatus::new("/workspace/a.rs".to_string(), forge_domain::SyncStatus::InSync),
+            forge_domain::FileStatus::new("/workspace/b.rs".to_string(), forge_domain::SyncStatus::Modified),
+            forge_domain::FileStatus::new("/workspace/c.rs".to_string(), forge_domain::SyncStatus::Deleted),
+            forge_domain::FileStatus::new("/workspace/d.rs".to_string(), forge_domain::SyncStatus::New),
         ];
 
         assert_eq!(actual, expected);
