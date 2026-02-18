@@ -34,7 +34,7 @@ pub fn install_signal_handler() -> io::Result<()> {
             restore_cursor();
             std::process::exit(130); // 128 + SIGINT(2) = 130
         })
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        .map_err(io::Error::other)?;
     }
     Ok(())
 }

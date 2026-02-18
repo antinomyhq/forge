@@ -5,6 +5,6 @@ pub use select::{
     ForgeSelect, InputBuilder, MultiSelectBuilder, SelectBuilder, SelectBuilderOwned,
 };
 pub use terminal::{
-    install_signal_handler, ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard,
-    TerminalControl,
+    ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard, TerminalControl,
+    install_signal_handler,
 };
