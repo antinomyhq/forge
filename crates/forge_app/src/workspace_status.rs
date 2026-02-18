@@ -1,28 +1,47 @@
 use std::collections::{BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
 
-use forge_domain::{FileHash, FileStatus, SyncProgress, SyncStatus};
+use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
 
 /// Result of comparing local and server files
 ///
 /// This struct stores remote file information and provides methods
 /// to compute synchronization operations on-demand. It can derive file statuses
 /// and identify which files need to be uploaded, deleted, or modified.
+///
+/// All paths stored internally are relative to the `base_dir` provided at
+/// construction time.
 pub struct WorkspaceStatus {
-    /// Remote file hashes from the server
+    /// Base directory used to relativize all paths.
+    base_dir: PathBuf,
+    /// Remote file hashes from the server, with paths relative to `base_dir`.
     remote_files: Vec<FileHash>,
 }
 
 impl WorkspaceStatus {
     /// Creates a sync plan from remote file hashes.
     ///
+    /// Paths in `remote_files` that are absolute and start with `base_dir` are
+    /// stripped to relative paths. Paths that are already relative are kept
+    /// as-is.
+    ///
     /// # Arguments
     ///
+    /// * `base_dir` - The workspace root directory used to relativize paths
     /// * `remote_files` - Vector of remote file hashes from the server
-    pub fn new(remote_files: Vec<FileHash>) -> Self {
-        Self { remote_files }
+    pub fn new(base_dir: impl Into<PathBuf>, remote_files: Vec<FileHash>) -> Self {
+        let base_dir = base_dir.into();
+        let remote_files = remote_files
+            .into_iter()
+            .map(|f| FileHash { path: relativize(&base_dir, &f.path), hash: f.hash })
+            .collect();
+        Self { base_dir, remote_files }
     }
 
     /// Derives file sync statuses by comparing local and remote files.
+    ///
+    /// Paths in `local_files` are relativized against the `base_dir` before
+    /// comparison, ensuring consistent relative-path keys in the result.
     ///
     /// # Returns
     ///
@@ -32,6 +51,11 @@ impl WorkspaceStatus {
     /// - `New`: File exists only locally
     /// - `Deleted`: File exists only remotely
     pub fn file_statuses(&self, local_files: Vec<FileHash>) -> Vec<FileStatus> {
+        let local_files: Vec<FileHash> = local_files
+            .into_iter()
+            .map(|f| FileHash { path: relativize(&self.base_dir, &f.path), hash: f.hash })
+            .collect();
+
         // Build hash maps for efficient lookup
         let local_hashes: HashMap<&str, &str> = local_files
             .iter()
@@ -42,7 +66,6 @@ impl WorkspaceStatus {
             .iter()
             .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
-
         // Collect all unique file paths (BTreeSet keeps them sorted)
         let mut all_paths: BTreeSet<&str> = BTreeSet::new();
         all_paths.extend(local_hashes.keys().copied());
@@ -74,16 +97,29 @@ impl WorkspaceStatus {
     ///
     /// A tuple of (files_to_delete, files_to_upload) where:
     /// - `files_to_delete`: Vector of file paths to delete from remote
-    /// - `files_to_upload`: Vector of file paths to upload to remote
-    pub fn get_operations(&self, local_files: Vec<FileHash>) -> (Vec<String>, Vec<String>) {
-        let statuses = self.file_statuses(local_files);
+    /// - `files_to_upload`: Vector of `FileNode`s to upload to remote
+    pub fn get_operations(&self, local_files: Vec<FileNode>) -> (Vec<String>, Vec<FileNode>) {
+        // Build a lookup map from relative path to FileNode for resolving uploads.
+        let local_map: HashMap<String, FileNode> = local_files
+            .into_iter()
+            .map(|f| (relativize(&self.base_dir, &f.file_path), f))
+            .collect();
+
+        let local_hashes: Vec<FileHash> = local_map
+            .values()
+            .map(|f| FileHash { path: relativize(&self.base_dir, &f.file_path), hash: f.hash.clone() })
+            .collect();
+
+        let statuses = self.file_statuses(local_hashes);
         let mut files_to_delete = Vec::new();
         let mut files_to_upload = Vec::new();
 
         for status in statuses {
             match status.status {
                 SyncStatus::Modified | SyncStatus::New => {
-                    files_to_upload.push(status.path);
+                    if let Some(node) = local_map.get(&status.path).cloned() {
+                        files_to_upload.push(node);
+                    }
                 }
                 SyncStatus::Deleted => {
                     files_to_delete.push(status.path);
@@ -97,6 +133,21 @@ impl WorkspaceStatus {
         (files_to_delete, files_to_upload)
     }
 }
+
+/// Strips `base_dir` from `path` if `path` is absolute and starts with
+/// `base_dir`, returning the relative portion as a `String`. If `path` is
+/// already relative, or does not start with `base_dir`, it is returned
+/// unchanged.
+fn relativize(base_dir: &Path, path: &str) -> String {
+    let p = Path::new(path);
+    if p.is_absolute() {
+        if let Ok(rel) = p.strip_prefix(base_dir) {
+            return rel.to_string_lossy().into_owned();
+        }
+    }
+    path.to_owned()
+}
+
 /// Tracks progress of sync operations
 pub struct SyncProgressCounter {
     total_files: usize,
@@ -134,18 +185,19 @@ mod tests {
 
     #[test]
     fn test_file_statuses() {
+        let base = "/workspace";
         let local = vec![
-            FileHash { path: "a.rs".into(), hash: "hash_a".into() },
-            FileHash { path: "b.rs".into(), hash: "new_hash".into() },
-            FileHash { path: "d.rs".into(), hash: "hash_d".into() },
+            FileHash { path: "/workspace/a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "/workspace/b.rs".into(), hash: "new_hash".into() },
+            FileHash { path: "/workspace/d.rs".into(), hash: "hash_d".into() },
         ];
         let remote = vec![
-            FileHash { path: "a.rs".into(), hash: "hash_a".into() },
-            FileHash { path: "b.rs".into(), hash: "old_hash".into() },
-            FileHash { path: "c.rs".into(), hash: "hash_c".into() },
+            FileHash { path: "/workspace/a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "/workspace/b.rs".into(), hash: "old_hash".into() },
+            FileHash { path: "/workspace/c.rs".into(), hash: "hash_c".into() },
         ];
 
-        let plan = WorkspaceStatus::new(remote);
+        let plan = WorkspaceStatus::new(base, remote);
         let actual = plan.file_statuses(local);
 
         let expected = vec![
