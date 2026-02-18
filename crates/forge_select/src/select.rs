@@ -4,7 +4,7 @@ use crossterm::cursor;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
-use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard};
+use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard, TerminalControl};
 
 /// Check if a dialoguer error is an interrupted error (CTRL+C)
 fn is_interrupted_error(err: &dialoguer::Error) -> bool {
@@ -149,7 +149,11 @@ impl<T: 'static> SelectBuilder<T> {
 
             let result = match confirm.interact_opt() {
                 Ok(value) => value,
-                Err(e) if is_interrupted_error(&e) => return Ok(None),
+                Err(e) if is_interrupted_error(&e) => {
+                    // Explicitly show cursor before returning on Ctrl+C
+                    let _ = TerminalControl::show_cursor();
+                    return Ok(None);
+                }
                 Err(e) => return Err(e.into()),
             };
             // Safe cast since we checked the type
@@ -192,7 +196,12 @@ impl<T: 'static> SelectBuilder<T> {
 
         let idx_opt = match select.interact_opt() {
             Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
+            Err(e) if is_interrupted_error(&e) => {
+                // Explicitly show cursor before returning on Ctrl+C
+                // This ensures the cursor is visible even if the program exits quickly
+                let _ = TerminalControl::show_cursor();
+                return Ok(None);
+            }
             Err(e) => return Err(e.into()),
         };
         Ok(idx_opt.and_then(|idx| self.options.get(idx).cloned()))
@@ -263,7 +272,11 @@ impl<T> SelectBuilderOwned<T> {
 
         let idx_opt = match select.interact_opt() {
             Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
+            Err(e) if is_interrupted_error(&e) => {
+                // Explicitly show cursor before returning on Ctrl+C
+                let _ = TerminalControl::show_cursor();
+                return Ok(None);
+            }
             Err(e) => return Err(e.into()),
         };
         Ok(idx_opt.and_then(|idx| self.options.into_iter().nth(idx)))
@@ -344,7 +357,11 @@ impl InputBuilder {
 
                 return match input.interact_text() {
                     Ok(masked_result) => Ok(Some(masked_result.value)),
-                    Err(e) if is_interrupted_error(&e) => Ok(None),
+                    Err(e) if is_interrupted_error(&e) => {
+                        // Explicitly show cursor before returning on Ctrl+C
+                        let _ = TerminalControl::show_cursor();
+                        Ok(None)
+                    }
                     Err(e) => Err(e.into()),
                 };
             }
@@ -357,7 +374,11 @@ impl InputBuilder {
 
             return match input.interact_text() {
                 Ok(value) => Ok(Some(value)),
-                Err(e) if is_interrupted_error(&e) => Ok(None),
+                Err(e) if is_interrupted_error(&e) => {
+                    // Explicitly show cursor before returning on Ctrl+C
+                    let _ = TerminalControl::show_cursor();
+                    Ok(None)
+                }
                 Err(e) => Err(e.into()),
             };
         }
@@ -369,7 +390,11 @@ impl InputBuilder {
 
         match input.interact_text() {
             Ok(value) => Ok(Some(value)),
-            Err(e) if is_interrupted_error(&e) => Ok(None),
+            Err(e) if is_interrupted_error(&e) => {
+                // Explicitly show cursor before returning on Ctrl+C
+                let _ = TerminalControl::show_cursor();
+                Ok(None)
+            }
             Err(e) => Err(e.into()),
         }
     }
@@ -415,7 +440,11 @@ impl<T> MultiSelectBuilder<T> {
 
         let indices_opt = match multi_select.interact_opt() {
             Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
+            Err(e) if is_interrupted_error(&e) => {
+                // Explicitly show cursor before returning on Ctrl+C
+                let _ = TerminalControl::show_cursor();
+                return Ok(None);
+            }
             Err(e) => return Err(e.into()),
         };
 

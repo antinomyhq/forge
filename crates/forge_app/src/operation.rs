@@ -17,8 +17,8 @@ use crate::truncation::{
 };
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
-    FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, MatchResult, PatchOutput,
+    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -263,7 +263,16 @@ impl ToolOperation {
                 } else {
                     content.to_string()
                 };
-                let xml = Output::new()
+                
+                // Build output for both XML and Markdown
+                let output_builder = Output::new()
+                    .h2(format!("File: `{}`", input.file_path))
+                    .blank_line()
+                    .text(format!("Lines {}-{} of {} total", output.start_line, output.end_line, content.lines().count()))
+                    .blank_line()
+                    .code_block(&content, None);
+                
+                let xml = output_builder.clone()
                     .element("file")
                     .attr("path", &input.file_path)
                     .attr(
@@ -286,13 +295,7 @@ impl ToolOperation {
                     FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
                 );
 
-                // Generate markdown for ACP display
-                let markdown = crate::operation_markdown::format_read(
-                    &input.file_path,
-                    &output,
-                    input.show_line_numbers,
-                );
-
+                let markdown = output_builder.render_markdown();
                 forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsWrite { input, output } => {
@@ -314,7 +317,7 @@ impl ToolOperation {
                     let mut b = ElementBuilder::new("file_overwritten")
                         .attr("path", &input.file_path)
                         .attr("total_lines", input.content.lines().count().to_string())
-                        .child(ElementBuilder::new("file_diff").cdata(diff).build());
+                        .child(ElementBuilder::new("file_diff").cdata(&diff).build());
                     
                     if !output.errors.is_empty() {
                         b = b.child(create_validation_warning(&input.file_path, &output.errors));
@@ -331,16 +334,42 @@ impl ToolOperation {
                     b
                 };
 
-                let xml = Output::new().part(builder.build()).render_xml();
+                // Build markdown output
+                let display_path = format_display_path(Path::new(&input.file_path), env.cwd.as_path());
+                let line_count = input.content.lines().count();
                 
-                // Generate markdown for ACP display
-                let markdown = crate::operation_markdown::format_write(
-                    &input.file_path,
-                    &output,
-                    &input.content,
-                    env.cwd.as_path(),
-                );
+                let mut md_builder = if output.before.is_some() {
+                    Output::new()
+                        .h2(format!("File Overwritten: `{}`", display_path))
+                        .blank_line()
+                        .kv("Lines", line_count.to_string())
+                        .kv("Changes", format!("+{} lines, -{} lines", diff_result.lines_added(), diff_result.lines_removed()))
+                        .blank_line()
+                } else {
+                    Output::new()
+                        .h2(format!("File Created: `{}`", display_path))
+                        .blank_line()
+                        .kv("Lines", line_count.to_string())
+                        .blank_line()
+                };
+                
+                if !output.errors.is_empty() {
+                    md_builder = md_builder
+                        .h3("⚠️ Validation Warnings")
+                        .blank_line()
+                        .list(output.errors.iter().map(|e| format!("{:?}", e)))
+                        .blank_line();
+                }
+                
+                if output.before.is_some() {
+                    md_builder = md_builder
+                        .h3("Diff")
+                        .blank_line()
+                        .code_block(&diff, Some("diff"));
+                }
 
+                let xml = Output::new().part(builder.build()).render_xml();
+                let markdown = md_builder.render_markdown();
                 forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsRemove { input, output } => {
@@ -355,6 +384,10 @@ impl ToolOperation {
                 );
 
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
+                let output_builder = Output::new()
+                    .h2(format!("File: `{}`", display_path))
+                    .text("✓ File removed successfully");
+                
                 let xml = Output::new()
                     .element("file_removed")
                     .attr("path", display_path)
@@ -362,12 +395,7 @@ impl ToolOperation {
                     .done()
                     .render_xml();
                 
-                // Generate markdown for ACP display
-                let markdown = crate::operation_markdown::format_remove(
-                    &input.path,
-                    &output,
-                    env.cwd.as_path(),
-                );
+                let markdown = output_builder.render_markdown();
 
                 forge_domain::ToolOutput::paired(xml, markdown)
             }
@@ -432,11 +460,35 @@ impl ToolOperation {
                         .render_xml();
 
                     // Generate markdown for ACP display
-                    let markdown = crate::operation_markdown::format_search(
-                        &input.pattern,
-                        &out,
-                        max_lines,
-                    );
+                    let mut markdown_builder = Output::new()
+                        .h2(format!("Search Results: `{}`", input.pattern))
+                        .kv("Total matches", out.matches.len().to_string());
+                    
+                    if !out.matches.is_empty() {
+                        let items: Vec<String> = out.matches
+                            .iter()
+                            .take(max_lines)
+                            .filter_map(|m| {
+                                m.result.as_ref().and_then(|result| {
+                                    match result {
+                                        MatchResult::Found { line_number, line } |
+                                        MatchResult::ContextMatch { line_number, line, .. } => {
+                                            let line_display = if let Some(num) = line_number {
+                                                format!("{}: {}", num, line)
+                                            } else {
+                                                line.clone()
+                                            };
+                                            Some(format!("**{}** - {}", m.path, line_display))
+                                        }
+                                        _ => None,
+                                    }
+                                })
+                            })
+                            .collect();
+                        markdown_builder = markdown_builder.list(items);
+                    }
+                    
+                    let markdown = markdown_builder.render_markdown();
 
                     forge_domain::ToolOutput::paired(xml, markdown)
                 }
@@ -457,7 +509,10 @@ impl ToolOperation {
                     let xml = Output::new().part(builder.build()).render_xml();
                     
                     // Generate markdown for ACP display
-                    let markdown = crate::operation_markdown::format_search_empty(&input.pattern);
+                    let markdown = Output::new()
+                        .h2(format!("Search Results: `{}`", input.pattern))
+                        .text("No matches found")
+                        .render_markdown();
 
                     forge_domain::ToolOutput::paired(xml, markdown)
                 }
@@ -518,7 +573,15 @@ impl ToolOperation {
                 
                 // Generate markdown for ACP display
                 let query = output.queries.first().map(|q| q.query.as_str()).unwrap_or("search");
-                let markdown = crate::operation_markdown::format_codebase_search(query, total_results);
+                let markdown = Output::new()
+                    .h2(format!("Semantic Search: `{}`", query))
+                    .kv("Total results", total_results.to_string())
+                    .text(if total_results == 0 {
+                        "No results found. Try refining your search."
+                    } else {
+                        "✓ Found relevant code sections"
+                    })
+                    .render_markdown();
 
                 forge_domain::ToolOutput::paired(xml, markdown)
             }
@@ -584,7 +647,10 @@ impl ToolOperation {
                             .attr("status", "no_changes")
                             .done()
                             .render_xml();
-                        let markdown = crate::operation_markdown::format_undo(&input.path, "unchanged (no changes to undo)");
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("unchanged (no changes to undo)")
+                            .render_markdown();
                         forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (None, Some(after)) => {
@@ -596,7 +662,10 @@ impl ToolOperation {
                             .cdata(after)
                             .done()
                             .render_xml();
-                        let markdown = crate::operation_markdown::format_undo(&input.path, "created (undid removal)");
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("✓ created (undid removal)")
+                            .render_markdown();
                         forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (Some(before), None) => {
@@ -608,7 +677,10 @@ impl ToolOperation {
                             .cdata(before)
                             .done()
                             .render_xml();
-                        let markdown = crate::operation_markdown::format_undo(&input.path, "removed (undid creation)");
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("✓ removed (undid creation)")
+                            .render_markdown();
                         forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (Some(before), Some(after)) => {
@@ -623,7 +695,10 @@ impl ToolOperation {
                             .cdata(strip_ansi_codes(diff.diff()))
                             .done()
                             .render_xml();
-                        let markdown = crate::operation_markdown::format_undo(&input.path, "restored to previous state");
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("✓ restored to previous state")
+                            .render_markdown();
 
                         forge_domain::ToolOutput::paired(xml, markdown)
                     }
