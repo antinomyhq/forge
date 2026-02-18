@@ -2,23 +2,6 @@ use std::path::Path;
 
 use crate::{Match, MatchResult};
 
-/// Strips `base_dir` from `path` if `path` is absolute and starts with
-/// `base_dir`, returning the relative portion. Otherwise returns `path`
-/// unchanged.
-///
-/// # Arguments
-/// * `base_dir` - The base directory to strip from the path
-/// * `path` - The path string to relativize
-pub fn relativize_path(base_dir: &Path, path: &str) -> String {
-    let p = Path::new(path);
-    if p.is_absolute() {
-        if let Ok(rel) = p.strip_prefix(base_dir) {
-            return rel.to_string_lossy().into_owned();
-        }
-    }
-    path.to_owned()
-}
-
 /// Formats a path for display, converting absolute paths to relative when
 /// possible
 ///

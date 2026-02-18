@@ -52,7 +52,6 @@ pub use template_engine::*;
 pub use tool_resolver::*;
 pub use user::*;
 pub use utils::compute_hash;
-pub use utils::relativize_path;
 pub use walker::*;
 pub use workspace_status::*;
 pub mod domain {
