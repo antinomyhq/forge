@@ -114,17 +114,17 @@ impl TryFrom<forge_domain::Context> for Request {
                     .map(ToolEntry::Function)
                     .collect();
                 // Add server-executed web search tool
-                tools.push(ToolEntry::WebSearch(WebSearchTool {
-                    r#type: "web_search_20250305".to_string(),
-                    name: "web_search".to_string(),
-                    max_uses: None,
-                }));
+                // tools.push(ToolEntry::WebSearch(WebSearchTool {
+                //     r#type: "web_search_20250305".to_string(),
+                //     name: "web_search".to_string(),
+                //     max_uses: None,
+                // }));
                 tools
             },
             system: Some(system_messages),
             temperature: request.temperature.map(|t| t.value()),
-            top_p: request.top_p.map(|t| t.value()),
-            top_k: request.top_k.map(|t| t.value() as u64),
+            // top_p: request.top_p.map(|t| t.value()),
+            // top_k: request.top_k.map(|t| t.value() as u64),
             tool_choice: request.tool_choice.map(ToolChoice::from),
             stream: Some(request.stream.unwrap_or(true)),
             thinking: request.reasoning.and_then(|reasoning| {
