@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use dashmap::mapref::entry::Entry;
 use dashmap::DashMap;
+use dashmap::mapref::entry::Entry;
 use forge_domain::{
     Conversation, ConversationId, EndPayload, EventData, EventHandle, StartPayload,
 };
@@ -75,13 +75,11 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         // `or_insert_with` holds the shard lock for its entire call. Any occupied
         // entry — InProgress, Awaiting, or Done — is left untouched, so at most
         // one task is ever spawned per conversation id.
-        self.title_tasks
-            .entry(conversation.id)
-            .or_insert_with(|| {
-                TitleTask::InProgress(
-                    tokio::spawn(async move { generator.generate().await.ok().flatten() }),
-                )
-            });
+        self.title_tasks.entry(conversation.id).or_insert_with(|| {
+            TitleTask::InProgress(tokio::spawn(async move {
+                generator.generate().await.ok().flatten()
+            }))
+        });
 
         Ok(())
     }
@@ -124,7 +122,8 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
                 );
                 conversation.title = Some(title.clone());
                 // Transition Awaiting → Done only on success.
-                self.title_tasks.insert(conversation.id, TitleTask::Done(title));
+                self.title_tasks
+                    .insert(conversation.id, TitleTask::Done(title));
             }
             Ok(None) => {
                 debug!("Title generation returned None");
@@ -213,7 +212,10 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         conversation.title = Some("existing".into());
 
-        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(StartPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(!handler.title_tasks.contains_key(&conversation.id));
     }
@@ -222,9 +224,14 @@ mod tests {
     async fn test_start_skips_if_task_already_in_progress() {
         let (handler, mut conversation) = setup("test message");
         let original = tokio::spawn(async { Some("original".into()) });
-        handler.title_tasks.insert(conversation.id, TitleTask::InProgress(original));
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleTask::InProgress(original));
 
-        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(StartPayload), &mut conversation)
+            .await
+            .unwrap();
 
         let (_, task) = handler.title_tasks.remove(&conversation.id).unwrap();
         let actual = match task {
@@ -239,9 +246,14 @@ mod tests {
     #[tokio::test]
     async fn test_start_skips_if_awaiting() {
         let (handler, mut conversation) = setup("test message");
-        handler.title_tasks.insert(conversation.id, TitleTask::Awaiting);
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleTask::Awaiting);
 
-        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(StartPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
@@ -253,9 +265,14 @@ mod tests {
     #[tokio::test]
     async fn test_start_skips_if_done() {
         let (handler, mut conversation) = setup("test message");
-        handler.title_tasks.insert(conversation.id, TitleTask::Done("existing".into()));
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleTask::Done("existing".into()));
 
-        handler.handle(&event(StartPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(StartPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
@@ -271,7 +288,10 @@ mod tests {
             TitleTask::InProgress(tokio::spawn(async { Some("generated".into()) })),
         );
 
-        handler.handle(&event(EndPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(EndPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert_eq!(conversation.title, Some("generated".into()));
         assert!(matches!(
@@ -288,7 +308,10 @@ mod tests {
             TitleTask::InProgress(tokio::spawn(async { panic!("fail") })),
         );
 
-        handler.handle(&event(EndPayload), &mut conversation).await.unwrap();
+        handler
+            .handle(&event(EndPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(conversation.title.is_none());
         assert!(!handler.title_tasks.contains_key(&conversation.id));
@@ -309,7 +332,10 @@ mod tests {
             let mut conv = conversation.clone();
             joins.push(tokio::spawn(async move {
                 barrier.wait().await;
-                handler.handle(&event(StartPayload), &mut conv).await.unwrap();
+                handler
+                    .handle(&event(StartPayload), &mut conv)
+                    .await
+                    .unwrap();
             }));
         }
         for j in joins {
