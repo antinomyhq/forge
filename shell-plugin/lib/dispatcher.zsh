@@ -157,10 +157,10 @@ function forge-accept-line() {
             _forge_action_conversation "$input_text"
         ;;
         provider|p)
-            _forge_action_provider
+            _forge_action_provider "$input_text"
         ;;
         model|m)
-            _forge_action_model
+            _forge_action_model "$input_text"
         ;;
         tools|t)
             _forge_action_tools
@@ -192,11 +192,17 @@ function forge-accept-line() {
         sync)
             _forge_action_sync
         ;;
+        sync-status)
+            _forge_action_sync_status
+        ;;
+        sync-info)
+            _forge_action_sync_info
+        ;;
         login)
-            _forge_action_login
+            _forge_action_login "$input_text"
         ;;
         logout)
-            _forge_action_logout
+            _forge_action_logout "$input_text"
         ;;
         doctor)
             _forge_action_doctor

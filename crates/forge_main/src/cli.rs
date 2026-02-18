@@ -284,6 +284,13 @@ pub enum WorkspaceCommand {
         #[arg(short, long)]
         porcelain: bool,
     },
+
+    /// Initialize an empty workspace for the provided directory
+    Init {
+        /// Path to the directory to initialize as a workspace
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
 }
 
 /// Command group for listing resources.

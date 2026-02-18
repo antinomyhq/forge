@@ -39,7 +39,7 @@ derive_setters.workspace = true
 base64.workspace = true
 schemars.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
-diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
+diesel = { version = "2.3.6", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2.0"
 thiserror.workspace = true
 derive_more.workspace = true
@@ -50,13 +50,13 @@ google-cloud-auth.workspace = true
 
 # gRPC for codebase client
 tonic.workspace = true
-prost = "0.14.1"
+prost = "0.14.3"
 
-prost-types = "0.14.1"
-tonic-prost = "0.14.2"
+prost-types = "0.14.3"
+tonic-prost = "0.14.3"
 
 [build-dependencies]
-tonic-prost-build = "0.14.2"
+tonic-prost-build = "0.14.3"
 
 [dev-dependencies]
 forge_test_kit.workspace = true
@@ -64,7 +64,7 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }
 insta = { workspace = true }
-serial_test = "3.2"
+serial_test = "3.3"
 fake = { version = "4.4.0", features = ["derive"] }
 derive_setters.workspace = true
 mockito = { workspace = true }

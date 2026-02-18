@@ -32,7 +32,7 @@ lazy_static! {
     static ref CACHED_CLIENT_ID: String = client_id::get_or_create_client_id()
         .unwrap_or_else(|_| client_id::DEFAULT_CLIENT_ID.to_string());
     static ref CACHED_OS_NAME: String = System::long_os_version().unwrap_or("Unknown".to_string());
-    static ref CACHED_USER: String = whoami::username();
+    static ref CACHED_USER: String = whoami::username().unwrap_or_else(|_| "unknown".to_string());
     static ref CACHED_CWD: Option<String> = std::env::current_dir()
         .ok()
         .and_then(|path| path.to_str().map(|s| s.to_string()));
