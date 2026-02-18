@@ -12,6 +12,8 @@ pub enum SyncProgress {
     Starting,
     /// Discovering files in the directory
     DiscoveringFiles {
+        /// ID of the current workspace
+        workspace_id: WorkspaceId,
         /// Path being scanned
         path: std::path::PathBuf,
     },
