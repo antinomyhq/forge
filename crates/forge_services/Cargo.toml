@@ -8,6 +8,7 @@ rust-version.workspace = true
 chrono.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+async-stream.workspace = true
 async-trait.workspace = true
 async-recursion.workspace = true
 forge_snaps.workspace = true
@@ -50,6 +51,7 @@ oauth2 = { version = "5.0", features = ["reqwest"] }
 serde_urlencoded = "0.7.1"
 http.workspace = true
 infer.workspace = true
+tonic.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

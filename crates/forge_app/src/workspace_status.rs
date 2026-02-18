@@ -1,31 +1,47 @@
 use std::collections::{BTreeSet, HashMap};
+use std::path::{Path, PathBuf};
 
 use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
 
 /// Result of comparing local and server files
 ///
-/// This struct stores local and remote file information and provides methods
+/// This struct stores remote file information and provides methods
 /// to compute synchronization operations on-demand. It can derive file statuses
 /// and identify which files need to be uploaded, deleted, or modified.
+///
+/// All paths stored internally are absolute, resolved against the `base_dir`
+/// provided at construction time.
 pub struct WorkspaceStatus {
-    /// Local files with their content and hashes
-    local_files: Vec<FileNode>,
-    /// Remote file hashes from the server
+    /// Base directory used to absolutize all paths.
+    base_dir: PathBuf,
+    /// Remote file hashes from the server, with absolute paths.
     remote_files: Vec<FileHash>,
 }
 
 impl WorkspaceStatus {
-    /// Creates a sync plan from local files and remote file hashes.
+    /// Creates a sync plan from remote file hashes.
+    ///
+    /// Paths in `remote_files` that are relative are joined with `base_dir` to
+    /// produce absolute paths. Paths that are already absolute are kept as-is.
     ///
     /// # Arguments
     ///
-    /// * `local_files` - Vector of local files with their content and hashes
+    /// * `base_dir` - The workspace root directory used to absolutize paths
     /// * `remote_files` - Vector of remote file hashes from the server
-    pub fn new(local_files: Vec<FileNode>, remote_files: Vec<FileHash>) -> Self {
-        Self { local_files, remote_files }
+    pub fn new(base_dir: impl Into<PathBuf>, remote_files: Vec<FileHash>) -> Self {
+        let base_dir = base_dir.into();
+        let remote_files = remote_files
+            .into_iter()
+            .map(|f| FileHash { path: absolutize(&base_dir, &f.path), hash: f.hash })
+            .collect();
+        Self { base_dir, remote_files }
     }
 
     /// Derives file sync statuses by comparing local and remote files.
+    ///
+    /// Both local and remote paths are expected to be absolute. Paths in
+    /// `local_files` that are relative are joined with `base_dir` before
+    /// comparison.
     ///
     /// # Returns
     ///
@@ -34,19 +50,22 @@ impl WorkspaceStatus {
     /// - `Modified`: File exists in both but with different hashes
     /// - `New`: File exists only locally
     /// - `Deleted`: File exists only remotely
-    pub fn file_statuses(&self) -> Vec<FileStatus> {
+    pub fn file_statuses(&self, local_files: Vec<FileHash>) -> Vec<FileStatus> {
+        let local_files: Vec<FileHash> = local_files
+            .into_iter()
+            .map(|f| FileHash { path: absolutize(&self.base_dir, &f.path), hash: f.hash })
+            .collect();
+
         // Build hash maps for efficient lookup
-        let local_hashes: HashMap<&str, &str> = self
-            .local_files
+        let local_hashes: HashMap<&str, &str> = local_files
             .iter()
-            .map(|f| (f.file_path.as_str(), f.hash.as_str()))
+            .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
         let remote_hashes: HashMap<&str, &str> = self
             .remote_files
             .iter()
             .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
-
         // Collect all unique file paths (BTreeSet keeps them sorted)
         let mut all_paths: BTreeSet<&str> = BTreeSet::new();
         all_paths.extend(local_hashes.keys().copied());
@@ -77,37 +96,32 @@ impl WorkspaceStatus {
     /// # Returns
     ///
     /// A tuple of (files_to_delete, files_to_upload) where:
-    /// - `files_to_delete`: Vector of file paths to delete from remote
-    /// - `files_to_upload`: Vector of files to upload to remote
-    pub fn get_operations(&self) -> (Vec<String>, Vec<forge_domain::FileRead>) {
-        let statuses = self.file_statuses();
+    /// - `files_to_delete`: Vector of absolute file paths to delete from remote
+    /// - `files_to_upload`: Vector of `FileNode`s to upload to remote
+    pub fn get_operations(&self, local_files: Vec<FileNode>) -> (Vec<String>, Vec<FileNode>) {
+        // Build a lookup map from absolute path to FileNode for resolving uploads.
+        let local_map: HashMap<String, FileNode> = local_files
+            .into_iter()
+            .map(|f| (absolutize(&self.base_dir, &f.file_path), f))
+            .collect();
+
+        let local_hashes: Vec<FileHash> = local_map
+            .keys()
+            .map(|abs_path| {
+                let hash = local_map[abs_path].hash.clone();
+                FileHash { path: abs_path.clone(), hash }
+            })
+            .collect();
+
+        let statuses = self.file_statuses(local_hashes);
         let mut files_to_delete = Vec::new();
         let mut files_to_upload = Vec::new();
 
-        // Create a map for quick lookup of local files
-        let local_files_map: HashMap<&str, &FileNode> = self
-            .local_files
-            .iter()
-            .map(|f| (f.file_path.as_str(), f))
-            .collect();
-
         for status in statuses {
             match status.status {
-                SyncStatus::Modified => {
-                    files_to_delete.push(status.path.clone());
-                    if let Some(file) = local_files_map.get(status.path.as_str()) {
-                        files_to_upload.push(forge_domain::FileRead::new(
-                            file.file_path.clone(),
-                            file.content.clone(),
-                        ));
-                    }
-                }
-                SyncStatus::New => {
-                    if let Some(file) = local_files_map.get(status.path.as_str()) {
-                        files_to_upload.push(forge_domain::FileRead::new(
-                            file.file_path.clone(),
-                            file.content.clone(),
-                        ));
+                SyncStatus::Modified | SyncStatus::New => {
+                    if let Some(node) = local_map.get(&status.path).cloned() {
+                        files_to_upload.push(node);
                     }
                 }
                 SyncStatus::Deleted => {
@@ -120,6 +134,17 @@ impl WorkspaceStatus {
         }
 
         (files_to_delete, files_to_upload)
+    }
+}
+
+/// Joins `base_dir` with `path` if `path` is relative, returning an absolute
+/// path string. If `path` is already absolute it is returned unchanged.
+fn absolutize(base_dir: &Path, path: &str) -> String {
+    let p = Path::new(path);
+    if p.is_absolute() {
+        path.to_owned()
+    } else {
+        base_dir.join(p).to_string_lossy().into_owned()
     }
 }
 
@@ -160,22 +185,11 @@ mod tests {
 
     #[test]
     fn test_file_statuses() {
+        let base = "/workspace";
         let local = vec![
-            FileNode {
-                file_path: "a.rs".into(),
-                content: "content_a".into(),
-                hash: "hash_a".into(),
-            },
-            FileNode {
-                file_path: "b.rs".into(),
-                content: "modified_content".into(),
-                hash: "new_hash".into(),
-            },
-            FileNode {
-                file_path: "d.rs".into(),
-                content: "content_d".into(),
-                hash: "hash_d".into(),
-            },
+            FileHash { path: "/workspace/a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "/workspace/b.rs".into(), hash: "new_hash".into() },
+            FileHash { path: "/workspace/d.rs".into(), hash: "hash_d".into() },
         ];
         let remote = vec![
             FileHash { path: "a.rs".into(), hash: "hash_a".into() },
@@ -183,14 +197,26 @@ mod tests {
             FileHash { path: "c.rs".into(), hash: "hash_c".into() },
         ];
 
-        let plan = WorkspaceStatus::new(local, remote);
-        let actual = plan.file_statuses();
+        let plan = WorkspaceStatus::new(base, remote);
+        let actual = plan.file_statuses(local);
 
         let expected = vec![
-            forge_domain::FileStatus::new("a.rs".to_string(), forge_domain::SyncStatus::InSync),
-            forge_domain::FileStatus::new("b.rs".to_string(), forge_domain::SyncStatus::Modified),
-            forge_domain::FileStatus::new("c.rs".to_string(), forge_domain::SyncStatus::Deleted),
-            forge_domain::FileStatus::new("d.rs".to_string(), forge_domain::SyncStatus::New),
+            forge_domain::FileStatus::new(
+                "/workspace/a.rs".to_string(),
+                forge_domain::SyncStatus::InSync,
+            ),
+            forge_domain::FileStatus::new(
+                "/workspace/b.rs".to_string(),
+                forge_domain::SyncStatus::Modified,
+            ),
+            forge_domain::FileStatus::new(
+                "/workspace/c.rs".to_string(),
+                forge_domain::SyncStatus::Deleted,
+            ),
+            forge_domain::FileStatus::new(
+                "/workspace/d.rs".to_string(),
+                forge_domain::SyncStatus::New,
+            ),
         ];
 
         assert_eq!(actual, expected);

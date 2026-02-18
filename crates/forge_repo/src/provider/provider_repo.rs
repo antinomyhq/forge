@@ -268,7 +268,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
         // Check if this is a Google ADC credential and refresh it
         // Google ADC tokens expire quickly, so we refresh them on every load
-        if credential.id == forge_domain::ProviderId::VERTEX_AI
+        if (credential.id == forge_domain::ProviderId::VERTEX_AI
+            || credential.id == forge_domain::ProviderId::VERTEX_AI_ANTHROPIC)
             && let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details
             && api_key.as_ref() == "google_adc_marker"
         {
@@ -349,9 +350,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             &access_token.token[..access_token.token.len().min(20)]
         );
 
-        // Create new credential with fresh token, preserving url_params
+        // Create new credential with fresh token, preserving url_params and provider ID
         Ok(forge_domain::AuthCredential::new_api_key(
-            forge_domain::ProviderId::VERTEX_AI,
+            original_credential.id.clone(),
             forge_domain::ApiKey::from(access_token.token),
         )
         .url_params(original_credential.url_params.clone()))
@@ -674,6 +675,14 @@ mod env_tests {
             Err(anyhow::anyhow!("File not found"))
         }
 
+        fn read_batch_utf8(
+            &self,
+            _batch_size: usize,
+            _paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            futures::stream::empty()
+        }
+
         async fn read(&self, _path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
             Err(anyhow::anyhow!("File not found"))
         }
@@ -724,6 +733,7 @@ mod env_tests {
         async fn http_post(
             &self,
             _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
             _body: bytes::Bytes,
         ) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("HTTP not implemented in mock"))
@@ -1145,6 +1155,15 @@ mod env_tests {
                 tokio::fs::read_to_string(path).await.map_err(Into::into)
             }
 
+            fn read_batch_utf8(
+                &self,
+                _batch_size: usize,
+                _paths: Vec<PathBuf>,
+            ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send
+            {
+                futures::stream::empty()
+            }
+
             async fn read(&self, path: &std::path::Path) -> anyhow::Result<Vec<u8>> {
                 tokio::fs::read(path).await.map_err(Into::into)
             }
@@ -1188,6 +1207,7 @@ mod env_tests {
             async fn http_post(
                 &self,
                 _url: &reqwest::Url,
+                _headers: Option<reqwest::header::HeaderMap>,
                 _body: bytes::Bytes,
             ) -> anyhow::Result<reqwest::Response> {
                 Err(anyhow::anyhow!("HTTP not implemented in mock"))

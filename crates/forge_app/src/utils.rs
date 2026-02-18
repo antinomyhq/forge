@@ -212,6 +212,43 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
                 }
             }
 
+            // OpenAI strict mode: convert "nullable: true" to anyOf with null type.
+            // OpenAI does not support the "nullable" keyword; instead, nullable
+            // schemas must be expressed as anyOf: [<original_schema>, {type: "null"}].
+            // The description is kept at the top level alongside the anyOf.
+            // Additionally, schemars' AddNullable transform adds `null` to enum
+            // arrays for nullable enums, which must be stripped from the non-null
+            // branch.
+            if strict_mode
+                && map
+                    .get("nullable")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+            {
+                map.remove("nullable");
+
+                // Remove null from enum array if present (added by AddNullable)
+                if let Some(serde_json::Value::Array(enum_values)) = map.get_mut("enum") {
+                    enum_values.retain(|v| !v.is_null());
+                }
+
+                // Extract description to keep at the top level
+                let description = map.remove("description");
+
+                // Build the non-null branch from remaining keys
+                let non_null_branch = serde_json::Value::Object(std::mem::take(map));
+                let null_branch = serde_json::json!({"type": "null"});
+
+                // Replace the current map contents with an anyOf wrapper
+                if let Some(desc) = description {
+                    map.insert("description".to_string(), desc);
+                }
+                map.insert(
+                    "anyOf".to_string(),
+                    serde_json::Value::Array(vec![non_null_branch, null_branch]),
+                );
+            }
+
             // Recursively normalize nested schemas
             for value in map.values_mut() {
                 enforce_strict_schema(value, strict_mode);
@@ -299,5 +336,94 @@ mod tests {
             schema["properties"]["user"]["additionalProperties"],
             json!(false)
         );
+    }
+
+    #[test]
+    fn test_nullable_enum_converted_to_any_of_in_strict_mode() {
+        // This matches what schemars AddNullable produces: nullable=true AND
+        // null added to enum values array
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "output_mode": {
+                    "description": "Output mode",
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["content", "files_with_matches", "count", null]
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        let expected = json!({
+            "type": "object",
+            "properties": {
+                "output_mode": {
+                    "description": "Output mode",
+                    "anyOf": [
+                        { "type": "string", "enum": ["content", "files_with_matches", "count"] },
+                        { "type": "null" }
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "required": ["output_mode"]
+        });
+
+        assert_eq!(schema, expected);
+    }
+
+    #[test]
+    fn test_nullable_string_converted_to_any_of_in_strict_mode() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "A name",
+                    "nullable": true,
+                    "type": "string"
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        let expected = json!({
+            "type": "object",
+            "properties": {
+                "name": {
+                    "description": "A name",
+                    "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "required": ["name"]
+        });
+
+        assert_eq!(schema, expected);
+    }
+
+    #[test]
+    fn test_nullable_not_converted_in_non_strict_mode() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "output_mode": {
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["content", "files_with_matches", "count"]
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, false);
+
+        // In non-strict mode, nullable should be preserved as-is
+        assert_eq!(schema["properties"]["output_mode"]["nullable"], json!(true));
+        assert!(schema["properties"]["output_mode"].get("anyOf").is_none());
     }
 }

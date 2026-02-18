@@ -101,21 +101,24 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         params: &FSSearch,
     ) -> anyhow::Result<Vec<PathBuf>> {
         // Build type matcher once if file_type is specified (for efficiency)
-        let types_matcher = if let Some(file_type) = &params.file_type {
-            use ignore::types::TypesBuilder;
+        // Filter out empty strings that may arrive from LLM tool calls with nullable
+        // parameters
+        let types_matcher =
+            if let Some(file_type) = params.file_type.as_deref().filter(|s| !s.is_empty()) {
+                use ignore::types::TypesBuilder;
 
-            let mut builder = TypesBuilder::new();
-            builder.add_defaults();
-            builder.select(file_type);
+                let mut builder = TypesBuilder::new();
+                builder.add_defaults();
+                builder.select(file_type);
 
-            Some(
-                builder
-                    .build()
-                    .with_context(|| format!("Failed to build type matcher for: {file_type}"))?,
-            )
-        } else {
-            None
-        };
+                Some(
+                    builder.build().with_context(|| {
+                        format!("Failed to build type matcher for: {file_type}")
+                    })?,
+                )
+            } else {
+                None
+            };
 
         let paths = if self.infra.is_file(search_path).await? {
             vec![search_path.to_path_buf()]
@@ -524,6 +527,14 @@ mod test {
             unimplemented!()
         }
 
+        fn read_batch_utf8(
+            &self,
+            _batch_size: usize,
+            _paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            futures::stream::empty()
+        }
+
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
             fs::read(path)
                 .await
@@ -680,6 +691,29 @@ mod test {
                 .iter()
                 .all(|m| matches!(m.result, Some(MatchResult::Count { count: _ })))
         );
+    }
+
+    #[tokio::test]
+    async fn test_empty_file_type_treated_as_none() {
+        let fixture = create_test_directory().await.unwrap();
+        let params = FSSearch {
+            pattern: "test".to_string(),
+            path: Some(fixture.path().to_string_lossy().to_string()),
+            file_type: Some("".to_string()),
+            output_mode: Some(OutputMode::FilesWithMatches),
+            ..Default::default()
+        };
+
+        // Should not error - empty file_type should be treated as None
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(params)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        // Should match files across all types (not filtered)
+        assert!(result.matches.len() >= 3);
     }
 
     #[tokio::test]
