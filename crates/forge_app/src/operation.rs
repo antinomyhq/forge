@@ -9,7 +9,7 @@ use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
-use forge_template::{ElementBuilder, Output, OutputPart};
+use forge_template::{Element, ElementBuilder, Markdown, Output, OutputPart};
 
 use crate::truncation::{
     Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
@@ -17,8 +17,8 @@ use crate::truncation::{
 };
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
-    FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, MatchResult, PatchOutput,
-    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -424,97 +424,101 @@ impl ToolOperation {
                         "0-0".to_string()
                     };
 
-                    let mut builder = ElementBuilder::new("search_results")
+                    let reason = match truncated_output.strategy {
+                        TruncationMode::Byte => {
+                            Some(format!(
+                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
+                                env.max_search_result_bytes
+                            ))
+                        }
+                        TruncationMode::Line => {
+                            Some(format!(
+                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
+                            ))
+                        }
+                        TruncationMode::Full => None,
+                    };
+                    
+                    // Build XML for LLM
+                    let mut elm = Element::new("search_results")
                         .attr("path", input.path.as_deref().unwrap_or("."))
                         .attr("max_bytes_allowed", env.max_search_result_bytes.to_string())
                         .attr("total_lines", truncated_output.total.to_string())
-                        .attr("display_lines", display_lines)
-                        .attr("pattern", &input.pattern);
+                        .attr("display_lines", &display_lines);
 
-                    if let Some(glob) = input.glob.as_ref() {
-                        builder = builder.attr("glob", glob);
+                    elm = elm.attr("pattern", &input.pattern);
+                    elm = elm.attr_if_some("glob", input.glob.as_ref());
+                    elm = elm.attr_if_some("file_type", input.file_type.as_ref());
+
+                    if let Some(reason) = &reason {
+                        elm = elm.attr("reason", reason);
                     }
-                    if let Some(file_type) = input.file_type.as_ref() {
-                        builder = builder.attr("file_type", file_type);
+                    elm = elm.cdata(truncated_output.data.join("\n"));
+
+                    // Build Markdown for display
+                    let content = truncated_output.data.join("\n");
+                    let mut md = Markdown::new()
+                        .bold("Search Results")
+                        .blank_line()
+                        .kv_code("Pattern", &input.pattern)
+                        .kv_code("Path", input.path.as_deref().unwrap_or("."));
+
+                    if let Some(glob) = &input.glob {
+                        md = md.kv_code("Glob", glob);
+                    }
+                    if let Some(file_type) = &input.file_type {
+                        md = md.kv_code("File Type", file_type);
                     }
 
-                    match truncated_output.strategy {
-                        TruncationMode::Byte => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
-                                env.max_search_result_bytes
-                            );
-                            builder = builder.attr("reason", reason);
-                        }
-                        TruncationMode::Line => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
-                            );
-                            builder = builder.attr("reason", reason);
-                        }
-                        TruncationMode::Full => {}
-                    };
-                    
-                    let xml = Output::new()
-                        .part(builder.cdata(truncated_output.data.join("\n")).build())
-                        .render_xml();
+                    md = md
+                        .kv(
+                            "Results",
+                            format!(
+                                "{} total lines, displaying lines {}",
+                                truncated_output.total, display_lines
+                            ),
+                        )
+                        .blank_line();
 
-                    // Generate markdown for ACP display
-                    let mut markdown_builder = Output::new()
-                        .h2(format!("Search Results: `{}`", input.pattern))
-                        .kv("Total matches", out.matches.len().to_string());
-                    
-                    if !out.matches.is_empty() {
-                        let items: Vec<String> = out.matches
-                            .iter()
-                            .take(max_lines)
-                            .filter_map(|m| {
-                                m.result.as_ref().and_then(|result| {
-                                    match result {
-                                        MatchResult::Found { line_number, line } |
-                                        MatchResult::ContextMatch { line_number, line, .. } => {
-                                            let line_display = if let Some(num) = line_number {
-                                                format!("{}: {}", num, line)
-                                            } else {
-                                                line.clone()
-                                            };
-                                            Some(format!("**{}** - {}", m.path, line_display))
-                                        }
-                                        _ => None,
-                                    }
-                                })
-                            })
-                            .collect();
-                        markdown_builder = markdown_builder.list(items);
+                    if let Some(reason) = reason {
+                        md = md.line(format!("⚠️ *{}*", reason));
                     }
-                    
-                    let markdown = markdown_builder.render_markdown();
 
-                    forge_domain::ToolOutput::paired(xml, markdown)
+                    if !content.trim().is_empty() {
+                        md = md.code_block(content, None);
+                    } else {
+                        md = md.italic("No matches found");
+                    }
+
+                    forge_domain::ToolOutput::from_element_and_markdown(elm, md)
                 }
                 None => {
-                    let mut builder = ElementBuilder::new("search_results");
-                    
-                    if let Some(path) = input.path {
-                        builder = builder.attr("path", path);
-                    }
-                    builder = builder.attr("pattern", &input.pattern);
-                    if let Some(glob) = input.glob {
-                        builder = builder.attr("glob", glob);
-                    }
-                    if let Some(file_type) = input.file_type.as_ref() {
-                        builder = builder.attr("file_type", file_type);
-                    }
-                    
-                    let xml = Output::new().part(builder.build()).render_xml();
-                    
-                    // Generate markdown for ACP display
-                    let markdown = Output::new()
-                        .h2(format!("Search Results: `{}`", input.pattern))
-                        .text("No matches found")
-                        .render_markdown();
+                    // Build XML for LLM
+                    let mut elm = Element::new("search_results");
+                    elm = elm.attr_if_some("path", input.path.as_ref());
+                    elm = elm.attr("pattern", &input.pattern);
+                    elm = elm.attr_if_some("glob", input.glob.as_ref());
+                    elm = elm.attr_if_some("file_type", input.file_type.as_ref());
 
-                    forge_domain::ToolOutput::paired(xml, markdown)
+                    // Build Markdown for display
+                    let mut md = Markdown::new()
+                        .bold("Search Results")
+                        .blank_line()
+                        .kv_code("Pattern", &input.pattern);
+
+                    if let Some(path) = &input.path {
+                        md = md.kv_code("Path", path);
+                    }
+                    if let Some(glob) = &input.glob {
+                        md = md.kv_code("Glob", glob);
+                    }
+                    if let Some(file_type) = &input.file_type {
+                        md = md.kv_code("File Type", file_type);
+                    }
+
+                    md = md.blank_line().italic("No matches found");
+
+                    forge_domain::ToolOutput::from_element_and_markdown(elm, md)
                 }
             },
             ToolOperation::CodebaseSearch { output } => {

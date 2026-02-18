@@ -1,5 +1,5 @@
 use derive_setters::Setters;
-use forge_template::{ElementBuilder, Output};
+use forge_template::{Element, ElementBuilder, Output};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConversationId, Image, ToolCallFull, ToolCallId, ToolName};
@@ -140,6 +140,27 @@ impl ToolOutput {
     /// Creates a paired output from an Output (renders both XML and Markdown)
     pub fn from_output(output: &Output) -> Self {
         Self::paired(output.render_xml(), output.render_markdown())
+    }
+
+    /// Creates a paired output from an Element and Markdown builder.
+    /// The Element provides XML for LLM, the Markdown provides display format.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use forge_template::{Element, Markdown};
+    ///
+    /// let elm = Element::new("search_results")
+    ///     .attr("pattern", "*.rs")
+    ///     .text("file.rs");
+    ///
+    /// let md = Markdown::new()
+    ///     .bold("Search Results")
+    ///     .kv_code("Pattern", "*.rs");
+    ///
+    /// let output = ToolOutput::from_element_and_markdown(elm, md);
+    /// ```
+    pub fn from_element_and_markdown(element: Element, markdown: forge_template::Markdown) -> Self {
+        Self::paired(element.render(), markdown.render())
     }
 
     pub fn combine_mut(&mut self, value: ToolOutput) {
