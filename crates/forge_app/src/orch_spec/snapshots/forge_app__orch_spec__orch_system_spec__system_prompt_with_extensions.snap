@@ -9,12 +9,10 @@ You are Forge
 <current_working_directory>/Users/tushar</current_working_directory>
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
-<workspace_extensions command="git ls-files">
-Summary: 7 total files
-File distribution by extension (percentages show share of total workspace files):
- - rs (4 files, 57%)
- - md (2 files, 29%)
- - toml (1 files, 14%)
+<workspace_extensions command="git ls-files" files="7" extensions="3">
+ - .rs: 4 files (57%)
+ - .md: 2 files (29%)
+ - .toml: 1 files (14%)
 </workspace_extensions>
 </system_information>
 

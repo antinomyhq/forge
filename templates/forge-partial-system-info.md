@@ -8,11 +8,8 @@
 {{/each}}</file_list>
 {{/if}}
 {{#if extensions}}
-<workspace_extensions command="git ls-files">
-Summary: {{extensions.git_tracked_files}} total files
-File distribution by extension (percentages show share of total workspace files):
-{{#each extensions.extension_stats}} - {{extension}} ({{count}} files, {{percentage}}%)
-{{/each}}{{#if (gt extensions.total_extensions extensions.max_extensions)}}
-Note: Showing top {{extensions.max_extensions}} of {{extensions.total_extensions}} extensions.
+<workspace_extensions command="git ls-files" files="{{extensions.git_tracked_files}}" extensions="{{extensions.total_extensions}}">
+{{#each extensions.extension_stats}} - .{{extension}}: {{count}} files ({{percentage}}%)
+{{/each}}{{#if (gt extensions.total_extensions extensions.max_extensions)}}(showing top {{extensions.max_extensions}} of {{extensions.total_extensions}} extensions)
 {{/if}}</workspace_extensions>
 {{/if}}
