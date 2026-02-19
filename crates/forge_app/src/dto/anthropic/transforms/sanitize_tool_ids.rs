@@ -30,7 +30,7 @@ impl Transformer for SanitizeToolIds {
     type Value = Request;
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
-        let regex = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+        let regex = &*INVALID_CHARS;
 
         for message in &mut request.messages {
             for content in &mut message.content {
