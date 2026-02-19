@@ -116,33 +116,6 @@ pub trait ProviderRepository: Send + Sync {
     async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
 }
 
-/// Repository for managing workspace metadata in local database
-#[async_trait::async_trait]
-pub trait WorkspaceRepository: Send + Sync {
-    /// Save or update a workspace
-    async fn upsert(
-        &self,
-        workspace_id: &WorkspaceId,
-        path: &std::path::Path,
-    ) -> anyhow::Result<()>;
-
-    /// Find all workspaces
-    ///
-    /// Returns all workspaces stored in the local database.
-    /// Path matching and selection logic should be handled in the service
-    /// layer.
-    ///
-    /// # Returns
-    /// A vector of all workspaces (may be empty)
-    ///
-    /// # Errors
-    /// Returns an error if there's a database error
-    async fn list(&self) -> anyhow::Result<Vec<Workspace>>;
-
-    /// Delete workspace from local database
-    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
-}
-
 /// Repository for managing workspace indexing and search operations
 #[async_trait::async_trait]
 pub trait WorkspaceIndexRepository: Send + Sync {

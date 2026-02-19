@@ -28,12 +28,3 @@ impl WorkspaceId {
         self.0
     }
 }
-
-/// Domain entity for workspace
-#[derive(Debug, Clone)]
-pub struct Workspace {
-    pub workspace_id: WorkspaceId,
-    pub path: std::path::PathBuf,
-    pub created_at: chrono::DateTime<chrono::Utc>,
-    pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
-}

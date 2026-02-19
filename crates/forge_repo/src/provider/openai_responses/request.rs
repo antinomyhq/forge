@@ -146,9 +146,7 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
 ///
 /// # Errors
 /// Returns an error if schema serialization fails
-fn codex_tool_parameters(
-    schema: &schemars::schema::RootSchema,
-) -> anyhow::Result<serde_json::Value> {
+fn codex_tool_parameters(schema: &schemars::Schema) -> anyhow::Result<serde_json::Value> {
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
@@ -173,14 +171,22 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
     fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
         let prompt_cache_key = context.conversation_id.as_ref().map(ToString::to_string);
 
-        let mut instructions: Vec<String> = Vec::new();
+        let mut instructions: Option<String> = None;
         let mut items: Vec<oai::InputItem> = Vec::new();
 
         for entry in context.messages {
             match entry.message {
                 ContextMessage::Text(message) => match message.role {
                     Role::System => {
-                        instructions.push(message.content);
+                        if instructions.is_none() {
+                            instructions = Some(message.content);
+                        } else {
+                            items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                                r#type: oai::MessageType::Message,
+                                role: oai::Role::Developer,
+                                content: oai::EasyInputContent::Text(message.content),
+                            }));
+                        }
                     }
                     Role::User => {
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
@@ -266,8 +272,6 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                 }
             }
         }
-
-        let instructions = (!instructions.is_empty()).then(|| instructions.join("\n\n"));
 
         let max_output_tokens = context
             .max_tokens
@@ -512,6 +516,67 @@ mod tests {
         forge_app::domain::ToolCallFull::new(name)
             .call_id(ToolCallId::new(call_id))
             .arguments(forge_app::domain::ToolCallArguments::from_json(args))
+    }
+
+    #[test]
+    fn test_codex_request_tools_snapshot() -> anyhow::Result<()> {
+        // Build a schema that exercises OpenAI strict-mode normalization:
+        // - object schema receives additionalProperties=false
+        // - required keys are sorted
+        // - nullable + enum(null) is converted to anyOf
+        let schema_value = serde_json::json!({
+            "type": "object",
+            "properties": {
+                // Intentionally out-of-order to verify required keys are sorted.
+                "zebra": {"type": "string"},
+                "alpha": {"type": "string"},
+                "output_mode": {
+                    "description": "Output mode",
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["content", "count", null]
+                }
+            }
+        });
+        let schema = schemars::Schema::try_from(schema_value).unwrap();
+
+        let tool = forge_app::domain::ToolDefinition::new("shell")
+            .description("Run a shell command")
+            .input_schema(schema);
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_tool(tool)
+            .tool_choice(ToolChoice::Auto);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        insta::assert_json_snapshot!("openai_responses_tools", actual.tools);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_all_catalog_tools_snapshot() -> anyhow::Result<()> {
+        use forge_app::domain::ToolCatalog;
+        use strum::IntoEnumIterator;
+
+        // Ensure we can serialize ALL built-in tool definitions into the OpenAI
+        // Responses API tool format with strict JSON schema normalization.
+        let tools = ToolCatalog::iter()
+            .map(|tool| tool.definition())
+            .collect::<Vec<_>>();
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .tools(tools)
+            .tool_choice(ToolChoice::Auto);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        insta::assert_json_snapshot!("openai_responses_all_catalog_tools", actual.tools);
+
+        Ok(())
     }
 
     #[test]
@@ -991,7 +1056,23 @@ mod tests {
 
         let actual = oai::CreateResponse::from_domain(context)?;
 
-        assert_eq!(actual.instructions.as_deref(), Some("System 1\n\nSystem 2"));
+        assert_eq!(actual.instructions.as_deref(), Some("System 1"));
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        // System 2 (Developer) + User
+        assert_eq!(items.len(), 2);
+
+        let oai::InputItem::EasyMessage(dev_msg) = &items[0] else {
+            anyhow::bail!("Expected first item to be a message");
+        };
+        assert_eq!(dev_msg.role, oai::Role::Developer);
+        assert_eq!(
+            dev_msg.content,
+            oai::EasyInputContent::Text("System 2".to_string())
+        );
 
         Ok(())
     }

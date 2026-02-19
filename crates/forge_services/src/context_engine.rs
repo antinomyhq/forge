@@ -1,23 +1,23 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use backon::{ExponentialBuilder, Retryable};
 use forge_app::{
     EnvironmentInfra, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService,
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress, WorkspaceId,
-    WorkspaceIndexRepository, WorkspaceRepository,
+    WorkspaceIndexRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
-use futures::stream::StreamExt;
+use futures::stream::{Stream, StreamExt, TryStreamExt};
 use tracing::{info, warn};
+
+use crate::error::Error as ServiceError;
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
@@ -54,32 +54,10 @@ impl<F> Clone for ForgeWorkspaceService<F> {
     }
 }
 
-impl<F> ForgeWorkspaceService<F> {
+impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
-    }
-
-    /// Execute an operation with retry logic based on the retry configuration
-    async fn with_retry<Fut, T>(&self, operation: impl Fn() -> Fut) -> Result<T>
-    where
-        F: EnvironmentInfra,
-        Fut: std::future::Future<Output = Result<T>>,
-    {
-        let env = self.infra.get_environment();
-        let retry_config = &env.retry_config;
-
-        let mut builder = ExponentialBuilder::default()
-            .with_min_delay(Duration::from_millis(retry_config.min_delay_ms))
-            .with_factor(retry_config.backoff_factor as f32)
-            .with_max_times(retry_config.max_retry_attempts)
-            .with_jitter();
-
-        if let Some(max_delay) = retry_config.max_delay {
-            builder = builder.with_max_delay(Duration::from_secs(max_delay));
-        }
-
-        operation.retry(builder).await
     }
 
     /// Fetches remote file hashes from the server.
@@ -87,19 +65,16 @@ impl<F> ForgeWorkspaceService<F> {
         &self,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
-    ) -> Vec<FileHash>
+    ) -> anyhow::Result<Vec<FileHash>>
     where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files = forge_domain::CodeBase::new(workspace_id.clone(), ());
 
-        self.with_retry(|| {
-            self.infra
-                .list_workspace_files(&workspace_files, auth_token)
-        })
-        .await
-        .unwrap_or_default()
+        self.infra
+            .list_workspace_files(&workspace_files, auth_token)
+            .await
     }
 
     /// Deletes a batch of files from the server.
@@ -110,13 +85,41 @@ impl<F> ForgeWorkspaceService<F> {
         paths: Vec<String>,
     ) -> Result<()>
     where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository,
     {
         let deletion = forge_domain::CodeBase::new(workspace_id.clone(), paths);
 
-        self.with_retry(|| self.infra.delete_files(&deletion, token))
+        self.infra
+            .delete_files(&deletion, token)
             .await
             .context("Failed to delete files")
+    }
+
+    /// Deletes files from the workspace and updates the progress counter.
+    ///
+    /// Returns the number of files that were successfully deleted.
+    async fn delete_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+        token: &forge_domain::ApiKey,
+        files_to_delete: Vec<String>,
+    ) -> Result<usize>
+    where
+        F: WorkspaceIndexRepository,
+    {
+        if files_to_delete.is_empty() {
+            return Ok(0);
+        }
+
+        self.delete(user_id, workspace_id, token, files_to_delete.clone())
+            .await?;
+
+        for path in &files_to_delete {
+            info!(path = %path, "File deleted successfully");
+        }
+
+        Ok(files_to_delete.len())
     }
 
     /// Uploads a batch of files to the server.
@@ -127,14 +130,55 @@ impl<F> ForgeWorkspaceService<F> {
         files: Vec<forge_domain::FileRead>,
     ) -> Result<()>
     where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository,
     {
         let upload = forge_domain::CodeBase::new(workspace_id.clone(), files);
 
-        self.with_retry(|| self.infra.upload_files(&upload, token))
+        self.infra
+            .upload_files(&upload, token)
             .await
             .context("Failed to upload files")?;
         Ok(())
+    }
+
+    /// Uploads files in parallel, returning a stream of results.
+    ///
+    /// The caller is responsible for processing the stream and tracking
+    /// progress.
+    fn upload_files(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+        token: &forge_domain::ApiKey,
+        files: Vec<forge_domain::FileNode>,
+        batch_size: usize,
+    ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send
+    where
+        F: WorkspaceIndexRepository,
+    {
+        let user_id = user_id.clone();
+        let workspace_id = workspace_id.clone();
+        let token = token.clone();
+
+        let file_reads = files
+            .into_iter()
+            .map(|f| forge_domain::FileRead::new(f.file_path, f.content))
+            .collect::<Vec<_>>();
+
+        futures::stream::iter(file_reads)
+            .map(move |file| {
+                let user_id = user_id.clone();
+                let workspace_id = workspace_id.clone();
+                let token = token.clone();
+                let file_path = file.path.clone();
+                async move {
+                    self.upload(&user_id, &workspace_id, &token, vec![file])
+                        .await?;
+                    info!(path = %file_path, "File synced successfully");
+                    Ok::<_, anyhow::Error>(1)
+                }
+            })
+            .buffer_unordered(batch_size)
     }
 
     /// Internal sync implementation that emits progress events.
@@ -145,8 +189,7 @@ impl<F> ForgeWorkspaceService<F> {
         emit: E,
     ) -> Result<()>
     where
-        F: WorkspaceRepository
-            + ProviderRepository
+        F: ProviderRepository
             + WorkspaceIndexRepository
             + WalkerInfra
             + FileReaderInfra
@@ -164,46 +207,23 @@ impl<F> ForgeWorkspaceService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Find workspace by exact match or ancestor
-        let workspace = self.find_workspace_by_path(path.clone()).await?;
-
-        let (workspace_id, workspace_path, is_new_workspace) = match workspace {
-            Some(workspace) => (workspace.workspace_id, workspace.path, false),
-            None => {
-                // No workspace found - create new
-                (WorkspaceId::generate(), path.clone(), true)
-            }
-        };
-
-        let workspace_id = if is_new_workspace {
-            // Create an workspace.
-            let id = self
-                .with_retry(|| self.infra.create_workspace(&workspace_path, &token))
-                .await
-                .context("Failed to create workspace on server")?;
-
-            // Save workspace in database to avoid creating multiple workspaces
-            self.infra
-                .upsert(&id, &workspace_path)
-                .await
-                .context("Failed to save workspace")?;
-
-            emit(SyncProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
-            id
-        } else {
-            workspace_id
-        };
+        // Initialize workspace (finds existing or creates new)
+        let (is_new_workspace, workspace_id) = self._init_workspace(path.clone()).await?;
 
         // Read all files and compute hashes from the workspace root path
-        emit(SyncProgress::DiscoveringFiles { path: workspace_path.clone() }).await;
-        let local_files = self.read_files(&workspace_path).await?;
+        emit(SyncProgress::DiscoveringFiles {
+            path: path.clone(),
+            workspace_id: workspace_id.clone(),
+        })
+        .await;
+        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
-            self.fetch_remote_hashes(&workspace_id, &token).await
+            self.fetch_remote_hashes(&workspace_id, &token).await?
         };
 
         emit(SyncProgress::ComparingFiles {
@@ -212,8 +232,10 @@ impl<F> ForgeWorkspaceService<F> {
         })
         .await;
 
-        let plan = WorkspaceStatus::new(local_files, remote_files);
-        let statuses = plan.file_statuses();
+        let plan = WorkspaceStatus::new(path.clone(), remote_files);
+        let local_file_hashes: Vec<forge_domain::FileHash> =
+            local_files.iter().cloned().map(Into::into).collect();
+        let statuses = plan.file_statuses(local_file_hashes);
 
         // Compute counts from statuses
         let added = statuses
@@ -237,51 +259,32 @@ impl<F> ForgeWorkspaceService<F> {
             emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
         }
 
-        let (files_to_delete, files_to_upload) = plan.get_operations();
+        let (files_to_delete, nodes_to_upload) = plan.get_operations(local_files);
 
-        let total_operations = files_to_delete.len() + files_to_upload.len();
+        let total_operations = files_to_delete.len() + nodes_to_upload.len();
         let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
         let mut failed_files = 0;
 
         emit(counter.sync_progress()).await;
 
-        let mut delete_stream = futures::stream::iter(files_to_delete)
-            .map(|path| {
-                let workspace_id = workspace_id.clone();
-                let token = token.clone();
-                async move {
-                    self.delete(&workspace_id, &token, vec![path]).await?;
-                    Ok::<_, anyhow::Error>(1)
-                }
-            })
-            .buffer_unordered(batch_size);
-
-        // Process deletions as they complete, updating progress incrementally
-        while let Some(result) = delete_stream.next().await {
-            match result {
-                Ok(count) => {
-                    counter.complete(count);
-                    emit(counter.sync_progress()).await;
-                }
-                Err(e) => {
-                    warn!("Failed to delete file during sync: {:#}", e);
-                    failed_files += 1;
-                    // Continue processing remaining deletions
-                }
+        // Delete all files in a single batched call
+        match self
+            .delete_files(&user_id, &workspace_id, &token, files_to_delete.clone())
+            .await
+        {
+            Ok(deleted_count) => {
+                counter.complete(deleted_count);
+                emit(counter.sync_progress()).await;
+            }
+            Err(e) => {
+                warn!("Failed to delete files during sync: {:#}", e);
+                failed_files += files_to_delete.len();
             }
         }
 
-        // Upload new/changed files with concurrency limit
-        let mut upload_stream = futures::stream::iter(files_to_upload)
-            .map(|file| {
-                let workspace_id = workspace_id.clone();
-                let token = token.clone();
-                async move {
-                    self.upload(&workspace_id, &token, vec![file]).await?;
-                    Ok::<_, anyhow::Error>(1)
-                }
-            })
-            .buffer_unordered(batch_size);
+        // Upload files in parallel
+        let mut upload_stream =
+            self.upload_files(&user_id, &workspace_id, &token, nodes_to_upload, batch_size);
 
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
@@ -298,12 +301,6 @@ impl<F> ForgeWorkspaceService<F> {
             }
         }
 
-        // Save workspace metadata
-        self.infra
-            .upsert(&workspace_id, &path)
-            .await
-            .context("Failed to save workspace")?;
-
         info!(
             workspace_id = %workspace_id,
             total_files = total_file_count,
@@ -317,7 +314,12 @@ impl<F> ForgeWorkspaceService<F> {
         })
         .await;
 
-        Ok(())
+        // Fail if there were any failed files
+        if failed_files > 0 {
+            Err(forge_domain::Error::sync_failed(failed_files).into())
+        } else {
+            Ok(())
+        }
     }
 
     /// Gets the forge services credential and extracts the API key
@@ -352,7 +354,8 @@ impl<F> ForgeWorkspaceService<F> {
         }
     }
 
-    /// Finds a workspace by exact path match, or falls back to ancestor lookup
+    /// Finds a workspace by path from remote server, checking for exact match
+    /// first, then ancestor workspaces.
     ///
     /// Business logic:
     /// 1. First tries to find an exact match for the given path
@@ -364,27 +367,30 @@ impl<F> ForgeWorkspaceService<F> {
     /// database error. Returns Ok(None) if no workspace is found.
     async fn find_workspace_by_path(&self, path: PathBuf) -> Result<Option<forge_domain::Workspace>>
     where
-        F: WorkspaceRepository,
+        F: WorkspaceIndexRepository,
     {
         let canonical_path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Get all workspaces - let the service handle filtering
-        let workspaces = self.infra.list().await?;
+        // Get all workspaces from remote server
+        let workspaces = self.infra.list_workspaces().await?;
+
+        let canonical_str = canonical_path.to_string_lossy();
 
         // Business logic: choose which workspace to use
         // 1. First check for exact match
-        if let Some(exact_match) = workspaces.iter().find(|w| w.path == canonical_path) {
+        if let Some(exact_match) = workspaces.iter().find(|w| w.working_dir == canonical_str) {
             return Ok(Some(exact_match.clone()));
         }
 
         // 2. Find closest ancestor (longest matching path prefix)
-        let mut best_match: Option<(&forge_domain::Workspace, usize)> = None;
+        let mut best_match: Option<(&forge_domain::WorkspaceInfo, usize)> = None;
 
         for workspace in &workspaces {
-            if canonical_path.starts_with(&workspace.path) {
-                let path_len = workspace.path.as_os_str().len();
+            let workspace_path = PathBuf::from(&workspace.working_dir);
+            if canonical_path.starts_with(&workspace_path) {
+                let path_len = workspace.working_dir.len();
                 if best_match.is_none_or(|(_, len)| path_len > len) {
                     best_match = Some((workspace, path_len));
                 }
@@ -393,80 +399,132 @@ impl<F> ForgeWorkspaceService<F> {
 
         Ok(best_match.map(|(w, _)| w.clone()))
     }
-    /// Walks the directory, reads all files, and computes their hashes.
     /// Only includes files with allowed extensions.
-    async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
+    fn read_files(
+        &self,
+        batch_size: usize,
+        dir_path: &Path,
+    ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
     where
-        F: WalkerInfra + FileReaderInfra,
+        F: WalkerInfra + FileReaderInfra + EnvironmentInfra,
     {
-        info!("Walking directory to discover files");
-        let walker_config = Walker::unlimited()
-            .cwd(dir_path.to_path_buf())
-            .skip_binary(true); // Walker filters binary files
-
-        let walked_files = self
-            .infra
-            .walk(walker_config)
-            .await
-            .context("Failed to walk directory")?
-            .into_iter()
-            .filter(|f| !f.is_dir())
-            .collect::<Vec<_>>();
-
-        info!(
-            file_count = walked_files.len(),
-            "Discovered files from walker"
-        );
-
-        // Filter files by allowed extension (pure function, no I/O)
-        let filtered_files: Vec<_> = walked_files
-            .into_iter()
-            .filter(|walked| {
-                let file_path = dir_path.join(&walked.path);
-                has_allowed_extension(&file_path)
-            })
-            .collect();
-
-        info!(
-            filtered_count = filtered_files.len(),
-            "Files after extension filtering"
-        );
-        anyhow::ensure!(
-            !filtered_files.is_empty(),
-            "No valid source files found to index"
-        );
-
-        // Read all filtered files
+        let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
-        let read_tasks = filtered_files.into_iter().map(|walked| {
-            let infra = infra.clone();
-            let file_path = dir_path.join(&walked.path);
-            let relative_path = walked.path.clone();
-            async move {
-                infra
-                    .read_utf8(&file_path)
-                    .await
-                    .map(|content| {
-                        let hash = compute_hash(&content);
-                        FileNode { file_path: relative_path.clone(), content, hash }
-                    })
-                    .map_err(|e| {
-                        warn!(path = %relative_path, error = %e, "Failed to read file");
-                        e
-                    })
-                    .ok()
-            }
-        });
 
-        let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
-        Ok(all_files)
+        async_stream::stream! {
+            info!("Walking directory to discover files");
+            let walker_config = Walker::unlimited()
+                .cwd(dir_path.clone())
+                .skip_binary(true); // Walker filters binary files
+
+            let walked_files = match infra
+                .walk(walker_config)
+                .await
+                .context("Failed to walk directory")
+            {
+                Ok(files) => files,
+                Err(e) => {
+                    yield Err(e);
+                    return;
+                }
+            };
+
+            let walked_files: Vec<_> = walked_files
+                .into_iter()
+                .filter(|f| !f.is_dir())
+                .collect();
+
+            info!(
+                file_count = walked_files.len(),
+                "Discovered files from walker"
+            );
+
+            // Filter files by allowed extension (pure function, no I/O)
+            let filtered_files: Vec<_> = walked_files
+                .into_iter()
+                .filter(|walked| {
+                    let file_path = dir_path.join(&walked.path);
+                    has_allowed_extension(&file_path)
+                })
+                .collect();
+
+            info!(
+                filtered_count = filtered_files.len(),
+                "Files after extension filtering"
+            );
+
+            if filtered_files.is_empty() {
+                yield Err(ServiceError::NoSourceFilesFound.into());
+                return;
+            }
+
+            // Use read_batch_utf8 with streaming for better memory efficiency with large
+            // file sets
+            let file_paths: Vec<PathBuf> = filtered_files
+                .iter()
+                .map(|walked| dir_path.join(&walked.path))
+                .collect();
+
+            let stream = infra.read_batch_utf8(batch_size, file_paths);
+            futures::pin_mut!(stream);
+
+            while let Some(batch_result) = stream.next().await {
+                match batch_result {
+                    Ok(batch) => {
+                        let mut file_nodes = Vec::new();
+                        for (absolute_path, content) in batch {
+                            let hash = compute_hash(&content);
+                            let absolute_path_str = absolute_path.to_string_lossy().to_string();
+                            file_nodes.push(FileNode { file_path: absolute_path_str, content, hash });
+                        }
+                        yield Ok(file_nodes);
+                    }
+                    Err(e) => {
+                        warn!(error = ?e, "Failed to read file batch");
+                        yield Err(e);
+                    }
+                }
+            }
+        }
+    }
+
+    async fn _init_workspace(&self, path: PathBuf) -> Result<(bool, WorkspaceId)> {
+        let (token, _user_id) = self.get_workspace_credentials().await?;
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Find workspace by exact match or ancestor from remote server
+        let workspace = self.find_workspace_by_path(path.clone(), &token).await?;
+
+        let (workspace_id, workspace_path, is_new_workspace) = match workspace {
+            Some(workspace_info) => {
+                // Found existing workspace - reuse it
+                (workspace_info.workspace_id, path.clone(), false)
+            }
+            None => {
+                // No workspace found - create new
+                (WorkspaceId::generate(), path.clone(), true)
+            }
+        };
+
+        let workspace_id = if is_new_workspace {
+            // Create workspace on server
+            self.infra
+                .create_workspace(&workspace_path, &token)
+                .await
+                .context("Failed to create workspace on server")?
+        } else {
+            workspace_id
+        };
+
+        Ok((is_new_workspace, workspace_id))
     }
 }
 
 #[async_trait]
 impl<
-    F: WorkspaceRepository
-        + ProviderRepository
+    F: ProviderRepository
         + WorkspaceIndexRepository
         + WalkerInfra
         + FileReaderInfra
@@ -515,10 +573,12 @@ impl<
             .await?
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
-        let search_query = forge_domain::CodeBase::new(workspace.workspace_id.clone(), params);
+        let search_query =
+            forge_domain::CodeBase::new(workspace.workspace_id.clone(), params);
 
         let results = self
-            .with_retry(|| self.infra.search(&search_query, &token))
+            .infra
+            .search(&search_query, &token)
             .await
             .context("Failed to search")?;
 
@@ -529,7 +589,9 @@ impl<
     async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         let token = self.get_workspace_credentials().await?;
 
-        self.with_retry(|| self.infra.as_ref().list_workspaces(&token))
+        self.infra
+            .as_ref()
+            .list_workspaces(&token)
             .await
             .context("Failed to list workspaces")
     }
@@ -537,37 +599,23 @@ impl<
     /// Retrieves workspace information for a specific path.
     async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
     where
-        F: WorkspaceRepository + WorkspaceIndexRepository + ProviderRepository + EnvironmentInfra,
+        F: WorkspaceIndexRepository + ProviderRepository + EnvironmentInfra,
     {
         let token = self.get_workspace_credentials().await?;
         let workspace = self.find_workspace_by_path(path).await?;
 
-        if let Some(workspace) = workspace {
-            self.with_retry(|| {
-                self.infra
-                    .as_ref()
-                    .get_workspace(&workspace.workspace_id, &token)
-            })
-            .await
-            .context("Failed to get workspace info")
-        } else {
-            Ok(None)
-        }
+        Ok(workspace)
     }
 
-    /// Deletes a workspace from both the server and local database.
+    /// Deletes a workspace from the server.
     async fn delete_workspace(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         let token = self.get_workspace_credentials().await?;
 
-        self.with_retry(|| self.infra.as_ref().delete_workspace(workspace_id, &token))
-            .await
-            .context("Failed to delete workspace from server")?;
-
         self.infra
             .as_ref()
-            .delete(workspace_id)
+            .delete_workspace(workspace_id, &token)
             .await
-            .context("Failed to delete workspace from local database")?;
+            .context("Failed to delete workspace from server")?;
 
         Ok(())
     }
@@ -616,14 +664,24 @@ impl<
             .await?
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
-        let local_files = self.read_files(&workspace.path).await?;
+        // Reuse the canonical path already stored in the workspace (resolved during
+        // sync), avoiding a redundant canonicalize() IO call.
+        let canonical_path = PathBuf::from(&workspace.working_dir);
+
+        let batch_size = self.infra.get_environment().max_file_read_batch_size;
+        let local_files: Vec<FileNode> = self
+            .read_files(batch_size, &canonical_path)
+            .try_concat()
+            .await?;
 
         let remote_files = self
             .fetch_remote_hashes(&workspace.workspace_id, &token)
-            .await;
+            .await?;
 
-        let plan = WorkspaceStatus::new(local_files, remote_files);
-        Ok(plan.file_statuses())
+        let plan = WorkspaceStatus::new(canonical_path, remote_files);
+        let local_file_hashes: Vec<forge_domain::FileHash> =
+            local_files.into_iter().map(Into::into).collect();
+        Ok(plan.file_statuses(local_file_hashes))
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
@@ -926,13 +984,8 @@ mod tests {
         async fn read(&self, _: &Path) -> Result<Vec<u8>> {
             Ok(vec![])
         }
-        async fn range_read_utf8(&self, _: &Path, _: u64, _: u64) -> Result<(String, FileInfo)> {
-            Ok((
-                String::new(),
-                FileInfo { total_lines: 1, start_line: 1, end_line: 1 },
-            ))
-        }
     }
+}
 
     #[tokio::test]
     async fn test_query_returns_results() {

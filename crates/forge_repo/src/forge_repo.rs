@@ -32,7 +32,6 @@ use crate::fuzzy_search::ForgeFuzzySearchRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
-use crate::workspace::ForgeWorkspaceRepository;
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -47,7 +46,6 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
-    indexing_repository: Arc<ForgeWorkspaceRepository>,
     codebase_repo: Arc<ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
@@ -76,8 +74,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
-
         let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
@@ -91,7 +87,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             mcp_cache_repository,
             provider_repository,
             chat_repository,
-            indexing_repository,
             codebase_repo,
             agent_repository,
             skill_repository,
@@ -289,6 +284,15 @@ where
     async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
         self.infra.read_utf8(path).await
     }
+
+    fn read_batch_utf8(
+        &self,
+        batch_size: usize,
+        paths: Vec<PathBuf>,
+    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        self.infra.read_batch_utf8(batch_size, paths)
+    }
+
     async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
         self.infra.read(path).await
     }

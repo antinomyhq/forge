@@ -12,13 +12,13 @@ messages:
       model: test-model
 response_format:
   json_schema:
-    $schema: "http://json-schema.org/draft-07/schema#"
+    $schema: "https://json-schema.org/draft/2020-12/schema"
     title: shell_command
     description: Response struct for shell command generation using JSON format
     type: object
-    required:
-      - command
     properties:
       command:
         description: The generated shell command
         type: string
+    required:
+      - command

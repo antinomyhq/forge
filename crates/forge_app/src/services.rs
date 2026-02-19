@@ -315,6 +315,9 @@ pub trait WorkspaceService: Send + Sync {
 
     /// Check if authentication credentials exist
     async fn is_authenticated(&self) -> anyhow::Result<bool>;
+
+    /// Initialize a workspace without syncing files
+    async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId>;
 }
 
 #[async_trait::async_trait]
@@ -1113,5 +1116,8 @@ impl<I: Services> WorkspaceService for I {
 
     async fn is_authenticated(&self) -> anyhow::Result<bool> {
         self.workspace_service().is_authenticated().await
+    }
+    async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId> {
+        self.workspace_service().init_workspace(path).await
     }
 }
