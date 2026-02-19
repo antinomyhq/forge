@@ -2283,15 +2283,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
             self.api.create_auth_credentials().await?;
+            let env = self.api.environment();
+            let credentials_path = crate::info::format_path_for_display(
+                &env,
+                &env.credentials_path(),
+            );
             self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(
-                    self.api
-                        .environment()
-                        .credentials_path()
-                        .display()
-                        .to_string()
-                        .as_str(),
-                ),
+                TitleFormat::info("Forge Services API key created").sub_title(&credentials_path),
             )?;
             return Ok(None);
         }
@@ -3263,15 +3261,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             self.api.create_auth_credentials().await?;
+            let env = self.api.environment();
+            let credentials_path = crate::info::format_path_for_display(
+                &env,
+                &env.credentials_path(),
+            );
             self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(
-                    self.api
-                        .environment()
-                        .credentials_path()
-                        .display()
-                        .to_string()
-                        .as_str(),
-                ),
+                TitleFormat::info("Forge Services API key created").sub_title(&credentials_path),
             )?;
         }
 
