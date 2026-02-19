@@ -9,6 +9,7 @@ use forge_stream::MpscStream;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
+use crate::doom_loop_detector::DoomLoopDetector;
 use crate::dto::ToolsOverview;
 use crate::hooks::{CompactionHandler, TracingHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
@@ -151,7 +152,7 @@ impl<S: Services> ForgeApp<S> {
                     .clone()
                     .and(CompactionHandler::new(agent.clone(), environment.clone())),
             )
-            .on_toolcall_start(tracing_handler.clone())
+            .on_toolcall_start(tracing_handler.clone().and(DoomLoopDetector::default()))
             .on_toolcall_end(tracing_handler.clone())
             .on_end(tracing_handler);
 
