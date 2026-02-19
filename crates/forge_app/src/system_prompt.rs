@@ -10,9 +10,6 @@ use tracing::debug;
 
 use crate::{ShellService, SkillFetchService, TemplateEngine};
 
-/// Max extensions to add in system prompt.
-const MAX_EXTENSIONS: usize = 15;
-
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
     services: Arc<S>,
@@ -89,8 +86,8 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
 
             let skills = self.services.list_skills().await?;
 
-            // Fetch extension statistics from git (top 15)
-            let extensions = self.fetch_extensions(MAX_EXTENSIONS).await;
+            // Fetch extension statistics from git
+            let extensions = self.fetch_extensions(self.environment.max_extensions).await;
 
             let ctx = SystemContext {
                 env: Some(env),
@@ -227,6 +224,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    const MAX_EXTENSIONS: usize = 15;
 
     #[test]
     fn test_parse_extensions_sorts_git_output() {
