@@ -635,8 +635,7 @@ async fn refresh_oauth_credential(
     };
 
     // Build new tokens with refreshed OAuth access token, preserving the original
-    // id_token (JWT) — Clerk only issues it on initial code exchange, not on
-    // refresh.
+    // id_token (JWT)
     let mut new_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
     if let Some(id_token) = &tokens.id_token {
         new_tokens = new_tokens.id_token(id_token.clone());

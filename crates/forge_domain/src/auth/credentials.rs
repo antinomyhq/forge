@@ -111,7 +111,7 @@ pub struct OAuthTokens {
     pub access_token: AccessToken,
     pub refresh_token: Option<RefreshToken>,
     pub expires_at: DateTime<Utc>,
-    /// ID token (JWT) - used by OIDC providers like Clerk for authentication
+    /// ID token (JWT) - used by OIDC providers
     #[serde(skip_serializing_if = "Option::is_none")]
     #[setters(strip_option)]
     pub id_token: Option<IdToken>,
