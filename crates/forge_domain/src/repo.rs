@@ -6,8 +6,7 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, Todo, WorkspaceAuth,
-    WorkspaceId,
+    ResultStream, SearchMatch, Skill, Snapshot, Todo, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
