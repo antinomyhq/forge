@@ -83,12 +83,14 @@ pub(crate) fn build_oauth_credential(
     default_expiry: chrono::Duration,
 ) -> anyhow::Result<AuthCredential> {
     let expires_at = calculate_token_expiry(token_response.expires_in, default_expiry);
-    let oauth_tokens = OAuthTokens::new(
+    let mut oauth_tokens = OAuthTokens::new(
         token_response.access_token,
         token_response.refresh_token,
         expires_at,
-    )
-    .id_token(token_response.id_token.map(forge_domain::IdToken::from));
+    );
+    if let Some(id_token) = token_response.id_token {
+        oauth_tokens = oauth_tokens.id_token(id_token);
+    }
     Ok(AuthCredential::new_oauth(
         provider_id,
         oauth_tokens,
