@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::{EnvironmentInfra, ProviderService};
 use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
+use forge_app::{EnvironmentInfra, ProviderService};
 use forge_domain::{
     AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
     ProviderRepository, ProviderTemplate,
