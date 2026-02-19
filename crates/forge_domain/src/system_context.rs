@@ -15,6 +15,13 @@ pub struct ExtensionStat {
     pub percentage: String,
 }
 
+impl ExtensionStat {
+    /// Creates a new [`ExtensionStat`] with the given extension, count, and percentage.
+    pub fn new(extension: impl Into<String>, count: usize, percentage: impl Into<String>) -> Self {
+        Self { extension: extension.into(), count, percentage: percentage.into() }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Extension {
     pub extension_stats: Vec<ExtensionStat>,
@@ -23,6 +30,25 @@ pub struct Extension {
     pub total_extensions: usize,
     /// Percentage of files covered by remaining (non-displayed) extensions
     pub remaining_percentage: String,
+}
+
+impl Extension {
+    /// Creates a new [`Extension`] summary.
+    pub fn new(
+        extension_stats: Vec<ExtensionStat>,
+        max_extensions: usize,
+        git_tracked_files: usize,
+        total_extensions: usize,
+        remaining_percentage: impl Into<String>,
+    ) -> Self {
+        Self {
+            extension_stats,
+            max_extensions,
+            git_tracked_files,
+            total_extensions,
+            remaining_percentage: remaining_percentage.into(),
+        }
+    }
 }
 
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]

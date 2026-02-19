@@ -230,78 +230,56 @@ mod tests {
 
     #[test]
     fn test_parse_extensions_sorts_git_output() {
-        let stdout = "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\nMakefile\nLICENSE\n";
-        let actual = parse_extensions(stdout, MAX_EXTENSIONS).unwrap();
+        let fixture = include_str!("fixtures/git_ls_files_mixed.txt");
+        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
 
         // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
-        let expected = Extension {
-            extension_stats: vec![
-                ExtensionStat {
-                    extension: "rs".to_string(),
-                    count: 4,
-                    percentage: "44".to_string(),
-                },
-                ExtensionStat {
-                    extension: "(no ext)".to_string(),
-                    count: 2,
-                    percentage: "22".to_string(),
-                },
-                ExtensionStat {
-                    extension: "md".to_string(),
-                    count: 2,
-                    percentage: "22".to_string(),
-                },
-                ExtensionStat {
-                    extension: "toml".to_string(),
-                    count: 1,
-                    percentage: "11".to_string(),
-                },
+        let expected = Extension::new(
+            vec![
+                ExtensionStat::new("rs", 4, "44"),
+                ExtensionStat::new("(no ext)", 2, "22"),
+                ExtensionStat::new("md", 2, "22"),
+                ExtensionStat::new("toml", 1, "11"),
             ],
-            max_extensions: MAX_EXTENSIONS,
-            git_tracked_files: 9,
-            total_extensions: 4,
-            remaining_percentage: "0".to_string(),
-        };
+            MAX_EXTENSIONS,
+            9,
+            4,
+            "0",
+        );
 
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_parse_extensions_truncates_to_max() {
-        // 20 distinct extensions; ext1 has 20 files, ext20 has 1 file
-        let stdout: String = (1..=20)
-            .flat_map(|i| (0..(21 - i)).map(move |j| format!("file{j}.ext{i}")))
-            .collect::<Vec<_>>()
-            .join("\n");
+        // Real `git ls-files` output from this repo: 822 files, 19 distinct extensions.
+        // Top 15 are shown; the remaining 4 (html, jsonl, lock, proto — 1 each) are rolled up.
+        let fixture = include_str!("fixtures/git_ls_files_many_extensions.txt");
+        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
 
-        let actual = parse_extensions(&stdout, MAX_EXTENSIONS).unwrap();
-
-        let expected = Extension {
-            extension_stats: {
-                let mut stats: Vec<_> = (1..=15)
-                    .map(|i| {
-                        let count = 21 - i;
-                        let percentage = ((count * 100) as f32 / 210.0).round() as usize;
-                        ExtensionStat {
-                            extension: format!("ext{i}"),
-                            count,
-                            percentage: percentage.to_string(),
-                        }
-                    })
-                    .collect();
-                stats.sort_by(|a, b| {
-                    b.count
-                        .cmp(&a.count)
-                        .then_with(|| a.extension.cmp(&b.extension))
-                });
-                stats
-            },
-            max_extensions: MAX_EXTENSIONS,
-            git_tracked_files: 210,
-            total_extensions: 20,
-            remaining_percentage: "7".to_string(), /* ext16-ext20: 5+4+3+2+1 = 15 files, 15/210 ≈
-                                                    * 7.14% rounds to 7% */
-        };
+        let expected = Extension::new(
+            vec![
+                ExtensionStat::new("rs", 415, "50"),
+                ExtensionStat::new("snap", 159, "19"),
+                ExtensionStat::new("md", 91, "11"),
+                ExtensionStat::new("yml", 29, "4"),
+                ExtensionStat::new("toml", 28, "3"),
+                ExtensionStat::new("json", 22, "3"),
+                ExtensionStat::new("zsh", 20, "2"),
+                ExtensionStat::new("sql", 14, "2"),
+                ExtensionStat::new("sh", 11, "1"),
+                ExtensionStat::new("ts", 9, "1"),
+                ExtensionStat::new("(no ext)", 7, "1"),
+                ExtensionStat::new("txt", 5, "1"),
+                ExtensionStat::new("csv", 4, "0"),
+                ExtensionStat::new("yaml", 3, "0"),
+                ExtensionStat::new("css", 1, "0"),
+            ],
+            MAX_EXTENSIONS,
+            822,
+            19,
+            "0",
+        );
 
         assert_eq!(actual, expected);
     }
