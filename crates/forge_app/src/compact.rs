@@ -1,6 +1,6 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, MessageEntry,
-    Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
+    MessageEntry, Transformer,
 };
 use tracing::info;
 
@@ -119,7 +119,8 @@ impl Compactor {
                 _ => None,
             });
 
-        // Accumulate usage from all messages in the compaction range before they are destroyed
+        // Accumulate usage from all messages in the compaction range before they are
+        // destroyed
         let compacted_usage = context.messages[start..=end]
             .iter()
             .filter_map(|entry| entry.usage.as_ref())
@@ -129,7 +130,9 @@ impl Compactor {
         // Replace the range with the summary, transferring the accumulated usage
         let mut summary_entry = MessageEntry::from(ContextMessage::user(summary, None));
         summary_entry.usage = compacted_usage;
-        context.messages.splice(start..=end, std::iter::once(summary_entry));
+        context
+            .messages
+            .splice(start..=end, std::iter::once(summary_entry));
 
         // Remove all droppable messages from the context
         context.messages.retain(|msg| !msg.is_droppable());
@@ -527,22 +530,25 @@ mod tests {
             cost: Some(1.5),
         };
 
-        let mut entry1 = MessageEntry::from(ContextMessage::assistant("Response 1", None, None, None));
+        let mut entry1 =
+            MessageEntry::from(ContextMessage::assistant("Response 1", None, None, None));
         entry1.usage = Some(inside_usage);
 
-        let mut entry3 = MessageEntry::from(ContextMessage::assistant("Response 2", None, None, None));
+        let mut entry3 =
+            MessageEntry::from(ContextMessage::assistant("Response 2", None, None, None));
         entry3.usage = Some(inside_usage2);
 
-        let mut entry5 = MessageEntry::from(ContextMessage::assistant("Response 3", None, None, None));
+        let mut entry5 =
+            MessageEntry::from(ContextMessage::assistant("Response 3", None, None, None));
         entry5.usage = Some(outside_usage);
 
         let context = Context::default()
             .add_entry(ContextMessage::user("Message 1", None))
-            .add_entry(entry1)                                         // index 1: usage INSIDE range
+            .add_entry(entry1) // index 1: usage INSIDE range
             .add_entry(ContextMessage::user("Message 2", None))
-            .add_entry(entry3)                                         // index 3: usage INSIDE range
+            .add_entry(entry3) // index 3: usage INSIDE range
             .add_entry(ContextMessage::user("Message 3", None))
-            .add_entry(entry5);                                        // index 5: usage OUTSIDE range
+            .add_entry(entry5); // index 5: usage OUTSIDE range
 
         // Compact the sequence (first 4 messages, indices 0-3)
         let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
