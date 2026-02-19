@@ -2280,8 +2280,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn init_forge_services(&mut self) -> Result<()> {
         self.api.create_auth_credentials().await?;
         let env = self.api.environment();
-        let credentials_path =
-            crate::info::format_path_for_display(&env, &env.credentials_path());
+        let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
         self.writeln_title(
             TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
         )?;
