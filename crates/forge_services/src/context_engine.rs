@@ -334,11 +334,14 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         match &credential.auth_details {
             // Legacy API key format (for backward compatibility)
             AuthDetails::ApiKey(token) => Ok(token.clone()),
-            // OAuth format (new)
-            AuthDetails::OAuth { tokens, .. } => {
-                // Convert OAuth access token to ApiKey (both are String wrappers)
-                Ok((*tokens.access_token).clone().into())
-            }
+            // OAuth format (new) - use the JWT id_token for forge services
+            AuthDetails::OAuth { tokens, .. } => tokens
+                .id_token
+                .as_ref()
+                .map(|t| (**t).clone().into())
+                .context(
+                    "OAuth credential is missing the JWT id_token. Please re-authenticate.",
+                ),
             _ => anyhow::bail!("ForgeServices credential must be either an API key or OAuth token"),
         }
     }

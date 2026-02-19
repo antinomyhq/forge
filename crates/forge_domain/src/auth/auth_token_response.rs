@@ -26,6 +26,10 @@ pub struct OAuthTokenResponse {
     /// OAuth scopes granted
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scope: Option<String>,
+
+    /// ID token (JWT) - used by OIDC providers like Clerk
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
 }
 
 fn default_token_type() -> String {

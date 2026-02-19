@@ -2,6 +2,7 @@ use forge_app::OAuthHttpProvider;
 use forge_domain::{AuthCodeParams, OAuthConfig, OAuthTokenResponse};
 use oauth2::{
     AuthorizationCode as OAuth2AuthCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
+    basic::BasicClient,
 };
 
 use crate::auth::util::*;
@@ -12,11 +13,10 @@ pub struct StandardHttpProvider;
 #[async_trait::async_trait]
 impl OAuthHttpProvider for StandardHttpProvider {
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
-        // Use oauth2 library - standard flow
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
         let mut client =
-            oauth2::basic::BasicClient::new(ClientId::new(config.client_id.to_string()))
+            BasicClient::new(ClientId::new(config.client_id.to_string()))
                 .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
                 .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
@@ -61,7 +61,7 @@ impl OAuthHttpProvider for StandardHttpProvider {
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
         let mut client =
-            oauth2::basic::BasicClient::new(ClientId::new(config.client_id.to_string()))
+            BasicClient::new(ClientId::new(config.client_id.to_string()))
                 .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
                 .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
@@ -77,8 +77,28 @@ impl OAuthHttpProvider for StandardHttpProvider {
             request = request.set_pkce_verifier(PkceCodeVerifier::new(v.to_string()));
         }
 
-        let token_result = request.request_async(&http_client).await?;
-        Ok(into_domain(token_result))
+        // Use a capturing closure so we can extract the raw response body
+        // (needed to retrieve `id_token` which BasicTokenResponse discards).
+        // github_compliant_http_request is reused for the actual HTTP call.
+        let captured: std::sync::Arc<std::sync::Mutex<Vec<u8>>> = Default::default();
+        let capture_ref = captured.clone();
+
+        let http_fn = move |req: http::Request<Vec<u8>>| {
+            let capture_ref = capture_ref.clone();
+            let client = http_client.clone();
+            async move {
+                let resp = github_compliant_http_request(client, req).await?;
+                *capture_ref.lock().unwrap() = resp.body().clone();
+                Ok::<_, reqwest::Error>(resp)
+            }
+        };
+
+        // Drive the oauth2 exchange so it handles errors; the body is captured above.
+        let _ = request.request_async(&http_fn).await?;
+
+        let body = captured.lock().unwrap();
+        serde_json::from_slice::<OAuthTokenResponse>(&body)
+            .map_err(|e| anyhow::anyhow!("Failed to parse token response: {e}"))
     }
 
     /// Create HTTP client with provider-specific headers/behavior

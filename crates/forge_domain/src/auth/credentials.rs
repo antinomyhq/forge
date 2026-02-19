@@ -4,7 +4,9 @@ use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{AccessToken, ApiKey, OAuthConfig, ProviderId, RefreshToken, URLParam, URLParamValue};
+use crate::{
+    AccessToken, ApiKey, IdToken, OAuthConfig, ProviderId, RefreshToken, URLParam, URLParamValue,
+};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 pub struct AuthCredential {
@@ -103,11 +105,15 @@ impl AuthDetails {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
+#[setters(strip_option, into)]
 pub struct OAuthTokens {
     pub access_token: AccessToken,
     pub refresh_token: Option<RefreshToken>,
     pub expires_at: DateTime<Utc>,
+    /// ID token (JWT) - used by OIDC providers like Clerk for authentication
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<IdToken>,
 }
 
 impl OAuthTokens {
@@ -120,6 +126,7 @@ impl OAuthTokens {
             access_token: access_token.to_string().into(),
             refresh_token: refresh_token.map(|a| a.to_string().into()),
             expires_at,
+            id_token: None,
         }
     }
 

@@ -115,3 +115,18 @@ pub struct RefreshToken(String);
 )]
 #[serde(transparent)]
 pub struct AccessToken(String);
+
+/// JWT ID token from OAuth provider
+#[derive(
+    Clone,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+    derive_more::Display,
+    derive_more::Deref,
+    PartialEq,
+    Eq,
+    Debug,
+)]
+#[serde(transparent)]
+pub struct IdToken(String);
