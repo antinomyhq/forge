@@ -8,6 +8,7 @@ rust-version.workspace = true
 chrono.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+async-stream.workspace = true
 async-trait.workspace = true
 async-recursion.workspace = true
 forge_snaps.workspace = true

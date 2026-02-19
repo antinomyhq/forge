@@ -26,7 +26,6 @@ use forge_tracker::ToolCallPayload;
 use futures::future;
 use merge::Merge;
 use tokio_stream::StreamExt;
-use tracing::debug;
 use url::Url;
 
 use crate::cli::{
@@ -638,6 +637,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                     crate::cli::WorkspaceCommand::Status { path, porcelain } => {
                         self.on_workspace_status(path, porcelain).await?;
+                    }
+                    crate::cli::WorkspaceCommand::Init { path } => {
+                        self.on_workspace_init(path).await?;
                     }
                 }
                 return Ok(());
@@ -2273,6 +2275,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
+    /// Creates Forge Services credentials if not already authenticated and
+    /// displays the credentials file location to the user.
+    async fn init_forge_services(&mut self) -> Result<()> {
+        self.api.create_auth_credentials().await?;
+        let env = self.api.environment();
+        let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
+        self.writeln_title(
+            TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
+        )?;
+        Ok(())
+    }
+
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
@@ -2280,10 +2294,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            self.init_forge_services().await?;
             return Ok(None);
         }
         // Select auth method (or use the only one available)
@@ -2796,7 +2807,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         message: ChatResponse,
         writer: &mut StreamingWriter<A>,
     ) -> Result<()> {
-        debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
             return Ok(());
         }
@@ -3254,10 +3264,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            self.init_forge_services().await?;
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
@@ -3596,6 +3603,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         } else {
             self.writeln(info)?;
         }
+
+        Ok(())
+    }
+
+    /// Initialize workspace for a directory without syncing files
+    async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Initializing workspace"))?;
+
+        let workspace_id = self.api.init_workspace(path.clone()).await?;
+
+        self.spinner.stop(None)?;
+
+        // Resolve and display the path
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+
+        self.writeln_title(
+            TitleFormat::info("Workspace initialized successfully")
+                .sub_title(format!("Path: {}", canonical_path.display()))
+                .sub_title(format!("Workspace ID: {}", workspace_id)),
+        )?;
 
         Ok(())
     }
