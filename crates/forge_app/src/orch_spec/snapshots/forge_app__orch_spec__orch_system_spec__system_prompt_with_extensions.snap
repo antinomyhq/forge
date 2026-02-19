@@ -10,9 +10,9 @@ You are Forge
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
 <workspace_extensions command="git ls-files" files="7" extensions="3">
- - .rs: 4 files (57%)
+ - .rs: 4 files (58%)
  - .md: 2 files (29%)
- - .toml: 1 files (14%)
+ - .toml: 1 files (15%)
 </workspace_extensions>
 </system_information>
 

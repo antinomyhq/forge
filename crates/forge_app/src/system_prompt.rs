@@ -184,7 +184,7 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
     let mut stats: Vec<_> = counts
         .into_iter()
         .map(|(extension, count)| {
-            let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
+            let percentage = ((count * 100) as f32 / total_files as f32).ceil() as usize;
             ExtensionStat {
                 extension: extension.to_owned(),
                 count,
@@ -207,7 +207,7 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
     let shown_count: usize = stats.iter().map(|s| s.count).sum();
     let remaining_count = total_files.saturating_sub(shown_count);
     let remaining_percentage = ((remaining_count * 100) as f32 / total_files as f32)
-        .round()
+        .ceil()
         .to_string();
 
     Some(Extension {
@@ -235,10 +235,10 @@ mod tests {
         // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
         let expected = Extension::new(
             vec![
-                ExtensionStat::new("rs", 4, "44"),
-                ExtensionStat::new("(no ext)", 2, "22"),
-                ExtensionStat::new("md", 2, "22"),
-                ExtensionStat::new("toml", 1, "11"),
+                ExtensionStat::new("rs", 4, "45"),
+                ExtensionStat::new("(no ext)", 2, "23"),
+                ExtensionStat::new("md", 2, "23"),
+                ExtensionStat::new("toml", 1, "12"),
             ],
             MAX_EXTENSIONS,
             9,
@@ -259,26 +259,26 @@ mod tests {
 
         let expected = Extension::new(
             vec![
-                ExtensionStat::new("rs", 415, "50"),
-                ExtensionStat::new("snap", 159, "19"),
-                ExtensionStat::new("md", 91, "11"),
+                ExtensionStat::new("rs", 415, "51"),
+                ExtensionStat::new("snap", 159, "20"),
+                ExtensionStat::new("md", 91, "12"),
                 ExtensionStat::new("yml", 29, "4"),
-                ExtensionStat::new("toml", 28, "3"),
+                ExtensionStat::new("toml", 28, "4"),
                 ExtensionStat::new("json", 22, "3"),
-                ExtensionStat::new("zsh", 20, "2"),
+                ExtensionStat::new("zsh", 20, "3"),
                 ExtensionStat::new("sql", 14, "2"),
-                ExtensionStat::new("sh", 11, "1"),
-                ExtensionStat::new("ts", 9, "1"),
+                ExtensionStat::new("sh", 11, "2"),
+                ExtensionStat::new("ts", 9, "2"),
                 ExtensionStat::new("(no ext)", 7, "1"),
                 ExtensionStat::new("txt", 5, "1"),
-                ExtensionStat::new("csv", 4, "0"),
-                ExtensionStat::new("yaml", 3, "0"),
-                ExtensionStat::new("css", 1, "0"),
+                ExtensionStat::new("csv", 4, "1"),
+                ExtensionStat::new("yaml", 3, "1"),
+                ExtensionStat::new("css", 1, "1"),
             ],
             MAX_EXTENSIONS,
             822,
             19,
-            "0",
+            "1",
         );
 
         assert_eq!(actual, expected);
