@@ -2275,6 +2275,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
+    /// Creates Forge Services credentials if not already authenticated and
+    /// displays the credentials file location to the user.
+    async fn init_forge_services(&mut self) -> Result<()> {
+        self.api.create_auth_credentials().await?;
+        let env = self.api.environment();
+        let credentials_path =
+            crate::info::format_path_for_display(&env, &env.credentials_path());
+        self.writeln_title(
+            TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
+        )?;
+        Ok(())
+    }
+
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
@@ -2282,15 +2295,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
-            self.api.create_auth_credentials().await?;
-            let env = self.api.environment();
-            let credentials_path = crate::info::format_path_for_display(
-                &env,
-                &env.credentials_path(),
-            );
-            self.writeln_title(
-                TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
-            )?;
+            self.init_forge_services().await?;
             return Ok(None);
         }
         // Select auth method (or use the only one available)
@@ -3260,15 +3265,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
-            self.api.create_auth_credentials().await?;
-            let env = self.api.environment();
-            let credentials_path = crate::info::format_path_for_display(
-                &env,
-                &env.credentials_path(),
-            );
-            self.writeln_title(
-                TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
-            )?;
+            self.init_forge_services().await?;
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
