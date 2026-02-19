@@ -165,11 +165,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
     pub async fn migrate_env_to_file(&self) -> anyhow::Result<Option<MigrationResult>> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         // Check if credentials file already exists
         if self.infra.read_utf8(&path).await.is_ok() {
@@ -393,11 +389,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     }
 
     async fn read_credentials(&self) -> Vec<AuthCredential> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         match self.infra.read_utf8(&path).await {
             Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
@@ -407,11 +399,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
     /// Writes credentials to the JSON file
     async fn write_credentials(&self, credentials: &Vec<AuthCredential>) -> anyhow::Result<()> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         let content = serde_json::to_string_pretty(credentials)?;
         self.infra.write(&path, Bytes::from(content)).await?;
@@ -666,7 +654,7 @@ mod env_tests {
     impl FileReaderInfra for MockInfra {
         async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
             // Check if it's the credentials file
-            if path.ends_with(".credentials.json") {
+            if path == self.get_environment().credentials_path() {
                 let guard = self.credentials.lock().await;
                 if let Some(ref creds) = *guard {
                     return Ok(serde_json::to_string(creds)?);
@@ -701,7 +689,7 @@ mod env_tests {
     impl FileWriterInfra for MockInfra {
         async fn write(&self, path: &std::path::Path, content: Bytes) -> anyhow::Result<()> {
             // Capture writes to credentials file
-            if path.ends_with(".credentials.json") {
+            if path == self.get_environment().credentials_path() {
                 let content_str = String::from_utf8(content.to_vec())?;
                 let creds: Vec<AuthCredential> = serde_json::from_str(&content_str)?;
                 let mut guard = self.credentials.lock().await;
@@ -1057,7 +1045,7 @@ mod env_tests {
         let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
 
-        // Migrate environment variables to .credentials.json
+        // Migrate environment variables to credentials file
         registry.migrate_env_to_file().await.unwrap();
 
         let providers = registry.get_all_providers().await.unwrap();
