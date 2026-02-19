@@ -1130,7 +1130,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("✓ Forge               {}", markers::EMPTY);
+        let expected = format!("✓ Forge               {}", "[192.168.1.1:8080]");
         assert_eq!(actual, expected);
     }
 
