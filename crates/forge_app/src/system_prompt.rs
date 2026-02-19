@@ -204,18 +204,19 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
 
     let total_extensions = stats.len();
     stats.truncate(max_extensions);
-    
-    // Calculate the count and percentage of files in remaining extensions after truncation
+
+    // Calculate the count and percentage of files in remaining extensions after
+    // truncation
     let shown_count: usize = stats.iter().map(|s| s.count).sum();
     let remaining_count = total_files.saturating_sub(shown_count);
     let remaining_percentage = ((remaining_count * 100) as f32 / total_files as f32)
         .round()
         .to_string();
 
-    Some(Extension { 
-        extension_stats: stats, 
-        git_tracked_files: total_files, 
-        max_extensions, 
+    Some(Extension {
+        extension_stats: stats,
+        git_tracked_files: total_files,
+        max_extensions,
         total_extensions,
         remaining_percentage,
     })
@@ -298,7 +299,8 @@ mod tests {
             max_extensions: MAX_EXTENSIONS,
             git_tracked_files: 210,
             total_extensions: 20,
-            remaining_percentage: "7".to_string(), // ext16-ext20: 5+4+3+2+1 = 15 files, 15/210 ≈ 7.14% rounds to 7%
+            remaining_percentage: "7".to_string(), /* ext16-ext20: 5+4+3+2+1 = 15 files, 15/210 ≈
+                                                    * 7.14% rounds to 7% */
         };
 
         assert_eq!(actual, expected);
