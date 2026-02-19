@@ -165,11 +165,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
     pub async fn migrate_env_to_file(&self) -> anyhow::Result<Option<MigrationResult>> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         // Check if credentials file already exists
         if self.infra.read_utf8(&path).await.is_ok() {
@@ -393,11 +389,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     }
 
     async fn read_credentials(&self) -> Vec<AuthCredential> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         match self.infra.read_utf8(&path).await {
             Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
@@ -407,11 +399,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
     /// Writes credentials to the JSON file
     async fn write_credentials(&self, credentials: &Vec<AuthCredential>) -> anyhow::Result<()> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         let content = serde_json::to_string_pretty(credentials)?;
         self.infra.write(&path, Bytes::from(content)).await?;

@@ -2282,9 +2282,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
-            let auth = self.api.create_auth_credentials().await?;
+            self.api.create_auth_credentials().await?;
             self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
+                TitleFormat::info("Forge API key created").sub_title(
+                    self.api.environment().credentials_path().display().to_string().as_str(),
+                ),
             )?;
             return Ok(None);
         }
@@ -3255,9 +3257,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
+            self.api.create_auth_credentials().await?;
             self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
+                TitleFormat::info("Forge API key created").sub_title(
+                    self.api.environment().credentials_path().display().to_string().as_str(),
+                ),
             )?;
         }
 
