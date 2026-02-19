@@ -2289,7 +2289,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 &env.credentials_path(),
             );
             self.writeln_title(
-                TitleFormat::info("Forge Services API key created").sub_title(&credentials_path),
+                TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
             )?;
             return Ok(None);
         }
@@ -3267,7 +3267,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 &env.credentials_path(),
             );
             self.writeln_title(
-                TitleFormat::info("Forge Services API key created").sub_title(&credentials_path),
+                TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
             )?;
         }
 
