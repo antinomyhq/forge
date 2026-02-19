@@ -16,9 +16,14 @@ pub struct ExtensionStat {
 }
 
 impl ExtensionStat {
-    /// Creates a new [`ExtensionStat`] with the given extension, count, and percentage.
+    /// Creates a new [`ExtensionStat`] with the given extension, count, and
+    /// percentage.
     pub fn new(extension: impl Into<String>, count: usize, percentage: impl Into<String>) -> Self {
-        Self { extension: extension.into(), count, percentage: percentage.into() }
+        Self {
+            extension: extension.into(),
+            count,
+            percentage: percentage.into(),
+        }
     }
 }
 

@@ -253,7 +253,8 @@ mod tests {
     #[test]
     fn test_parse_extensions_truncates_to_max() {
         // Real `git ls-files` output from this repo: 822 files, 19 distinct extensions.
-        // Top 15 are shown; the remaining 4 (html, jsonl, lock, proto — 1 each) are rolled up.
+        // Top 15 are shown; the remaining 4 (html, jsonl, lock, proto — 1 each) are
+        // rolled up.
         let fixture = include_str!("fixtures/git_ls_files_many_extensions.txt");
         let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
 
