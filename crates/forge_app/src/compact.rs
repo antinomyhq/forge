@@ -98,49 +98,63 @@ impl Compactor {
         // chains. After compaction, this consistency can break if the first
         // remaining assistant lacks reasoning.
         //
-        // Solution: Extract the LAST reasoning from compacted messages and inject it
-        // into the first assistant message after compaction. This preserves
-        // chain continuity while preventing exponential accumulation across
-        // multiple compactions.
+        // Solution: Extract the LAST reasoning and thought_signature from compacted
+        // messages and inject them into the first assistant message after compaction.
+        // This preserves chain continuity while preventing exponential accumulation
+        // across multiple compactions.
         //
         // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, A+r, U, A]
         //                                                          └─from last
         // compacted
-        let reasoning_details = compaction_sequence
+        let (reasoning_details, thought_signature) = compaction_sequence
             .iter()
             .rev() // Get LAST reasoning (most recent)
             .find_map(|msg| match &**msg {
-                ContextMessage::Text(text) => text
-                    .reasoning_details
-                    .as_ref()
-                    .filter(|rd| !rd.is_empty())
-                    .cloned(),
+                ContextMessage::Text(text) => {
+                    let reasoning = text
+                        .reasoning_details
+                        .as_ref()
+                        .filter(|rd| !rd.is_empty())
+                        .cloned();
+                    let signature = text.thought_signature.clone();
+
+                    // Only return if we have either reasoning or signature
+                    if reasoning.is_some() || signature.is_some() {
+                        Some((reasoning, signature))
+                    } else {
+                        None
+                    }
+                }
                 _ => None,
-            });
+            })
+            .unwrap_or((None, None));
 
         // Replace the range with the summary
         context.messages.splice(
             start..=end,
-            std::iter::once(ContextMessage::user(summary, None).into()),
+            std::iter::once(
+                ContextMessage::assistant(summary, thought_signature, reasoning_details, None)
+                    .into(),
+            ),
         );
 
         // Remove all droppable messages from the context
         context.messages.retain(|msg| !msg.is_droppable());
 
-        // Inject preserved reasoning into first assistant message (if empty)
-        if let Some(reasoning) = reasoning_details
-            && let Some(ContextMessage::Text(msg)) = context
-                .messages
-                .iter_mut()
-                .find(|msg| msg.has_role(forge_domain::Role::Assistant))
-                .map(|msg| &mut **msg)
-            && msg
-                .reasoning_details
-                .as_ref()
-                .is_none_or(|rd| rd.is_empty())
-        {
-            msg.reasoning_details = Some(reasoning);
-        }
+        // // Inject preserved reasoning into first assistant message (if empty)
+        // if let Some(reasoning) = reasoning_details
+        //     && let Some(ContextMessage::Text(msg)) = context
+        //         .messages
+        //         .iter_mut()
+        //         .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+        //         .map(|msg| &mut **msg)
+        //     && msg
+        //         .reasoning_details
+        //         .as_ref()
+        //         .is_none_or(|rd| rd.is_empty())
+        // {
+        //     msg.reasoning_details = Some(reasoning);
+        // }
 
         Ok(context)
     }
