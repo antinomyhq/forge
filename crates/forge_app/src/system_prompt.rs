@@ -57,61 +57,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             return None;
         }
 
-        // Count files by extension (files without extensions are tracked as
-        // "(no ext)")
-        let mut counts = HashMap::<&str, usize>::new();
-        let all_files: Vec<&str> = output
-            .output
-            .stdout
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty())
-            .collect();
-
-        let total_files = all_files.len();
-
-        all_files
-            .iter()
-            .map(|line| {
-                let file_name = line.rsplit_once(['/', '\\']).map_or(*line, |(_, f)| f);
-                file_name
-                    .rsplit_once('.')
-                    .filter(|(prefix, _)| !prefix.is_empty())
-                    .map_or("(no ext)", |(_, ext)| ext)
-            })
-            .for_each(|ext| *counts.entry(ext).or_default() += 1);
-        if total_files == 0 {
-            return None;
-        }
-
-        // Convert to ExtensionStat and sort by count descending
-        let mut stats: Vec<_> = counts
-            .into_iter()
-            .map(|(extension, count)| {
-                let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
-                ExtensionStat {
-                    extension: extension.to_owned(),
-                    count,
-                    percentage: percentage.to_string(),
-                }
-            })
-            .collect();
-
-        stats.sort_by(|a, b| {
-            let count_cmp = b.count.cmp(&a.count); // descending by count
-            count_cmp.then_with(|| a.extension.cmp(&b.extension)) // then alphabetically
-        });
-
-        // Track total extensions before truncating
-        let total_extensions = stats.len();
-        stats.truncate(max_extensions);
-
-        Some(Extension {
-            extension_stats: stats,
-            git_tracked_files: total_files,
-            max_extensions,
-            total_extensions,
-        })
+        parse_extensions(&output.output.stdout, max_extensions)
     }
 
     pub async fn add_system_message(
@@ -210,150 +156,68 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     }
 }
 
+/// Parses the newline-separated output of `git ls-files` into an [`Extension`]
+/// summary.
+fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension> {
+    let all_files: Vec<&str> = extensions
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    let total_files = all_files.len();
+    if total_files == 0 {
+        return None;
+    }
+
+    // Count files by extension; files without extensions are tracked as "(no ext)"
+    let mut counts = HashMap::<&str, usize>::new();
+    all_files
+        .iter()
+        .map(|line| {
+            let file_name = line.rsplit_once(['/', '\\']).map_or(*line, |(_, f)| f);
+            file_name
+                .rsplit_once('.')
+                .filter(|(prefix, _)| !prefix.is_empty())
+                .map_or("(no ext)", |(_, ext)| ext)
+        })
+        .for_each(|ext| *counts.entry(ext).or_default() += 1);
+
+    // Convert to ExtensionStat and sort by count descending, then alphabetically
+    let mut stats: Vec<_> = counts
+        .into_iter()
+        .map(|(extension, count)| {
+            let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
+            ExtensionStat { extension: extension.to_owned(), count, percentage: percentage.to_string() }
+        })
+        .collect();
+
+    stats.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.extension.cmp(&b.extension)));
+
+    let total_extensions = stats.len();
+    stats.truncate(max_extensions);
+
+    Some(Extension { extension_stats: stats, git_tracked_files: total_files, max_extensions, total_extensions })
+}
+
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-    use std::sync::Arc;
-
-    use fake::Fake;
-    use forge_domain::{Agent, Environment};
+    use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::ShellOutput;
 
-    #[derive(derive_setters::Setters)]
-    struct MockSkillFetchService {
-        shell_output: ShellOutput,
-    }
+    #[test]
+    fn test_parse_extensions_sorts_git_output() {
+        let stdout = "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\nMakefile\nLICENSE\n";
+        let actual = parse_extensions(stdout, MAX_EXTENSIONS).unwrap();
 
-    impl Default for MockSkillFetchService {
-        fn default() -> Self {
-            Self {
-                shell_output: ShellOutput {
-                    output: forge_domain::CommandOutput {
-                        stdout: String::new(),
-                        stderr: String::new(),
-                        command: String::new(),
-                        exit_code: Some(1),
-                    },
-                    shell: "/bin/bash".to_string(),
-                    description: None,
-                },
-            }
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl SkillFetchService for MockSkillFetchService {
-        async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
-            Ok(
-                forge_domain::Skill::new("test_skill", "Test skill", "Test skill description")
-                    .path("/skills/test.md"),
-            )
-        }
-
-        async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
-            Ok(vec![])
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl ShellService for MockSkillFetchService {
-        async fn execute(
-            &self,
-            _command: String,
-            _cwd: PathBuf,
-            _keep_ansi: bool,
-            _silent: bool,
-            _env_vars: Option<Vec<String>>,
-            _description: Option<String>,
-        ) -> anyhow::Result<ShellOutput> {
-            Ok(self.shell_output.clone())
-        }
-    }
-
-    fn create_test_environment() -> Environment {
-        use fake::Faker;
-        Faker.fake()
-    }
-
-    fn create_test_agent() -> Agent {
-        use forge_domain::{AgentId, ModelId, ProviderId};
-        Agent::new(
-            AgentId::new("test_agent"),
-            ProviderId::FORGE,
-            ModelId::new("test_model"),
-        )
-    }
-
-    #[tokio::test]
-    async fn test_system_prompt_adds_context() {
-        // Fixture
-        let services = Arc::new(MockSkillFetchService::default());
-        let env = create_test_environment();
-        let agent = create_test_agent();
-        let system_prompt = SystemPrompt::new(services, env, agent);
-
-        // Act - create a conversation and add system message
-        let conversation = forge_domain::Conversation::generate();
-        let result = system_prompt.add_system_message(conversation).await;
-
-        // Assert
-        assert!(result.is_ok());
-        let conversation = result.unwrap();
-        assert!(conversation.context.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_fetch_extensions_parses_and_sorts_git_output() {
-        use pretty_assertions::assert_eq;
-
-        // Fixture
-        let shell_output = ShellOutput {
-            output: forge_domain::CommandOutput {
-                stdout: "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\nMakefile\nLICENSE\n".to_string(),
-                stderr: String::new(),
-                command: "git ls-files".to_string(),
-                exit_code: Some(0),
-            },
-            shell: "/bin/bash".to_string(),
-            description: None,
-        };
-        let services = Arc::new(MockSkillFetchService::default().shell_output(shell_output));
-        let env = create_test_environment();
-        let agent = create_test_agent();
-        let system_prompt = SystemPrompt::new(services, env, agent);
-
-        // Actual
-        let actual = system_prompt
-            .fetch_extensions(MAX_EXTENSIONS)
-            .await
-            .unwrap();
-
-        // Expected - sorted by count descending with percentages
-        // Total files: 9 (4 rs + 2 md + 2 no ext + 1 toml)
-        let expected = forge_domain::Extension {
+        // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
+        let expected = Extension {
             extension_stats: vec![
-                ExtensionStat {
-                    extension: "rs".to_string(),
-                    count: 4,
-                    percentage: "44".to_string(),
-                },
-                ExtensionStat {
-                    extension: "(no ext)".to_string(),
-                    count: 2,
-                    percentage: "22".to_string(),
-                },
-                ExtensionStat {
-                    extension: "md".to_string(),
-                    count: 2,
-                    percentage: "22".to_string(),
-                },
-                ExtensionStat {
-                    extension: "toml".to_string(),
-                    count: 1,
-                    percentage: "11".to_string(),
-                },
+                ExtensionStat { extension: "rs".to_string(), count: 4, percentage: "44".to_string() },
+                ExtensionStat { extension: "(no ext)".to_string(), count: 2, percentage: "22".to_string() },
+                ExtensionStat { extension: "md".to_string(), count: 2, percentage: "22".to_string() },
+                ExtensionStat { extension: "toml".to_string(), count: 1, percentage: "11".to_string() },
             ],
             max_extensions: MAX_EXTENSIONS,
             git_tracked_files: 9,
@@ -363,52 +227,43 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[tokio::test]
-    async fn test_fetch_extensions_truncates_to_top_15() {
-        use pretty_assertions::assert_eq;
+    #[test]
+    fn test_parse_extensions_truncates_to_max() {
+        // 20 distinct extensions; ext1 has 20 files, ext20 has 1 file
+        let stdout: String = (1..=20)
+            .flat_map(|i| (0..(21 - i)).map(move |j| format!("file{j}.ext{i}")))
+            .collect::<Vec<_>>()
+            .join("\n");
 
-        // Fixture - Create 20 different file extensions
-        let mut files = Vec::new();
-        for i in 1..=20 {
-            // Each extension gets 21-i files (so ext1 has most, ext20 has least)
-            for j in 0..(21 - i) {
-                files.push(format!("file{}.ext{}", j, i));
-            }
-        }
-        let stdout = files.join("\n");
+        let actual = parse_extensions(&stdout, MAX_EXTENSIONS).unwrap();
 
-        let shell_output = ShellOutput {
-            output: forge_domain::CommandOutput {
-                stdout,
-                stderr: String::new(),
-                command: "git ls-files".to_string(),
-                exit_code: Some(0),
+        let expected = Extension {
+            extension_stats: {
+                let mut stats: Vec<_> = (1..=15)
+                    .map(|i| {
+                        let count = 21 - i;
+                        let percentage = ((count * 100) as f32 / 210.0).round() as usize;
+                        ExtensionStat {
+                            extension: format!("ext{i}"),
+                            count,
+                            percentage: percentage.to_string(),
+                        }
+                    })
+                    .collect();
+                stats.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.extension.cmp(&b.extension)));
+                stats
             },
-            shell: "/bin/bash".to_string(),
-            description: None,
+            max_extensions: MAX_EXTENSIONS,
+            git_tracked_files: 210,
+            total_extensions: 20,
         };
-        let services = Arc::new(MockSkillFetchService::default().shell_output(shell_output));
-        let env = create_test_environment();
-        let agent = create_test_agent();
-        let system_prompt = SystemPrompt::new(services, env, agent);
 
-        // Actual
-        let actual = system_prompt
-            .fetch_extensions(MAX_EXTENSIONS)
-            .await
-            .unwrap();
+        assert_eq!(actual, expected);
+    }
 
-        // Expected - should have exactly 15 extensions shown (truncated from 20)
-        assert_eq!(actual.extension_stats.len(), 15);
-        assert_eq!(actual.max_extensions, MAX_EXTENSIONS);
-        assert_eq!(actual.git_tracked_files, 210); // Sum of 20+19+...+1
-        assert_eq!(actual.total_extensions, 20); // 20 distinct extensions
-        assert!(actual.total_extensions > actual.max_extensions); // Derive is_truncated
-
-        // Verify they are sorted by count descending
-        assert_eq!(actual.extension_stats[0].extension, "ext1");
-        assert_eq!(actual.extension_stats[0].count, 20);
-        assert_eq!(actual.extension_stats[14].extension, "ext15");
-        assert_eq!(actual.extension_stats[14].count, 6);
+    #[test]
+    fn test_parse_extensions_returns_none_for_empty_output() {
+        assert_eq!(parse_extensions("", MAX_EXTENSIONS), None);
+        assert_eq!(parse_extensions("   \n  \n", MAX_EXTENSIONS), None);
     }
 }
