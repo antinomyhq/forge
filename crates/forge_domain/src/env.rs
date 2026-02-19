@@ -167,7 +167,8 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
-    /// Returns the path to the credentials file where provider API keys are stored
+    /// Returns the path to the credentials file where provider API keys are
+    /// stored
     pub fn credentials_path(&self) -> PathBuf {
         self.base_path.join(".credentials.json")
     }

@@ -2285,7 +2285,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.api.create_auth_credentials().await?;
             self.writeln_title(
                 TitleFormat::info("Forge API key created").sub_title(
-                    self.api.environment().credentials_path().display().to_string().as_str(),
+                    self.api
+                        .environment()
+                        .credentials_path()
+                        .display()
+                        .to_string()
+                        .as_str(),
                 ),
             )?;
             return Ok(None);
@@ -3260,7 +3265,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.api.create_auth_credentials().await?;
             self.writeln_title(
                 TitleFormat::info("Forge API key created").sub_title(
-                    self.api.environment().credentials_path().display().to_string().as_str(),
+                    self.api
+                        .environment()
+                        .credentials_path()
+                        .display()
+                        .to_string()
+                        .as_str(),
                 ),
             )?;
         }
