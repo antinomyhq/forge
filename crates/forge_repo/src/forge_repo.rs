@@ -503,10 +503,6 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: GrpcInfra + Send + Sync> forge_domain::WorkspaceIndexRepository for ForgeRepo<F> {
-    async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
-        self.codebase_repo.authenticate().await
-    }
-
     async fn create_workspace(
         &self,
         working_dir: &std::path::Path,

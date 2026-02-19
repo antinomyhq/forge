@@ -2281,13 +2281,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
-        if provider_id == ProviderId::FORGE_SERVICES {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
-            return Ok(None);
-        }
         // Select auth method (or use the only one available)
         let auth_method = match self
             .select_auth_method(provider_id.clone(), &auth_methods)
@@ -3253,12 +3246,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
-        // Check if auth already exists and create if needed
+        // Check if auth already exists and trigger OAuth flow if needed
         if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            let forge_provider = self.api.get_provider(&ProviderId::FORGE_SERVICES).await?;
+            
+            // Trigger OAuth authentication flow
+            if let Some(_provider) = self
+                .configure_provider(
+                    forge_provider.id(),
+                    forge_provider.auth_methods().to_vec(),
+                )
+                .await?
+            {
+                self.writeln_title(TitleFormat::info("Forge Services authenticated successfully"))?;
+            } else {
+                anyhow::bail!("Authentication cancelled or failed");
+            }
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
