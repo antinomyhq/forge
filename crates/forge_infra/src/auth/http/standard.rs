@@ -1,8 +1,8 @@
 use forge_app::OAuthHttpProvider;
 use forge_domain::{AuthCodeParams, OAuthConfig, OAuthTokenResponse};
+use oauth2::basic::BasicClient;
 use oauth2::{
     AuthorizationCode as OAuth2AuthCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
-    basic::BasicClient,
 };
 
 use crate::auth::util::*;
@@ -15,10 +15,9 @@ impl OAuthHttpProvider for StandardHttpProvider {
     async fn build_auth_url(&self, config: &OAuthConfig) -> anyhow::Result<AuthCodeParams> {
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
-        let mut client =
-            BasicClient::new(ClientId::new(config.client_id.to_string()))
-                .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
-                .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.to_string()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         if let Some(redirect_uri) = &config.redirect_uri {
             client = client.set_redirect_uri(oauth2::RedirectUrl::new(redirect_uri.clone())?);
@@ -60,10 +59,9 @@ impl OAuthHttpProvider for StandardHttpProvider {
     ) -> anyhow::Result<OAuthTokenResponse> {
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
-        let mut client =
-            BasicClient::new(ClientId::new(config.client_id.to_string()))
-                .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
-                .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
+        let mut client = BasicClient::new(ClientId::new(config.client_id.to_string()))
+            .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         if let Some(redirect_uri) = &config.redirect_uri {
             client = client.set_redirect_uri(oauth2::RedirectUrl::new(redirect_uri.clone())?);

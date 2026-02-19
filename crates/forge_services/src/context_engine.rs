@@ -339,9 +339,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 .id_token
                 .as_ref()
                 .map(|t| (**t).clone().into())
-                .context(
-                    "OAuth credential is missing the JWT id_token. Please re-authenticate.",
-                ),
+                .context("OAuth credential is missing the JWT id_token. Please re-authenticate."),
             _ => anyhow::bail!("ForgeServices credential must be either an API key or OAuth token"),
         }
     }
