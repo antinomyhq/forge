@@ -170,6 +170,12 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
+    /// Returns the path to the credentials file where provider API keys are
+    /// stored
+    pub fn credentials_path(&self) -> PathBuf {
+        self.base_path.join(".credentials.json")
+    }
+
     pub fn workspace_hash(&self) -> WorkspaceHash {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
