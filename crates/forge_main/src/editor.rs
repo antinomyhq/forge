@@ -74,7 +74,7 @@ impl ForgeEditor {
             if std::env::var("MSYSTEM").is_ok() {
                 return true;
             }
-            
+
             // Check for TERM=xterm or TERM=cygwin which MinTTY uses
             if let Ok(term) = std::env::var("TERM") {
                 if term == "xterm" || term == "cygwin" || term.starts_with("xterm-") {
@@ -83,13 +83,13 @@ impl ForgeEditor {
                     return true;
                 }
             }
-            
+
             // Check for MSYS which is also set by Git Bash
             if std::env::var("MSYS").is_ok() {
                 return true;
             }
         }
-        
+
         false
     }
 

@@ -24,7 +24,8 @@ impl ForgeEnvironmentInfra {
         Self { restricted, cwd }
     }
 
-    /// Get path to appropriate shell based on platform and mode using shell discovery
+    /// Get path to appropriate shell based on platform and mode using shell
+    /// discovery
     fn get_shell_path(&self) -> String {
         let (shell_path, _shell_type) = crate::shell_type::discover_shell(self.restricted);
         shell_path.to_string_lossy().to_string()

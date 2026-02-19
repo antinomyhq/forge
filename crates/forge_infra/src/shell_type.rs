@@ -1,10 +1,11 @@
 //! Shell type detection and command argument derivation.
 //!
-//! This module provides type-safe shell handling with platform-specific support for
-//! PowerShell, cmd.exe, bash, zsh, and other shells.
+//! This module provides type-safe shell handling with platform-specific support
+//! for PowerShell, cmd.exe, bash, zsh, and other shells.
+
+use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 
 /// Represents the type of shell being used for command execution.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
@@ -38,7 +39,8 @@ impl ShellType {
     /// # Arguments
     /// * `shell_path` - Path to the shell executable
     /// * `command` - The command string to execute
-    /// * `use_login_shell` - Whether to use login shell mode (loads profile/rc files)
+    /// * `use_login_shell` - Whether to use login shell mode (loads profile/rc
+    ///   files)
     ///
     /// # Returns
     /// A vector of arguments suitable for passing to `Command::args()`
@@ -177,12 +179,16 @@ fn find_powershell() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_shell_type_detection() {
-        assert_eq!(ShellType::detect(&PathBuf::from("zsh")), Some(ShellType::Zsh));
+        assert_eq!(
+            ShellType::detect(&PathBuf::from("zsh")),
+            Some(ShellType::Zsh)
+        );
         assert_eq!(
             ShellType::detect(&PathBuf::from("bash")),
             Some(ShellType::Bash)
@@ -196,7 +202,10 @@ mod tests {
             Some(ShellType::PowerShell)
         );
         assert_eq!(ShellType::detect(&PathBuf::from("sh")), Some(ShellType::Sh));
-        assert_eq!(ShellType::detect(&PathBuf::from("cmd")), Some(ShellType::Cmd));
+        assert_eq!(
+            ShellType::detect(&PathBuf::from("cmd")),
+            Some(ShellType::Cmd)
+        );
         assert_eq!(ShellType::detect(&PathBuf::from("fish")), None);
     }
 
@@ -210,16 +219,18 @@ mod tests {
             ShellType::detect(&PathBuf::from("/bin/bash")),
             Some(ShellType::Bash)
         );
-        
+
         // Only test Windows paths on Windows since path parsing is platform-specific
         #[cfg(windows)]
         {
             assert_eq!(
-                ShellType::detect(&PathBuf::from("C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")),
+                ShellType::detect(&PathBuf::from(
+                    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                )),
                 Some(ShellType::PowerShell)
             );
         }
-        
+
         assert_eq!(
             ShellType::detect(&PathBuf::from("/usr/local/bin/pwsh")),
             Some(ShellType::PowerShell)
@@ -282,7 +293,7 @@ mod tests {
     fn test_discover_shell_returns_valid_shell() {
         let (path, shell_type) = discover_shell(false);
         assert!(!path.as_os_str().is_empty());
-        
+
         // Verify the detected type matches the path
         if let Some(detected_type) = ShellType::detect(&path) {
             assert_eq!(detected_type, shell_type);

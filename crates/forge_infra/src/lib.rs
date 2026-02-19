@@ -27,5 +27,5 @@ pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;
 pub use program_resolver::resolve_program;
-pub use shell_type::{discover_shell, ShellType};
+pub use shell_type::{ShellType, discover_shell};
 pub use text_encoding::bytes_to_string_smart;

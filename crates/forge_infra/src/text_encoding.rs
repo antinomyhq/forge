@@ -1,24 +1,25 @@
 //! Text encoding detection and conversion utilities for shell output.
 //!
-//! Windows users frequently run into code pages such as CP1251 or CP866 when invoking commands
-//! through terminals. Those bytes show up as invalid UTF-8 and used to be replaced with the
-//! standard Unicode replacement character. We now lean on `chardetng` and `encoding_rs` so we
-//! can automatically detect and decode the vast majority of legacy encodings before falling back
+//! Windows users frequently run into code pages such as CP1251 or CP866 when
+//! invoking commands through terminals. Those bytes show up as invalid UTF-8
+//! and used to be replaced with the standard Unicode replacement character. We
+//! now lean on `chardetng` and `encoding_rs` so we can automatically detect and
+//! decode the vast majority of legacy encodings before falling back
 //! to lossy UTF-8 decoding.
 
 use chardetng::EncodingDetector;
-use encoding_rs::Encoding;
-use encoding_rs::IBM866;
-use encoding_rs::WINDOWS_1252;
+use encoding_rs::{Encoding, IBM866, WINDOWS_1252};
 
-/// Windows-1252 reassigns a handful of 0x80-0x9F slots to smart punctuation (curly quotes,
-/// dashes, ™). CP866 uses those *same byte values* for uppercase Cyrillic letters. When chardetng
-/// sees shell snippets that mix these bytes with ASCII it sometimes guesses IBM866, so "smart
-/// quotes" render as Cyrillic garbage ("УФЦ") in terminals. However, CP866 uppercase tokens are
-/// perfectly valid output (e.g., `ПРИ test`) so we cannot flip every 0x80-0x9F byte to
-/// Windows-1252 either. The compromise is to only coerce IBM866 to Windows-1252 when (a) the high
-/// bytes are exclusively the punctuation values listed below and (b) we spot adjacent ASCII. This
-/// targets the real failure case without clobbering legitimate Cyrillic text.
+/// Windows-1252 reassigns a handful of 0x80-0x9F slots to smart punctuation
+/// (curly quotes, dashes, ™). CP866 uses those *same byte values* for uppercase
+/// Cyrillic letters. When chardetng sees shell snippets that mix these bytes
+/// with ASCII it sometimes guesses IBM866, so "smart quotes" render as Cyrillic
+/// garbage ("УФЦ") in terminals. However, CP866 uppercase tokens are
+/// perfectly valid output (e.g., `ПРИ test`) so we cannot flip every 0x80-0x9F
+/// byte to Windows-1252 either. The compromise is to only coerce IBM866 to
+/// Windows-1252 when (a) the high bytes are exclusively the punctuation values
+/// listed below and (b) we spot adjacent ASCII. This targets the real failure
+/// case without clobbering legitimate Cyrillic text.
 const WINDOWS_1252_PUNCT_BYTES: [u8; 8] = [
     0x91, // ' (left single quotation mark)
     0x92, // ' (right single quotation mark)
@@ -30,17 +31,19 @@ const WINDOWS_1252_PUNCT_BYTES: [u8; 8] = [
     0x99, // ™ (trade mark sign)
 ];
 
-/// Attempts to convert arbitrary bytes to UTF-8 with best-effort encoding detection.
+/// Attempts to convert arbitrary bytes to UTF-8 with best-effort encoding
+/// detection.
 ///
-/// This function handles shell output that may be encoded in legacy code pages commonly
-/// encountered on Windows systems. It first attempts to detect the encoding, then decodes
-/// the bytes accordingly.
+/// This function handles shell output that may be encoded in legacy code pages
+/// commonly encountered on Windows systems. It first attempts to detect the
+/// encoding, then decodes the bytes accordingly.
 ///
 /// # Arguments
 /// * `bytes` - The byte slice to decode
 ///
 /// # Returns
-/// A UTF-8 string. If the input is already valid UTF-8, it is returned as-is for efficiency.
+/// A UTF-8 string. If the input is already valid UTF-8, it is returned as-is
+/// for efficiency.
 pub fn bytes_to_string_smart(bytes: &[u8]) -> String {
     if bytes.is_empty() {
         return String::new();
@@ -60,10 +63,11 @@ fn detect_encoding(bytes: &[u8]) -> &'static Encoding {
     detector.feed(bytes, true);
     let (encoding, _is_confident) = detector.guess_assess(None, true);
 
-    // chardetng occasionally reports IBM866 for short strings that only contain Windows-1252
-    // "smart punctuation" bytes (0x80-0x9F) because that range maps to Cyrillic letters in
-    // IBM866. When those bytes show up alongside an ASCII word (typical shell output: `"test"`),
-    // we know the intent was likely CP1252 quotes/dashes. Prefer WINDOWS_1252 in that specific
+    // chardetng occasionally reports IBM866 for short strings that only contain
+    // Windows-1252 "smart punctuation" bytes (0x80-0x9F) because that range
+    // maps to Cyrillic letters in IBM866. When those bytes show up alongside an
+    // ASCII word (typical shell output: `"test"`), we know the intent was
+    // likely CP1252 quotes/dashes. Prefer WINDOWS_1252 in that specific
     // situation so we render the characters users expect instead of Cyrillic junk.
     if encoding == IBM866 && looks_like_windows_1252_punctuation(bytes) {
         return WINDOWS_1252;
@@ -82,13 +86,14 @@ fn decode_bytes(bytes: &[u8], encoding: &'static Encoding) -> String {
     decoded.into_owned()
 }
 
-/// Detect whether the byte stream looks like Windows-1252 "smart punctuation" wrapped around
-/// otherwise-ASCII text.
+/// Detect whether the byte stream looks like Windows-1252 "smart punctuation"
+/// wrapped around otherwise-ASCII text.
 ///
-/// Context: IBM866 and Windows-1252 share the 0x80-0x9F slot range. In IBM866 these bytes decode
-/// to Cyrillic letters, whereas Windows-1252 maps them to curly quotes and dashes. chardetng can
-/// guess IBM866 for short snippets that only contain those bytes, which turns shell output such
-/// as `"test"` into unreadable Cyrillic. To avoid that, we treat inputs comprising a handful of
+/// Context: IBM866 and Windows-1252 share the 0x80-0x9F slot range. In IBM866
+/// these bytes decode to Cyrillic letters, whereas Windows-1252 maps them to
+/// curly quotes and dashes. chardetng can guess IBM866 for short snippets that
+/// only contain those bytes, which turns shell output such as `"test"` into
+/// unreadable Cyrillic. To avoid that, we treat inputs comprising a handful of
 /// bytes from the problematic range plus ASCII letters as CP1252 punctuation.
 fn looks_like_windows_1252_punctuation(bytes: &[u8]) -> bool {
     let mut saw_extended_punctuation = false;
@@ -120,9 +125,10 @@ fn is_windows_1252_punct(byte: u8) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use encoding_rs::WINDOWS_1251;
+    
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_utf8_passthrough() {
@@ -162,7 +168,8 @@ mod tests {
 
     #[test]
     fn test_windows_1252_multiple_quotes() {
-        // Longer snippets of punctuation (e.g., "foo" – "bar") should still flip to CP1252.
+        // Longer snippets of punctuation (e.g., "foo" – "bar") should still flip to
+        // CP1252.
         let bytes = b"\x93foo\x94 \x96 \x93bar\x94";
         assert_eq!(
             bytes_to_string_smart(bytes),
@@ -172,7 +179,8 @@ mod tests {
 
     #[test]
     fn test_latin1_cafe() {
-        // Latin-1 bytes remain common in Western-European locales; decode them directly.
+        // Latin-1 bytes remain common in Western-European locales; decode them
+        // directly.
         let bytes = b"caf\xE9"; // codespell:ignore caf
         assert_eq!(bytes_to_string_smart(bytes), "café");
     }
@@ -194,15 +202,16 @@ mod tests {
 
     #[test]
     fn test_cp1251_privet_word() {
-        // Regression: CP1251 words like "Привет" must not be mis-identified as Windows-1252.
+        // Regression: CP1251 words like "Привет" must not be mis-identified as
+        // Windows-1252.
         let bytes = b"\xCF\xF0\xE8\xE2\xE5\xF2"; // "Привет" encoded with Windows-1251
         assert_eq!(bytes_to_string_smart(bytes), "Привет");
     }
 
     #[test]
     fn test_cp866_uppercase_followed_by_ascii() {
-        // Regression test: uppercase CP866 tokens next to ASCII text should not be treated as
-        // CP1252.
+        // Regression test: uppercase CP866 tokens next to ASCII text should not be
+        // treated as CP1252.
         let bytes = b"\x8F\x90\x88 test"; // "ПРИ test" encoded with CP866 uppercase letters followed by ASCII
         assert_eq!(bytes_to_string_smart(bytes), "ПРИ test");
     }
