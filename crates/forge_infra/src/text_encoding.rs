@@ -125,7 +125,7 @@ fn is_windows_1252_punct(byte: u8) -> bool {
 
 #[cfg(test)]
 mod tests {
-    
+
     use pretty_assertions::assert_eq;
 
     use super::*;
