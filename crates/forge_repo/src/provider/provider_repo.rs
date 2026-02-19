@@ -654,7 +654,7 @@ mod env_tests {
     impl FileReaderInfra for MockInfra {
         async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
             // Check if it's the credentials file
-            if path.ends_with(".credentials.json") {
+            if path == self.get_environment().credentials_path() {
                 let guard = self.credentials.lock().await;
                 if let Some(ref creds) = *guard {
                     return Ok(serde_json::to_string(creds)?);
@@ -689,7 +689,7 @@ mod env_tests {
     impl FileWriterInfra for MockInfra {
         async fn write(&self, path: &std::path::Path, content: Bytes) -> anyhow::Result<()> {
             // Capture writes to credentials file
-            if path.ends_with(".credentials.json") {
+            if path == self.get_environment().credentials_path() {
                 let content_str = String::from_utf8(content.to_vec())?;
                 let creds: Vec<AuthCredential> = serde_json::from_str(&content_str)?;
                 let mut guard = self.credentials.lock().await;
@@ -1045,7 +1045,7 @@ mod env_tests {
         let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
 
-        // Migrate environment variables to .credentials.json
+        // Migrate environment variables to credentials file
         registry.migrate_env_to_file().await.unwrap();
 
         let providers = registry.get_all_providers().await.unwrap();
