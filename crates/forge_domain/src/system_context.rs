@@ -21,6 +21,8 @@ pub struct Extension {
     pub max_extensions: usize,
     pub git_tracked_files: usize,
     pub total_extensions: usize,
+    /// Percentage of files covered by remaining (non-displayed) extensions
+    pub remaining_percentage: String,
 }
 
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
