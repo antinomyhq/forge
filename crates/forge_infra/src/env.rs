@@ -37,7 +37,8 @@ impl ForgeEnvironmentInfra {
         }
     }
 
-    fn get(&self) -> Environment {
+    /// Builds the `Environment` using the given `EnvResolver`.
+    fn build_env(&self, resolver: &mut EnvResolver) -> Environment {
         let cwd = self.cwd.clone();
         let retry_config = resolve_retry_config();
 
@@ -75,30 +76,29 @@ impl ForgeEnvironmentInfra {
             max_read_size: 2000,
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
-            tool_timeout: parse_env::<u64>("FORGE_TOOL_TIMEOUT").unwrap_or(300),
-            auto_open_dump: parse_env::<bool>("FORGE_DUMP_AUTO_OPEN").unwrap_or(false),
+            tool_timeout: resolver.resolve_or("FORGE_TOOL_TIMEOUT", 300u64),
+            auto_open_dump: resolver.resolve_or("FORGE_DUMP_AUTO_OPEN", false),
             debug_requests: parse_env::<String>("FORGE_DEBUG_REQUESTS").map(PathBuf::from),
-            stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
-                .unwrap_or(2000),
-            max_line_length: parse_env::<usize>("FORGE_MAX_LINE_LENGTH").unwrap_or(2000),
-            max_file_read_batch_size: parse_env::<usize>("FORGE_MAX_FILE_READ_BATCH_SIZE")
-                .unwrap_or_else(|| {
-                    std::thread::available_parallelism()
-                        .map(|n| n.get() * 2)
-                        .unwrap_or(16)
-                }),
+            stdout_max_line_length: resolver.resolve_or("FORGE_STDOUT_MAX_LINE_LENGTH", 2000usize),
+            max_line_length: resolver.resolve_or("FORGE_MAX_LINE_LENGTH", 2000usize),
+            max_file_read_batch_size: resolver.resolve_or(
+                "FORGE_MAX_FILE_READ_BATCH_SIZE",
+                std::thread::available_parallelism()
+                    .map(|n| n.get() * 2)
+                    .unwrap_or(16),
+            ),
             http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
-            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
+            max_image_size: resolver.resolve_or("FORGE_MAX_IMAGE_SIZE", 256u64 << 10),
             forge_api_url,
             custom_history_path,
-            max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
-            sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(200),
-            sem_search_top_k: parse_env::<usize>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(20),
-            workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
-                .as_ref()
-                .and_then(|url| Url::parse(url.as_str()).ok())
-                .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
+            max_conversations: resolver.resolve_or("FORGE_MAX_CONVERSATIONS", 100usize),
+            sem_search_limit: resolver.resolve_or("FORGE_SEM_SEARCH_LIMIT", 200usize),
+            sem_search_top_k: resolver.resolve_or("FORGE_SEM_SEARCH_TOP_K", 20usize),
+            workspace_server_url: resolver.resolve_or(
+                "FORGE_WORKSPACE_SERVER_URL",
+                Url::parse("https://api.forgecode.dev/").unwrap(),
+            ),
             override_model,
             override_provider,
         }
@@ -129,7 +129,7 @@ impl ForgeEnvironmentInfra {
 
 impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_environment(&self) -> Environment {
-        self.get()
+        self.build_env(&mut EnvResolver::default())
     }
 
     fn get_env_var(&self, key: &str) -> Option<String> {
@@ -137,8 +137,9 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     }
 
     fn get_env_vars(&self) -> BTreeMap<String, String> {
-        // TODO: Maybe cache it?
-        std::env::vars().collect()
+        let mut resolver = EnvResolver::default();
+        let _ = self.build_env(&mut resolver);
+        resolver.into_vars()
     }
 
     fn is_restricted(&self) -> bool {
@@ -180,6 +181,7 @@ impl_from_env_str_via_from_str! {
     i8, i16, i32, i64, i128, isize,
     f32, f64,
     String,
+    Url,
     forge_domain::TlsBackend,
     forge_domain::TlsVersion,
 }
@@ -189,6 +191,42 @@ fn parse_env<T: FromEnvStr>(name: &str) -> Option<T> {
     std::env::var(name)
         .ok()
         .and_then(|val| T::from_env_str(&val))
+}
+
+/// Collects environment variables together with resolved defaults.
+struct EnvResolver {
+    vars: BTreeMap<String, String>,
+}
+
+impl Default for EnvResolver {
+    fn default() -> Self {
+        Self { vars: std::env::vars().collect() }
+    }
+}
+
+impl EnvResolver {
+    /// Returns the value of `name` if present and parseable.
+    fn resolve<T: FromEnvStr>(&self, name: &str) -> Option<T> {
+        self.vars.get(name).and_then(|val| T::from_env_str(val))
+    }
+
+    /// Returns the value of `name` if present and parseable, otherwise
+    /// records and returns `default`.
+    fn resolve_or<T: FromEnvStr + ToString>(&mut self, name: &str, default: T) -> T {
+        match self.resolve(name) {
+            Some(v) => v,
+            None => {
+                self.vars.insert(name.to_string(), default.to_string());
+                default
+            }
+        }
+    }
+
+    /// Consumes the resolver and returns the full variable map including
+    /// recorded defaults.
+    fn into_vars(self) -> BTreeMap<String, String> {
+        self.vars
+    }
 }
 
 /// Resolves retry configuration from environment variables or returns defaults
@@ -662,12 +700,12 @@ mod tests {
         // Test Fallback to default for invalid value
         {
             unsafe {
-                env::set_var("TOOL_TIMEOUT_SECONDS", "not-a-number");
+                env::set_var("FORGE_TOOL_TIMEOUT", "not-a-number");
             }
             let env = infra.get_environment();
             assert_eq!(env.tool_timeout, 300);
             unsafe {
-                env::remove_var("TOOL_TIMEOUT_SECONDS");
+                env::remove_var("FORGE_TOOL_TIMEOUT");
             }
         }
     }
