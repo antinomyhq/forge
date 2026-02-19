@@ -3249,16 +3249,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Check if auth already exists and trigger OAuth flow if needed
         if !self.api.is_authenticated().await? {
             let forge_provider = self.api.get_provider(&ProviderId::FORGE_SERVICES).await?;
-            
+
             // Trigger OAuth authentication flow
             if let Some(_provider) = self
-                .configure_provider(
-                    forge_provider.id(),
-                    forge_provider.auth_methods().to_vec(),
-                )
+                .configure_provider(forge_provider.id(), forge_provider.auth_methods().to_vec())
                 .await?
             {
-                self.writeln_title(TitleFormat::info("Forge Services authenticated successfully"))?;
+                self.writeln_title(TitleFormat::info(
+                    "Forge Services authenticated successfully",
+                ))?;
             } else {
                 anyhow::bail!("Authentication cancelled or failed");
             }

@@ -168,8 +168,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 let token = token.clone();
                 let file_path = file.path.clone();
                 async move {
-                    self.upload(&workspace_id, &token, vec![file])
-                        .await?;
+                    self.upload(&workspace_id, &token, vec![file]).await?;
                     info!(path = %file_path, "File synced successfully");
                     Ok::<_, anyhow::Error>(1)
                 }
@@ -218,8 +217,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
-            self.fetch_remote_hashes(&workspace_id, &token)
-                .await?
+            self.fetch_remote_hashes(&workspace_id, &token).await?
         };
 
         emit(SyncProgress::ComparingFiles {
@@ -568,8 +566,7 @@ impl<
             .await?
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
-        let search_query =
-            forge_domain::CodeBase::new(workspace.workspace_id.clone(), params);
+        let search_query = forge_domain::CodeBase::new(workspace.workspace_id.clone(), params);
 
         let results = self
             .infra
