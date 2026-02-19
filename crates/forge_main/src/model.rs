@@ -74,7 +74,12 @@ impl Display for CliProvider {
         match &self.0 {
             AnyProvider::Url(provider) => {
                 write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
-                if let Some(domain) = provider.url.domain() {
+                let url = provider
+                    .url
+                    .host_str()
+                    .zip(provider.url.port())
+                    .map(|(h, p)| format!("{}:{}", h, p));
+                if let Some(domain) = provider.url.domain().or(url.as_deref()) {
                     write!(f, " [{domain}]")?;
                 } else {
                     write!(f, " {}", markers::EMPTY)?;
