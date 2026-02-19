@@ -188,16 +188,29 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
         .into_iter()
         .map(|(extension, count)| {
             let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
-            ExtensionStat { extension: extension.to_owned(), count, percentage: percentage.to_string() }
+            ExtensionStat {
+                extension: extension.to_owned(),
+                count,
+                percentage: percentage.to_string(),
+            }
         })
         .collect();
 
-    stats.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.extension.cmp(&b.extension)));
+    stats.sort_by(|a, b| {
+        b.count
+            .cmp(&a.count)
+            .then_with(|| a.extension.cmp(&b.extension))
+    });
 
     let total_extensions = stats.len();
     stats.truncate(max_extensions);
 
-    Some(Extension { extension_stats: stats, git_tracked_files: total_files, max_extensions, total_extensions })
+    Some(Extension {
+        extension_stats: stats,
+        git_tracked_files: total_files,
+        max_extensions,
+        total_extensions,
+    })
 }
 
 #[cfg(test)]
@@ -214,10 +227,26 @@ mod tests {
         // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
         let expected = Extension {
             extension_stats: vec![
-                ExtensionStat { extension: "rs".to_string(), count: 4, percentage: "44".to_string() },
-                ExtensionStat { extension: "(no ext)".to_string(), count: 2, percentage: "22".to_string() },
-                ExtensionStat { extension: "md".to_string(), count: 2, percentage: "22".to_string() },
-                ExtensionStat { extension: "toml".to_string(), count: 1, percentage: "11".to_string() },
+                ExtensionStat {
+                    extension: "rs".to_string(),
+                    count: 4,
+                    percentage: "44".to_string(),
+                },
+                ExtensionStat {
+                    extension: "(no ext)".to_string(),
+                    count: 2,
+                    percentage: "22".to_string(),
+                },
+                ExtensionStat {
+                    extension: "md".to_string(),
+                    count: 2,
+                    percentage: "22".to_string(),
+                },
+                ExtensionStat {
+                    extension: "toml".to_string(),
+                    count: 1,
+                    percentage: "11".to_string(),
+                },
             ],
             max_extensions: MAX_EXTENSIONS,
             git_tracked_files: 9,
@@ -250,7 +279,11 @@ mod tests {
                         }
                     })
                     .collect();
-                stats.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.extension.cmp(&b.extension)));
+                stats.sort_by(|a, b| {
+                    b.count
+                        .cmp(&a.count)
+                        .then_with(|| a.extension.cmp(&b.extension))
+                });
                 stats
             },
             max_extensions: MAX_EXTENSIONS,
