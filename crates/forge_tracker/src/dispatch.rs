@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::process::Output;
-use std::sync::{Arc, LazyLock};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, LazyLock};
 
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;

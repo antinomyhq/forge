@@ -23,9 +23,9 @@ mod zsh;
 
 mod update;
 
-pub use cli::{Cli, TopLevelCommand};
 use std::sync::LazyLock;
 
+pub use cli::{Cli, TopLevelCommand};
 pub use sandbox::Sandbox;
 pub use title_display::*;
 pub use ui::UI;

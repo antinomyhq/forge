@@ -34,8 +34,9 @@ pub struct ForgePolicyService<I> {
 /// Default policies loaded once at startup from the embedded YAML file
 static DEFAULT_POLICIES: LazyLock<PolicyConfig> = LazyLock::new(|| {
     let yaml_content = include_str!("./permissions.default.yaml");
-    serde_yml::from_str(yaml_content)
-        .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
+    serde_yml::from_str(yaml_content).expect(
+        "Failed to parse default policies YAML. This should never happen as the YAML is embedded.",
+    )
 });
 
 impl<I> ForgePolicyService<I>

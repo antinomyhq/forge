@@ -1,8 +1,8 @@
 #![allow(clippy::enum_variant_names)]
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use convert_case::{Case, Casing};
 use derive_more::From;

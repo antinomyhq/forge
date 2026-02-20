@@ -106,7 +106,8 @@ fn create_handlebar() -> Handlebars<'static> {
     hb
 }
 
-/// Global template engine instance with all custom helpers and templates registered.
+/// Global template engine instance with all custom helpers and templates
+/// registered.
 ///
 /// This static instance is lazily initialized on first access and provides:
 /// - The 'inc' helper for incrementing values (useful for 1-based indexing)
