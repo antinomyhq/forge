@@ -1076,8 +1076,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
-        let all_provider_models = self.api.get_all_provider_models().await?;
-        self.spinner.stop(None)?;
+
+        let all_provider_models = match self.api.get_all_provider_models().await {
+            Ok(provider_models) => provider_models,
+            Err(err) => {
+                self.spinner.stop(None)?;
+                return Err(err);
+            }
+        };
 
         if all_provider_models.is_empty() {
             return Ok(());
@@ -1090,14 +1096,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 models.into_iter().map(move |m| (provider_id.clone(), m))
             })
             .collect();
-        models.sort_by(|(pa, a), (pb, b)| {
-            pa.to_string()
-                .cmp(&pb.to_string())
-                .then(a.id.to_string().cmp(&b.id.to_string()))
-        });
+        models.sort_by(|(pa, a), (pb, b)| pa.as_ref().cmp(&pb.as_ref()).then(a.id.as_str().cmp(&b.id.as_str())));
 
         let mut info = Info::new();
-
         for (provider_id, model) in models.iter() {
             let id = model.id.to_string();
             let p_id: &str = provider_id;
