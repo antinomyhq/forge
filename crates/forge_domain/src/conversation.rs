@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Context, Error, Metrics, Result, TokenCount};
+use crate::{Context, Error, Metrics, Result, Todo, TokenCount};
 
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -45,6 +45,8 @@ pub struct Conversation {
     pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
+    #[serde(default)]
+    pub todos: Vec<Todo>,
     pub metadata: MetaData,
 }
 
@@ -68,6 +70,7 @@ impl Conversation {
         Self {
             id,
             metrics,
+            todos: Vec::new(),
             metadata: MetaData::new(created_at),
             title: None,
             context: None,
