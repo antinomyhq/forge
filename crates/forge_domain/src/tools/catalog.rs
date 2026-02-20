@@ -1,6 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 use std::borrow::Cow;
 use std::collections::{HashMap, HashSet};
+use std::sync::LazyLock;
 use std::path::{Path, PathBuf};
 
 use convert_case::{Case, Casing};
@@ -645,20 +646,19 @@ impl ToolDescription for ToolCatalog {
         }
     }
 }
-lazy_static::lazy_static! {
-    // Cache of all tool names
-    static ref FORGE_TOOLS: HashSet<ToolName> = ToolCatalog::iter()
-        .map(ToolName::new)
-        .collect();
+// Cache of all tool names
+static FORGE_TOOLS: LazyLock<HashSet<ToolName>> =
+    LazyLock::new(|| ToolCatalog::iter().map(ToolName::new).collect());
 
-    // Case-insensitive lookup map: lowercase tool name -> canonical tool name
-    static ref FORGE_TOOLS_LOWER: HashMap<String, ToolName> = ToolCatalog::iter()
+// Case-insensitive lookup map: lowercase tool name -> canonical tool name
+static FORGE_TOOLS_LOWER: LazyLock<HashMap<String, ToolName>> = LazyLock::new(|| {
+    ToolCatalog::iter()
         .map(|tool| {
             let name = ToolName::new(tool.to_string());
             (name.as_str().to_lowercase(), name)
         })
-        .collect();
-}
+        .collect()
+});
 
 /// Normalizes a tool name received in a response before catalog matching.
 /// Trims surrounding whitespace and performs a case-insensitive lookup
