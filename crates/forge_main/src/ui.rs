@@ -35,7 +35,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
+use crate::model::{CliModelWithProvider, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -1075,57 +1075,76 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let models = self.get_models().await?;
+        self.spinner.start(Some("Loading"))?;
 
-        if models.is_empty() {
+        let mut all_provider_models = match self.api.get_all_provider_models().await {
+            Ok(provider_models) => provider_models,
+            Err(err) => {
+                self.spinner.stop(None)?;
+                return Err(err);
+            }
+        };
+
+        if all_provider_models.is_empty() {
             return Ok(());
         }
 
+        // Sort models and then providers
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
+
         let mut info = Info::new();
+        for pm in &all_provider_models {
+            let provider_id: &str = &pm.provider_id;
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
 
-        for model in models.iter() {
-            let id = model.id.to_string();
+                info = info
+                    .add_title(model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Id", id)
+                    .add_key_value("Provider", &provider_display)
+                    .add_key_value("Provider Id", provider_id);
 
-            info = info
-                .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id);
-
-            // Add context length if available, otherwise use "unknown"
-            if let Some(limit) = model.context_length {
-                let context = if limit >= 1_000_000 {
-                    format!("{}M", limit / 1_000_000)
-                } else if limit >= 1000 {
-                    format!("{}k", limit / 1000)
+                // Add context length if available, otherwise use "unknown"
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
                 } else {
-                    format!("{limit}")
-                };
-                info = info.add_key_value("Context Window", context);
-            } else {
-                info = info.add_key_value("Context Window", markers::EMPTY)
-            }
+                    info = info.add_key_value("Context Window", markers::EMPTY)
+                }
 
-            // Add tools support indicator if explicitly supported
-            if let Some(supported) = model.tools_supported {
+                // Add tools support indicator if explicitly supported
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    )
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY)
+                }
+
+                // Add image modality support indicator
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
                 info = info.add_key_value(
-                    "Tool Supported",
-                    if supported { status::YES } else { status::NO },
-                )
-            } else {
-                info = info.add_key_value("Tools", markers::EMPTY)
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
             }
-
-            // Add image modality support indicator
-            let supports_image = model
-                .input_modalities
-                .contains(&forge_domain::InputModality::Image);
-            info = info.add_key_value(
-                "Image",
-                if supports_image {
-                    status::YES
-                } else {
-                    status::NO
-                },
-            );
         }
 
         if porcelain {
@@ -1947,50 +1966,65 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Select a model from the available models
-    /// Returns Some(ModelId) if a model was selected, or None if selection was
-    /// canceled
+    /// Select a model from all configured providers.
+    ///
+    /// Presents a unified list of models across every configured provider.
+    /// When the user selects a model from a different provider than the current
+    /// one, the provider is switched automatically. Returns `Some(ModelId)` if
+    /// a model was selected, or `None` if the selection was cancelled.
     #[async_recursion::async_recursion]
-    async fn select_model(&mut self) -> Result<Option<ModelId>> {
-        // Check if provider is set otherwise first ask to select a provider
-        if self.api.get_default_provider().await.is_err() {
+    async fn select_model(&mut self) -> Result<Option<(ModelId, ProviderId)>> {
+        // Fetch models from all configured providers
+        let all_provider_models = self.api.get_all_provider_models().await?;
+
+        // If no providers are configured, fall back to provider selection flow
+        if all_provider_models.is_empty() {
             self.on_provider_selection().await?;
 
             // Check if a model was already selected during provider activation
-            // Return None to signal the model selection is complete and message was already
-            // printed
-            if self.api.get_default_model().await.is_some() {
-                return Ok(None);
+            if let Some(model) = self.api.get_default_model().await {
+                let provider = self
+                    .api
+                    .get_default_provider()
+                    .await
+                    .map(|p| p.id)
+                    .unwrap_or(ProviderId::OPENAI);
+                return Ok(Some((model, provider)));
             }
+            return Ok(None);
         }
 
-        // Fetch available models
-        let mut models = self
-            .get_models()
-            .await?
+        // Build a flat list of (provider_id, model) entries sorted by model name
+        let mut models: Vec<CliModelWithProvider> = all_provider_models
             .into_iter()
-            .map(CliModel)
-            .collect::<Vec<_>>();
+            .flat_map(|pm| {
+                pm.models
+                    .into_iter()
+                    .map(move |m| CliModelWithProvider::new(m, pm.provider_id.clone()))
+            })
+            .collect();
 
-        // Sort the models by their names in ascending order
-        models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+        models.sort_by_key(|a| a.model.id.to_string());
 
-        // Find the index of the current model
+        // Find the index of the current model to pre-position the cursor
         let current_model = self
             .get_agent_model(self.api.get_active_agent().await)
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| models.iter().position(|m| &m.0.id == current))
+            .and_then(|current| models.iter().position(|m| m.model_id() == current))
             .unwrap_or(0);
 
         // Use the centralized select module
         match ForgeSelect::select("Select a model:", models)
             .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .with_help_message(
+                "Type a name or use arrow keys to navigate and Enter to select. Provider is \
+                 switched automatically.",
+            )
             .prompt()?
         {
-            Some(model) => Ok(Some(model.0.id)),
+            Some(entry) => Ok(Some((entry.model.id, entry.provider_id))),
             None => Ok(None),
         }
     }
@@ -2384,17 +2418,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(Some(provider.0))
     }
 
-    // Helper method to handle model selection and update the conversation
+    /// Handles model selection and optionally switches the provider.
+    ///
+    /// Presents a unified picker of models from all configured providers. When
+    /// the selected model belongs to a different provider than the current one,
+    /// the provider is switched automatically before setting the model.
     #[async_recursion::async_recursion]
     async fn on_model_selection(&mut self) -> Result<Option<ModelId>> {
-        // Select a model
-        let model_option = self.select_model().await?;
+        // Select a model (returns model id + the provider it belongs to)
+        let selection = self.select_model().await?;
 
         // If no model was selected (user canceled), return early
-        let model = match model_option {
-            Some(model) => model,
+        let (model, selected_provider_id) = match selection {
+            Some(pair) => pair,
             None => return Ok(None),
         };
+
+        // Determine the current provider (if any)
+        let current_provider_id = self.api.get_default_provider().await.ok().map(|p| p.id);
+
+        // Switch provider first if the selected model belongs to a different one
+        if current_provider_id.as_ref() != Some(&selected_provider_id) {
+            self.api
+                .set_default_provider(selected_provider_id.clone())
+                .await?;
+            self.writeln_title(
+                TitleFormat::action(format!("{}", selected_provider_id))
+                    .sub_title("is now the default provider"),
+            )?;
+        }
 
         // Update the operating model via API
         self.api.set_default_model(model.clone()).await?;
