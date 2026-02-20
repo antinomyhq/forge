@@ -299,10 +299,7 @@ impl<S: Services> ForgeApp<S> {
                         .await
                         .ok()?;
                     let models = services.models(refreshed).await.ok()?;
-                    Some(ProviderModels {
-                        provider_id,
-                        models,
-                    })
+                    Some(ProviderModels { provider_id, models })
                 }
             })
             .collect();
