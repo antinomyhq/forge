@@ -102,6 +102,7 @@ impl ForgeEnvironmentInfra {
             override_model,
             override_provider,
             max_extensions: parse_env::<usize>("FORGE_MAX_EXTENSIONS").unwrap_or(15),
+            auto_dump: parse_env::<bool>("FORGE_AUTO_DUMP").unwrap_or(false),
         }
     }
 
@@ -629,6 +630,70 @@ mod tests {
             assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
+            }
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_auto_dump_env_var() {
+        let cwd = tempdir().unwrap().path().to_path_buf();
+        let infra = ForgeEnvironmentInfra::new(false, cwd);
+
+        // Test default value when env var is not set
+        {
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
+            }
+            let env = infra.get_environment();
+            assert!(!env.auto_dump);
+        }
+
+        // Test enabled with "true"
+        {
+            unsafe {
+                env::set_var("FORGE_AUTO_DUMP", "true");
+            }
+            let env = infra.get_environment();
+            assert!(env.auto_dump);
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
+            }
+        }
+
+        // Test enabled with "1"
+        {
+            unsafe {
+                env::set_var("FORGE_AUTO_DUMP", "1");
+            }
+            let env = infra.get_environment();
+            assert!(env.auto_dump);
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
+            }
+        }
+
+        // Test disabled with "false"
+        {
+            unsafe {
+                env::set_var("FORGE_AUTO_DUMP", "false");
+            }
+            let env = infra.get_environment();
+            assert!(!env.auto_dump);
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
+            }
+        }
+
+        // Test fallback to default for invalid value
+        {
+            unsafe {
+                env::set_var("FORGE_AUTO_DUMP", "invalid");
+            }
+            let env = infra.get_environment();
+            assert!(!env.auto_dump);
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
             }
         }
     }

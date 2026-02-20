@@ -99,6 +99,9 @@ pub struct Environment {
     /// Maximum number of file extensions to include in the system prompt.
     /// Controlled by FORGE_MAX_EXTENSIONS environment variable.
     pub max_extensions: usize,
+    /// Whether to automatically create a JSON dump when a task is completed.
+    /// Controlled by FORGE_AUTO_DUMP environment variable.
+    pub auto_dump: bool,
 }
 
 impl Environment {
@@ -316,6 +319,7 @@ fn test_command_path() {
         override_model: None,
         override_provider: None,
         max_extensions: 15,
+        auto_dump: false,
     };
 
     let actual = fixture.command_path();
@@ -358,6 +362,7 @@ fn test_command_cwd_path() {
         override_model: None,
         override_provider: None,
         max_extensions: 15,
+        auto_dump: false,
     };
 
     let actual = fixture.command_cwd_path();
@@ -400,6 +405,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         override_model: None,
         override_provider: None,
         max_extensions: 15,
+        auto_dump: false,
     };
 
     let command_path = fixture.command_path();
