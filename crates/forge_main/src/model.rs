@@ -10,46 +10,6 @@ use strum_macros::{EnumIter, EnumProperty};
 use crate::display_constants::markers;
 use crate::info::Info;
 
-/// Wrapper for displaying models in selection menus
-///
-/// This component provides consistent formatting for model selection across
-/// the application, showing model ID with contextual information like
-/// context length and tools support.
-#[derive(Clone)]
-pub struct CliModel(pub Model);
-
-impl Display for CliModel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.id)?;
-
-        let mut info_parts = Vec::new();
-
-        // Add context length if available
-        if let Some(limit) = self.0.context_length {
-            if limit >= 1_000_000 {
-                info_parts.push(format!("{}M", limit / 1_000_000));
-            } else if limit >= 1000 {
-                info_parts.push(format!("{}k", limit / 1000));
-            } else {
-                info_parts.push(format!("{limit}"));
-            }
-        }
-
-        // Add tools support indicator if explicitly supported
-        if self.0.tools_supported == Some(true) {
-            info_parts.push("🛠️".to_string());
-        }
-
-        // Only show brackets if we have info to display
-        if !info_parts.is_empty() {
-            let info = format!("[ {} ]", info_parts.join(" "));
-            write!(f, " {}", info.dimmed())?;
-        }
-
-        Ok(())
-    }
-}
-
 /// Wrapper for displaying providers in selection menus
 ///
 /// This component provides consistent formatting for provider selection across
