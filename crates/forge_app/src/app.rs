@@ -279,10 +279,10 @@ impl<S: Services> ForgeApp<S> {
 
     /// Gets available models from all configured providers concurrently.
     ///
-    /// Returns a list of `(ProviderId, Vec<Model>)` pairs for each configured
-    /// provider. All providers are queried in parallel; providers that fail to
+    /// Returns a list of `ProviderModels` for each configured provider.
+    /// All providers are queried in parallel; providers that fail to
     /// return models are silently skipped.
-    pub async fn get_all_provider_models(&self) -> Result<Vec<(ProviderId, Vec<Model>)>> {
+    pub async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>> {
         let all_providers = self.services.get_all_providers().await?;
 
         // Build one future per configured provider
@@ -299,7 +299,10 @@ impl<S: Services> ForgeApp<S> {
                         .await
                         .ok()?;
                     let models = services.models(refreshed).await.ok()?;
-                    Some((provider_id, models))
+                    Some(ProviderModels {
+                        provider_id,
+                        models,
+                    })
                 }
             })
             .collect();

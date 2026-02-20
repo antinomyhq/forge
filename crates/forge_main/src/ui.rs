@@ -1077,7 +1077,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading"))?;
 
-        let all_provider_models = match self.api.get_all_provider_models().await {
+        let mut all_provider_models = match self.api.get_all_provider_models().await {
             Ok(provider_models) => provider_models,
             Err(err) => {
                 self.spinner.stop(None)?;
@@ -1089,66 +1089,62 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
-        // Flatten into (provider_id, model) pairs sorted by provider then model id
-        let mut models: Vec<(ProviderId, Model)> = all_provider_models
-            .into_iter()
-            .flat_map(|(provider_id, models)| {
-                models.into_iter().map(move |m| (provider_id.clone(), m))
-            })
-            .collect();
-        models.sort_by(|(pa, a), (pb, b)| {
-            pa.as_ref()
-                .cmp(pb.as_ref())
-                .then(a.id.as_str().cmp(b.id.as_str()))
-        });
+        // Sort models and then providers
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
 
         let mut info = Info::new();
-        for (provider_id, model) in models.iter() {
-            let id = model.id.to_string();
-            let p_id: &str = provider_id;
+        for pm in &all_provider_models {
+            let provider_id: &str = &pm.provider_id;
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
 
-            info = info
-                .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id)
-                .add_key_value("Provider", provider_id.to_string())
-                .add_key_value("Provider Id", p_id);
+                info = info
+                    .add_title(model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Id", id)
+                    .add_key_value("Provider", &provider_display)
+                    .add_key_value("Provider Id", provider_id);
 
-            // Add context length if available, otherwise use "unknown"
-            if let Some(limit) = model.context_length {
-                let context = if limit >= 1_000_000 {
-                    format!("{}M", limit / 1_000_000)
-                } else if limit >= 1000 {
-                    format!("{}k", limit / 1000)
+                // Add context length if available, otherwise use "unknown"
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
                 } else {
-                    format!("{limit}")
-                };
-                info = info.add_key_value("Context Window", context);
-            } else {
-                info = info.add_key_value("Context Window", markers::EMPTY)
-            }
+                    info = info.add_key_value("Context Window", markers::EMPTY)
+                }
 
-            // Add tools support indicator if explicitly supported
-            if let Some(supported) = model.tools_supported {
+                // Add tools support indicator if explicitly supported
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    )
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY)
+                }
+
+                // Add image modality support indicator
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
                 info = info.add_key_value(
-                    "Tool Supported",
-                    if supported { status::YES } else { status::NO },
-                )
-            } else {
-                info = info.add_key_value("Tools", markers::EMPTY)
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
             }
-
-            // Add image modality support indicator
-            let supports_image = model
-                .input_modalities
-                .contains(&forge_domain::InputModality::Image);
-            info = info.add_key_value(
-                "Image",
-                if supports_image {
-                    status::YES
-                } else {
-                    status::NO
-                },
-            );
         }
 
         if porcelain {
@@ -2001,10 +1997,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Build a flat list of (provider_id, model) entries sorted by model name
         let mut models: Vec<CliModelWithProvider> = all_provider_models
             .into_iter()
-            .flat_map(|(provider_id, models)| {
-                models
+            .flat_map(|pm| {
+                pm.models
                     .into_iter()
-                    .map(move |m| CliModelWithProvider::new(m, provider_id.clone()))
+                    .map(move |m| CliModelWithProvider::new(m, pm.provider_id.clone()))
             })
             .collect();
 

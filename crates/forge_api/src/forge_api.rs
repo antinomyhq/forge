@@ -74,7 +74,7 @@ impl<
         self.app().get_models().await
     }
 
-    async fn get_all_provider_models(&self) -> Result<Vec<(ProviderId, Vec<Model>)>> {
+    async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>> {
         self.app().get_all_provider_models().await
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
