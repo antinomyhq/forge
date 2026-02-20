@@ -634,8 +634,12 @@ async fn refresh_oauth_credential(
         (None, expiry)
     };
 
-    // Build new tokens with refreshed OAuth access token
-    let new_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
+    // Build new tokens with refreshed OAuth access token, preserving the original
+    // id_token (JWT)
+    let mut new_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
+    if let Some(id_token) = &tokens.id_token {
+        new_tokens = new_tokens.id_token(id_token.clone());
+    }
 
     // Build appropriate credential type while preserving URL params
     let refreshed = if let Some(key) = api_key {

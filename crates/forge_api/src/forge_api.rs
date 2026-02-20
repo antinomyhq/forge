@@ -366,10 +366,6 @@ impl<
         self.services.is_authenticated().await
     }
 
-    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
-        self.services.init_auth_credentials().await
-    }
-
     async fn init_workspace(&self, path: PathBuf) -> Result<forge_domain::WorkspaceId> {
         self.services.init_workspace(path).await
     }

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
@@ -9,8 +9,8 @@ use forge_app::{
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    UserId, WorkspaceId, WorkspaceIndexRepository,
+    AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress, WorkspaceId,
+    WorkspaceIndexRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -63,7 +63,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<FileHash>>
@@ -71,8 +70,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         F: WorkspaceIndexRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
-        let workspace_files =
-            forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
+        let workspace_files = forge_domain::CodeBase::new(workspace_id.clone(), ());
 
         self.infra
             .list_workspace_files(&workspace_files, auth_token)
@@ -82,7 +80,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Deletes a batch of files from the server.
     async fn delete(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         paths: Vec<String>,
@@ -90,7 +87,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: WorkspaceIndexRepository,
     {
-        let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
+        let deletion = forge_domain::CodeBase::new(workspace_id.clone(), paths);
 
         self.infra
             .delete_files(&deletion, token)
@@ -103,7 +100,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Returns the number of files that were successfully deleted.
     async fn delete_files(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         files_to_delete: Vec<String>,
@@ -115,7 +111,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             return Ok(0);
         }
 
-        self.delete(user_id, workspace_id, token, files_to_delete.clone())
+        self.delete(workspace_id, token, files_to_delete.clone())
             .await?;
 
         for path in &files_to_delete {
@@ -128,7 +124,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Uploads a batch of files to the server.
     async fn upload(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         files: Vec<forge_domain::FileRead>,
@@ -136,7 +131,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: WorkspaceIndexRepository,
     {
-        let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
+        let upload = forge_domain::CodeBase::new(workspace_id.clone(), files);
 
         self.infra
             .upload_files(&upload, token)
@@ -151,7 +146,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// progress.
     fn upload_files(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         files: Vec<forge_domain::FileNode>,
@@ -160,7 +154,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: WorkspaceIndexRepository,
     {
-        let user_id = user_id.clone();
         let workspace_id = workspace_id.clone();
         let token = token.clone();
 
@@ -171,13 +164,11 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         futures::stream::iter(file_reads)
             .map(move |file| {
-                let user_id = user_id.clone();
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
                 let file_path = file.path.clone();
                 async move {
-                    self.upload(&user_id, &workspace_id, &token, vec![file])
-                        .await?;
+                    self.upload(&workspace_id, &token, vec![file]).await?;
                     info!(path = %file_path, "File synced successfully");
                     Ok::<_, anyhow::Error>(1)
                 }
@@ -205,7 +196,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         emit(SyncProgress::Starting).await;
 
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -226,8 +217,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
-            self.fetch_remote_hashes(&user_id, &workspace_id, &token)
-                .await?
+            self.fetch_remote_hashes(&workspace_id, &token).await?
         };
 
         emit(SyncProgress::ComparingFiles {
@@ -273,7 +263,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         // Delete all files in a single batched call
         match self
-            .delete_files(&user_id, &workspace_id, &token, files_to_delete.clone())
+            .delete_files(&workspace_id, &token, files_to_delete.clone())
             .await
         {
             Ok(deleted_count) => {
@@ -288,7 +278,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         // Upload files in parallel
         let mut upload_stream =
-            self.upload_files(&user_id, &workspace_id, &token, nodes_to_upload, batch_size);
+            self.upload_files(&workspace_id, &token, nodes_to_upload, batch_size);
 
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
@@ -326,13 +316,12 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
     }
 
-    /// Gets the forge services credential and extracts workspace auth
-    /// components
+    /// Gets the forge services credential and extracts the authentication token
     ///
     /// # Errors
     /// Returns an error if the credential is not found, if there's a database
     /// error, or if the credential format is invalid
-    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
+    async fn get_workspace_credentials(&self) -> Result<forge_domain::ApiKey>
     where
         F: ProviderRepository,
     {
@@ -343,19 +332,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .context("No authentication credentials found. Please authenticate first.")?;
 
         match &credential.auth_details {
-            AuthDetails::ApiKey(token) => {
-                // Extract user_id from URL params
-                let user_id_str = credential
-                    .url_params
-                    .get(&"user_id".to_string().into())
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("Missing user_id in ForgeServices credential")
-                    })?;
-                let user_id = UserId::from_string(user_id_str.as_str())?;
-
-                Ok((token.clone(), user_id))
-            }
-            _ => anyhow::bail!("ForgeServices credential must be an API key"),
+            // Legacy API key format (for backward compatibility)
+            AuthDetails::ApiKey(token) => Ok(token.clone()),
+            // OAuth format (new) - use the JWT id_token for forge services
+            AuthDetails::OAuth { tokens, .. } => tokens
+                .id_token
+                .as_ref()
+                .map(|t| (**t).clone().into())
+                .context("OAuth credential is missing the JWT id_token. Please re-authenticate."),
+            _ => anyhow::bail!("ForgeServices credential must be either an API key or OAuth token"),
         }
     }
 
@@ -498,7 +483,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     }
 
     async fn _init_workspace(&self, path: PathBuf) -> Result<(bool, WorkspaceId)> {
-        let (token, _user_id) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -575,15 +560,14 @@ impl<
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
 
         let workspace = self
             .find_workspace_by_path(path, &token)
             .await?
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
-        let search_query =
-            forge_domain::CodeBase::new(user_id, workspace.workspace_id.clone(), params);
+        let search_query = forge_domain::CodeBase::new(workspace.workspace_id.clone(), params);
 
         let results = self
             .infra
@@ -596,7 +580,7 @@ impl<
 
     /// Lists all workspaces.
     async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        let (token, _) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
 
         self.infra
             .as_ref()
@@ -610,7 +594,7 @@ impl<
     where
         F: WorkspaceIndexRepository + ProviderRepository,
     {
-        let (token, _user_id) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
         let workspace = self.find_workspace_by_path(path, &token).await?;
 
         Ok(workspace)
@@ -618,7 +602,7 @@ impl<
 
     /// Deletes a workspace from the server.
     async fn delete_workspace(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
-        let (token, _) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
 
         self.infra
             .as_ref()
@@ -659,7 +643,7 @@ impl<
     }
 
     async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
-        let (token, _user_id) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
         match self
             .find_workspace_by_path(path.to_path_buf(), &token)
             .await
@@ -670,7 +654,7 @@ impl<
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
 
         let workspace = self
             .find_workspace_by_path(path, &token)
@@ -688,7 +672,7 @@ impl<
             .await?;
 
         let remote_files = self
-            .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
+            .fetch_remote_hashes(&workspace.workspace_id, &token)
             .await?;
 
         let plan = WorkspaceStatus::new(canonical_path, remote_files);
@@ -703,35 +687,6 @@ impl<
             .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .is_some())
-    }
-
-    async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
-        // Authenticate with the indexing service
-        let auth = self
-            .infra
-            .authenticate()
-            .await
-            .context("Failed to authenticate with indexing service")?;
-
-        // Convert to AuthCredential and store
-        let mut url_params = HashMap::new();
-        url_params.insert(
-            "user_id".to_string().into(),
-            auth.user_id.to_string().into(),
-        );
-
-        let credential = AuthCredential {
-            id: ProviderId::FORGE_SERVICES,
-            auth_details: auth.clone().into(),
-            url_params,
-        };
-
-        self.infra
-            .upsert_credential(credential)
-            .await
-            .context("Failed to store authentication credentials")?;
-
-        Ok(auth)
     }
 
     async fn init_workspace(&self, path: PathBuf) -> Result<WorkspaceId> {
