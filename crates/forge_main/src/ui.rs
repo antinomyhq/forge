@@ -1985,7 +1985,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect();
 
-        models.sort_by(|a, b| a.model.id.to_string().cmp(&b.model.id.to_string()));
+        models.sort_by_key(|a| a.model.id.to_string());
 
         // Find the index of the current model to pre-position the cursor
         let current_model = self
@@ -2416,12 +2416,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Determine the current provider (if any)
-        let current_provider_id = self
-            .api
-            .get_default_provider()
-            .await
-            .ok()
-            .map(|p| p.id);
+        let current_provider_id = self.api.get_default_provider().await.ok().map(|p| p.id);
 
         // Switch provider first if the selected model belongs to a different one
         if current_provider_id.as_ref() != Some(&selected_provider_id) {
