@@ -277,30 +277,39 @@ impl<S: Services> ForgeApp<S> {
         self.services.models(provider).await
     }
 
-    /// Gets available models from all configured providers.
+    /// Gets available models from all configured providers concurrently.
     ///
     /// Returns a list of `(ProviderId, Vec<Model>)` pairs for each configured
-    /// provider. Providers that fail to return models are silently skipped.
+    /// provider. All providers are queried in parallel; providers that fail to
+    /// return models are silently skipped.
     pub async fn get_all_provider_models(&self) -> Result<Vec<(ProviderId, Vec<Model>)>> {
         let all_providers = self.services.get_all_providers().await?;
-        let auth_service = self.services.provider_auth_service();
 
-        let mut results = Vec::new();
-        for any_provider in all_providers {
-            // Only include configured (authenticated) providers
-            if let Some(provider) = any_provider.into_configured() {
+        // Build one future per configured provider
+        let futures: Vec<_> = all_providers
+            .into_iter()
+            .filter_map(|any_provider| any_provider.into_configured())
+            .map(|provider| {
                 let provider_id = provider.id.clone();
-                let Ok(refreshed) = auth_service
-                    .refresh_provider_credential(provider)
-                    .await
-                else {
-                    continue;
-                };
-                if let Ok(models) = self.services.models(refreshed).await {
-                    results.push((provider_id, models));
+                let services = self.services.clone();
+                async move {
+                    let refreshed = services
+                        .provider_auth_service()
+                        .refresh_provider_credential(provider)
+                        .await
+                        .ok()?;
+                    let models = services.models(refreshed).await.ok()?;
+                    Some((provider_id, models))
                 }
-            }
-        }
+            })
+            .collect();
+
+        // Execute all provider fetches concurrently and collect successful results
+        let results = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
 
         Ok(results)
     }
