@@ -242,6 +242,7 @@ mod tests {
         assert!(supports_open_router_params(&forge("forge")));
         assert!(supports_open_router_params(&open_router("open-router")));
 
+        assert!(!supports_open_router_params(&requesty("requesty")));
         assert!(!supports_open_router_params(&openai("openai")));
         assert!(!supports_open_router_params(&xai("xai")));
         assert!(!supports_open_router_params(&anthropic("claude")));
