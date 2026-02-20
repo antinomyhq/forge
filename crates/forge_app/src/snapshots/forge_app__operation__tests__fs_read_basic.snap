@@ -2,10 +2,13 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<file
-  path="/home/user/test.txt"
-  display_lines="1-2"
-  total_lines="2"
-><![CDATA[1:Hello, world!
-2:This is a test file.]]>
-</file>
+# File
+
+- **Path**: /home/user/test.txt
+- **Display Lines**: 1-2
+- **Total Lines**: 2
+
+```
+1:Hello, world!
+2:This is a test file.
+```

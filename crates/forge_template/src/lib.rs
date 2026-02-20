@@ -1,3 +1,3 @@
 mod element;
 
-pub use element::Element;
+pub use element::{Element, TextKind};

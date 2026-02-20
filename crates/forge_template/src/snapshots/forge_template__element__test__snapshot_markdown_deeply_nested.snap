@@ -1,0 +1,25 @@
+---
+source: crates/forge_template/src/element.rs
+expression: elem.render_as_markdown()
+---
+# Tool Result
+
+- **Name**: Fs_read
+
+## File
+
+- **Path**: Readme.md
+
+### Head
+
+```
+# Forge
+
+A coding assistant.
+```
+
+### Tail
+
+```
+MIT License
+```
