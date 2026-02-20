@@ -1096,7 +1096,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 models.into_iter().map(move |m| (provider_id.clone(), m))
             })
             .collect();
-        models.sort_by(|(pa, a), (pb, b)| pa.as_ref().cmp(&pb.as_ref()).then(a.id.as_str().cmp(&b.id.as_str())));
+        models.sort_by(|(pa, a), (pb, b)| {
+            pa.as_ref()
+                .cmp(pb.as_ref())
+                .then(a.id.as_str().cmp(b.id.as_str()))
+        });
 
         let mut info = Info::new();
         for (provider_id, model) in models.iter() {
