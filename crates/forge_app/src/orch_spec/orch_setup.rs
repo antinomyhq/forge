@@ -75,6 +75,7 @@ impl Default for TestContext {
                 stdout_max_prefix_length: 256,
                 stdout_max_suffix_length: 256,
                 max_read_size: 4096,
+                max_file_read_batch_size: 50,
                 http: HttpConfig::default(),
                 max_file_size: 1024 * 1024 * 5,
                 max_search_result_bytes: 200,

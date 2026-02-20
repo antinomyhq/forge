@@ -118,6 +118,12 @@ impl ForgeEnvironmentInfra {
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
             max_line_length: parse_env::<usize>("FORGE_MAX_LINE_LENGTH").unwrap_or(2000),
+            max_file_read_batch_size: parse_env::<usize>("FORGE_MAX_FILE_READ_BATCH_SIZE")
+                .unwrap_or_else(|| {
+                    std::thread::available_parallelism()
+                        .map(|n| n.get() * 2)
+                        .unwrap_or(16)
+                }),
             http: resolve_http_config(),
             max_file_size: 1 << 20, // 1 MiB
             max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(1 << 20), /* 1 MiB */

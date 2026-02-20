@@ -6,12 +6,10 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
-use tokio::task::JoinHandle;
 use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
-use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -23,7 +21,6 @@ pub struct Orchestrator<S> {
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
-    event: Event,
     error_tracker: ToolErrorTracker,
     hook: Arc<Hook>,
 }
@@ -34,14 +31,12 @@ impl<S: AgentService> Orchestrator<S> {
         environment: Environment,
         conversation: Conversation,
         agent: Agent,
-        event: Event,
     ) -> Self {
         Self {
             conversation,
             environment,
             services,
             agent,
-            event,
             sender: Default::default(),
             tool_definitions: Default::default(),
             models: Default::default(),
@@ -201,10 +196,6 @@ impl<S: AgentService> Orchestrator<S> {
         let tool_context = ToolCallContext::new(self.conversation.metrics.clone())
             .sender(self.sender.clone())
             .conversation_id(self.conversation.id);
-
-        // Asynchronously generate a title for the provided task
-        // TODO: Move into app.rs
-        let title = self.generate_title(model_id.clone());
 
         while !should_yield {
             // Set context for the current loop iteration
@@ -373,14 +364,7 @@ impl<S: AgentService> Orchestrator<S> {
             })?;
         }
 
-        // Set conversation title
-        if let Some(title) = title.await.ok().flatten() {
-            self.conversation.title = Some(title)
-        }
-
-        self.services.update(self.conversation.clone()).await?;
-
-        // Fire the End lifecycle event
+        // Fire the End lifecycle event (title will be set here by the hook)
         self.hook
             .handle(
                 &LifecycleEvent::End(EventData::new(
@@ -392,6 +376,8 @@ impl<S: AgentService> Orchestrator<S> {
             )
             .await?;
 
+        self.services.update(self.conversation.clone()).await?;
+
         // Signal Task Completion
         if is_complete {
             self.send(ChatResponse::TaskComplete).await?;
@@ -402,26 +388,5 @@ impl<S: AgentService> Orchestrator<S> {
 
     fn get_model(&self) -> ModelId {
         self.agent.model.clone()
-    }
-
-    /// Creates a join handle which eventually resolves with the conversation
-    /// title
-    fn generate_title(&self, model: ModelId) -> JoinHandle<Option<String>> {
-        let prompt = &self.event.value;
-        if self.conversation.title.is_none()
-            && let Some(prompt) = prompt.as_ref().and_then(|p| p.as_user_prompt())
-        {
-            let generator = TitleGenerator::new(
-                self.services.clone(),
-                prompt.to_owned(),
-                model,
-                Some(self.agent.provider.clone()),
-            )
-            .reasoning(self.agent.reasoning.clone());
-
-            tokio::spawn(async move { generator.generate().await.ok().flatten() })
-        } else {
-            tokio::spawn(async { None })
-        }
     }
 }
