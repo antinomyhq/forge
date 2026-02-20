@@ -96,6 +96,9 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Maximum number of file extensions to include in the system prompt.
+    /// Controlled by FORGE_MAX_EXTENSIONS environment variable.
+    pub max_extensions: usize,
 }
 
 impl Environment {
@@ -312,6 +315,7 @@ fn test_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_extensions: 15,
     };
 
     let actual = fixture.command_path();
@@ -353,6 +357,7 @@ fn test_command_cwd_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_extensions: 15,
     };
 
     let actual = fixture.command_cwd_path();
@@ -394,6 +399,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_extensions: 15,
     };
 
     let command_path = fixture.command_path();

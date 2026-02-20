@@ -101,6 +101,7 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
+            max_extensions: parse_env::<usize>("FORGE_MAX_EXTENSIONS").unwrap_or(15),
         }
     }
 

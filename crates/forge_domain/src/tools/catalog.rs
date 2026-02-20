@@ -1,7 +1,8 @@
 #![allow(clippy::enum_variant_names)]
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use convert_case::{Case, Casing};
 use derive_more::From;
@@ -749,21 +750,31 @@ impl ToolDescription for ToolCatalog {
         }
     }
 }
-lazy_static::lazy_static! {
-    // Cache of all tool names
-    static ref FORGE_TOOLS: HashSet<ToolName> = ToolCatalog::iter()
-        .map(ToolName::new)
-        .collect();
-}
+// Cache of all tool names
+static FORGE_TOOLS: LazyLock<HashSet<ToolName>> =
+    LazyLock::new(|| ToolCatalog::iter().map(ToolName::new).collect());
 
-/// Normalizes tool names for backward compatibility
-/// Maps capitalized aliases to their lowercase canonical forms
+// Case-insensitive lookup map: lowercase tool name -> canonical tool name
+static FORGE_TOOLS_LOWER: LazyLock<HashMap<String, ToolName>> = LazyLock::new(|| {
+    ToolCatalog::iter()
+        .map(|tool| {
+            let name = ToolName::new(tool.to_string());
+            (name.as_str().to_lowercase(), name)
+        })
+        .collect()
+});
+
+/// Normalizes a tool name received in a response before catalog matching.
+/// Trims surrounding whitespace and performs a case-insensitive lookup
+/// against all known catalog tool names, returning the canonical form when
+/// a match is found.
 fn normalize_tool_name(name: &ToolName) -> ToolName {
-    match name.as_str() {
-        "Read" => ToolName::new("read"),
-        "Write" => ToolName::new("write"),
-        _ => name.clone(),
-    }
+    let trimmed = name.as_str().trim();
+    let lower = trimmed.to_lowercase();
+    FORGE_TOOLS_LOWER
+        .get(&lower)
+        .cloned()
+        .unwrap_or_else(|| ToolName::new(trimmed))
 }
 
 impl ToolCatalog {
@@ -1049,15 +1060,17 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     type Error = crate::Error;
 
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
+        // Normalize the tool name: trim whitespace and perform case-insensitive
+        // catalog match so the serde deserialization receives the canonical name.
+        let normalized_name = normalize_tool_name(&value.name);
+
         let mut map = Map::new();
-        map.insert("name".into(), value.name.as_str().into());
+        map.insert("name".into(), normalized_name.as_str().into());
 
         // Parse the arguments
         let parsed_args = value.arguments.parse()?;
 
         // Try to find the tool definition and coerce types based on schema
-        // Normalize the tool name for comparison
-        let normalized_name = normalize_tool_name(&value.name);
         let coerced_args = ToolCatalog::iter()
             .find(|tool| tool.definition().name == normalized_name)
             .map(|tool| {
@@ -1723,5 +1736,93 @@ mod tests {
         });
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_tool_name_trims_whitespace() {
+        let actual = super::normalize_tool_name(&ToolName::new("  read  "));
+        let expected = ToolName::new("read");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_tool_name_case_insensitive_uppercase() {
+        let actual = super::normalize_tool_name(&ToolName::new("READ"));
+        let expected = ToolName::new("read");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_tool_name_case_insensitive_mixed() {
+        let actual = super::normalize_tool_name(&ToolName::new("FS_SEARCH"));
+        let expected = ToolName::new("fs_search");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_tool_name_trim_and_case_insensitive() {
+        let actual = super::normalize_tool_name(&ToolName::new("  SHELL  "));
+        let expected = ToolName::new("shell");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_tool_name_unknown_returns_trimmed() {
+        let actual = super::normalize_tool_name(&ToolName::new("  unknown_tool  "));
+        let expected = ToolName::new("unknown_tool");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_case_insensitive() {
+        assert!(ToolCatalog::contains(&ToolName::new("READ")));
+        assert!(ToolCatalog::contains(&ToolName::new("Shell")));
+        assert!(ToolCatalog::contains(&ToolName::new("PATCH")));
+        assert!(!ToolCatalog::contains(&ToolName::new("nonexistent")));
+    }
+
+    #[test]
+    fn test_contains_with_whitespace() {
+        assert!(ToolCatalog::contains(&ToolName::new("  read  ")));
+        assert!(ToolCatalog::contains(&ToolName::new(" shell ")));
+    }
+
+    #[test]
+    fn test_try_from_tool_call_uppercase_name() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("SHELL"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"command": "ls"}"#),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(actual.is_ok(), "Should parse uppercase 'SHELL' tool name");
+        assert!(matches!(actual.unwrap(), ToolCatalog::Shell(_)));
+    }
+
+    #[test]
+    fn test_try_from_tool_call_with_whitespace_name() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("  patch  "),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "new_string": "new", "old_string": "old"}"#,
+            ),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should parse whitespace-padded 'patch' tool name"
+        );
+        assert!(matches!(actual.unwrap(), ToolCatalog::Patch(_)));
     }
 }

@@ -16,7 +16,9 @@ use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
-use crate::{AgentService, AttachmentService, SkillFetchService, TemplateService};
+use crate::{
+    AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
+};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -32,6 +34,9 @@ pub struct Runner {
 
     // Mock completions from the LLM (Each value is produced as an event in the stream)
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
+
+    // Mock shell command outputs
+    test_shell_outputs: Mutex<VecDeque<ShellOutput>>,
 
     attachments: Vec<Attachment>,
 }
@@ -54,6 +59,7 @@ impl Runner {
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
+            test_shell_outputs: Mutex::new(VecDeque::from(setup.mock_shell_outputs.clone())),
         }
     }
 
@@ -223,5 +229,34 @@ impl SkillFetchService for Runner {
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         Ok(vec![])
+    }
+}
+
+#[async_trait::async_trait]
+impl ShellService for Runner {
+    async fn execute(
+        &self,
+        _command: String,
+        _cwd: std::path::PathBuf,
+        _keep_ansi: bool,
+        _silent: bool,
+        _env_vars: Option<Vec<String>>,
+        _description: Option<String>,
+    ) -> anyhow::Result<ShellOutput> {
+        let mut outputs = self.test_shell_outputs.lock().await;
+        if let Some(output) = outputs.pop_front() {
+            Ok(output)
+        } else {
+            Ok(ShellOutput {
+                output: forge_domain::CommandOutput {
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    command: String::new(),
+                    exit_code: Some(1),
+                },
+                shell: "/bin/bash".to_string(),
+                description: None,
+            })
+        }
     }
 }
