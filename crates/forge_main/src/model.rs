@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
+use forge_api::{Agent, AnyProvider, Model, ModelId, ProviderId, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -84,6 +84,61 @@ impl Display for CliProvider {
                 write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
             }
         }
+        Ok(())
+    }
+}
+
+/// A model paired with its provider, used for unified model+provider selection.
+///
+/// This wrapper enables the `/model` command to display models from all
+/// configured providers in a single list, with the provider name shown
+/// alongside each model entry.
+#[derive(Clone)]
+pub struct CliModelWithProvider {
+    pub model: Model,
+    pub provider_id: ProviderId,
+}
+
+impl CliModelWithProvider {
+    /// Creates a new `CliModelWithProvider` from a model and its provider ID.
+    pub fn new(model: Model, provider_id: ProviderId) -> Self {
+        Self { model, provider_id }
+    }
+
+    /// Returns the model ID.
+    pub fn model_id(&self) -> &ModelId {
+        &self.model.id
+    }
+}
+
+impl Display for CliModelWithProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.model.id)?;
+
+        let mut info_parts = Vec::new();
+
+        // Add context length if available
+        if let Some(limit) = self.model.context_length {
+            if limit >= 1_000_000 {
+                info_parts.push(format!("{}M", limit / 1_000_000));
+            } else if limit >= 1000 {
+                info_parts.push(format!("{}k", limit / 1000));
+            } else {
+                info_parts.push(format!("{limit}"));
+            }
+        }
+
+        // Add tools support indicator if explicitly supported
+        if self.model.tools_supported == Some(true) {
+            info_parts.push("🛠️".to_string());
+        }
+
+        // Show provider name
+        info_parts.push(format!("via {}", self.provider_id));
+
+        let info = format!("[ {} ]", info_parts.join(" "));
+        write!(f, " {}", info.dimmed())?;
+
         Ok(())
     }
 }

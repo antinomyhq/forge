@@ -276,6 +276,34 @@ impl<S: Services> ForgeApp<S> {
 
         self.services.models(provider).await
     }
+
+    /// Gets available models from all configured providers.
+    ///
+    /// Returns a list of `(ProviderId, Vec<Model>)` pairs for each configured
+    /// provider. Providers that fail to return models are silently skipped.
+    pub async fn get_all_provider_models(&self) -> Result<Vec<(ProviderId, Vec<Model>)>> {
+        let all_providers = self.services.get_all_providers().await?;
+        let auth_service = self.services.provider_auth_service();
+
+        let mut results = Vec::new();
+        for any_provider in all_providers {
+            // Only include configured (authenticated) providers
+            if let Some(provider) = any_provider.into_configured() {
+                let provider_id = provider.id.clone();
+                let Ok(refreshed) = auth_service
+                    .refresh_provider_credential(provider)
+                    .await
+                else {
+                    continue;
+                };
+                if let Ok(models) = self.services.models(refreshed).await {
+                    results.push((provider_id, models));
+                }
+            }
+        }
+
+        Ok(results)
+    }
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }
