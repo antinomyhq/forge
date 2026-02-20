@@ -9,10 +9,11 @@ You are Forge
 <current_working_directory>/Users/tushar</current_working_directory>
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
-<workspace_extensions command="git ls-files" files="7" extensions="3">
- - .rs: 4 files (58%)
- - .md: 2 files (29%)
- - .toml: 1 files (15%)
+<workspace_extensions command="git ls-files" files="9" extensions="4">
+ - .rs: 4 files (45%)
+ - .(no ext): 2 files (23%)
+ - .md: 2 files (23%)
+ - .toml: 1 files (12%)
 </workspace_extensions>
 </system_information>
 

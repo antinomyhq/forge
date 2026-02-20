@@ -45,7 +45,7 @@ async fn test_system_prompt_tool_supported() {
 async fn test_system_prompt_with_extensions() {
     let shell_output = ShellOutput {
         output: CommandOutput {
-            stdout: "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\n".to_string(),
+            stdout: include_str!("../fixtures/git_ls_files_mixed.txt").to_string(),
             stderr: String::new(),
             command: "git ls-files".to_string(),
             exit_code: Some(0),
