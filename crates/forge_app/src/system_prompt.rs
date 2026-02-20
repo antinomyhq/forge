@@ -184,7 +184,7 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
     let mut stats: Vec<_> = counts
         .into_iter()
         .map(|(extension, count)| {
-            let percentage = ((count * 100) as f32 / total_files as f32).ceil() as usize;
+            let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
             ExtensionStat {
                 extension: extension.to_owned(),
                 count,
