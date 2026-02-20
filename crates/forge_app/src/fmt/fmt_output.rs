@@ -80,8 +80,6 @@ fn format_todo_line(todo: &forge_domain::Todo) -> String {
 
 /// Formats a todo diff showing only what changed between before and after
 fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]) -> String {
-    
-
     let before_map: std::collections::HashMap<&str, &forge_domain::Todo> =
         before.iter().map(|t| (t.id.as_str(), t)).collect();
     let after_ids: std::collections::HashSet<&str> = after.iter().map(|t| t.id.as_str()).collect();
