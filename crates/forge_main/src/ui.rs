@@ -2275,28 +2275,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    /// Creates Forge Services credentials if not already authenticated and
-    /// displays the credentials file location to the user.
-    async fn init_forge_services(&mut self) -> Result<()> {
-        self.api.create_auth_credentials().await?;
-        let env = self.api.environment();
-        let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
-        self.writeln_title(
-            TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
-        )?;
-        Ok(())
-    }
-
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
-        if provider_id == ProviderId::FORGE_SERVICES {
-            self.init_forge_services().await?;
-            return Ok(None);
-        }
         // Select auth method (or use the only one available)
         let auth_method = match self
             .select_auth_method(provider_id.clone(), &auth_methods)
@@ -3262,9 +3246,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
-        // Check if auth already exists and create if needed
+        // Ensure user is authenticated, trigger login if not
         if !self.api.is_authenticated().await? {
-            self.init_forge_services().await?;
+            self.writeln_title(TitleFormat::info(
+                "Authentication required for workspace sync",
+            ))?;
+            self.handle_provider_login(Some(&ProviderId::FORGE_SERVICES))
+                .await?;
+
+            // Verify authentication succeeded
+            if !self.api.is_authenticated().await? {
+                anyhow::bail!("Authentication failed or cancelled. Please try again.");
+            }
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;

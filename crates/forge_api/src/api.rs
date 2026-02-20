@@ -217,12 +217,6 @@ pub trait API: Sync + Send {
     /// Check if authentication credentials exist
     async fn is_authenticated(&self) -> Result<bool>;
 
-    /// Create new authentication credentials
-    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
-
-    /// Initialize a new empty workspace
-    async fn init_workspace(&self, path: PathBuf) -> Result<forge_domain::WorkspaceId>;
-
     /// Migrate environment variable-based credentials to file-based
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.

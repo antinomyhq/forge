@@ -502,11 +502,26 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: GrpcInfra + Send + Sync> forge_domain::WorkspaceIndexRepository for ForgeRepo<F> {
-    async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
-        self.codebase_repo.authenticate().await
+impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+    async fn upsert(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        self.indexing_repository.upsert(workspace_id, path).await
     }
 
+    async fn list(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
+        self.indexing_repository.list().await
+    }
+
+    async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        self.indexing_repository.delete(workspace_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: GrpcInfra + Send + Sync> forge_domain::WorkspaceIndexRepository for ForgeRepo<F> {
     async fn create_workspace(
         &self,
         working_dir: &std::path::Path,
