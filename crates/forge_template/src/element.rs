@@ -23,13 +23,12 @@ pub enum Element {
     },
     /// An empty element (fragment) without a name.
     /// Can only contain children - no attributes or text content.
-    Empty {
-        children: Vec<Element>,
-    },
+    Empty { children: Vec<Element> },
 }
 
 impl Element {
-    /// Creates a new named element with the given name (can include classes like "div.container").
+    /// Creates a new named element with the given name (can include classes
+    /// like "div.container").
     pub fn new(name_with_classes: impl ToString) -> Self {
         let full_name = name_with_classes.to_string();
         let parts: Vec<&str> = full_name.split('.').collect();
@@ -51,8 +50,9 @@ impl Element {
     }
 
     /// Creates an empty element (fragment) without a name.
-    /// Empty elements can only contain children - no attributes or text content.
-    /// Useful for grouping multiple children without a wrapping tag.
+    /// Empty elements can only contain children - no attributes or text
+    /// content. Useful for grouping multiple children without a wrapping
+    /// tag.
     pub fn empty() -> Self {
         Element::Empty { children: vec![] }
     }
@@ -133,10 +133,11 @@ impl Element {
 
     /// Renders the element as a markdown string using a heading hierarchy.
     ///
-    /// The element name is converted to Title Case and used as a heading at the given depth
-    /// (H1 at depth 1, H2 at depth 2, etc., capped at H6). Attributes are rendered as a
-    /// bullet list with bold keys and sentence-case values. Plain text is written as-is,
-    /// and raw (`cdata`) content is wrapped in triple-backtick code blocks. Children are
+    /// The element name is converted to Title Case and used as a heading at the
+    /// given depth (H1 at depth 1, H2 at depth 2, etc., capped at H6).
+    /// Attributes are rendered as a bullet list with bold keys and
+    /// sentence-case values. Plain text is written as-is, and raw (`cdata`)
+    /// content is wrapped in triple-backtick code blocks. Children are
     /// rendered recursively at the next heading level.
     pub fn render_as_markdown(&self) -> String {
         self.render_markdown_internal(1)
@@ -144,12 +145,7 @@ impl Element {
 
     fn render_markdown_internal(&self, level: usize) -> String {
         match self {
-            Element::Named {
-                name,
-                attr,
-                children,
-                text,
-            } => {
+            Element::Named { name, attr, children, text } => {
                 let mut result = String::new();
 
                 // Heading: name in title case, capped at H6
@@ -206,12 +202,7 @@ impl Element {
 
     pub fn render(&self) -> String {
         match self {
-            Element::Named {
-                name,
-                attr,
-                children,
-                text,
-            } => {
+            Element::Named { name, attr, children, text } => {
                 let mut result = String::new();
 
                 if attr.is_empty() {
@@ -267,7 +258,8 @@ fn to_title_case(s: &str) -> String {
     s.to_case(convert_case::Case::Title)
 }
 
-/// Converts a string to sentence case: first character uppercased, the rest lowercased, preserving spaces.
+/// Converts a string to sentence case: first character uppercased, the rest
+/// lowercased, preserving spaces.
 fn to_sentence_case(s: &str) -> String {
     let mut chars = s.chars();
     match chars.next() {

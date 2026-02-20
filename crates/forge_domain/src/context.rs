@@ -136,8 +136,8 @@ impl ContextMessage {
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
-                            message_element =
-                                message_element.append(Element::new("reasoning_detail").cdata(text));
+                            message_element = message_element
+                                .append(Element::new("reasoning_detail").cdata(text));
                         }
                     }
                 }
@@ -155,9 +155,9 @@ impl ContextMessage {
                     )
                     .render_as_markdown()
             }
-            ContextMessage::Image(_) => {
-                Element::new("image").attr("path", "[base64 URL]").render_as_markdown()
-            }
+            ContextMessage::Image(_) => Element::new("image")
+                .attr("path", "[base64 URL]")
+                .render_as_markdown(),
         }
     }
 
@@ -489,8 +489,8 @@ impl Context {
                             Element::new(tag_name).cdata(entry.path)
                         }));
 
-                    let mut message = TextMessage::new(Role::User, elm.render_as_markdown())
-                        .droppable(true);
+                    let mut message =
+                        TextMessage::new(Role::User, elm.render_as_markdown()).droppable(true);
 
                     if let Some(model) = model_id.clone() {
                         message = message.model(model);
@@ -1327,10 +1327,16 @@ mod tests {
 
         let actual = Context::default().add_attachments(fixture_attachments, None);
         // The message content is now rendered as markdown
-        let content = actual.messages.first().unwrap().content().unwrap().to_string();
+        let content = actual
+            .messages
+            .first()
+            .unwrap()
+            .content()
+            .unwrap()
+            .to_string();
 
-        // Extract entry names from markdown format - they're inside code blocks under Dir/File headings
-        // Format: ```\nentry_name\n```
+        // Extract entry names from markdown format - they're inside code blocks under
+        // Dir/File headings Format: ```\nentry_name\n```
         let dir_entries: Vec<&str> = content
             .split("```")
             .skip(1) // Skip content before first code block
@@ -1349,13 +1355,13 @@ mod tests {
             "zebra.txt",
         ];
 
-        assert_eq!(dir_entries.len(), expected_order.len(), "Entry count mismatch");
+        assert_eq!(
+            dir_entries.len(),
+            expected_order.len(),
+            "Entry count mismatch"
+        );
         for (i, expected) in expected_order.iter().enumerate() {
-            assert_eq!(
-                dir_entries[i], *expected,
-                "Entry {} mismatch",
-                i
-            );
+            assert_eq!(dir_entries[i], *expected, "Entry {} mismatch", i);
         }
     }
 
