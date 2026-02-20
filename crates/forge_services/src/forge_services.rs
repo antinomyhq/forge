@@ -8,7 +8,7 @@ use forge_app::{
 use forge_domain::{
     AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
     ProviderRepository, SkillRepository, SnapshotRepository, TodoRepository, ValidationRepository,
-    WorkspaceIndexRepository, WorkspaceRepository,
+    WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -54,7 +54,6 @@ pub struct ForgeServices<
         + KVStore
         + ChatRepository
         + ProviderRepository
-        + forge_domain::WorkspaceRepository
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
@@ -110,7 +109,6 @@ impl<
         + ChatRepository
         + ProviderRepository
         + KVStore
-        + forge_domain::WorkspaceRepository
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
@@ -211,7 +209,6 @@ impl<
         + AgentRepository
         + SkillRepository
         + StrategyFactory
-        + WorkspaceRepository
         + WorkspaceIndexRepository
         + ValidationRepository
         + FuzzySearchRepository

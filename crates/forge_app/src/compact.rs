@@ -1,6 +1,7 @@
 use forge_domain::{
     Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Role,
-    TextMessage, Transformer,
+    TextMessage,
+    MessageEntry, Transformer,
 };
 use tracing::info;
 
@@ -175,11 +176,20 @@ impl Compactor {
                 _ => None,
             });
 
-        // Replace the range with the summary
-        context.messages.splice(
-            start..=end,
-            std::iter::once(ContextMessage::user(summary, None).into()),
-        );
+        // Accumulate usage from all messages in the compaction range before they are
+        // destroyed
+        let compacted_usage = context.messages[start..=end]
+            .iter()
+            .filter_map(|entry| entry.usage.as_ref())
+            .cloned()
+            .reduce(|a, b| a.accumulate(&b));
+
+        // Replace the range with the summary, transferring the accumulated usage
+        let mut summary_entry = MessageEntry::from(ContextMessage::user(summary, None));
+        summary_entry.usage = compacted_usage;
+        context
+            .messages
+            .splice(start..=end, std::iter::once(summary_entry));
 
         // Remove all droppable messages from the context
         context.messages.retain(|msg| !msg.is_droppable());
@@ -594,8 +604,26 @@ mod tests {
         let environment = test_environment();
         let compactor = Compactor::new(Compact::new(), environment);
 
-        // Create a context with messages and usage data
-        let original_usage = Usage {
+        // Usage on a message INSIDE the compaction range (index 1)
+        let inside_usage = Usage {
+            total_tokens: TokenCount::Actual(20000),
+            prompt_tokens: TokenCount::Actual(18000),
+            completion_tokens: TokenCount::Actual(2000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.5),
+        };
+
+        // Usage on a message INSIDE the compaction range (index 3)
+        let inside_usage2 = Usage {
+            total_tokens: TokenCount::Actual(30000),
+            prompt_tokens: TokenCount::Actual(27000),
+            completion_tokens: TokenCount::Actual(3000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(1.0),
+        };
+
+        // Usage on a message OUTSIDE the compaction range (index 5)
+        let outside_usage = Usage {
             total_tokens: TokenCount::Actual(50000),
             prompt_tokens: TokenCount::Actual(45000),
             completion_tokens: TokenCount::Actual(5000),
@@ -603,60 +631,136 @@ mod tests {
             cost: Some(1.5),
         };
 
-        let msg1 = ContextMessage::user("Message 1", None);
-        let msg2 = ContextMessage::assistant("Response 1", None, None, None);
-        let msg3 = ContextMessage::user("Message 2", None);
-        let msg4 = ContextMessage::assistant("Response 2", None, None, None);
-        let msg5 = ContextMessage::user("Message 3", None);
-        let msg6 = ContextMessage::assistant("Response 3", None, None, None);
+        let mut entry1 =
+            MessageEntry::from(ContextMessage::assistant("Response 1", None, None, None));
+        entry1.usage = Some(inside_usage);
 
-        // Add usage to the last message to set context-wide usage
-        let mut wrapper6 = MessageEntry::from(msg6.clone());
-        wrapper6.usage = Some(original_usage);
+        let mut entry3 =
+            MessageEntry::from(ContextMessage::assistant("Response 2", None, None, None));
+        entry3.usage = Some(inside_usage2);
+
+        let mut entry5 =
+            MessageEntry::from(ContextMessage::assistant("Response 3", None, None, None));
+        entry5.usage = Some(outside_usage);
 
         let context = Context::default()
-            .add_message(msg1.clone())
-            .add_message(msg2.clone())
-            .add_message(msg3.clone())
-            .add_message(msg4.clone())
-            .add_message(msg5.clone())
-            .messages(vec![
-                ContextMessage::user("Message 1", None).into(),
-                ContextMessage::assistant("Response 1", None, None, None).into(),
-                ContextMessage::user("Message 2", None).into(),
-                ContextMessage::assistant("Response 2", None, None, None).into(),
-                ContextMessage::user("Message 3", None).into(),
-                wrapper6,
-            ]);
-
-        // Verify usage exists before compaction
-        assert_eq!(context.accumulate_usage(), Some(original_usage));
-        assert_eq!(context.token_count(), TokenCount::Actual(50000));
+            .add_entry(ContextMessage::user("Message 1", None))
+            .add_entry(entry1) // index 1: usage INSIDE range
+            .add_entry(ContextMessage::user("Message 2", None))
+            .add_entry(entry3) // index 3: usage INSIDE range
+            .add_entry(ContextMessage::user("Message 3", None))
+            .add_entry(entry5); // index 5: usage OUTSIDE range
 
         // Compact the sequence (first 4 messages, indices 0-3)
         let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
-        // Verify we have exactly 3 messages after compaction
+        // Expected: [summary-entry, U3, A3] — 3 messages remain
         assert_eq!(
             compacted.messages.len(),
             3,
             "Expected 3 messages after compaction: summary + 2 remaining messages"
         );
 
-        // Verify usage is preserved after compaction
+        // The summary entry at index 0 should carry the accumulated usage from
+        // indices 1 and 3 (inside_usage + inside_usage2)
+        let expected_compacted_usage = Usage {
+            total_tokens: TokenCount::Actual(50000),
+            prompt_tokens: TokenCount::Actual(45000),
+            completion_tokens: TokenCount::Actual(5000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(1.5),
+        };
+
         assert_eq!(
-            compacted.accumulate_usage(),
-            Some(original_usage),
-            "Usage information should be preserved after compaction"
+            compacted.messages[0].usage,
+            Some(expected_compacted_usage),
+            "Summary message should carry accumulated usage from compacted messages"
         );
 
-        // Verify token_count returns actual value based on preserved usage
-        let token_count = compacted.token_count();
+        // accumulate_usage() must sum both the compacted range usage (on the summary
+        // message) and the surviving outside_usage — total = inside + inside2 + outside
+        let expected_total_usage = Usage {
+            total_tokens: TokenCount::Actual(100000),
+            prompt_tokens: TokenCount::Actual(90000),
+            completion_tokens: TokenCount::Actual(10000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(3.0),
+        };
+
         assert_eq!(
-            token_count,
-            TokenCount::Actual(50000),
-            "Token count should use actual value from preserved usage"
+            compacted.accumulate_usage(),
+            Some(expected_total_usage),
+            "accumulate_usage() must include usage from both compacted and surviving messages"
         );
+    }
+
+    #[test]
+    fn test_compaction_preserves_todo_list_state() {
+        use forge_domain::{Todo, TodoStatus, ToolCatalog};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        // Create some todos
+        let todos = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
+        ];
+
+        // Create a tool call for todo_write
+        let todo_tool_call = ToolCatalog::tool_call_todo_write(todos.clone());
+
+        // Create context with todo_write call in the compaction sequence
+        let context = Context::default()
+            .add_message(ContextMessage::user("Create some tasks", None))
+            .add_message(ContextMessage::Text(
+                forge_domain::TextMessage::new(forge_domain::Role::Assistant, "Creating tasks")
+                    .tool_calls(vec![todo_tool_call]),
+            ))
+            .add_message(ContextMessage::user("Continue working", None))
+            .add_message(ContextMessage::assistant("Working on it", None, None, None));
+
+        // Compact the sequence containing the todo_write
+        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+
+        // Verify that a system message with todos was injected
+        let has_todo_message = actual.messages.iter().any(|msg| {
+            if let ContextMessage::Text(text_msg) = &msg.message {
+                text_msg.role == Role::System
+                    && text_msg.content.contains("<current_todos>")
+                    && text_msg.content.contains("Task 1")
+                    && text_msg.content.contains("Task 2")
+                    && text_msg.content.contains("Task 3")
+                    && text_msg.droppable
+            } else {
+                false
+            }
+        });
+
+        assert!(
+            has_todo_message,
+            "Compaction should preserve todo list state as a droppable system message"
+        );
+
+        // Verify the todo message contains the correct format
+        let todo_message = actual
+            .messages
+            .iter()
+            .find(|msg| {
+                if let ContextMessage::Text(text_msg) = &msg.message {
+                    text_msg.content.contains("<current_todos>")
+                } else {
+                    false
+                }
+            })
+            .unwrap();
+
+        if let ContextMessage::Text(text_msg) = &todo_message.message {
+            assert!(text_msg.content.contains("[ ] Task 1 (id: 1)"));
+            assert!(text_msg.content.contains("[~] Task 2 (id: 2)"));
+            assert!(text_msg.content.contains("[x] Task 3 (id: 3)"));
+        }
     }
 
     #[test]
