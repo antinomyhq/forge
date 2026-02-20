@@ -53,10 +53,10 @@ tonic.workspace = true
 prost = "0.14.3"
 
 prost-types = "0.14.3"
-tonic-prost = "0.14.3"
+tonic-prost = "0.14.4"
 
 [build-dependencies]
-tonic-prost-build = "0.14.3"
+tonic-prost-build = "0.14.4"
 
 [dev-dependencies]
 forge_test_kit.workspace = true
