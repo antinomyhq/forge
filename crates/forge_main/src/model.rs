@@ -94,8 +94,10 @@ impl Display for CliModelWithProvider {
         }
 
         // Only show brackets if we have info to display
-        let info = format!("[ {} ]", info_parts.join(" "));
-        write!(f, " {}", info.dimmed())?;
+        if !info_parts.is_empty() {
+            let info = format!("[ {} ]", info_parts.join(" "));
+            write!(f, " {}", info.dimmed())?;
+        }
 
         // Show provider as a separate suffix
         write!(f, " {}", format!("[{}]", self.provider_id).dimmed())?;
