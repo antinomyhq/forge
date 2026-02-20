@@ -4,8 +4,8 @@ expression: elem.render_as_markdown()
 ---
 # Shell Output
 
-- **command**: Cargo build
-- **shell**: Zsh
+- **Command**: Cargo build
+- **Shell**: Zsh
 
 ## Stdout
 

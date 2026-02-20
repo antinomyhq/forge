@@ -4,11 +4,11 @@ expression: elem.render_as_markdown()
 ---
 # Tool Result
 
-- **name**: Fs_read
+- **Name**: Fs_read
 
 ## File
 
-- **path**: Readme.md
+- **Path**: Readme.md
 
 ### Head
 

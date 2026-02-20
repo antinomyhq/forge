@@ -6,6 +6,7 @@ rust-version.workspace = true
 
 [dependencies]
 
+convert_case.workspace = true
 html-escape = "0.2.13"
 
 [dev-dependencies]

@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use convert_case::Casing;
+
 /// The kind of text content stored in an element.
 /// Distinguishes between plain text (HTML-escaped) and raw content (CDATA).
 #[derive(Debug, Clone, PartialEq)]
@@ -11,19 +13,28 @@ pub enum TextKind {
     Raw(String),
 }
 
-pub struct Element {
-    pub name: String,
-    pub attr: Vec<(String, String)>,
-    pub children: Vec<Element>,
-    pub text: Option<TextKind>,
+pub enum Element {
+    /// A named element with a tag name, attributes, text content, and children.
+    Named {
+        name: String,
+        attr: Vec<(String, String)>,
+        children: Vec<Element>,
+        text: Option<TextKind>,
+    },
+    /// An empty element (fragment) without a name.
+    /// Can only contain children - no attributes or text content.
+    Empty {
+        children: Vec<Element>,
+    },
 }
 
 impl Element {
+    /// Creates a new named element with the given name (can include classes like "div.container").
     pub fn new(name_with_classes: impl ToString) -> Self {
         let full_name = name_with_classes.to_string();
         let parts: Vec<&str> = full_name.split('.').collect();
 
-        let mut element = Element {
+        let mut element = Element::Named {
             name: parts[0].to_string(),
             attr: vec![],
             children: vec![],
@@ -33,10 +44,17 @@ impl Element {
         // Add classes if there are any
         if parts.len() > 1 {
             let classes = parts[1..].join(" ");
-            element.attr.push(("class".to_string(), classes));
+            element = element.attr("class".to_string(), classes);
         }
 
         element
+    }
+
+    /// Creates an empty element (fragment) without a name.
+    /// Empty elements can only contain children - no attributes or text content.
+    /// Useful for grouping multiple children without a wrapping tag.
+    pub fn empty() -> Self {
+        Element::Empty { children: vec![] }
     }
 
     pub fn span(name: impl ToString) -> Self {
@@ -46,36 +64,65 @@ impl Element {
     pub fn text(mut self, text: impl ToString) -> Self {
         let text_str = text.to_string();
         let encoded = html_escape::encode_text(&text_str);
-        self.text = Some(TextKind::Plain(encoded.to_string()));
+        match &mut self {
+            Element::Named { text: text_field, .. } => {
+                *text_field = Some(TextKind::Plain(encoded.to_string()));
+            }
+            Element::Empty { .. } => {
+                // Empty elements cannot have text - return unchanged
+            }
+        }
         self
     }
 
     pub fn cdata(mut self, text: impl ToString) -> Self {
-        self.text = Some(TextKind::Raw(text.to_string()));
+        match &mut self {
+            Element::Named { text: text_field, .. } => {
+                *text_field = Some(TextKind::Raw(text.to_string()));
+            }
+            Element::Empty { .. } => {
+                // Empty elements cannot have text - return unchanged
+            }
+        }
         self
     }
 
     pub fn attr(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.attr.push((key.to_string(), value.to_string()));
-        self
-    }
-    pub fn attr_if_some(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
-        if let Some(val) = value {
-            self.attr.push((key.to_string(), val.to_string()));
+        match &mut self {
+            Element::Named { attr, .. } => {
+                attr.push((key.to_string(), value.to_string()));
+            }
+            Element::Empty { .. } => {
+                // Empty elements cannot have attributes - return unchanged
+            }
         }
         self
     }
+
+    pub fn attr_if_some(mut self, key: impl ToString, value: Option<impl ToString>) -> Self {
+        if let Some(val) = value {
+            self = self.attr(key, val);
+        }
+        self
+    }
+
     pub fn class(mut self, class_name: impl ToString) -> Self {
-        // Check if class attribute already exists
-        if let Some(pos) = self.attr.iter().position(|(key, _)| key == "class") {
-            // Append to existing class
-            let (_, current_class) = &self.attr[pos];
-            let new_class = format!("{} {}", current_class, class_name.to_string());
-            self.attr[pos] = ("class".to_string(), new_class);
-        } else {
-            // Add new class attribute
-            self.attr
-                .push(("class".to_string(), class_name.to_string()));
+        match &mut self {
+            Element::Named { attr, .. } => {
+                // Check if class attribute already exists
+                if let Some(pos) = attr.iter().position(|(key, _)| key == "class") {
+                    // Append to existing class
+                    let (_, current_class) = &attr[pos];
+                    let new_class = format!("{} {}", current_class, class_name.to_string());
+                    attr[pos] = ("class".to_string(), new_class);
+                } else {
+                    // Add new class attribute
+                    attr.push(("class".to_string(), class_name.to_string()));
+                }
+            }
+            Element::Empty { .. } => {
+                // Empty elements cannot have attributes - return unchanged
+            }
         }
         self
     }
@@ -96,102 +143,131 @@ impl Element {
     }
 
     fn render_markdown_internal(&self, level: usize) -> String {
-        let mut result = String::new();
+        match self {
+            Element::Named {
+                name,
+                attr,
+                children,
+                text,
+            } => {
+                let mut result = String::new();
 
-        // Heading: name in title case, capped at H6
-        let hashes = "#".repeat(level.min(6));
-        result.push_str(&format!("{} {}\n\n", hashes, to_title_case(&self.name)));
+                // Heading: name in title case, capped at H6
+                let hashes = "#".repeat(level.min(6));
+                result.push_str(&format!("{} {}\n\n", hashes, to_title_case(name)));
 
-        // Attributes as bullet points: **key**: Sentence case value
-        for (key, value) in &self.attr {
-            result.push_str(&format!("- **{}**: {}\n", key, to_sentence_case(value)));
-        }
-        if !self.attr.is_empty() {
-            result.push('\n');
-        }
-
-        // Text content
-        if let Some(ref text) = self.text {
-            match text {
-                TextKind::Plain(content) => {
-                    result.push_str(content);
-                    result.push_str("\n\n");
+                // Attributes as bullet points: **key**: Sentence case value (key stays as-is)
+                for (key, value) in attr {
+                    result.push_str(&format!(
+                        "- **{}**: {}\n",
+                        to_title_case(key),
+                        to_sentence_case(value)
+                    ));
                 }
-                TextKind::Raw(content) => {
-                    result.push_str("```\n");
-                    result.push_str(content);
-                    if !content.ends_with('\n') {
-                        result.push('\n');
+                if !attr.is_empty() {
+                    result.push('\n');
+                }
+
+                // Text content
+                if let Some(text) = text {
+                    match text {
+                        TextKind::Plain(content) => {
+                            result.push_str(content);
+                            result.push_str("\n\n");
+                        }
+                        TextKind::Raw(content) => {
+                            result.push_str("```\n");
+                            result.push_str(content);
+                            if !content.ends_with('\n') {
+                                result.push('\n');
+                            }
+                            result.push_str("```\n\n");
+                        }
                     }
-                    result.push_str("```\n\n");
                 }
+
+                // Children at the next heading level
+                for child in children {
+                    result.push_str(&child.render_markdown_internal(level + 1));
+                }
+
+                result
+            }
+            Element::Empty { children } => {
+                let mut result = String::new();
+                // Empty elements just render their children directly at the same level
+                for child in children {
+                    result.push_str(&child.render_markdown_internal(level));
+                }
+                result
             }
         }
-
-        // Children at the next heading level
-        for child in &self.children {
-            result.push_str(&child.render_markdown_internal(level + 1));
-        }
-
-        result
     }
 
     pub fn render(&self) -> String {
-        let mut result = String::new();
+        match self {
+            Element::Named {
+                name,
+                attr,
+                children,
+                text,
+            } => {
+                let mut result = String::new();
 
-        if self.attr.is_empty() {
-            result.push_str(&format!("<{}>", self.name));
-        } else {
-            result.push_str(&format!("<{}", self.name));
-            for (key, value) in &self.attr {
-                result.push_str(&format!("\n  {key}=\"{value}\""));
-            }
+                if attr.is_empty() {
+                    result.push_str(&format!("<{}>", name));
+                } else {
+                    result.push_str(&format!("<{}", name));
+                    for (key, value) in attr {
+                        result.push_str(&format!("\n  {key}=\"{value}\""));
+                    }
 
-            result.push_str("\n>");
-        }
-
-        if let Some(ref text) = self.text {
-            match text {
-                TextKind::Plain(content) => result.push_str(content),
-                TextKind::Raw(content) => {
-                    result.push_str(&format!("<![CDATA[{}]]>", content));
+                    result.push_str("\n>");
                 }
+
+                if let Some(text) = text {
+                    match text {
+                        TextKind::Plain(content) => result.push_str(content),
+                        TextKind::Raw(content) => {
+                            result.push_str(&format!("<![CDATA[{}]]>", content));
+                        }
+                    }
+                }
+
+                for child in children {
+                    result.push('\n');
+                    result.push_str(&child.render());
+                }
+
+                if children.is_empty() && attr.is_empty() {
+                    result.push_str(&format!("</{}>", name));
+                } else {
+                    result.push_str(&format!("\n</{}>", name));
+                }
+
+                result
+            }
+            Element::Empty { children } => {
+                let mut result = String::new();
+                // Empty elements render their children directly without wrapping tags
+                for child in children {
+                    if !result.is_empty() {
+                        result.push('\n');
+                    }
+                    result.push_str(&child.render());
+                }
+                result
             }
         }
-
-        for child in &self.children {
-            result.push('\n');
-            result.push_str(&child.render());
-        }
-
-        if self.children.is_empty() && self.attr.is_empty() {
-            result.push_str(&format!("</{}>", self.name));
-        } else {
-            result.push_str(&format!("\n</{}>", self.name));
-        }
-
-        result
     }
 }
 
-/// Converts a snake_case or kebab-case string to Title Case.
-///
-/// Each word separated by `_` or `-` has its first letter capitalised and the rest lowercased.
+/// Converts a snake_case or kebab-case string to Title Case using convert_case.
 fn to_title_case(s: &str) -> String {
-    s.split(|c| c == '_' || c == '-')
-        .filter(|w| !w.is_empty())
-        .map(|word| {
-            let mut chars = word.chars();
-            match chars.next() {
-                None => String::new(),
-                Some(first) => first.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
-            }
-        })
-        .collect::<Vec<_>>()
-        .join(" ")
+    s.to_case(convert_case::Case::Title)
 }
 
-/// Converts a string to sentence case: first character uppercased, the rest lowercased.
+/// Converts a string to sentence case: first character uppercased, the rest lowercased, preserving spaces.
 fn to_sentence_case(s: &str) -> String {
     let mut chars = s.chars();
     match chars.next() {
@@ -206,7 +282,14 @@ pub trait CanAppend {
 
 impl CanAppend for Element {
     fn append_to(self, mut element: Element) -> Element {
-        element.children.push(self);
+        match &mut element {
+            Element::Named { children, .. } => {
+                children.push(self);
+            }
+            Element::Empty { children } => {
+                children.push(self);
+            }
+        }
         element
     }
 }
@@ -216,8 +299,17 @@ where
     T: IntoIterator<Item = Element>,
 {
     fn append_to(self, mut element: Element) -> Element {
-        for item in self {
-            element.children.push(item);
+        match &mut element {
+            Element::Named { children, .. } => {
+                for item in self {
+                    children.push(item);
+                }
+            }
+            Element::Empty { children } => {
+                for item in self {
+                    children.push(item);
+                }
+            }
         }
         element
     }
@@ -225,7 +317,7 @@ where
 
 impl Display for Element {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.render())
+        f.write_str(&self.render_as_markdown())
     }
 }
 
@@ -372,14 +464,24 @@ mod test {
 
     #[test]
     fn test_text_kind_plain() {
-        let elem = Element::new("div").text("<script>");
-        assert_eq!(elem.text, Some(TextKind::Plain("&lt;script&gt;".to_string())));
+        let elem = Element::new("div").text("hello");
+        // .text() stores HTML content
+        if let Element::Named { text: Some(TextKind::Plain(s)), .. } = elem {
+            assert_eq!(s, "hello");
+        } else {
+            panic!("Expected Plain text kind");
+        }
     }
 
     #[test]
     fn test_text_kind_raw() {
-        let elem = Element::new("div").cdata("<script>");
-        assert_eq!(elem.text, Some(TextKind::Raw("<script>".to_string())));
+        let elem = Element::new("div").cdata("hello");
+        // .cdata() stores raw content unescaped
+        if let Element::Named { text: Some(TextKind::Raw(s)), .. } = elem {
+            assert_eq!(s, "hello");
+        } else {
+            panic!("Expected Raw text kind");
+        }
     }
 
     #[test]
@@ -404,7 +506,7 @@ mod test {
             .attr("command", "cargo build")
             .attr("shell", "zsh");
         let actual = elem.render_as_markdown();
-        let expected = "# Shell Output\n\n- **command**: Cargo build\n- **shell**: Zsh\n\n";
+        let expected = "# Shell Output\n\n- **Command**: Cargo build\n- **Shell**: Zsh\n\n";
         assert_eq!(actual, expected);
     }
 
@@ -438,10 +540,9 @@ mod test {
     fn test_render_as_markdown_heading_capped_at_h6() {
         // Build a 7-level deep nesting and verify the deepest renders as H6
         let inner = Element::new("g");
-        let elem = Element::new("a")
-            .append(Element::new("b").append(Element::new("c").append(
-                Element::new("d").append(Element::new("e").append(Element::new("f").append(inner))),
-            )));
+        let elem = Element::new("a").append(Element::new("b").append(Element::new("c").append(
+            Element::new("d").append(Element::new("e").append(Element::new("f").append(inner))),
+        )));
         let actual = elem.render_as_markdown();
         assert!(actual.contains("###### G"), "Expected H6 for depth 7+");
     }
@@ -487,14 +588,52 @@ mod test {
 
     #[test]
     fn test_snapshot_markdown_deeply_nested() {
-        let elem = Element::new("tool_result")
-            .attr("name", "fs_read")
-            .append(
-                Element::new("file")
-                    .attr("path", "README.md")
-                    .append(Element::new("head").cdata("# Forge\n\nA coding assistant."))
-                    .append(Element::new("tail").cdata("MIT License")),
-            );
+        let elem = Element::new("tool_result").attr("name", "fs_read").append(
+            Element::new("file")
+                .attr("path", "README.md")
+                .append(Element::new("head").cdata("# Forge\n\nA coding assistant."))
+                .append(Element::new("tail").cdata("MIT License")),
+        );
         insta::assert_snapshot!(elem.render_as_markdown());
+    }
+
+    #[test]
+    fn test_empty_element() {
+        let elem = Element::empty();
+        let actual = elem.render();
+        // Empty element with no children renders as empty string
+        assert_eq!(actual, "");
+    }
+
+    #[test]
+    fn test_empty_element_with_children() {
+        let elem = Element::empty()
+            .append(Element::new("span").text("first"))
+            .append(Element::new("span").text("second"));
+        let actual = elem.render();
+        let expected = "<span>first</span>\n<span>second</span>";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_empty_element_ignores_text_attr() {
+        // Empty elements should ignore text and attr calls - they remain empty
+        let elem = Element::empty()
+            .text("this should be ignored")
+            .attr("class", "ignored")
+            .append(Element::new("div").text("content"));
+        let actual = elem.render();
+        let expected = "<div>content</div>";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_empty_element_markdown() {
+        let elem = Element::empty()
+            .append(Element::new("message").text("First"))
+            .append(Element::new("message").text("Second"));
+        let actual = elem.render_as_markdown();
+        let expected = "# Message\n\nFirst\n\n# Message\n\nSecond\n\n";
+        assert_eq!(actual, expected);
     }
 }
