@@ -5,6 +5,7 @@ mod make_openai_compat;
 mod minimax;
 mod normalize_tool_schema;
 mod pipeline;
+mod set_reasoning_effort;
 mod set_cache;
 mod strip_thought_signature;
 mod tool_choice;
