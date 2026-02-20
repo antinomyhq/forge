@@ -1,11 +1,10 @@
 use std::collections::HashSet;
 use std::process::Output;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use chrono::{DateTime, Utc};
 use forge_domain::Conversation;
-use lazy_static::lazy_static;
 use sysinfo::System;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -27,20 +26,26 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 };
 
 // Cached system information that doesn't change during application lifetime
-lazy_static! {
-    static ref CACHED_CORES: usize = System::physical_core_count().unwrap_or(0);
-    static ref CACHED_CLIENT_ID: String = client_id::get_or_create_client_id()
-        .unwrap_or_else(|_| client_id::DEFAULT_CLIENT_ID.to_string());
-    static ref CACHED_OS_NAME: String = System::long_os_version().unwrap_or("Unknown".to_string());
-    static ref CACHED_USER: String = whoami::username().unwrap_or_else(|_| "unknown".to_string());
-    static ref CACHED_CWD: Option<String> = std::env::current_dir()
+static CACHED_CORES: LazyLock<usize> = LazyLock::new(|| System::physical_core_count().unwrap_or(0));
+static CACHED_CLIENT_ID: LazyLock<String> = LazyLock::new(|| {
+    client_id::get_or_create_client_id()
+        .unwrap_or_else(|_| client_id::DEFAULT_CLIENT_ID.to_string())
+});
+static CACHED_OS_NAME: LazyLock<String> =
+    LazyLock::new(|| System::long_os_version().unwrap_or("Unknown".to_string()));
+static CACHED_USER: LazyLock<String> =
+    LazyLock::new(|| whoami::username().unwrap_or_else(|_| "unknown".to_string()));
+static CACHED_CWD: LazyLock<Option<String>> = LazyLock::new(|| {
+    std::env::current_dir()
         .ok()
-        .and_then(|path| path.to_str().map(|s| s.to_string()));
-    static ref CACHED_PATH: Option<String> = std::env::current_exe()
+        .and_then(|path| path.to_str().map(|s| s.to_string()))
+});
+static CACHED_PATH: LazyLock<Option<String>> = LazyLock::new(|| {
+    std::env::current_exe()
         .ok()
-        .and_then(|path| path.to_str().map(|s| s.to_string()));
-    static ref CACHED_ARGS: Vec<String> = std::env::args().skip(1).collect();
-}
+        .and_then(|path| path.to_str().map(|s| s.to_string()))
+});
+static CACHED_ARGS: LazyLock<Vec<String>> = LazyLock::new(|| std::env::args().skip(1).collect());
 
 #[derive(Clone)]
 pub struct Tracker {
@@ -245,9 +250,7 @@ fn parse_email(text: String) -> Vec<String> {
 mod tests {
     use super::*;
 
-    lazy_static! {
-        static ref TRACKER: Tracker = Tracker::default();
-    }
+    static TRACKER: LazyLock<Tracker> = LazyLock::new(Tracker::default);
 
     #[tokio::test]
     async fn test_tracker() {
