@@ -1075,20 +1075,38 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let models = self.get_models().await?;
+        self.spinner.start(Some("Loading"))?;
+        let all_provider_models = self.api.get_all_provider_models().await?;
+        self.spinner.stop(None)?;
 
-        if models.is_empty() {
+        if all_provider_models.is_empty() {
             return Ok(());
         }
 
+        // Flatten into (provider_id, model) pairs sorted by provider then model id
+        let mut models: Vec<(ProviderId, Model)> = all_provider_models
+            .into_iter()
+            .flat_map(|(provider_id, models)| {
+                models.into_iter().map(move |m| (provider_id.clone(), m))
+            })
+            .collect();
+        models.sort_by(|(pa, a), (pb, b)| {
+            pa.to_string()
+                .cmp(&pb.to_string())
+                .then(a.id.to_string().cmp(&b.id.to_string()))
+        });
+
         let mut info = Info::new();
 
-        for model in models.iter() {
+        for (provider_id, model) in models.iter() {
             let id = model.id.to_string();
+            let p_id: &str = provider_id;
 
             info = info
                 .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id);
+                .add_key_value("Id", id)
+                .add_key_value("Provider", provider_id.to_string())
+                .add_key_value("Provider Id", p_id);
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
