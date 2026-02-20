@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -11,7 +11,6 @@ use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
     PolicyDecision, PolicyService, UserInfra,
 };
-use lazy_static::lazy_static;
 use strum_macros::{Display, EnumIter};
 
 /// User response for permission confirmation requests
@@ -32,14 +31,13 @@ pub enum PolicyPermission {
 pub struct ForgePolicyService<I> {
     infra: Arc<I>,
 }
-lazy_static! {
-    /// Default policies loaded once at startup from the embedded YAML file
-    static ref DEFAULT_POLICIES: PolicyConfig = {
-        let yaml_content = include_str!("./permissions.default.yaml");
-        serde_yml::from_str(yaml_content)
-            .expect("Failed to parse default policies YAML. This should never happen as the YAML is embedded.")
-    };
-}
+/// Default policies loaded once at startup from the embedded YAML file
+static DEFAULT_POLICIES: LazyLock<PolicyConfig> = LazyLock::new(|| {
+    let yaml_content = include_str!("./permissions.default.yaml");
+    serde_yml::from_str(yaml_content).expect(
+        "Failed to parse default policies YAML. This should never happen as the YAML is embedded.",
+    )
+});
 
 impl<I> ForgePolicyService<I>
 where
