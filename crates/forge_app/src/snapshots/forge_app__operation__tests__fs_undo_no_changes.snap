@@ -2,8 +2,7 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<file_undo
-  path="/home/user/unchanged_file.txt"
-  status="no_changes"
->
-</file_undo>
+# File Undo
+
+- **Path**: /home/user/unchanged_file.txt
+- **Status**: No_changes

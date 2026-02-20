@@ -2,13 +2,16 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<search_results
-  path="/home/user/project"
-  max_bytes_allowed="1049"
-  total_lines="1"
-  display_lines="0-0"
-  pattern="search"
-  glob="*.txt"
-  reason="Results truncated due to exceeding the 1049 bytes size limit. Please use a more specific search pattern"
-><![CDATA[]]>
-</search_results>
+# Search Results
+
+- **Path**: /home/user/project
+- **Max Bytes Allowed**: 1049
+- **Total Lines**: 1
+- **Display Lines**: 0-0
+- **Pattern**: Search
+- **Glob**: *.txt
+- **Reason**: Results truncated due to exceeding the 1049 bytes size limit. please use a more specific search pattern
+
+```
+
+```

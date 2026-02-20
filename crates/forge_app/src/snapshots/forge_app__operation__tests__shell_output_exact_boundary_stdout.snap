@@ -2,14 +2,18 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<shell_output
-  command="boundary_command"
-  shell="/bin/bash"
-  exit_code="0"
->
-<stdout
-  total_lines="20"
-><![CDATA[stdout line 1
+# Shell Output
+
+- **Command**: Boundary_command
+- **Shell**: /bin/bash
+- **Exit Code**: 0
+
+## Stdout
+
+- **Total Lines**: 20
+
+```
+stdout line 1
 stdout line 2
 stdout line 3
 stdout line 4
@@ -28,6 +32,5 @@ stdout line 16
 stdout line 17
 stdout line 18
 stdout line 19
-stdout line 20]]>
-</stdout>
-</shell_output>
+stdout line 20
+```

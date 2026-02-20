@@ -2,13 +2,16 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<search_results
-  path="/home/user/project"
-  max_bytes_allowed="256000"
-  total_lines="2"
-  display_lines="1-2"
-  pattern="class"
-  file_type="py"
-><![CDATA[models.py:1:class User:
-views.py:5:class HomeView:]]>
-</search_results>
+# Search Results
+
+- **Path**: /home/user/project
+- **Max Bytes Allowed**: 256000
+- **Total Lines**: 2
+- **Display Lines**: 1-2
+- **Pattern**: Class
+- **File Type**: Py
+
+```
+models.py:1:class User:
+views.py:5:class HomeView:
+```

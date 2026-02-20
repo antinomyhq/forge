@@ -388,7 +388,6 @@ impl ToolOperation {
                     for query_result in &output.queries {
                         let query_elm = Element::new("query_result")
                             .attr("query", &query_result.query)
-                            .attr("use_case", &query_result.use_case)
                             .attr("results", query_result.results.len());
 
                         let mut grouped_by_path: HashMap<&str, Vec<_>> = HashMap::new();
@@ -578,7 +577,7 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
                 Some(content) => {
-                    let elm = Element::new("feedback").text(content);
+                    let elm = Element::new("feedback").cdata(content);
                     forge_domain::ToolOutput::text(elm)
                 }
             },
@@ -605,7 +604,7 @@ impl ToolOperation {
                 // Insert Resources
                 if !output.resources.is_empty() {
                     elm = elm.append(output.resources.iter().map(|resource| {
-                        Element::new("resource").text(resource.display().to_string())
+                        Element::new("resource").cdata(resource.display().to_string())
                     }));
                 }
 
