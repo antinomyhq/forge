@@ -75,6 +75,10 @@ pub enum ToolOperation {
         output: forge_domain::Skill,
     },
     TodoWrite {
+        before: Vec<forge_domain::Todo>,
+        after: Vec<forge_domain::Todo>,
+    },
+    TodoRead {
         output: Vec<forge_domain::Todo>,
     },
 }
@@ -614,14 +618,78 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::TodoWrite { output } => {
-                let mut elm = Element::new("todos_created").attr("count", output.len());
+            ToolOperation::TodoWrite { before, after } => {
+                // Build a map of before todos by ID for diff computation
+                let before_map: std::collections::HashMap<&str, &forge_domain::Todo> =
+                    before.iter().map(|t| (t.id.as_str(), t)).collect();
+
+                let mut added = Vec::new();
+                let mut updated = Vec::new();
+
+                for todo in &after {
+                    match before_map.get(todo.id.as_str()) {
+                        None => added.push(todo),
+                        Some(prev)
+                            if prev.status != todo.status || prev.content != todo.content =>
+                        {
+                            updated.push((prev, todo))
+                        }
+                        _ => {}
+                    }
+                }
+
+                let after_ids: std::collections::HashSet<&str> =
+                    after.iter().map(|t| t.id.as_str()).collect();
+                let removed: Vec<_> = before
+                    .iter()
+                    .filter(|t| !after_ids.contains(t.id.as_str()))
+                    .collect();
+
+                let total_changes = added.len() + updated.len() + removed.len();
+                let mut elm = Element::new("todos_updated").attr("changes", total_changes);
+
+                for todo in added {
+                    let todo_elm = Element::new("todo")
+                        .attr("id", &todo.id)
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "added")
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                for (prev, todo) in updated {
+                    let mut todo_elm = Element::new("todo")
+                        .attr("id", &todo.id)
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "updated");
+                    if prev.status != todo.status {
+                        todo_elm = todo_elm
+                            .attr("prev_status", prev.status.to_string())
+                            .attr("new_status", todo.status.to_string());
+                    }
+                    todo_elm = todo_elm.text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                for todo in removed {
+                    let todo_elm = Element::new("todo")
+                        .attr("id", &todo.id)
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "removed")
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoRead { output } => {
+                let mut elm = Element::new("todos").attr("count", output.len());
 
                 for todo in output {
                     let todo_elm = Element::new("todo")
                         .attr("id", &todo.id)
-                        .attr("content", &todo.content)
-                        .attr("status", format!("{:?}", todo.status));
+                        .attr("status", todo.status.to_string())
+                        .text(&todo.content);
                     elm = elm.append(todo_elm);
                 }
 

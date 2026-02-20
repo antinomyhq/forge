@@ -402,3 +402,7 @@ expression: tools
     "todos"
   ]
 }
+{
+  "title": "TodoRead",
+  "type": "object"
+}

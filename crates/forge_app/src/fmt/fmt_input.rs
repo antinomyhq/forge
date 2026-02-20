@@ -124,6 +124,7 @@ impl FormatContent for ToolCatalog {
                     .sub_title(format!("{} item(s)", input.todos.len()))
                     .into(),
             ),
+            ToolCatalog::TodoRead(_) => Some(TitleFormat::debug("Read Todos").into()),
         }
     }
 }

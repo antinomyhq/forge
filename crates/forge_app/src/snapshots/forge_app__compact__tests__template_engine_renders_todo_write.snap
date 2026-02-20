@@ -16,8 +16,8 @@ Create a task plan
 
 **Task Plan:**
 - [DONE] ~~Implement user authentication~~
-- [IN_PROGRESS] Add database migrations
-- [TODO] Write documentation
+- [ADD] Add database migrations
+- [CANCELLED] ~~Write documentation~~
 
 
 ---

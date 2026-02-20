@@ -310,12 +310,28 @@ impl<
                 let conversation_id = _context
                     .get_conversation_id()
                     .ok_or_else(|| anyhow::anyhow!("Conversation ID not available in context"))?;
-                let todos = self
+                let before = self
+                    .services
+                    .todo_service()
+                    .get_todos(conversation_id)
+                    .await?;
+                let after = self
                     .services
                     .todo_service()
                     .update_todos(conversation_id, input.todos.clone())
                     .await?;
-                ToolOperation::TodoWrite { output: todos }
+                ToolOperation::TodoWrite { before, after }
+            }
+            ToolCatalog::TodoRead(_input) => {
+                let conversation_id = _context
+                    .get_conversation_id()
+                    .ok_or_else(|| anyhow::anyhow!("Conversation ID not available in context"))?;
+                let todos = self
+                    .services
+                    .todo_service()
+                    .get_todos(conversation_id)
+                    .await?;
+                ToolOperation::TodoRead { output: todos }
             }
         })
     }

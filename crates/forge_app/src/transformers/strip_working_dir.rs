@@ -85,7 +85,8 @@ impl Transformer for StripWorkingDir {
                         | SummaryTool::Plan { .. }
                         | SummaryTool::Skill { .. }
                         | SummaryTool::Mcp { .. }
-                        | SummaryTool::TodoWrite { .. } => {
+                        | SummaryTool::TodoWrite { .. }
+                        | SummaryTool::TodoRead => {
                             // These tools don't have paths to strip
                         }
                     }

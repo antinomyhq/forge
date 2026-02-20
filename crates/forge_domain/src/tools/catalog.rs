@@ -53,6 +53,7 @@ pub enum ToolCatalog {
     Plan(PlanCreate),
     Skill(SkillFetch),
     TodoWrite(TodoWrite),
+    TodoRead(TodoRead),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -636,6 +637,10 @@ pub struct TodoWrite {
     pub todos: Vec<crate::Todo>,
 }
 
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/todo_read.md"]
+pub struct TodoRead {}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -740,6 +745,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
             ToolCatalog::TodoWrite(v) => v.description(),
+            ToolCatalog::TodoRead(v) => v.description(),
         }
     }
 }
@@ -786,6 +792,7 @@ impl ToolCatalog {
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
             ToolCatalog::TodoWrite(_) => r#gen.into_root_schema_for::<TodoWrite>(),
+            ToolCatalog::TodoRead(_) => r#gen.into_root_schema_for::<TodoRead>(),
         };
 
         // Apply transform to add nullable property and remove null from type
@@ -900,7 +907,8 @@ impl ToolCatalog {
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
             | ToolCatalog::Skill(_)
-            | ToolCatalog::TodoWrite(_) => None,
+            | ToolCatalog::TodoWrite(_)
+            | ToolCatalog::TodoRead(_) => None,
         }
     }
 
@@ -1006,6 +1014,11 @@ impl ToolCatalog {
     /// Creates a TodoWrite tool call with the specified todos
     pub fn tool_call_todo_write(todos: Vec<crate::Todo>) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::TodoWrite(TodoWrite { todos }))
+    }
+
+    /// Creates a TodoRead tool call
+    pub fn tool_call_todo_read() -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::TodoRead(TodoRead::default()))
     }
 
     /// Identifies the kind of the built-in Tools

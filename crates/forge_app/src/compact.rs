@@ -422,20 +422,29 @@ mod tests {
     fn test_template_engine_renders_todo_write() {
         use forge_domain::{
             ContextSummary, Role, SummaryBlock, SummaryMessage, SummaryTool, SummaryToolCall, Todo,
-            TodoStatus,
+            TodoChange, TodoChangeKind, TodoStatus,
         };
 
-        // Create test data with todo_write tool call
-        let todos = vec![
-            Todo::new("Implement user authentication")
-                .id("1")
-                .status(TodoStatus::Completed),
-            Todo::new("Add database migrations")
-                .id("2")
-                .status(TodoStatus::InProgress),
-            Todo::new("Write documentation")
-                .id("3")
-                .status(TodoStatus::Pending),
+        // Create test data with todo_write tool call showing a diff
+        let changes = vec![
+            TodoChange {
+                todo: Todo::new("Implement user authentication")
+                    .id("1")
+                    .status(TodoStatus::Completed),
+                kind: TodoChangeKind::Updated,
+            },
+            TodoChange {
+                todo: Todo::new("Add database migrations")
+                    .id("2")
+                    .status(TodoStatus::InProgress),
+                kind: TodoChangeKind::Added,
+            },
+            TodoChange {
+                todo: Todo::new("Write documentation")
+                    .id("3")
+                    .status(TodoStatus::Pending),
+                kind: TodoChangeKind::Removed,
+            },
         ];
 
         let messages = vec![
@@ -448,7 +457,7 @@ mod tests {
                 vec![
                     SummaryToolCall {
                         id: Some(forge_domain::ToolCallId::new("call_1")),
-                        tool: SummaryTool::TodoWrite { todos },
+                        tool: SummaryTool::TodoWrite { changes },
                         is_success: true,
                     }
                     .into(),

@@ -58,6 +58,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
         SummaryTool::TodoWrite { .. } => Operation::Todo,
+        SummaryTool::TodoRead => Operation::Todo,
     }
 }
 
