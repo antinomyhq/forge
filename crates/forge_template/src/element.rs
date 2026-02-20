@@ -1,10 +1,21 @@
 use std::fmt::Display;
 
+/// The kind of text content stored in an element.
+/// Distinguishes between plain text (HTML-escaped) and raw content (CDATA).
+#[derive(Debug, Clone, PartialEq)]
+pub enum TextKind {
+    /// Plain text that should be HTML-escaped when rendering as XML.
+    Plain(String),
+    /// Raw content that should be wrapped in CDATA for XML rendering
+    /// or code blocks for markdown rendering.
+    Raw(String),
+}
+
 pub struct Element {
     pub name: String,
     pub attr: Vec<(String, String)>,
     pub children: Vec<Element>,
-    pub text: Option<String>,
+    pub text: Option<TextKind>,
 }
 
 impl Element {
@@ -33,12 +44,14 @@ impl Element {
     }
 
     pub fn text(mut self, text: impl ToString) -> Self {
-        self.text = Some(html_escape::encode_text(&text.to_string()).to_string());
+        let text_str = text.to_string();
+        let encoded = html_escape::encode_text(&text_str);
+        self.text = Some(TextKind::Plain(encoded.to_string()));
         self
     }
 
     pub fn cdata(mut self, text: impl ToString) -> Self {
-        self.text = Some(format!("<![CDATA[{}]]>", text.to_string()));
+        self.text = Some(TextKind::Raw(text.to_string()));
         self
     }
 
@@ -86,7 +99,12 @@ impl Element {
         }
 
         if let Some(ref text) = self.text {
-            result.push_str(text);
+            match text {
+                TextKind::Plain(content) => result.push_str(content),
+                TextKind::Raw(content) => {
+                    result.push_str(&format!("<![CDATA[{}]]>", content));
+                }
+            }
         }
 
         for child in &self.children {
@@ -271,6 +289,26 @@ mod test {
             Element::new("div").append((0..3).map(|i| Element::new("span").text(i.to_string())));
         let actual = html.render();
         let expected = "<div>\n<span>0</span>\n<span>1</span>\n<span>2</span>\n</div>";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_text_kind_plain() {
+        let elem = Element::new("div").text("<script>");
+        assert_eq!(elem.text, Some(TextKind::Plain("&lt;script&gt;".to_string())));
+    }
+
+    #[test]
+    fn test_text_kind_raw() {
+        let elem = Element::new("div").cdata("<script>");
+        assert_eq!(elem.text, Some(TextKind::Raw("<script>".to_string())));
+    }
+
+    #[test]
+    fn test_cdata_rendering() {
+        let html = Element::new("code").cdata("const x = 1;");
+        let actual = html.render();
+        let expected = "<code><![CDATA[const x = 1;]]></code>";
         assert_eq!(actual, expected);
     }
 }
