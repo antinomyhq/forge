@@ -28,18 +28,13 @@ Examples of skill invocation:
 
 Important:
 
-- Only invoke skills listed in `<available_skills>` below
+- Only invoke skills listed in **Available Skills** below
 - Do not invoke a skill that is already active/loaded
 - Skills are not CLI commands - use the skill tool to load them
 - After loading a skill, follow its specific instructions to help the user
 
-<available_skills>
+## Available Skills
+
 {{#each skills}}
-<skill>
-<name>{{this.name}}</name>
-<description>
-{{this.description}}
-</description>
-</skill>
+- `{{this.name}}`:  {{this.description}}
 {{/each}}
-</available_skills>
