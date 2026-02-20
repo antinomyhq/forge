@@ -57,7 +57,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").to_string();
+    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").replace('\r', "");
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -77,14 +77,25 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// Returns error if the script cannot be executed, if output streaming fails,
 /// or if the script exits with a non-zero status code
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
-    // Execute the script in a zsh subprocess with piped output
+    // Normalize line endings to LF (strip carriage returns from CRLF)
+    let script_content = script_content.replace('\r', "");
+
+    // Execute zsh with stdin piped - avoids shell escaping issues with long scripts
     let mut child = std::process::Command::new("zsh")
-        .arg("-c")
-        .arg(script_content)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .context(format!("Failed to execute zsh {} script", script_name))?;
+
+    // Write script content to stdin
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        stdin
+            .write_all(script_content.as_bytes())
+            .context("Failed to write script to zsh stdin")?;
+        // stdin is automatically closed when dropped
+    }
 
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
@@ -120,12 +131,20 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .wait()
         .context(format!("Failed to wait for zsh {} script", script_name))?;
 
+    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are informational
+    // They indicate environment issues found, not script execution failures
+    // Only propagate the error if the script actually failed to execute
     if !status.success() {
-        anyhow::bail!(
-            "ZSH {} script failed with exit code: {:?}",
-            script_name,
-            status.code()
-        );
+        // Exit codes 1-125 are typically used for reporting issues found, not execution errors
+        if let Some(code) = status.code() {
+            if code > 125 {
+                anyhow::bail!(
+                    "ZSH {} script failed with exit code: {}",
+                    script_name,
+                    code
+                );
+            }
+        }
     }
 
     Ok(())
