@@ -84,6 +84,58 @@ impl Element {
         item.append_to(self)
     }
 
+    /// Renders the element as a markdown string using a heading hierarchy.
+    ///
+    /// The element name is converted to Title Case and used as a heading at the given depth
+    /// (H1 at depth 1, H2 at depth 2, etc., capped at H6). Attributes are rendered as a
+    /// bullet list with bold keys and sentence-case values. Plain text is written as-is,
+    /// and raw (`cdata`) content is wrapped in triple-backtick code blocks. Children are
+    /// rendered recursively at the next heading level.
+    pub fn render_as_markdown(&self) -> String {
+        self.render_markdown_internal(1)
+    }
+
+    fn render_markdown_internal(&self, level: usize) -> String {
+        let mut result = String::new();
+
+        // Heading: name in title case, capped at H6
+        let hashes = "#".repeat(level.min(6));
+        result.push_str(&format!("{} {}\n\n", hashes, to_title_case(&self.name)));
+
+        // Attributes as bullet points: **key**: Sentence case value
+        for (key, value) in &self.attr {
+            result.push_str(&format!("- **{}**: {}\n", key, to_sentence_case(value)));
+        }
+        if !self.attr.is_empty() {
+            result.push('\n');
+        }
+
+        // Text content
+        if let Some(ref text) = self.text {
+            match text {
+                TextKind::Plain(content) => {
+                    result.push_str(content);
+                    result.push_str("\n\n");
+                }
+                TextKind::Raw(content) => {
+                    result.push_str("```\n");
+                    result.push_str(content);
+                    if !content.ends_with('\n') {
+                        result.push('\n');
+                    }
+                    result.push_str("```\n\n");
+                }
+            }
+        }
+
+        // Children at the next heading level
+        for child in &self.children {
+            result.push_str(&child.render_markdown_internal(level + 1));
+        }
+
+        result
+    }
+
     pub fn render(&self) -> String {
         let mut result = String::new();
 
@@ -119,6 +171,32 @@ impl Element {
         }
 
         result
+    }
+}
+
+/// Converts a snake_case or kebab-case string to Title Case.
+///
+/// Each word separated by `_` or `-` has its first letter capitalised and the rest lowercased.
+fn to_title_case(s: &str) -> String {
+    s.split(|c| c == '_' || c == '-')
+        .filter(|w| !w.is_empty())
+        .map(|word| {
+            let mut chars = word.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => first.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Converts a string to sentence case: first character uppercased, the rest lowercased.
+fn to_sentence_case(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().to_string() + &chars.as_str().to_lowercase(),
     }
 }
 
@@ -310,5 +388,113 @@ mod test {
         let actual = html.render();
         let expected = "<code><![CDATA[const x = 1;]]></code>";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_as_markdown_simple() {
+        let elem = Element::new("shell_output");
+        let actual = elem.render_as_markdown();
+        let expected = "# Shell Output\n\n";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_as_markdown_with_attrs() {
+        let elem = Element::new("shell_output")
+            .attr("command", "cargo build")
+            .attr("shell", "zsh");
+        let actual = elem.render_as_markdown();
+        let expected = "# Shell Output\n\n- **command**: Cargo build\n- **shell**: Zsh\n\n";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_as_markdown_plain_text() {
+        let elem = Element::new("message").text("Hello world");
+        let actual = elem.render_as_markdown();
+        let expected = "# Message\n\nHello world\n\n";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_as_markdown_cdata() {
+        let elem = Element::new("file").cdata("fn main() {}");
+        let actual = elem.render_as_markdown();
+        let expected = "# File\n\n```\nfn main() {}\n```\n\n";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_as_markdown_children() {
+        let elem = Element::new("shell_output")
+            .append(Element::new("stdout").text("Building..."))
+            .append(Element::new("stderr").text(""));
+        let actual = elem.render_as_markdown();
+        let expected = "# Shell Output\n\n## Stdout\n\nBuilding...\n\n## Stderr\n\n\n\n";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_render_as_markdown_heading_capped_at_h6() {
+        // Build a 7-level deep nesting and verify the deepest renders as H6
+        let inner = Element::new("g");
+        let elem = Element::new("a")
+            .append(Element::new("b").append(Element::new("c").append(
+                Element::new("d").append(Element::new("e").append(Element::new("f").append(inner))),
+            )));
+        let actual = elem.render_as_markdown();
+        assert!(actual.contains("###### G"), "Expected H6 for depth 7+");
+    }
+
+    #[test]
+    fn test_to_title_case() {
+        assert_eq!(to_title_case("shell_output"), "Shell Output");
+        assert_eq!(to_title_case("forge-tool-call"), "Forge Tool Call");
+        assert_eq!(to_title_case("message"), "Message");
+    }
+
+    #[test]
+    fn test_to_sentence_case() {
+        assert_eq!(to_sentence_case("cargo build"), "Cargo build");
+        assert_eq!(to_sentence_case("ZSH"), "Zsh");
+        assert_eq!(to_sentence_case(""), "");
+    }
+
+    #[test]
+    fn test_snapshot_markdown_flat_element() {
+        let elem = Element::new("message").text("Hello, world!");
+        insta::assert_snapshot!(elem.render_as_markdown());
+    }
+
+    #[test]
+    fn test_snapshot_markdown_attrs_and_cdata() {
+        let elem = Element::new("file")
+            .attr("path", "src/main.rs")
+            .attr("lang", "rust")
+            .cdata("fn main() {\n    println!(\"hello\");\n}");
+        insta::assert_snapshot!(elem.render_as_markdown());
+    }
+
+    #[test]
+    fn test_snapshot_markdown_nested_children() {
+        let elem = Element::new("shell_output")
+            .attr("command", "cargo build")
+            .attr("shell", "zsh")
+            .append(Element::new("stdout").text("Compiling forge v0.1.0"))
+            .append(Element::new("stderr").text("warning: unused variable"));
+        insta::assert_snapshot!(elem.render_as_markdown());
+    }
+
+    #[test]
+    fn test_snapshot_markdown_deeply_nested() {
+        let elem = Element::new("tool_result")
+            .attr("name", "fs_read")
+            .append(
+                Element::new("file")
+                    .attr("path", "README.md")
+                    .append(Element::new("head").cdata("# Forge\n\nA coding assistant."))
+                    .append(Element::new("tail").cdata("MIT License")),
+            );
+        insta::assert_snapshot!(elem.render_as_markdown());
     }
 }

@@ -1,0 +1,14 @@
+---
+source: crates/forge_template/src/element.rs
+expression: elem.render_as_markdown()
+---
+# File
+
+- **path**: Src/main.rs
+- **lang**: Rust
+
+```
+fn main() {
+    println!("hello");
+}
+```

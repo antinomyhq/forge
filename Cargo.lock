@@ -2169,6 +2169,7 @@ name = "forge_template"
 version = "0.1.0"
 dependencies = [
  "html-escape",
+ "insta",
  "pretty_assertions",
 ]
 

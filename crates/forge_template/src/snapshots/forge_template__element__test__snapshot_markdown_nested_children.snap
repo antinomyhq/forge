@@ -1,0 +1,16 @@
+---
+source: crates/forge_template/src/element.rs
+expression: elem.render_as_markdown()
+---
+# Shell Output
+
+- **command**: Cargo build
+- **shell**: Zsh
+
+## Stdout
+
+Compiling forge v0.1.0
+
+## Stderr
+
+warning: unused variable

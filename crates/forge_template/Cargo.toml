@@ -9,4 +9,5 @@ rust-version.workspace = true
 html-escape = "0.2.13"
 
 [dev-dependencies]
+insta.workspace = true
 pretty_assertions.workspace = true
