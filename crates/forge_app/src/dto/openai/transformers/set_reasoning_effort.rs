@@ -2,7 +2,8 @@ use forge_domain::{Effort, Transformer};
 
 use crate::dto::openai::Request;
 
-/// Transformer that converts standard ReasoningConfig to reasoning_effort format
+/// Transformer that converts standard ReasoningConfig to reasoning_effort
+/// format
 ///
 /// OpenAI-compatible APIs expect `reasoning_effort` parameter instead of the
 /// internal `reasoning` config object.
@@ -15,12 +16,14 @@ use crate::dto::openai::Request;
 ///   - 0-1024 → "low"
 ///   - 1025-8192 → "medium"
 ///   - 8193+ → "high"
-/// - If `reasoning.enabled == Some(true)` but no other params → default to "medium"
+/// - If `reasoning.enabled == Some(true)` but no other params → default to
+///   "medium"
 /// - Original `reasoning` field is removed after transformation
 ///
 /// # Note
 ///
-/// OpenAI-compatible APIs support: "low", "medium", "high", "max", "min", "none", or a budget number.
+/// OpenAI-compatible APIs support: "low", "medium", "high", "max", "min",
+/// "none", or a budget number.
 pub struct SetReasoningEffort;
 
 impl Transformer for SetReasoningEffort {
@@ -56,10 +59,10 @@ impl Transformer for SetReasoningEffort {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{Effort, ReasoningConfig};
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use forge_domain::{Effort, ReasoningConfig};
 
     #[test]
     fn test_reasoning_enabled_true_no_effort_defaults_to_medium() {

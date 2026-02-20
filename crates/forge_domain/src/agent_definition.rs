@@ -222,7 +222,7 @@ pub enum Effort {
     Low,
 }
 
-/// Converts a thinking budget (max_tokens) to Effort 
+/// Converts a thinking budget (max_tokens) to Effort
 /// - 0-1024 → Low
 /// - 1025-8192 → Medium
 /// - 8193+ → High
