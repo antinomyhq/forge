@@ -139,9 +139,10 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         // Exit codes 1-125 are typically used for reporting issues found, not execution
         // errors
         if let Some(code) = status.code()
-            && code > 125 {
-                anyhow::bail!("ZSH {} script failed with exit code: {}", script_name, code);
-            }
+            && code > 125
+        {
+            anyhow::bail!("ZSH {} script failed with exit code: {}", script_name, code);
+        }
     }
 
     Ok(())
