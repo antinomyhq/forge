@@ -131,20 +131,17 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .wait()
         .context(format!("Failed to wait for zsh {} script", script_name))?;
 
-    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are informational
-    // They indicate environment issues found, not script execution failures
-    // Only propagate the error if the script actually failed to execute
+    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are
+    // informational They indicate environment issues found, not script
+    // execution failures Only propagate the error if the script actually failed
+    // to execute
     if !status.success() {
-        // Exit codes 1-125 are typically used for reporting issues found, not execution errors
-        if let Some(code) = status.code() {
-            if code > 125 {
-                anyhow::bail!(
-                    "ZSH {} script failed with exit code: {}",
-                    script_name,
-                    code
-                );
+        // Exit codes 1-125 are typically used for reporting issues found, not execution
+        // errors
+        if let Some(code) = status.code()
+            && code > 125 {
+                anyhow::bail!("ZSH {} script failed with exit code: {}", script_name, code);
             }
-        }
     }
 
     Ok(())
