@@ -42,7 +42,7 @@ impl Default for RetryConfig {
             min_delay_ms: 1000,
             backoff_factor: 2,
             max_retry_attempts: 8,
-            retry_status_codes: vec![429, 500, 502, 503, 504, 408, 522],
+            retry_status_codes: vec![429, 500, 502, 503, 504, 408, 522, 499],
             max_delay: None,
             suppress_retry_errors: false,
         }

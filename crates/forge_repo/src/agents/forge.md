@@ -22,7 +22,6 @@ tools:
   # - mcp_*
 user_prompt: |-
   {{event.value}}
-
   {{#if env.background}}
   <system-reminder>
   When you have finished implementing the solution and are ready to complete the task, you MUST use the `skill` tool to invoke the `verification-specialist` skill to verify your work before marking the task as completed.

@@ -1,7 +1,7 @@
 use std::ops::Deref;
 use std::sync::Arc;
 
-use forge_domain::{Agent, *};
+use forge_domain::{Agent, Environment, *};
 use serde_json::json;
 use tracing::debug;
 
@@ -14,6 +14,7 @@ pub struct UserPromptGenerator<S> {
     agent: Agent,
     event: Event,
     current_time: chrono::DateTime<chrono::Local>,
+    env: Environment,
 }
 
 impl<S: AttachmentService> UserPromptGenerator<S> {
@@ -23,8 +24,9 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         agent: Agent,
         event: Event,
         current_time: chrono::DateTime<chrono::Local>,
+        env: Environment,
     ) -> Self {
-        Self { services: service, agent, event, current_time }
+        Self { services: service, agent, event, current_time, env }
     }
 
     /// Sets the user prompt in the context based on agent configuration and
@@ -88,7 +90,8 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                     .and_then(|v| v.as_user_prompt().map(|u| u.as_str().to_string()))
                     .unwrap_or_default();
                 let mut event_context = EventContext::new(EventContextValue::new(user_input))
-                    .current_date(self.current_time.format("%Y-%m-%d").to_string());
+                    .current_date(self.current_time.format("%Y-%m-%d").to_string())
+                    .env(Some(self.env.clone()));
 
                 // Check if context already contains user messages to determine if it's feedback
                 let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
@@ -177,6 +180,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
 #[cfg(test)]
 mod tests {
+    use fake::{Fake, Faker};
     use forge_domain::{
         AgentId, AttachmentContent, Context, ContextMessage, ConversationId, ModelId, ProviderId,
         ToolKind,
@@ -206,8 +210,18 @@ mod tests {
         Conversation::new(ConversationId::default()).context(Context::default())
     }
 
+    fn fixture_env() -> Environment {
+        Faker.fake()
+    }
+
     fn fixture_generator(agent: Agent, event: Event) -> UserPromptGenerator<MockService> {
-        UserPromptGenerator::new(Arc::new(MockService), agent, event, chrono::Local::now())
+        UserPromptGenerator::new(
+            Arc::new(MockService),
+            agent,
+            event,
+            chrono::Local::now(),
+            fixture_env(),
+        )
     }
 
     #[tokio::test]
@@ -354,6 +368,7 @@ mod tests {
             agent.clone(),
             event,
             chrono::Local::now(),
+            fixture_env(),
         );
 
         // Execute

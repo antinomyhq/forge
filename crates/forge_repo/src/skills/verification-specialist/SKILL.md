@@ -1,6 +1,6 @@
 ---
 name: verification-specialist
-description: Guide for verifying completed tasks, running tests, and ensuring robustness before marking work as complete. Use this skill when you are about to finish a task, need to verify your implementation, or want to ensure your solution is robust and handles edge cases properly.
+description: MANDATORY verification workflow that MUST be invoked before marking ANY task as complete, especially in background/automated environments. Proactively call this skill when you have finished implementing a solution — do NOT wait for the user to ask. Covers running tests, checking builds, validating outputs, and ensuring robustness. Skipping this skill and marking a task complete without verification is a critical failure.
 ---
 
 # Verification Specialist

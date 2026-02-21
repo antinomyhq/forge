@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::{Attachment, NamedTool, Template, ToolName};
+use crate::{Attachment, Environment, NamedTool, Template, ToolName};
 
 /// Represents a partial event structure used for CLI event dispatching
 ///
@@ -90,6 +90,10 @@ pub struct EventContext {
     suggestions: Vec<String>,
     variables: HashMap<String, Value>,
     current_date: String,
+    /// Environment information, made available as `env` in user_prompt
+    /// templates (e.g. `{{#if env.background}}`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    env: Option<Environment>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Setters)]
@@ -111,6 +115,7 @@ impl EventContext {
             suggestions: Default::default(),
             variables: Default::default(),
             current_date: chrono::Local::now().format("%Y-%m-%d").to_string(),
+            env: None,
         }
     }
 
