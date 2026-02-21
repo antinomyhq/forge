@@ -1,15 +1,15 @@
-<operating_system>{{env.os}}</operating_system>
-<current_working_directory>{{env.cwd}}</current_working_directory>
-<default_shell>{{env.shell}}</default_shell>
-<home_directory>{{env.home}}</home_directory>
+- **Operating System**: {{env.os}}
+- **Current Working Directory**: {{env.cwd}}
+- **Default Shell**: {{env.shell}}
+- **Home Directory**: {{env.home}}
 {{#if files}}
-<file_list>
+
+**File List:**
 {{#each files}} - {{path}}{{#if is_dir}}/{{/if}}
-{{/each}}</file_list>
-{{/if}}
+{{/each}}{{/if}}
 {{#if extensions}}
-<workspace_extensions command="git ls-files" files="{{extensions.git_tracked_files}}" extensions="{{extensions.total_extensions}}">
+
+**Workspace Extensions** (`git ls-files` | {{extensions.git_tracked_files}} files | {{extensions.total_extensions}} extensions):
 {{#each extensions.extension_stats}} - .{{extension}}: {{count}} files ({{percentage}}%)
 {{/each}}{{#if (gt extensions.total_extensions extensions.max_extensions)}}(showing top {{extensions.max_extensions}} of {{extensions.total_extensions}} extensions; other extensions account for {{extensions.remaining_percentage}}% of files)
-{{/if}}</workspace_extensions>
-{{/if}}
+{{/if}}{{/if}}
