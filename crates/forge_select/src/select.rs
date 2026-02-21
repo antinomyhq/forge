@@ -135,6 +135,10 @@ impl<T: 'static> SelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Install signal handler to ensure cursor is restored on Ctrl+C
+        // This is critical because dialoguer hides the cursor
+        let _ = crate::terminal::install_signal_handler();
+
         // Ensure cursor is visible when prompt completes
         let _cursor_restore_guard = CursorRestoreGuard;
 
@@ -227,6 +231,9 @@ impl<T> SelectBuilderOwned<T> {
     where
         T: std::fmt::Display,
     {
+        // Install signal handler to ensure cursor is restored on Ctrl+C
+        let _ = crate::terminal::install_signal_handler();
+
         if self.options.is_empty() {
             return Ok(None);
         }
@@ -323,6 +330,9 @@ impl InputBuilder {
     /// Returns an error if the terminal interaction fails for reasons other
     /// than user cancellation
     pub fn prompt(self) -> Result<Option<String>> {
+        // Install signal handler to ensure cursor is restored on Ctrl+C
+        let _ = crate::terminal::install_signal_handler();
+
         // Disable bracketed paste mode to prevent ~0 and ~1 markers during input
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
@@ -397,6 +407,9 @@ impl<T> MultiSelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Install signal handler to ensure cursor is restored on Ctrl+C
+        let _ = crate::terminal::install_signal_handler();
+
         if self.options.is_empty() {
             return Ok(None);
         }

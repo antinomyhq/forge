@@ -6,4 +6,5 @@ pub use select::{
 };
 pub use terminal::{
     ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard, TerminalControl,
+    install_signal_handler,
 };
