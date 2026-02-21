@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
+use forge_domain::{AutoDumpFormat, Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 
 #[derive(Clone)]
@@ -102,7 +102,7 @@ impl ForgeEnvironmentInfra {
             override_model,
             override_provider,
             max_extensions: parse_env::<usize>("FORGE_MAX_EXTENSIONS").unwrap_or(15),
-            auto_dump: parse_env::<bool>("FORGE_AUTO_DUMP").unwrap_or(false),
+            auto_dump: parse_env::<AutoDumpFormat>("FORGE_AUTO_DUMP"),
         }
     }
 
@@ -184,6 +184,7 @@ impl_from_env_str_via_from_str! {
     String,
     forge_domain::TlsBackend,
     forge_domain::TlsVersion,
+    forge_domain::AutoDumpFormat,
 }
 
 /// Parse environment variable using custom FromEnvStr trait
@@ -637,6 +638,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_auto_dump_env_var() {
+        use forge_domain::AutoDumpFormat;
         let cwd = tempdir().unwrap().path().to_path_buf();
         let infra = ForgeEnvironmentInfra::new(false, cwd);
 
@@ -646,52 +648,76 @@ mod tests {
                 env::remove_var("FORGE_AUTO_DUMP");
             }
             let env = infra.get_environment();
-            assert!(!env.auto_dump);
+            assert_eq!(env.auto_dump, None);
         }
 
-        // Test enabled with "true"
+        // Test JSON with "json"
+        {
+            unsafe {
+                env::set_var("FORGE_AUTO_DUMP", "json");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_dump, Some(AutoDumpFormat::Json));
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
+            }
+        }
+
+        // Test JSON with "true"
         {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "true");
             }
             let env = infra.get_environment();
-            assert!(env.auto_dump);
+            assert_eq!(env.auto_dump, Some(AutoDumpFormat::Json));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
             }
         }
 
-        // Test enabled with "1"
+        // Test JSON with "1"
         {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "1");
             }
             let env = infra.get_environment();
-            assert!(env.auto_dump);
+            assert_eq!(env.auto_dump, Some(AutoDumpFormat::Json));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
             }
         }
 
-        // Test disabled with "false"
+        // Test HTML with "html"
         {
             unsafe {
-                env::set_var("FORGE_AUTO_DUMP", "false");
+                env::set_var("FORGE_AUTO_DUMP", "html");
             }
             let env = infra.get_environment();
-            assert!(!env.auto_dump);
+            assert_eq!(env.auto_dump, Some(AutoDumpFormat::Html));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
             }
         }
 
-        // Test fallback to default for invalid value
+        // Test HTML case-insensitive "HTML"
+        {
+            unsafe {
+                env::set_var("FORGE_AUTO_DUMP", "HTML");
+            }
+            let env = infra.get_environment();
+            assert_eq!(env.auto_dump, Some(AutoDumpFormat::Html));
+            unsafe {
+                env::remove_var("FORGE_AUTO_DUMP");
+            }
+        }
+
+        // Test disabled with invalid value
         {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "invalid");
             }
             let env = infra.get_environment();
-            assert!(!env.auto_dump);
+            assert_eq!(env.auto_dump, None);
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
             }

@@ -2883,8 +2883,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if self.api.environment().auto_dump {
-                    self.on_dump(false).await?;
+                if let Some(format) = self.api.environment().auto_dump {
+                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                    self.on_dump(html).await?;
                 }
             }
         }
