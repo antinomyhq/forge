@@ -23,6 +23,11 @@ impl FormatContent for ToolOperation {
                     .diff()
                     .to_string(),
             )),
+            ToolOperation::FsMultiPatch { input: _, output } => Some(ChatResponseContent::ToolOutput(
+                DiffFormat::format(&output.before, &output.after)
+                    .diff()
+                    .to_string(),
+            )),
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
@@ -33,6 +38,9 @@ impl FormatContent for ToolOperation {
             ToolOperation::TodoWrite { output } => {
                 Some(ChatResponseContent::Markdown { text: format_todos(output), partial: false })
             }
+            ToolOperation::Lsp { output } => output.as_str().map(|text| {
+                ChatResponseContent::Markdown { text: text.to_string(), partial: false }
+            }),
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }

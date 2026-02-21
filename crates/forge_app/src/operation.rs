@@ -6,7 +6,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    CodebaseSearchResults, Environment, FSMultiPatch, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
@@ -53,6 +53,10 @@ pub enum ToolOperation {
         input: FSPatch,
         output: PatchOutput,
     },
+    FsMultiPatch {
+        input: FSMultiPatch,
+        output: PatchOutput,
+    },
     FsUndo {
         input: FSUndo,
         output: FsUndoOutput,
@@ -76,6 +80,9 @@ pub enum ToolOperation {
     },
     TodoWrite {
         output: TodoWriteOutput,
+    },
+    Lsp {
+        output: forge_domain::ToolOutput,
     },
 }
 
@@ -229,7 +236,7 @@ impl ToolOperation {
                     tracing::info!(
                         path = %input.file_path,
                         tool = %tool_name,
-                        "Visual content read (image/PDF)"
+                        "Visual content read (image)"
                     );
                     *metrics = metrics.clone().insert(
                         input.file_path.clone(),
@@ -238,6 +245,22 @@ impl ToolOperation {
                     );
 
                     return forge_domain::ToolOutput::image(image.clone());
+                }
+
+                // Check if content is a document (PDF)
+                if let Some(document) = output.content.as_document() {
+                    tracing::info!(
+                        path = %input.file_path,
+                        tool = %tool_name,
+                        "Document content read (PDF)"
+                    );
+                    *metrics = metrics.clone().insert(
+                        input.file_path.clone(),
+                        FileOperation::new(tool_kind)
+                            .content_hash(Some(output.content_hash.clone())),
+                    );
+
+                    return forge_domain::ToolOutput::document(document.clone());
                 }
 
                 // Handle text content
@@ -456,6 +479,29 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
+            ToolOperation::FsMultiPatch { input, output } => {
+                let diff_result = DiffFormat::format(&output.before, &output.after);
+                let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+
+                let mut elm = Element::new("file_diff")
+                    .attr("path", &input.file_path)
+                    .attr("total_lines", output.after.lines().count())
+                    .cdata(diff);
+
+                if !output.errors.is_empty() {
+                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
+                }
+
+                *metrics = metrics.clone().insert(
+                    input.file_path.clone(),
+                    FileOperation::new(tool_kind)
+                        .lines_added(diff_result.lines_added())
+                        .lines_removed(diff_result.lines_removed())
+                        .content_hash(Some(output.content_hash.clone())),
+                );
+
+                forge_domain::ToolOutput::text(elm)
+            }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state
                 // (before_undo)
@@ -635,6 +681,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
+            ToolOperation::Lsp { output } => output,
         }
     }
 }
@@ -674,6 +721,9 @@ mod tests {
             }
             ToolValue::Image(image) => {
                 writeln!(result, "Image with mime type: {}", image.mime_type()).unwrap();
+            }
+            ToolValue::Document(doc) => {
+                writeln!(result, "Document with mime type: {}", doc.mime_type()).unwrap();
             }
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();

@@ -6,7 +6,7 @@ use forge_app::{
     Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
     ReadOutput, compute_hash,
 };
-use forge_domain::{FileInfo, Image};
+use forge_domain::{Document, FileInfo, Image};
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -57,7 +57,17 @@ fn detect_mime_type(path: &Path, content: &[u8]) -> String {
 
 /// Checks if a MIME type represents visual content (images or PDFs)
 fn is_visual_content(mime_type: &str) -> bool {
-    mime_type.starts_with("image/") || mime_type == "application/pdf"
+    is_image_content(mime_type) || is_document_content(mime_type)
+}
+
+/// Checks if a MIME type represents an image
+fn is_image_content(mime_type: &str) -> bool {
+    mime_type.starts_with("image/")
+}
+
+/// Checks if a MIME type represents a document (e.g., PDF)
+fn is_document_content(mime_type: &str) -> bool {
+    mime_type == "application/pdf"
 }
 
 /// Validates that file size does not exceed the maximum allowed file size.
@@ -132,14 +142,37 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             // Validate against image-specific size limit (may be different from
             // max_file_size)
             assert_file_size(&*self.0, path, env.max_image_size).await.with_context(|| {
-                if mime_type == "application/pdf" {
+                if is_document_content(&mime_type) {
                     "PDF exceeds size limit. Use a smaller PDF or increase FORGE_MAX_IMAGE_SIZE."
                 } else {
                     "Image exceeds size limit. Compress the image or increase FORGE_MAX_IMAGE_SIZE."
                 }
             })?;
 
-            // Convert to base64 image
+            if is_document_content(&mime_type) {
+                // Return as Document for PDFs
+                let filename = path
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    .map(|f| f.to_string());
+                let document = Document::new_bytes(raw_content, mime_type.clone());
+                let document = if let Some(name) = filename {
+                    document.with_filename(name)
+                } else {
+                    document
+                };
+                let hash = compute_hash(document.base64_data());
+
+                return Ok(ReadOutput {
+                    content: Content::document(document),
+                    start_line: 0,
+                    end_line: 0,
+                    total_lines: 0,
+                    content_hash: hash,
+                });
+            }
+
+            // Return as Image for images
             let image = Image::new_bytes(raw_content, mime_type.clone());
             let hash = compute_hash(image.url());
 

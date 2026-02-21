@@ -191,8 +191,10 @@ pub enum SummaryTool {
     Followup { question: String },
     Plan { plan_name: String },
     Skill { name: String },
+    Task { agent_id: String },
     Mcp { name: String },
     TodoWrite { todos: Vec<crate::Todo> },
+    Lsp { operation: String, path: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -228,7 +230,7 @@ impl From<&Context> for ContextSummary {
                         tool_results.insert(call_id, tool_result);
                     }
                 }
-                ContextMessage::Image(_) => {}
+                ContextMessage::Image(_) | ContextMessage::Document(_) => {}
             }
         }
 
@@ -289,6 +291,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.file_path }),
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
+            ToolCatalog::MultiPatch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
             ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
             ToolCatalog::FsSearch(input) => {
@@ -307,6 +310,11 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
             ToolCatalog::TodoWrite(input) => Some(SummaryTool::TodoWrite { todos: input.todos }),
+            ToolCatalog::Task(input) => Some(SummaryTool::Task { agent_id: input.agent_id }),
+            ToolCatalog::Lsp(input) => Some(SummaryTool::Lsp {
+                operation: input.operation.as_ref().to_string(),
+                path: input.file_path,
+            }),
         };
     }
 

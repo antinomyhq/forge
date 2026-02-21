@@ -10,8 +10,8 @@ use crate::services::{Services, ShellService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
-    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    TodoService, WorkspaceService,
+    ImageReadService, LspService, NetFetchService, PlanCreateService, ProviderService,
+    SkillFetchService, TodoService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -35,6 +35,7 @@ impl<
         + PlanCreateService
         + SkillFetchService
         + TodoService
+        + LspService
         + AgentRegistry
         + ProviderService
         + Services,
@@ -174,6 +175,12 @@ impl<
                     .services
                     .write(normalized_path, input.content.clone(), input.overwrite)
                     .await?;
+
+                // Enforce read-before-write check if file was overwritten
+                if input.overwrite && output.before.is_some() {
+                    self.require_prior_read(context, &input.file_path, "overwrite it")?;
+                }
+
                 (input, output).into()
             }
             ToolCatalog::FsSearch(input) => {
@@ -241,6 +248,14 @@ impl<
                         input.new_string.clone(),
                         input.replace_all,
                     )
+                    .await?;
+                (input, output).into()
+            }
+            ToolCatalog::MultiPatch(input) => {
+                let normalized_path = self.normalize_path(input.file_path.clone());
+                let output = self
+                    .services
+                    .multi_patch(normalized_path, input.edits.clone())
                     .await?;
                 (input, output).into()
             }
@@ -321,6 +336,15 @@ impl<
 
                 ToolOperation::TodoWrite { output }
             }
+            ToolCatalog::Lsp(mut input) => {
+                input.file_path = self.normalize_path(input.file_path);
+                let output = self.services.execute_lsp(input).await?;
+                ToolOperation::Lsp { output }
+            }
+            ToolCatalog::Task(_) => {
+                // Task tools are handled in ToolRegistry before reaching here
+                unreachable!("Task tool should be handled in ToolRegistry")
+            }
         })
     }
 
@@ -332,16 +356,15 @@ impl<
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
 
-        // Enforce read-before-edit for patch
-        if let ToolCatalog::Patch(input) = &tool_input {
-            self.require_prior_read(context, &input.file_path, "edit it")?;
-        }
-
-        // Enforce read-before-edit for overwrite writes
-        if let ToolCatalog::Write(input) = &tool_input
-            && input.overwrite
-        {
-            self.require_prior_read(context, &input.file_path, "overwrite it")?;
+        // Enforce read-before-edit for patch operations
+        let file_path = match &tool_input {
+            ToolCatalog::Patch(input) => Some(&input.file_path),
+            ToolCatalog::MultiPatch(input) => Some(&input.file_path),
+            _ => None,
+        };
+        
+        if let Some(path) = file_path {
+            self.require_prior_read(context, path, "edit it")?;
         }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;

@@ -57,7 +57,6 @@ impl<S: AgentService> Orchestrator<S> {
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
-        // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         let system_tools = self
@@ -66,15 +65,14 @@ impl<S: AgentService> Orchestrator<S> {
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
 
+        // Send all start notifications and fire start lifecycle events
         for tool_call in tool_calls {
-            // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                     .await?;
             }
 
-            // Fire the ToolcallStart lifecycle event
             let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
@@ -100,13 +98,12 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&toolcall_end_event, &mut self.conversation)
                 .await?;
 
-            // Send the end notification for system tools and not agent as a tool
+            let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
                     .await?;
             }
-            // Ensure all tool calls and results are recorded
-            // Adding task completion records is critical for compaction to work correctly
+
             tool_call_records.push((tool_call.clone(), tool_result));
         }
 
@@ -151,6 +148,7 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
+            .pipe(DocumentHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
         let response = self
@@ -302,6 +300,22 @@ impl<S: AgentService> Orchestrator<S> {
                 message.usage,
                 tool_call_records,
             );
+
+            if is_complete {
+                let pending_todos = self
+                    .services
+                    .get_pending_todos(&self.conversation.id)
+                    .await?;
+                if !pending_todos.is_empty() {
+                    let reminder = format!(
+                        "You have {} pending todo items. Please complete them before finishing the task.",
+                        pending_todos.len()
+                    );
+                    context = context.add_message(ContextMessage::user(reminder, None));
+                    should_yield = false;
+                    is_complete = false;
+                }
+            }
 
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {

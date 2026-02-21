@@ -15,13 +15,43 @@ use forge_domain::Transformer;
 /// - `reasoning.effort` is forced to `High` and `reasoning.summary` to `Auto`.
 pub struct CodexTransformer;
 
+impl CodexTransformer {
+    fn determine_effort(request: &CreateResponse) -> oai::ReasoningEffort {
+        let items = match &request.input {
+            oai::InputParam::Items(items) => items,
+            _ => return oai::ReasoningEffort::Medium,
+        };
+
+        let assistant_msg_count = items
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item,
+                    oai::InputItem::EasyMessage(msg) if msg.role == oai::Role::Assistant
+                )
+            })
+            .count();
+
+        if assistant_msg_count >= 80 {
+            oai::ReasoningEffort::Xhigh
+        } else if assistant_msg_count >= 50 {
+            oai::ReasoningEffort::High
+        } else if assistant_msg_count >= 15 {
+            oai::ReasoningEffort::Medium
+        } else {
+            oai::ReasoningEffort::Low
+        }
+    }
+}
+
 impl Transformer for CodexTransformer {
     type Value = CreateResponse;
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         request.store = Some(false);
-        request.temperature = None;
+        request.temperature = Some(0.2);
         request.max_output_tokens = None;
+        request.top_p = None;
 
         let includes = request.include.get_or_insert_with(Vec::new);
         if !includes.contains(&oai::IncludeEnum::ReasoningEncryptedContent) {
@@ -35,9 +65,11 @@ impl Transformer for CodexTransformer {
         });
         text.verbosity = Some(oai::Verbosity::Low);
 
+        let effort = Self::determine_effort(&request);
+
         if let Some(reasoning) = request.reasoning.as_mut() {
-            reasoning.effort = Some(oai::ReasoningEffort::High);
-            reasoning.summary = Some(oai::ReasoningSummary::Auto);
+            reasoning.effort = Some(effort);
+            reasoning.summary = Some(oai::ReasoningSummary::Concise);
         }
 
         request
@@ -128,9 +160,9 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_high_and_summary_auto() {
+    fn test_codex_transformer_sets_reasoning_effort_low_initially() {
         let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Low),
+            effort: Some(oai::ReasoningEffort::Medium),
             summary: Some(oai::ReasoningSummary::Detailed),
         };
 
@@ -141,11 +173,103 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::Low)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_medium_after_10_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 10 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..10 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
+        }
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::Medium)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_high_after_20_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 20 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..20 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
+        }
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
             Some(oai::ReasoningEffort::High)
         );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_xhigh_after_50_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 50 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..50 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
+        }
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
         assert_eq!(
-            actual.reasoning.as_ref().and_then(|r| r.summary),
-            Some(oai::ReasoningSummary::Auto)
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::Xhigh)
         );
     }
 

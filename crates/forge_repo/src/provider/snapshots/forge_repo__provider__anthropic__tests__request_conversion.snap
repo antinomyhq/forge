@@ -54,5 +54,11 @@ expression: "serde_json::to_string_pretty(&request).unwrap()"
   "tool_choice": {
     "type": "tool",
     "name": "math"
-  }
+  },
+  "tools": [
+    {
+      "type": "web_search_20250305",
+      "name": "web_search"
+    }
+  ]
 }

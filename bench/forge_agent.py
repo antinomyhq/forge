@@ -672,6 +672,9 @@ class ForgeAgent(BaseInstalledAgent):
         # Tool timeout configuration (30 minutes for long-running benchmark tasks)
         env["FORGE_TOOL_TIMEOUT"] = "1800"  # 30 minutes in seconds
 
+        # Run in background (non-interactive) mode for benchmarks
+        env["FORGE_BACKGROUND"] = "true"
+
         # Pass through API keys
         api_key_vars = [
             "FORGE_API_KEY",

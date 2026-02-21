@@ -37,6 +37,43 @@ impl ForgeEnvironmentInfra {
         }
     }
 
+    /// Detects the Linux distribution from /etc/os-release and returns
+    /// a human-readable string like "linux (Ubuntu 24.04 LTS)".
+    /// Falls back to "linux" if the file cannot be read or parsed.
+    fn get_os_string() -> String {
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(content) = std::fs::read_to_string("/etc/os-release") {
+                let mut name = String::new();
+                let mut version = String::new();
+                for line in content.lines() {
+                    if let Some(val) = line.strip_prefix("PRETTY_NAME=") {
+                        // Strip surrounding quotes if present
+                        let val = val.trim_matches('"');
+                        return format!("linux ({})", val);
+                    }
+                    if let Some(val) = line.strip_prefix("NAME=") {
+                        name = val.trim_matches('"').to_string();
+                    }
+                    if let Some(val) = line.strip_prefix("VERSION=") {
+                        version = val.trim_matches('"').to_string();
+                    }
+                }
+                if !name.is_empty() {
+                    if !version.is_empty() {
+                        return format!("linux ({} {})", name, version);
+                    }
+                    return format!("linux ({})", name);
+                }
+            }
+            "linux".to_string()
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            std::env::consts::OS.to_string()
+        }
+    }
+
     fn get(&self) -> Environment {
         let cwd = self.cwd.clone();
         let retry_config = resolve_retry_config();
@@ -60,7 +97,7 @@ impl ForgeEnvironmentInfra {
             .and_then(|s| ProviderId::from_str(&s).ok());
 
         Environment {
-            os: std::env::consts::OS.to_string(),
+            os: Self::get_os_string(),
             pid: std::process::id(),
             cwd,
             shell: self.get_shell_path(),
@@ -88,8 +125,8 @@ impl ForgeEnvironmentInfra {
                         .unwrap_or(16)
                 }),
             http: resolve_http_config(),
-            max_file_size: 256 << 10, // 256 KiB
-            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
+            max_file_size: 1 << 20, // 1 MiB
+            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(1 << 20), /* 1 MiB */
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
@@ -101,6 +138,7 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
+            background: parse_env::<bool>("FORGE_BACKGROUND").unwrap_or(false),
         }
     }
 
@@ -678,26 +716,26 @@ mod tests {
         let cwd = tempfile::tempdir().unwrap();
         let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
 
-        // Test default value (256 KiB)
+        // Test default value (1 MiB)
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 262144); // 256 << 10
+        assert_eq!(env.max_image_size, 1048576); // 1 << 20
 
         // Test custom value
         unsafe {
-            std::env::set_var("FORGE_MAX_IMAGE_SIZE", "1048576"); // 1 MiB
+            std::env::set_var("FORGE_MAX_IMAGE_SIZE", "2097152"); // 2 MiB
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 1048576);
+        assert_eq!(env.max_image_size, 2097152);
 
         // Test invalid value (should fallback to default)
         unsafe {
             std::env::set_var("FORGE_MAX_IMAGE_SIZE", "invalid");
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 262144);
+        assert_eq!(env.max_image_size, 1048576);
 
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");

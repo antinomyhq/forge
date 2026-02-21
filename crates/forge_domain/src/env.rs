@@ -96,6 +96,11 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Whether the application is running in background (non-interactive) mode.
+    /// When true, the agent must not ask follow-up questions and should make
+    /// autonomous decisions. Controlled by FORGE_BACKGROUND environment
+    /// variable or --background CLI flag.
+    pub background: bool,
 }
 
 impl Environment {
@@ -308,10 +313,11 @@ fn test_command_path() {
         max_conversations: 100,
         sem_search_limit: 100,
         sem_search_top_k: 10,
-        max_image_size: 262144,
+        max_image_size: 1048576,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        background: false,
     };
 
     let actual = fixture.command_path();
@@ -349,10 +355,11 @@ fn test_command_cwd_path() {
         max_conversations: 100,
         sem_search_limit: 100,
         sem_search_top_k: 10,
-        max_image_size: 262144,
+        max_image_size: 1048576,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        background: false,
     };
 
     let actual = fixture.command_cwd_path();
@@ -390,10 +397,11 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_conversations: 100,
         sem_search_limit: 100,
         sem_search_top_k: 10,
-        max_image_size: 262144,
+        max_image_size: 1048576,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        background: false,
     };
 
     let command_path = fixture.command_path();

@@ -41,12 +41,14 @@ mod tests {
 
     #[test]
     fn test_set_thinking_gemini_3() {
-        let mut context = Context::default();
-        context.reasoning = Some(ReasoningConfig {
-            enabled: Some(true),
-            max_tokens: Some(1024),
+        let context = Context {
+            reasoning: Some(ReasoningConfig {
+                enabled: Some(true),
+                max_tokens: Some(1024),
+                ..Default::default()
+            }),
             ..Default::default()
-        });
+        };
 
         let request = Request::from(context);
         let mut transformer = SetThinking::new("gemini-3.0-pro");
@@ -65,12 +67,14 @@ mod tests {
 
     #[test]
     fn test_set_thinking_gemini_2() {
-        let mut context = Context::default();
-        context.reasoning = Some(ReasoningConfig {
-            enabled: Some(true),
-            max_tokens: Some(1024),
+        let context = Context {
+            reasoning: Some(ReasoningConfig {
+                enabled: Some(true),
+                max_tokens: Some(1024),
+                ..Default::default()
+            }),
             ..Default::default()
-        });
+        };
 
         let request = Request::from(context);
         let mut transformer = SetThinking::new("gemini-2.0-flash");
