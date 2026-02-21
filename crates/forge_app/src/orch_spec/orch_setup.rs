@@ -85,6 +85,7 @@ impl Default for TestContext {
                 stdout_max_line_length: 200, // 5 MB
                 max_line_length: 2000,
                 auto_open_dump: false,
+                auto_dump: None,
                 debug_requests: None,
                 custom_history_path: None,
                 max_conversations: 100,
