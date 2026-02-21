@@ -845,7 +845,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // For login, always configure (even if already configured) to allow
         // re-authentication
         let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec(), false)
             .await?
         {
             Some(provider) => provider,
@@ -2244,7 +2244,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner
             .start(Some("Waiting for authentication callback..."))?;
 
-        let receiver = self.extract_callback_receiver(request)?;
+        let receiver = self.extract_callback_receiver(request).await?;
 
         match tokio::time::timeout(Duration::from_secs(120), receiver).await {
             Ok(Ok(code)) => {
@@ -2260,7 +2260,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Extracts the callback receiver from the request
-    fn extract_callback_receiver(
+    async fn extract_callback_receiver(
         &self,
         request: &CodeRequest,
     ) -> anyhow::Result<tokio::sync::oneshot::Receiver<String>> {
@@ -2269,7 +2269,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("No callback receiver available"))?;
 
-        let mut receiver_opt = receiver_mutex.blocking_lock();
+        let mut receiver_opt = receiver_mutex.lock().await;
         receiver_opt
             .take()
             .ok_or_else(|| anyhow::anyhow!("Callback receiver already consumed"))
@@ -2377,6 +2377,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
+        skip_activation_prompt: bool,
     ) -> Result<Option<Provider<Url>>> {
         // Select auth method (or use the only one available)
         let auth_method = match self
@@ -2408,6 +2409,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             AuthContextRequest::Code(request) => {
                 self.handle_code_flow(provider_id.clone(), &request).await?;
             }
+        }
+
+        // Skip activation prompt if requested (e.g., for forge_services)
+        if skip_activation_prompt {
+            self.writeln_title(TitleFormat::info(format!(
+                "{provider_id} configured successfully!"
+            )))?;
+            // Fetch and return the configured provider without asking about activation
+            let provider = self.api.get_provider(&provider_id).await?;
+            return Ok(provider.into_configured());
         }
 
         let should_set_active = self.display_credential_success(provider_id.clone()).await?;
@@ -2505,7 +2516,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec(), false)
                 .await?
             {
                 Some(provider) => provider,
@@ -3347,17 +3358,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if !self.api.is_authenticated().await? {
             let forge_provider = self.api.get_provider(&ProviderId::FORGE_SERVICES).await?;
 
-            // Trigger OAuth authentication flow
-            if let Some(_provider) = self
-                .configure_provider(forge_provider.id(), forge_provider.auth_methods().to_vec())
-                .await?
-            {
-                self.writeln_title(TitleFormat::info(
-                    "Forge Services authenticated successfully",
-                ))?;
-            } else {
+            // Trigger OAuth authentication flow (skip activation prompt for forge_services)
+            self.configure_provider(
+                forge_provider.id(),
+                forge_provider.auth_methods().to_vec(),
+                true, // Skip activation prompt - forge_services is not a chat provider
+            )
+            .await?;
+
+            // Verify authentication succeeded (check actual authentication status)
+            if !self.api.is_authenticated().await? {
                 anyhow::bail!("Authentication cancelled or failed");
             }
+
+            self.writeln_title(TitleFormat::info(
+                "Forge Services authenticated successfully",
+            ))?;
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
