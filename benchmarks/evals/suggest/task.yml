@@ -22,8 +22,8 @@ validations:
 
 sources:
   - value:
-      - provider: "anthropic"
-        model: "claude-sonnet-4-5-20250929"
+      - provider: "open_router"
+        model: "anthropic/claude-sonnet-4.5"
       - provider: "open_router"
         model: "z-ai/glm-4.7"
       - provider: "open_router"

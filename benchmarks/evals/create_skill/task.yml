@@ -1,5 +1,5 @@
 # No before_run needed - binary should be pre-built
-run: FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{skill}}'
+run: FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{skill}}'
 parallelism: 10
 timeout: 60
 early_exit: true
@@ -8,4 +8,7 @@ validations:
     type: shell
     command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"skill\") | .function.arguments | fromjson | .name == \"create-skill\"] | any' {{dir}}/context.json"
 sources:
+  - value:
+      - model: "anthropic/claude-sonnet-4.5"
+      - model: "z-ai/glm-4.6:exacto"
   - csv: create_skill_tasks.csv

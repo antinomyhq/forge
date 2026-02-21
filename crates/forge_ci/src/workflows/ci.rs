@@ -37,6 +37,7 @@ pub fn generate_ci_workflow() {
 
     let draft_release_job = jobs::create_draft_release_job("build");
     let draft_release_pr_job = jobs::create_draft_release_pr_job();
+    let benchmark_job = jobs::benchmark_job();
     let events = Event::default()
         .push(Push::default().add_branch("main").add_tag("v*"))
         .pull_request(
@@ -78,6 +79,7 @@ pub fn generate_ci_workflow() {
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_job("build", build_job)
         .add_job("zsh_rprompt_perf", perf_test_job)
+        .add_job("benchmark", benchmark_job)
         .add_job("draft_release", draft_release_job)
         .add_job("draft_release_pr", draft_release_pr_job)
         .add_job("build_release", build_release_job)
