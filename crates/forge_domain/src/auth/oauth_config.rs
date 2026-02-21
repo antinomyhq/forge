@@ -18,6 +18,8 @@ pub struct OAuthConfig {
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_uri: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_redirect_uris: Option<Vec<String>>,
     #[serde(default)]
     pub use_pkce: bool,
     #[serde(skip_serializing_if = "Option::is_none")]

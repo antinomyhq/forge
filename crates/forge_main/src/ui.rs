@@ -2174,38 +2174,122 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         request: &CodeRequest,
     ) -> anyhow::Result<()> {
-        use colored::Colorize;
-
         self.spinner.stop(None)?;
+        self.display_auth_instructions(&provider_id, request)?;
+        self.open_browser(&request.authorization_url)?;
+
+        let code = self.get_authorization_code(request).await?;
+
+        self.exchange_code_for_credentials(provider_id, request, code)
+            .await
+    }
+
+    /// Displays authentication instructions to the user
+    fn display_auth_instructions(
+        &mut self,
+        provider_id: &ProviderId,
+        request: &CodeRequest,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
 
         self.writeln(format!(
             "{}",
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
-        // Display authorization URL
         self.writeln(format!(
             "{} Please visit: {}",
             "→".blue(),
             request.authorization_url.as_str().blue().underline()
         ))?;
 
-        // Try to open browser automatically
-        if let Err(e) = open::that(request.authorization_url.as_str()) {
+        Ok(())
+    }
+
+    /// Attempts to open the authorization URL in the user's browser
+    fn open_browser(&mut self, url: &url::Url) -> anyhow::Result<()> {
+        if let Err(e) = open::that(url.as_str()) {
             self.writeln_title(TitleFormat::error(format!(
                 "Failed to open browser automatically: {e}"
             )))?;
         }
+        Ok(())
+    }
 
-        // Prompt user to paste authorization code
-        let code = ForgeSelect::input("Paste the authorization code:")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+    /// Gets the authorization code either via HTTP callback or manual input
+    async fn get_authorization_code(&mut self, request: &CodeRequest) -> anyhow::Result<String> {
+        use forge_domain::AuthInputMethod;
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
+        match &request.input_method {
+            AuthInputMethod::HttpCallback { redirect_uri } => {
+                self.try_http_callback(redirect_uri, request).await
+            }
+            AuthInputMethod::Manual => self.prompt_for_code(),
         }
+    }
 
+    /// Attempts to receive the authorization code via HTTP callback
+    async fn try_http_callback(
+        &mut self,
+        redirect_uri: &str,
+        request: &CodeRequest,
+    ) -> anyhow::Result<String> {
+        use colored::Colorize;
+
+        self.writeln(format!(
+            "{}",
+            format!("Waiting for authentication callback on {}...", redirect_uri).dimmed()
+        ))?;
+
+        self.spinner
+            .start(Some("Waiting for authentication callback..."))?;
+
+        let receiver = self.extract_callback_receiver(request)?;
+
+        match tokio::time::timeout(Duration::from_secs(120), receiver).await {
+            Ok(Ok(code)) => {
+                self.spinner.stop(None)?;
+                self.writeln(format!("{}", "✓ Received callback".green()))?;
+                Ok(code)
+            }
+            Ok(Err(_)) => {
+                self.handle_callback_failure("Callback server closed without receiving code")
+            }
+            Err(_) => self.handle_callback_failure("Callback timeout after 120 seconds"),
+        }
+    }
+
+    /// Extracts the callback receiver from the request
+    fn extract_callback_receiver(
+        &self,
+        request: &CodeRequest,
+    ) -> anyhow::Result<tokio::sync::oneshot::Receiver<String>> {
+        let receiver_mutex = request
+            .callback_receiver
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No callback receiver available"))?;
+
+        let mut receiver_opt = receiver_mutex.blocking_lock();
+        receiver_opt
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Callback receiver already consumed"))
+    }
+
+    /// Handles callback failure by falling back to manual input
+    fn handle_callback_failure(&mut self, reason: &str) -> anyhow::Result<String> {
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::warning(reason))?;
+        self.writeln("Falling back to manual input...".dimmed())?;
+        self.prompt_for_code()
+    }
+
+    /// Exchanges the authorization code for credentials
+    async fn exchange_code_for_credentials(
+        &mut self,
+        provider_id: ProviderId,
+        request: &CodeRequest,
+        code: String,
+    ) -> anyhow::Result<()> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
@@ -2222,6 +2306,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         Ok(())
+    }
+
+    /// Prompts the user to manually paste an authorization code
+    fn prompt_for_code(&mut self) -> anyhow::Result<String> {
+        let code = ForgeSelect::input("Paste the authorization code:")
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+
+        if code.trim().is_empty() {
+            anyhow::bail!("Authorization code cannot be empty");
+        }
+
+        Ok(code)
     }
 
     /// Helper method to select an authentication method when multiple are

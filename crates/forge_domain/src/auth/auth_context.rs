@@ -1,6 +1,8 @@
-use std::collections::HashMap;
-
 use derive_more::{Deref, From};
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::sync::oneshot::Receiver;
 use url::Url;
 
 use super::{
@@ -34,6 +36,18 @@ pub struct ApiKeyResponse {
 #[derive(Debug, Clone)]
 pub struct CodeAuthFlow;
 
+/// Method for obtaining the authorization code from the user
+#[derive(Debug, Clone)]
+pub enum AuthInputMethod {
+    /// User must manually paste the authorization code
+    Manual,
+    /// A local HTTP server is listening for the callback
+    HttpCallback {
+        /// The redirect URI that was successfully bound
+        redirect_uri: String,
+    },
+}
+
 /// Request parameters for authorization code flow
 #[derive(Debug, Clone)]
 pub struct CodeRequest {
@@ -41,6 +55,9 @@ pub struct CodeRequest {
     pub state: State,
     pub pkce_verifier: Option<PkceVerifier>,
     pub oauth_config: OAuthConfig,
+    pub input_method: AuthInputMethod,
+    /// Callback receiver for HTTP callback method (wrapped for Clone compatibility)
+    pub callback_receiver: Option<Arc<Mutex<Option<Receiver<String>>>>>,
 }
 
 /// Response containing authorization code

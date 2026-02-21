@@ -60,6 +60,7 @@ mod tests {
             client_id: "app_test".to_string().into(),
             scopes: vec!["openid".to_string()],
             redirect_uri: None,
+            local_redirect_uris: None,
             use_pkce: false,
             token_refresh_url: None,
             custom_headers: None,

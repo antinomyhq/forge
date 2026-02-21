@@ -124,6 +124,7 @@ mod tests {
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec!["read".to_string(), "write".to_string()],
             redirect_uri: Some("https://example.com/callback".to_string()),
+            local_redirect_uris: None,
             use_pkce: true,
             token_refresh_url: None,
             extra_auth_params: None,

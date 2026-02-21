@@ -555,6 +555,7 @@ mod tests {
                         client_id: forge_domain::ClientId::from("client-id".to_string()),
                         scopes: vec![],
                         redirect_uri: None,
+                        local_redirect_uris: None,
                         use_pkce: false,
                         token_refresh_url: None,
                         custom_headers: None,

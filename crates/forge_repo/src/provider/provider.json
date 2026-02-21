@@ -1063,6 +1063,14 @@
             "email"
           ],
           "redirect_uri": "http://localhost:5175/app/oauth/callback",
+          "local_redirect_uris": [
+            "http://localhost:5175/app/oauth/callback",
+            "http://localhost:18741/oauth/callback",
+            "http://localhost:18742/oauth/callback",
+            "http://localhost:18743/oauth/callback",
+            "http://localhost:18744/oauth/callback",
+            "http://localhost:18745/oauth/callback"
+          ],
           "use_pkce": true
         }
       }
