@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{AutoDumpFormat, Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
+use forge_domain::{
+    AutoDumpFormat, Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion,
+};
 use reqwest::Url;
 
 #[derive(Clone)]
