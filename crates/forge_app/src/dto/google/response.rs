@@ -55,7 +55,18 @@ impl From<Model> for forge_domain::Model {
 pub enum EventData {
     Response(Response),
     Error(ErrorResponse),
+    Metadata(MetadataEvent),
     Unknown(serde_json::Value),
+}
+
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataEvent {
+    pub response_id: String,
+    pub model_version: String,
+    pub create_time: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage_metadata: Option<UsageMetadata>,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
@@ -76,6 +87,13 @@ impl TryFrom<EventData> for ChatCompletionMessage {
     fn try_from(value: EventData) -> Result<Self, Self::Error> {
         match value {
             EventData::Response(response) => ChatCompletionMessage::try_from(response),
+            EventData::Metadata(metadata_event) => {
+                let mut message = ChatCompletionMessage::assistant(forge_domain::Content::part(""));
+                if let Some(usage) = metadata_event.usage_metadata {
+                    message.usage = Some(usage.into());
+                }
+                Ok(message)
+            }
             EventData::Error(e) => Err(anyhow::anyhow!(
                 "Google API Error {}: {}",
                 e.error.code,
@@ -612,6 +630,25 @@ mod tests {
                 assert_eq!(e.error.message, "Bad Request");
             }
             _ => panic!("Expected Error"),
+        }
+
+        let usage_json = json!({
+            "createTime": "2026-02-21T15:57:31.077555Z",
+            "modelVersion": "gemini-3.1-pro-preview",
+            "responseId": "69WZafPdBMjo88APtafmgQM",
+            "usageMetadata": {
+                "candidatesTokenCount": 97,
+                "promptTokenCount": 11318,
+                "totalTokenCount": 11415,
+                "trafficType": "ON_DEMAND"
+            }
+        });
+        let event_data_metadata: EventData = serde_json::from_value(usage_json).unwrap();
+        match event_data_metadata {
+            EventData::Metadata(m) => {
+                assert_eq!(m.usage_metadata.unwrap().prompt_token_count, Some(11318));
+            }
+            _ => panic!("Expected Metadata"),
         }
     }
 
