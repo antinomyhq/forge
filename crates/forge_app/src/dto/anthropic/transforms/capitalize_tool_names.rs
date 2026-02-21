@@ -123,8 +123,7 @@ mod tests {
         let mut request = Request::try_from(fixture).unwrap();
         request = CapitalizeToolNames.transform(request);
 
-        // Only the built-in web_search tool should be present
-        assert_eq!(request.tools.len(), 1);
-        assert!(matches!(&request.tools[0], ToolEntry::WebSearch(_)));
+        // No tools should be present
+        assert_eq!(request.tools.len(), 0);
     }
 }

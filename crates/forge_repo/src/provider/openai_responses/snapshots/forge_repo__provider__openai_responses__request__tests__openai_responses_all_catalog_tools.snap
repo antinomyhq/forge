@@ -825,11 +825,5 @@ expression: actual.tools
   },
   {
     "type": "web_search"
-  },
-  {
-    "type": "code_interpreter",
-    "container": {
-      "type": "auto"
-    }
   }
 ]

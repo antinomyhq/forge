@@ -32,11 +32,11 @@ impl CodexTransformer {
             })
             .count();
 
-        if assistant_msg_count >= 80 {
+        if assistant_msg_count >= 50 {
             oai::ReasoningEffort::Xhigh
-        } else if assistant_msg_count >= 50 {
+        } else if assistant_msg_count >= 20 {
             oai::ReasoningEffort::High
-        } else if assistant_msg_count >= 15 {
+        } else if assistant_msg_count >= 10 {
             oai::ReasoningEffort::Medium
         } else {
             oai::ReasoningEffort::Low
@@ -49,7 +49,7 @@ impl Transformer for CodexTransformer {
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
         request.store = Some(false);
-        request.temperature = Some(0.2);
+        request.temperature = None;
         request.max_output_tokens = None;
         request.top_p = None;
 

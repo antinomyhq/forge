@@ -52,6 +52,10 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/execute-plan/SKILL.md",
                 include_str!("skills/execute-plan/SKILL.md"),
             ),
+            (
+                "forge://skills/verification-specialist/SKILL.md",
+                include_str!("skills/verification-specialist/SKILL.md"),
+            ),
         ];
 
         builtin_skills
@@ -334,7 +338,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 2);
+        assert_eq!(actual.len(), 3);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -361,6 +365,13 @@ mod tests {
                 .contains("Execute structured task plans")
         );
         assert!(execute_plan.command.contains("Execute Plan"));
+
+        // Check verification-specialist
+        let verification_specialist = actual.iter().find(|s| s.name == "verification-specialist").unwrap();
+        assert_eq!(
+            verification_specialist.path,
+            Some(std::path::Path::new("forge://skills/verification-specialist/SKILL.md").to_path_buf())
+        );
     }
 
     #[tokio::test]
