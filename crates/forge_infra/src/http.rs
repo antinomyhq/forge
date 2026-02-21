@@ -12,6 +12,8 @@ use reqwest::{Certificate, Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
 use tracing::{debug, warn};
 
+use crate::curl::CurlCommand;
+
 const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
     Some(v) => v,
@@ -213,11 +215,30 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
 
         if let Some(debug_path) = &self.env.debug_requests {
             let file_writer = self.file.clone();
-            let body_clone = body.clone();
             let debug_path = debug_path.clone();
+            let url_str = url.to_string();
+            let headers_clone = Self::sanitize_headers(&request_headers);
+            let body_clone = body.clone();
             tokio::spawn(async move {
-                // Use debug_path if parent dir can be created, otherwise use fallback
-                let _ = file_writer.write(&debug_path, body_clone).await;
+                // Build curl command using derive_setters
+                let headers_vec: Vec<(String, String)> = headers_clone
+                    .iter()
+                    .map(|(key, value)| {
+                        let value_str = value.to_str().unwrap_or("[invalid utf8]").to_string();
+                        (key.as_str().to_string(), value_str)
+                    })
+                    .collect();
+
+                let body_str = String::from_utf8_lossy(&body_clone);
+
+                let curl_cmd = CurlCommand::new("POST", url_str)
+                    .headers(headers_vec)
+                    .body(body_str.to_string())
+                    .render();
+
+                let _ = file_writer
+                    .write(&debug_path, Bytes::from(curl_cmd.into_bytes()))
+                    .await;
             });
         }
 
@@ -361,7 +382,19 @@ mod tests {
         let writes = file_writer.get_writes().await;
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+
+        // Verify the written content is a valid curl command
+        let curl_cmd = String::from_utf8_lossy(&writes[0].1);
+        assert!(
+            curl_cmd.starts_with("curl -X POST"),
+            "Should start with curl -X POST"
+        );
+        assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
+        assert!(
+            curl_cmd.contains("test request body"),
+            "Should contain body"
+        );
+        assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 
     #[tokio::test]
@@ -382,7 +415,19 @@ mod tests {
         let writes = file_writer.get_writes().await;
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+
+        // Verify the written content is a valid curl command
+        let curl_cmd = String::from_utf8_lossy(&writes[0].1);
+        assert!(
+            curl_cmd.starts_with("curl -X POST"),
+            "Should start with curl -X POST"
+        );
+        assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
+        assert!(
+            curl_cmd.contains("test request body"),
+            "Should contain body"
+        );
+        assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 
     #[tokio::test]
@@ -406,6 +451,18 @@ mod tests {
         // Should write to debug_path (no parent dir needed)
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+
+        // Verify the written content is a valid curl command
+        let curl_cmd = String::from_utf8_lossy(&writes[0].1);
+        assert!(
+            curl_cmd.starts_with("curl -X POST"),
+            "Should start with curl -X POST"
+        );
+        assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
+        assert!(
+            curl_cmd.contains("test request body"),
+            "Should contain body"
+        );
+        assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 }

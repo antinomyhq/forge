@@ -16,6 +16,7 @@ forge_services.workspace = true
 tokio.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
+derive_setters.workspace = true
 
 bytes.workspace = true
 pretty_assertions.workspace = true
