@@ -324,8 +324,7 @@ impl<S: AgentService> Orchestrator<S> {
             });
 
             if is_complete && !reminder_already_sent && !verification_skill_was_called(&context) {
-                context =
-                    context.add_message(ContextMessage::user(VERIFICATION_REMINDER, None));
+                context = context.add_message(ContextMessage::user(VERIFICATION_REMINDER, None));
                 should_yield = false;
                 is_complete = false;
             }

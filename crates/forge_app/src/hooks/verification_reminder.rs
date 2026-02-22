@@ -27,8 +27,12 @@ pub fn verification_skill_was_called(context: &Context) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{
+        Context, ContextMessage, Role, TextMessage, ToolCallArguments, ToolCallFull, ToolCallId,
+        ToolName,
+    };
+
     use super::*;
-    use forge_domain::{Context, ContextMessage, Role, TextMessage, ToolCallArguments, ToolCallFull, ToolCallId, ToolName};
 
     fn skill_tool_call(skill_name: &str) -> ToolCallFull {
         ToolCallFull {
@@ -85,8 +89,7 @@ mod tests {
         let context = Context::default()
             .add_message(ContextMessage::user("task", None))
             .add_message(ContextMessage::Text(
-                TextMessage::new(Role::Assistant, "Running shell")
-                    .tool_calls(vec![non_skill_call]),
+                TextMessage::new(Role::Assistant, "Running shell").tool_calls(vec![non_skill_call]),
             ))
             .add_message(ContextMessage::Text(
                 TextMessage::new(Role::Assistant, "Invoking skill")
