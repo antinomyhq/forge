@@ -27,11 +27,17 @@ async fn test_simple_conversation_no_errors() {
 
     let messages = ctx.output.context_messages();
 
-    let message_count = messages
+    // The orchestrator injects a verification-specialist reminder as a User message
+    // before the agent completes, so there will be 2 user messages in total:
+    // 1 for the original task, 1 for the verification reminder.
+    let user_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::User))
         .count();
-    assert_eq!(message_count, 1, "Should have only one user message");
+    assert_eq!(
+        user_message_count, 2,
+        "Should have 2 user messages: original task + verification reminder"
+    );
 
     let error_count = messages
         .iter()
@@ -404,14 +410,16 @@ async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
 
     let messages = ctx.output.context_messages();
 
-    // Verify we have exactly 3 assistant messages (one for each turn)
+    // Verify we have exactly 5 assistant messages: 3 from the original turns (Foo,
+    // Bar, Baz) plus 2 from the verification reminder flow (skill invocation +
+    // completion).
     let assistant_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::Assistant))
         .count();
     assert_eq!(
-        assistant_message_count, 3,
-        "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
+        assistant_message_count, 5,
+        "Should have 5 assistant messages: 3 original turns + 2 for verification"
     );
 }
 
@@ -490,13 +498,15 @@ async fn test_not_complete_when_stop_with_tool_calls() {
 
     let messages = ctx.output.context_messages();
 
-    // Verify we have multiple assistant messages (conversation continued)
+    // Verify we have 4 assistant messages: 2 from the original flow (tool call
+    // + completion) plus 2 from the verification reminder flow (skill invocation
+    // + completion).
     let assistant_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::Assistant))
         .count();
     assert_eq!(
-        assistant_message_count, 2,
-        "Should have 2 assistant messages, confirming is_complete was false with tool calls"
+        assistant_message_count, 4,
+        "Should have 4 assistant messages: 2 original + 2 for verification"
     );
 }

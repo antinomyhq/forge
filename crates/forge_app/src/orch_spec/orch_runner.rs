@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
-    ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
+    FinishReason, ProviderId, ToolCallArguments, ToolCallFull, ToolErrorTracker, ToolOutput,
+    ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;
@@ -11,6 +12,7 @@ use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
+use crate::hooks::verification_reminder::VERIFICATION_REMINDER;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -140,6 +142,29 @@ impl AgentService for Runner {
     ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut responses = self.test_completions.lock().await;
 
+        // If the last message is the verification reminder and no mock response is
+        // queued, automatically synthesize a response that invokes the skill and
+        // completes — this keeps existing tests from needing to be updated.
+        let last_content = context
+            .messages
+            .last()
+            .and_then(|m| m.content())
+            .unwrap_or_default();
+
+        if last_content == VERIFICATION_REMINDER && responses.is_empty() {
+            let skill_call = ToolCallFull::new("skill").arguments(ToolCallArguments::from(
+                serde_json::json!({"name": "verification-specialist"}),
+            ));
+            let turn1 = ChatCompletionMessage::assistant("Invoking verification skill")
+                .tool_calls(vec![skill_call.into()]);
+            let turn2 = ChatCompletionMessage::assistant("Verification complete")
+                .finish_reason(FinishReason::Stop);
+            drop(responses);
+            // Queue turn2 for the next call; return turn1 now
+            self.test_completions.lock().await.push_back(turn2);
+            return Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(turn1)))));
+        }
+
         if let Some(message) = responses.pop_front() {
             Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(message)))))
         } else {
@@ -158,6 +183,14 @@ impl AgentService for Runner {
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {
         let name = test_call.name.clone();
+
+        // Auto-handle skill tool calls (used by the verification reminder
+        // auto-response) without requiring explicit mock setup.
+        if name.as_str() == "skill" {
+            return forge_domain::ToolResult::new("skill")
+                .output(Ok(forge_domain::ToolOutput::text("skill executed")));
+        }
+
         let mut guard = self.test_tool_calls.lock().await;
         for (id, (call, result)) in guard.iter().enumerate() {
             if call.call_id == test_call.call_id {

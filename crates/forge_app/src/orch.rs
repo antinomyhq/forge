@@ -10,6 +10,7 @@ use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
+use crate::hooks::verification_reminder::{VERIFICATION_REMINDER, verification_skill_was_called};
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -315,6 +316,18 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = false;
                     is_complete = false;
                 }
+            }
+
+            let reminder_already_sent = context.messages.iter().any(|msg| {
+                msg.content()
+                    .is_some_and(|c| c.contains(VERIFICATION_REMINDER))
+            });
+
+            if is_complete && !reminder_already_sent && !verification_skill_was_called(&context) {
+                context =
+                    context.add_message(ContextMessage::user(VERIFICATION_REMINDER, None));
+                should_yield = false;
+                is_complete = false;
             }
 
             if self.error_tracker.limit_reached() {
