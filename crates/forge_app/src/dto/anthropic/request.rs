@@ -105,7 +105,7 @@ impl TryFrom<forge_domain::Context> for Request {
                 .map(|msg| Message::try_from(msg.message))
                 .collect::<std::result::Result<Vec<_>, _>>()?,
             tools: {
-                let mut tools: Vec<ToolEntry> = request
+                let tools: Vec<ToolEntry> = request
                     .tools
                     .into_iter()
                     .map(ToolDefinition::try_from)

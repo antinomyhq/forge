@@ -416,7 +416,8 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearc
             };
 
             // Apply the replacement
-            current_content = apply_replacement(current_content, range, &operation, &edit.new_string)?;
+            current_content =
+                apply_replacement(current_content, range, &operation, &edit.new_string)?;
         }
 
         // SNAPSHOT COORDINATION: Always capture snapshot before modifying

@@ -367,10 +367,16 @@ mod tests {
         assert!(execute_plan.command.contains("Execute Plan"));
 
         // Check verification-specialist
-        let verification_specialist = actual.iter().find(|s| s.name == "verification-specialist").unwrap();
+        let verification_specialist = actual
+            .iter()
+            .find(|s| s.name == "verification-specialist")
+            .unwrap();
         assert_eq!(
             verification_specialist.path,
-            Some(std::path::Path::new("forge://skills/verification-specialist/SKILL.md").to_path_buf())
+            Some(
+                std::path::Path::new("forge://skills/verification-specialist/SKILL.md")
+                    .to_path_buf()
+            )
         );
     }
 

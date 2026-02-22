@@ -1,7 +1,6 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Role,
-    TextMessage,
-    MessageEntry, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
+    MessageEntry, Role, TextMessage, Transformer,
 };
 use tracing::info;
 
@@ -762,5 +761,4 @@ mod tests {
             assert!(text_msg.content.contains("[x] Task 3 (id: 3)"));
         }
     }
-
 }

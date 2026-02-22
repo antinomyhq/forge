@@ -590,10 +590,10 @@ pub struct FSPatch {
 pub struct PatchEdit {
     /// The text to replace
     pub old_string: String,
-    
+
     /// The text to replace it with (must be different from old_string)
     pub new_string: String,
-    
+
     /// Replace all occurrences of old_string (default false)
     #[serde(default)]
     #[schemars(default)]
@@ -605,7 +605,7 @@ pub struct PatchEdit {
 pub struct FSMultiPatch {
     /// The absolute path to the file to modify
     pub file_path: String,
-    
+
     /// Array of edit operations to perform sequentially on the file
     pub edits: Vec<PatchEdit>,
 }
@@ -987,7 +987,11 @@ impl ToolCatalog {
             ToolCatalog::MultiPatch(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.file_path),
                 cwd,
-                message: format!("Modify file with {} edits: {}", input.edits.len(), display_path_for(&input.file_path)),
+                message: format!(
+                    "Modify file with {} edits: {}",
+                    input.edits.len(),
+                    display_path_for(&input.file_path)
+                ),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),

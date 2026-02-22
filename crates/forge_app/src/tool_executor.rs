@@ -362,7 +362,7 @@ impl<
             ToolCatalog::MultiPatch(input) => Some(&input.file_path),
             _ => None,
         };
-        
+
         if let Some(path) = file_path {
             self.require_prior_read(context, path, "edit it")?;
         }

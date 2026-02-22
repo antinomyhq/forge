@@ -883,15 +883,13 @@ impl<I: Services> FsPatchService for I {
             .patch(path, search, content, replace_all)
             .await
     }
-    
+
     async fn multi_patch(
         &self,
         path: String,
         edits: Vec<forge_domain::PatchEdit>,
     ) -> anyhow::Result<PatchOutput> {
-        self.fs_patch_service()
-            .multi_patch(path, edits)
-            .await
+        self.fs_patch_service().multi_patch(path, edits).await
     }
 }
 
