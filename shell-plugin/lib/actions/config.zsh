@@ -139,7 +139,7 @@ function _forge_action_model() {
     (
         echo
         local current_model
-        current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+        current_model=$(_forge_exec config get model 2>/dev/null)
 
         local selected
         selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text")
@@ -157,7 +157,7 @@ function _forge_action_model() {
             # Switch provider first if it differs from the current one
             # config get provider returns the display name, so compare against that
             local current_provider
-            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
+            current_provider=$(_forge_exec config get provider 2>/dev/null)
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
                 _forge_exec config set provider "$provider_id"
             fi
@@ -174,7 +174,7 @@ function _forge_action_commit_model() {
     (
         echo
         local current_commit_model
-        current_commit_model=$($_FORGE_BIN config get commit --porcelain 2>/dev/null | awk '{print $NF}')
+        current_commit_model=$(_forge_exec config get commit 2>/dev/null | tail -n 1)
 
         local selected
         selected=$(_forge_pick_model "Commit Model ❯ " "$current_commit_model" "$input_text")
