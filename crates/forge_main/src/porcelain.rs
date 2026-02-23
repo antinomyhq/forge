@@ -92,8 +92,9 @@ impl Porcelain {
     pub fn truncate(self, c: usize, max_len: usize) -> Self {
         self.map_col(c, |col| {
             col.map(|value| {
-                if value.len() > max_len {
-                    format!("{}...", &value[..max_len.saturating_sub(3)])
+                if value.chars().count() > max_len {
+                    let truncated: String = value.chars().take(max_len.saturating_sub(3)).collect();
+                    format!("{}...", truncated)
                 } else {
                     value
                 }
