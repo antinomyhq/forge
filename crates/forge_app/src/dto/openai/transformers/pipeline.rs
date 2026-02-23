@@ -474,8 +474,24 @@ mod tests {
 
         // Cache should be applied: first and last messages cached
         let messages = actual.messages.unwrap();
-        assert!(messages.first().unwrap().content.as_ref().unwrap().is_cached());
-        assert!(messages.last().unwrap().content.as_ref().unwrap().is_cached());
+        assert!(
+            messages
+                .first()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
+        assert!(
+            messages
+                .last()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
     }
 
     #[test]
@@ -515,8 +531,24 @@ mod tests {
 
         // Cache should NOT be applied for non-minimax/gemini/anthropic models
         let messages = actual.messages.unwrap();
-        assert!(!messages.first().unwrap().content.as_ref().unwrap().is_cached());
-        assert!(!messages.last().unwrap().content.as_ref().unwrap().is_cached());
+        assert!(
+            !messages
+                .first()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
+        assert!(
+            !messages
+                .last()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
     }
 
     #[test]
