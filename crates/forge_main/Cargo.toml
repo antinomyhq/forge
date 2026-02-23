@@ -55,7 +55,8 @@ humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
 url.workspace = true
-rust-embed = { version = "8.11", features = ["interpolate-folder-path"] }
+forge_embed.workspace = true
+include_dir.workspace = true
 indexmap.workspace = true
 async-recursion.workspace = true
 
