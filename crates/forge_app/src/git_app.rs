@@ -312,29 +312,16 @@ where
         // agent's provider/model with a warning.
         let (provider, model) =
             match commit_config.and_then(|c| c.provider.zip(c.model)) {
-                Some((provider_id, commit_model)) => {
-                    match self.services.get_provider(provider_id).await {
-                        Ok(template) => {
-                            let provider =
-                                self.services.refresh_provider_credential(template).await?;
-                            (provider, commit_model)
-                        }
-                        Err(_) => {
-                            tracing::warn!(
-                                "Configured commit provider is not authenticated. Falling back to the active provider."
-                            );
-                            self.resolve_agent_provider_and_model(
-                                &agent_provider_resolver,
-                                agent_id,
-                            )
-                            .await?
-                        }
+                Some((provider_id, commit_model)) => match self.services.get_provider(provider_id).await {
+                    Ok(provider) => (self.services.refresh_provider_credential(provider).await?, commit_model),
+                    Err(_) => {
+                        tracing::warn!(
+                            "Configured commit provider is not authenticated. Falling back to the active provider."
+                        );
+                        self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id).await?
                     }
-                }
-                None => {
-                    self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
-                        .await?
-                }
+                },
+                None => self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id).await?,
             };
 
         let rendered_prompt = self
