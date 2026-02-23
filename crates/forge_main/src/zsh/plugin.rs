@@ -327,12 +327,12 @@ pub fn setup_zsh_integration(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::sync::{LazyLock, Mutex};
 
     use super::*;
 
     // Mutex to ensure tests that modify environment variables run serially
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     /// Test that the doctor script executes and streams output
     /// Note: The script may fail with non-zero exit code in test environment
