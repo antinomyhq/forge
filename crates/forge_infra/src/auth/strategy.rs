@@ -4,8 +4,8 @@ use std::time::Duration;
 use forge_app::{AuthStrategy, OAuthHttpProvider, StrategyFactory};
 use forge_domain::{
     ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential,
-    AuthInputMethod, CodeRequest, DeviceCodeRequest, OAuthConfig, OAuthTokenResponse, OAuthTokens,
-    ProviderId, URLParam,
+    AuthInputMethod, CallbackRedirect, CodeRequest, DeviceCodeRequest, OAuthConfig,
+    OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
 };
 use google_cloud_auth::credentials::Builder;
 use oauth2::basic::BasicClient;
@@ -18,6 +18,7 @@ use url::Url;
 
 use crate::auth::error::Error as AuthError;
 use crate::auth::http::{AnthropicHttpProvider, GithubHttpProvider, StandardHttpProvider};
+use crate::auth::http_response::HttpResponse;
 use crate::auth::util::*;
 
 /// Internal OAuth callback HTTP server
@@ -31,10 +32,13 @@ impl OAuthCallbackServer {
     /// Attempts to start a local HTTP server on the given URI.
     ///
     /// Returns a receiver that will yield the authorization code when the
-    /// callback is received.
+    /// callback is received. When `callback_redirect` is provided, the server
+    /// responds with HTTP 302 redirects to the success/failure URIs instead of
+    /// inline HTML pages.
     async fn start_callback_server(
         redirect_uri: &str,
         state: &str,
+        callback_redirect: Option<CallbackRedirect>,
     ) -> anyhow::Result<oneshot::Receiver<String>> {
         let port = Self::extract_port(redirect_uri)?;
         let addr = format!("127.0.0.1:{}", port);
@@ -53,15 +57,36 @@ impl OAuthCallbackServer {
                     let (response, code) = if let Some(received_state) = params.get("state") {
                         if received_state == &expected_state {
                             if let Some(auth_code) = params.get("code") {
-                                (Self::success_response(), Some(auth_code.clone()))
+                                (
+                                    Self::success_response(callback_redirect.as_ref()),
+                                    Some(auth_code.clone()),
+                                )
                             } else {
-                                (Self::error_response("No authorization code received"), None)
+                                (
+                                    Self::error_response(
+                                        "No authorization code received",
+                                        callback_redirect.as_ref(),
+                                    ),
+                                    None,
+                                )
                             }
                         } else {
-                            (Self::error_response("Invalid state parameter"), None)
+                            (
+                                Self::error_response(
+                                    "Invalid state parameter",
+                                    callback_redirect.as_ref(),
+                                ),
+                                None,
+                            )
                         }
                     } else {
-                        (Self::error_response("Missing state parameter"), None)
+                        (
+                            Self::error_response(
+                                "Missing state parameter",
+                                callback_redirect.as_ref(),
+                            ),
+                            None,
+                        )
                     };
 
                     let _ = socket.write_all(response.as_bytes()).await;
@@ -112,38 +137,21 @@ impl OAuthCallbackServer {
         }
     }
 
-    fn success_response() -> String {
-        "HTTP/1.1 200 OK\r\n\
-         Content-Type: text/html; charset=utf-8\r\n\
-         Connection: close\r\n\
-         \r\n\
-         <!DOCTYPE html>\
-         <html>\
-         <head><title>Authorization Successful</title></head>\
-         <body>\
-         <h1>✓ Authorization Successful</h1>\
-         <p>You have successfully authorized the application. You can close this window.</p>\
-         </body>\
-         </html>"
-            .to_string()
+    fn success_response(callback_redirect: Option<&CallbackRedirect>) -> String {
+        if let Some(redirect) = callback_redirect {
+            return HttpResponse::redirect(&redirect.success_uri);
+        }
+        HttpResponse::ok_html(include_str!("oauth_success.html").to_string())
     }
 
-    fn error_response(message: &str) -> String {
-        format!(
-            "HTTP/1.1 400 Bad Request\r\n\
-             Content-Type: text/html; charset=utf-8\r\n\
-             Connection: close\r\n\
-             \r\n\
-             <!DOCTYPE html>\
-             <html>\
-             <head><title>Authorization Failed</title></head>\
-             <body>\
-             <h1>✗ Authorization Failed</h1>\
-             <p>{}</p>\
-             </body>\
-             </html>",
-            message
-        )
+    fn error_response(message: &str, callback_redirect: Option<&CallbackRedirect>) -> String {
+        if let Some(redirect) = callback_redirect {
+            let encoded_msg = urlencoding::encode(message);
+            let location = format!("{}?error={}", redirect.failure_uri, encoded_msg);
+            return HttpResponse::redirect(&location);
+        }
+        let html = include_str!("oauth_error.html").replace("{{ERROR_MESSAGE}}", message);
+        HttpResponse::bad_request_html(html)
     }
 }
 
@@ -231,8 +239,12 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                 };
 
                 // Try to start the callback server with the real state
-                match OAuthCallbackServer::start_callback_server(local_uri, &auth_params.state)
-                    .await
+                match OAuthCallbackServer::start_callback_server(
+                    local_uri,
+                    &auth_params.state,
+                    modified_config.callback_redirect.clone(),
+                )
+                .await
                 {
                     Ok(receiver) => {
                         // Port is available! Use this URI
@@ -1309,6 +1321,7 @@ mod tests {
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1333,6 +1346,7 @@ mod tests {
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1357,6 +1371,7 @@ mod tests {
             token_refresh_url: Some(Url::parse("https://example.com/api_key").unwrap()),
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1382,6 +1397,7 @@ mod tests {
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1493,6 +1509,7 @@ mod tests {
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
         let fixture_tokens = OAuthTokens::new(
             "access_token",

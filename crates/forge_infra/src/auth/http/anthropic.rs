@@ -129,6 +129,7 @@ mod tests {
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         }
     }
 

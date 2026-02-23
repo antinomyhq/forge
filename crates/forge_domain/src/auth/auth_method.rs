@@ -65,6 +65,7 @@ mod tests {
             token_refresh_url: None,
             custom_headers: None,
             extra_auth_params: None,
+            callback_redirect: None,
         }
     }
 

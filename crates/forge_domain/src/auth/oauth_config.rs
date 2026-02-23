@@ -9,6 +9,16 @@ use url::Url;
 #[serde(transparent)]
 pub struct ClientId(String);
 
+/// Redirect URIs for post-authentication callbacks.
+///
+/// After the OAuth flow completes via the local redirect URI, the user can be
+/// redirected to a success or failure URL to provide visual feedback.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CallbackRedirect {
+    pub success_uri: String,
+    pub failure_uri: String,
+}
+
 /// OAuth configuration for authentication flows
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OAuthConfig {
@@ -28,4 +38,6 @@ pub struct OAuthConfig {
     pub custom_headers: Option<HashMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_auth_params: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub callback_redirect: Option<CallbackRedirect>,
 }

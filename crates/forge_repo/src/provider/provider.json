@@ -1047,8 +1047,7 @@
     "id": "forge_services",
     "provider_type": "context_engine",
     "url_param_vars": [
-      "FORGE_WORKSPACE_SERVER_URL",
-      "FORGE_FE_URL"
+      "FORGE_WORKSPACE_SERVER_URL"
     ],
     "url": "{{FORGE_WORKSPACE_SERVER_URL}}",
     "auth_methods": [
@@ -1071,6 +1070,10 @@
             "http://localhost:18744/oauth/callback",
             "http://localhost:18745/oauth/callback"
           ],
+          "callback_redirect": {
+            "success_uri": "https://forgecode.dev/",
+            "failure_uri": "https://forgecode.dev/app/oauth/failure"
+          },
           "use_pkce": true
         }
       }
