@@ -16,6 +16,10 @@
     "description": "Switch the models [alias: m]"
   },
   {
+    "command": "config-commit-model",
+    "description": "Set the model used for commit message generation [alias: ccm]"
+  },
+  {
     "command": "new",
     "description": "Start new conversation [alias: n]"
   },

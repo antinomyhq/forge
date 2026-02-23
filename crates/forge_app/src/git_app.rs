@@ -287,18 +287,60 @@ where
         Ok((diff_output.output.stdout, size, has_staged_files))
     }
 
+    /// Resolves the provider and model from the active agent's configuration.
+    async fn resolve_agent_provider_and_model(
+        &self,
+        resolver: &AgentProviderResolver<S>,
+        agent_id: Option<AgentId>,
+    ) -> Result<(Provider<url::Url>, ModelId)> {
+        let (provider_template, model) = tokio::try_join!(
+            resolver.get_provider(agent_id.clone()),
+            resolver.get_model(agent_id)
+        )?;
+        let provider = self.services.refresh_provider_credential(provider_template).await?;
+        Ok((provider, model))
+    }
+
     /// Generates a commit message from the provided diff and git context
     async fn generate_message_from_diff(&self, ctx: DiffContext) -> Result<CommitMessageDetails> {
-        // Get required services and data in parallel
         let agent_id = self.services.get_active_agent_id().await?;
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let (rendered_prompt, provider, model) = tokio::try_join!(
-            self.services
-                .render_template(Template::new("{{> forge-commit-message-prompt.md }}"), &()),
-            agent_provider_resolver.get_provider(agent_id.clone()),
-            agent_provider_resolver.get_model(agent_id)
-        )?;
-        let provider = self.services.refresh_provider_credential(provider).await?;
+        let commit_config = self.services.get_commit_config().await?;
+
+        // Resolve provider and model: commit config takes priority over agent defaults.
+        // If the configured provider is unavailable (e.g. logged out), fall back to the
+        // agent's provider/model with a warning.
+        let (provider, model) =
+            match commit_config.and_then(|c| c.provider.zip(c.model)) {
+                Some((provider_id, commit_model)) => {
+                    match self.services.get_provider(provider_id).await {
+                        Ok(template) => {
+                            let provider =
+                                self.services.refresh_provider_credential(template).await?;
+                            (provider, commit_model)
+                        }
+                        Err(_) => {
+                            tracing::warn!(
+                                "Configured commit provider is not authenticated. Falling back to the active provider."
+                            );
+                            self.resolve_agent_provider_and_model(
+                                &agent_provider_resolver,
+                                agent_id,
+                            )
+                            .await?
+                        }
+                    }
+                }
+                None => {
+                    self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
+                        .await?
+                }
+            };
+
+        let rendered_prompt = self
+            .services
+            .render_template(Template::new("{{> forge-commit-message-prompt.md }}"), &())
+            .await?;
 
         // Build user message using structured JSON format
         let user_data = serde_json::json!({

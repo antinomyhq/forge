@@ -1313,11 +1313,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .ok()
             .map(|p| p.id.to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
+        let commit_config = self.api.get_commit_config().await.ok().flatten();
+        let commit_provider = commit_config
+            .as_ref()
+            .and_then(|c| c.provider.as_ref())
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+        let commit_model = commit_config
+            .as_ref()
+            .and_then(|c| c.model.as_ref())
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
             .add_key_value("Default Model", model)
-            .add_key_value("Default Provider", provider);
+            .add_key_value("Default Provider", provider)
+            .add_key_value("Commit Provider", commit_provider)
+            .add_key_value("Commit Model", commit_model);
 
         if porcelain {
             self.writeln(
@@ -3107,25 +3120,31 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle config set command
     async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
-        use crate::cli::ConfigField;
+        use crate::cli::ConfigSetField;
 
-        // Set the specified field
         match args.field {
-            ConfigField::Provider => {
-                // Parse provider ID (any string is valid for custom providers)
-                let provider_id =
-                    ProviderId::from_str(&args.value).expect("from_str is infallible");
-
-                // Get the provider
-                let provider = self.api.get_provider(&provider_id).await?;
-                // Activate the provider (will configure if needed and set as default)
+            ConfigSetField::Provider { provider } => {
+                let provider = self.api.get_provider(&provider).await?;
                 self.activate_provider(provider).await?;
             }
-            ConfigField::Model => {
-                let model_id = self.validate_model(&args.value).await?;
+            ConfigSetField::Model { model } => {
+                let model_id = self.validate_model(model.as_str()).await?;
                 self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+                )?;
+            }
+            ConfigSetField::Commit { provider, model } => {
+                // Validate provider exists and model is known
+                self.api.get_provider(&provider).await?;
+                let validated_model = self.validate_model(model.as_str()).await?;
+                let commit_config = forge_domain::CommitConfig::default()
+                    .provider(provider.clone())
+                    .model(validated_model.clone());
+                self.api.set_commit_config(commit_config).await?;
+                self.writeln_title(
+                    TitleFormat::action(validated_model.as_str())
+                        .sub_title(&format!("is now the commit model for provider '{provider}'")),
                 )?;
             }
         }
@@ -3135,11 +3154,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle config get command
     async fn handle_config_get(&mut self, args: crate::cli::ConfigGetArgs) -> Result<()> {
-        use crate::cli::ConfigField;
+        use crate::cli::ConfigGetField;
 
-        // Get specific field
         match args.field {
-            ConfigField::Model => {
+            ConfigGetField::Model => {
                 let model = self
                     .api
                     .get_default_model()
@@ -3150,7 +3168,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     None => self.writeln("Model: Not set")?,
                 }
             }
-            ConfigField::Provider => {
+            ConfigGetField::Provider => {
                 let provider = self
                     .api
                     .get_default_provider()
@@ -3160,6 +3178,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Provider: Not set")?,
+                }
+            }
+            ConfigGetField::Commit => {
+                let commit_config = self.api.get_commit_config().await?;
+                match commit_config {
+                    Some(config) => {
+                        let provider = config
+                            .provider
+                            .map(|p| p.to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
+                        let model = config
+                            .model
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
+                        self.writeln(format!("Commit provider: {provider}, Commit model: {model}"))?;
+                    }
+                    None => self.writeln("Commit config: Not set")?,
                 }
             }
         }
