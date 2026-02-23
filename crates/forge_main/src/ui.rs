@@ -3183,17 +3183,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let commit_config = self.api.get_commit_config().await?;
                 match commit_config {
                     Some(config) => {
-                        let provider = config
-                            .provider
-                            .map(|p| p.to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        let model = config
-                            .model
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        self.writeln(format!("Commit provider: {provider}, Commit model: {model}"))?;
+                        let provider = config.provider.map(|p| p.to_string()).unwrap_or_else(|| "Not set".to_string());
+                        let model = config.model.map(|m| m.as_str().to_string()).unwrap_or_else(|| "Not set".to_string());
+                        self.writeln(provider)?;
+                        self.writeln(model)?;
                     }
-                    None => self.writeln("Commit config: Not set")?,
+                    None => self.writeln("Commit: Not set")?,
                 }
             }
         }
