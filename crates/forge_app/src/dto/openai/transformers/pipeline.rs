@@ -41,7 +41,7 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(SetMinimaxParams.when(when_model("minimax")))
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
-            .pipe(SetCache.when(when_model("gemini|anthropic")))
+            .pipe(SetCache.when(when_model("gemini|anthropic|minimax")))
             .when(move |_| supports_open_router_params(provider));
 
         // Strip thought signatures for all models except gemini-3
@@ -435,6 +435,88 @@ mod tests {
         // Thought signature should be stripped for non-gemini-3 models
         let messages = actual.messages.unwrap();
         assert!(messages[0].extra_content.is_none());
+    }
+
+    #[test]
+    fn test_minimax_model_applies_cache_via_open_router() {
+        use crate::dto::openai::{Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("minimax/minimax-m2"))
+            .messages(vec![
+                Message {
+                    role: Role::User,
+                    content: Some(MessageContent::Text("Hello".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+                Message {
+                    role: Role::Assistant,
+                    content: Some(MessageContent::Text("Hi there".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+            ]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Cache should be applied: first and last messages cached
+        let messages = actual.messages.unwrap();
+        assert!(messages.first().unwrap().content.as_ref().unwrap().is_cached());
+        assert!(messages.last().unwrap().content.as_ref().unwrap().is_cached());
+    }
+
+    #[test]
+    fn test_non_minimax_model_does_not_apply_cache_via_open_router() {
+        use crate::dto::openai::{Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("openai/gpt-4o"))
+            .messages(vec![
+                Message {
+                    role: Role::User,
+                    content: Some(MessageContent::Text("Hello".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+                Message {
+                    role: Role::Assistant,
+                    content: Some(MessageContent::Text("Hi there".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+            ]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Cache should NOT be applied for non-minimax/gemini/anthropic models
+        let messages = actual.messages.unwrap();
+        assert!(!messages.first().unwrap().content.as_ref().unwrap().is_cached());
+        assert!(!messages.last().unwrap().content.as_ref().unwrap().is_cached());
     }
 
     #[test]
