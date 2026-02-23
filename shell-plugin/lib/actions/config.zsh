@@ -131,10 +131,14 @@ function _forge_action_model() {
         if [[ -n "$selected" ]]; then
             # Field 1 = model_id (raw), field 3 = provider display name,
             # field 4 = provider_id (raw, for config set)
+            # Extract all fields in a single awk call for efficiency
             local model_id provider_id provider_display
-            model_id=$(echo "$selected" | awk -F '  +' '{print $1}' | xargs)
-            provider_id=$(echo "$selected" | awk -F '  +' '{print $4}' | xargs)
-            provider_display=$(echo "$selected" | awk -F '  +' '{print $3}' | xargs)
+            read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
+
+            # Trim whitespace
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+            provider_display=${provider_display//[[:space:]]/}
 
             # Switch provider first if it differs from the current one
             # config get provider returns the display name, so compare against that
