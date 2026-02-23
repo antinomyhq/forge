@@ -12,24 +12,16 @@ use include_dir::{Dir, include_dir};
 use crate::cli::Cli;
 
 /// Embeds shell plugin files for zsh integration
-static ZSH_PLUGIN_LIB: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
+static ZSH_PLUGIN_LIB: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
 
 /// Generates the complete zsh plugin by combining embedded files and clap
 /// completions
 pub fn generate_zsh_plugin() -> Result<String> {
     let mut output = String::new();
 
-    // Iterate through all embedded .zsh files, stripping comments and empty lines,
-    // excluding forge.plugin.zsh
+    // Iterate through all embedded files in shell-plugin/lib, stripping comments
+    // and empty lines. All files in this directory are .zsh files.
     for file in forge_embed::files(&ZSH_PLUGIN_LIB) {
-        let path = file.path();
-        // Only include .zsh files, exclude forge.plugin.zsh
-        if path.extension().and_then(|e| e.to_str()) != Some("zsh") {
-            continue;
-        }
-        if path.file_name().and_then(|n| n.to_str()) == Some("forge.plugin.zsh") {
-            continue;
-        }
         let content = file.contents_utf8().expect("zsh file must be valid UTF-8");
         for line in content.lines() {
             let trimmed = line.trim();

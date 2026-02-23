@@ -4,7 +4,7 @@ use forge_domain::Template;
 use handlebars::{Handlebars, no_escape};
 use include_dir::{Dir, include_dir};
 
-static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
+static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
 /// Creates a new Handlebars instance with all custom helpers registered.
 ///

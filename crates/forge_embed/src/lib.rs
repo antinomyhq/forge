@@ -18,15 +18,19 @@ fn walk_entry(entry: &'static DirEntry<'static>) -> Box<dyn Iterator<Item = &'st
 /// Registers all files in `dir` (recursively) as Handlebars templates.
 ///
 /// Template names match the relative file path as returned by
-/// [`File::path`] (e.g. `forge-system-prompt.md`). Panics if any file
-/// contains invalid UTF-8 or if template parsing fails.
+/// [`File::path`] (e.g. `forge-system-prompt.md`). Panics if any file path
+/// is not valid UTF-8, if any file content is not valid UTF-8, or if template
+/// parsing fails.
 pub fn register_templates(hb: &mut Handlebars<'_>, dir: &'static Dir<'static>) {
     for file in files(dir) {
-        let name = file.path().to_string_lossy();
+        let name = file
+            .path()
+            .to_str()
+            .unwrap_or_else(|| panic!("embedded template path '{:?}' is not valid UTF-8", file.path()));
         let content = file
             .contents_utf8()
             .unwrap_or_else(|| panic!("embedded template '{}' is not valid UTF-8", name));
-        hb.register_template_string(&name, content)
+        hb.register_template_string(name, content)
             .unwrap_or_else(|e| panic!("failed to register template '{}': {}", name, e));
     }
 }

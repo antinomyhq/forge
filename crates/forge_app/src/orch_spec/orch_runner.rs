@@ -20,7 +20,7 @@ use crate::{
     AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
 };
 
-static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
+static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
 pub struct Runner {
     hb: Handlebars<'static>,
