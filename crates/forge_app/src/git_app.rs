@@ -316,9 +316,10 @@ where
             match commit_config.and_then(|c| c.provider.zip(c.model)) {
                 Some((provider_id, commit_model)) => match self.services.get_provider(provider_id).await {
                     Ok(provider) => (self.services.refresh_provider_credential(provider).await?, commit_model),
-                    Err(_) => {
+                    Err(err) => {
                         tracing::warn!(
-                            "Configured commit provider is not authenticated. Falling back to the active provider."
+                            error = %err,
+                            "Configured commit provider unavailable. Falling back to the active provider."
                         );
                         self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id).await?
                     }
