@@ -303,9 +303,11 @@ where
 
     /// Generates a commit message from the provided diff and git context
     async fn generate_message_from_diff(&self, ctx: DiffContext) -> Result<CommitMessageDetails> {
-        let agent_id = self.services.get_active_agent_id().await?;
+        let (agent_id, commit_config) = tokio::try_join!(
+            self.services.get_active_agent_id(),
+            self.services.get_commit_config()
+        )?;
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let commit_config = self.services.get_commit_config().await?;
 
         // Resolve provider and model: commit config takes priority over agent defaults.
         // If the configured provider is unavailable (e.g. logged out), fall back to the
