@@ -22,7 +22,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
     // Iterate through all embedded files in shell-plugin/lib, stripping comments
     // and empty lines. All files in this directory are .zsh files.
     for file in forge_embed::files(&ZSH_PLUGIN_LIB) {
-        let content = file.contents_utf8().ok_or_else(|| anyhow::anyhow!("zsh file '{}' is not valid UTF-8", path.display()))?;
+        let content = std::str::from_utf8(file.contents())?;
         for line in content.lines() {
             let trimmed = line.trim();
             // Skip empty lines and comment lines
