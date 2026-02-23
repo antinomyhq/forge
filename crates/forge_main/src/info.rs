@@ -541,7 +541,7 @@ impl fmt::Display for Info {
 
 /// Formats a path for display, using actual home directory on Windows and tilde
 /// notation on Unix, with proper quoting for paths containing spaces
-fn format_path_for_display(env: &Environment, path: &Path) -> String {
+pub(crate) fn format_path_for_display(env: &Environment, path: &Path) -> String {
     // Check if path is under home directory first
     if let Some(home) = &env.home
         && let Ok(rel_path) = path.strip_prefix(home)
