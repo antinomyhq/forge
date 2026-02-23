@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn test_normalize_crlf_to_lf() {
         let fixture = "line1\r\nline2\r\nline3";
-        let actual = fixture.replace("\r\n", "\n").replace('\n', "\n");
+        let actual = fixture.replace("\r\n", "\n");
         let expected = "line1\nline2\nline3";
         assert_eq!(actual, expected);
     }
@@ -147,7 +147,7 @@ mod tests {
     #[test]
     fn test_normalize_mixed_endings() {
         let fixture = "line1\r\nline2\nline3\r\nline4";
-        let actual = fixture.replace("\r\n", "\n").replace('\n', "\n");
+        let actual = fixture.replace("\r\n", "\n");
         let expected = "line1\nline2\nline3\nline4";
         assert_eq!(actual, expected);
     }
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_hash_consistency_after_normalization() {
         let input_crlf = "line1\r\nline2\r\nline3";
-        let normalized = input_crlf.replace("\r\n", "\n").replace('\n', "\n");
+        let normalized = input_crlf.replace("\r\n", "\n");
 
         let hash1 = compute_hash(&normalized);
         let hash2 = compute_hash(&normalized);
