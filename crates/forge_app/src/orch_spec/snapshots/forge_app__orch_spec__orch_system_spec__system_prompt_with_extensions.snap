@@ -6,18 +6,19 @@ You are Forge
 
 ## System Information
 
-- **Operating System**: MacOS
-- **Current Working Directory**: /Users/tushar
-- **Default Shell**: bash
-- **Home Directory**: /Users/tushar
+**Operating System**: `MacOS`
+**Active Shell**: `bash`
+**Home Directory**: `/Users/tushar`
+**Current Working Directory**: `/Users/tushar`
+**File Distribution by Extension in `/Users/tushar`**
+Total Files: 9
+Total Extensions: 4
 
-
-**Workspace Extensions** (`git ls-files` | 9 files | 4 extensions):
  - .rs: 4 files (44%)
  - .(no ext): 2 files (22%)
  - .md: 2 files (22%)
  - .toml: 1 files (11%)
-
+_NOTE:_ This is a recursive analysis of the current working directory.
 
 
 ## Tool Usage Instructions

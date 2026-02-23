@@ -6,16 +6,23 @@ You are Forge
 
 ## System Information
 
-- **Operating System**: MacOS
-- **Current Working Directory**: /Users/tushar
-- **Default Shell**: bash
-- **Home Directory**: /Users/tushar
+**Operating System**: `MacOS`
+**Active Shell**: `bash`
+**Home Directory**: `/Users/tushar`
+**Current Working Directory**: `/Users/tushar`
+ - src/
+ - tests/
+ - Cargo.toml
+ - README.md
+_NOTE:_ Paths ending with a `/` represent a directory.
+**File Distribution by Extension in `/Users/tushar`**
+Total Files: 6
+Total Extensions: 3
 
-**File List:**
- - /users/john/foo.txt
- - /users/jason/bar.txt
-
-
+ - .rs: 4 files (67%)
+ - .md: 1 files (17%)
+ - .toml: 1 files (17%)
+_NOTE:_ This is a recursive analysis of the current working directory.
 
 
 ## Tool Usage Instructions

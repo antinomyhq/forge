@@ -10,26 +10,32 @@ You are Forge
 **Active Shell**: `bash`
 **Home Directory**: `/Users/tushar`
 **Current Working Directory**: `/Users/tushar`
+ - docs/
+ - src/
+ - tests/
+ - .env
+ - Cargo.toml
+ - Makefile
+ - README.md
+ - config.json
+ - docker-compose.yml
+ - package-lock.json
+_NOTE:_ Paths ending with a `/` represent a directory.
 **File Distribution by Extension in `/Users/tushar`**
-Total Files: 210
-Total Extensions: 20
+Total Files: 14
+Total Extensions: 11
 
- - .ext1: 20 files (10%)
- - .ext2: 19 files (9%)
- - .ext3: 18 files (9%)
- - .ext4: 17 files (8%)
- - .ext5: 16 files (8%)
- - .ext6: 15 files (7%)
- - .ext7: 14 files (7%)
- - .ext8: 13 files (6%)
- - .ext9: 12 files (6%)
- - .ext10: 11 files (5%)
- - .ext11: 10 files (5%)
- - .ext12: 9 files (4%)
- - .ext13: 8 files (4%)
- - .ext14: 7 files (3%)
- - .ext15: 6 files (3%)
-(showing top 15 of 20 extensions; other extensions account for 8% of files)
+ - .(no ext): 2 files (14%)
+ - .json: 2 files (14%)
+ - .md: 2 files (14%)
+ - .css: 1 files (7%)
+ - .go: 1 files (7%)
+ - .js: 1 files (7%)
+ - .py: 1 files (7%)
+ - .rs: 1 files (7%)
+ - .toml: 1 files (7%)
+ - .tsx: 1 files (7%)
+ - .yml: 1 files (7%)
 _NOTE:_ This is a recursive analysis of the current working directory.
 
 
