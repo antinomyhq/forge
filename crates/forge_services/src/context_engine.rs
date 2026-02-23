@@ -176,9 +176,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 let token = token.clone();
                 let file_path = file.path.clone();
                 async move {
+                    info!(path = %file_path, "File sync started");
                     self.upload(&user_id, &workspace_id, &token, vec![file])
                         .await?;
-                    info!(path = %file_path, "File synced successfully");
+                    info!(path = %file_path, "File sync completed");
                     Ok::<_, anyhow::Error>(1)
                 }
             })
