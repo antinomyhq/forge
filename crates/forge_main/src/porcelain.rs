@@ -654,6 +654,39 @@ mod tests {
     }
 
     #[test]
+    fn test_truncate_unicode_multibyte_chars() {
+        // Each emoji is 4 bytes but 1 char — byte-based truncation would misbehave here
+        let fixture = Porcelain(vec![vec![
+            Some("🦀🦀🦀🦀🦀🦀".into()), // 6 chars, 24 bytes
+            Some("hi".into()),              // 2 chars, under limit
+        ]]);
+        let actual = fixture.truncate(0, 5).into_rows();
+        let expected = vec![vec![
+            Some("🦀🦀...".into()), // 2 chars + "..."
+            Some("hi".into()),
+        ]];
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_truncate_unicode_exactly_at_max_len() {
+        // String is exactly max_len chars — should NOT be truncated
+        let fixture = Porcelain(vec![vec![Some("héllo".into())]]); // 5 chars, 6 bytes
+        let actual = fixture.truncate(0, 5).into_rows();
+        let expected = vec![vec![Some("héllo".into())]];
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_truncate_unicode_exceeds_max_len() {
+        // 'é' is 2 bytes but 1 char — byte-based slicing would panic or cut wrong
+        let fixture = Porcelain(vec![vec![Some("héllo world".into())]]); // 11 chars
+        let actual = fixture.truncate(0, 8).into_rows();
+        let expected = vec![vec![Some("héllo...".into())]]; // 5 chars + "..."
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
     fn test_swap_cols() {
         let info = Porcelain(vec![
             vec![
