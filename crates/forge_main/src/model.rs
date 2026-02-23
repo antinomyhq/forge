@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Agent, AnyProvider, Model, ModelId, ProviderId, Template};
+use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -48,37 +48,22 @@ impl Display for CliProvider {
     }
 }
 
-/// A model paired with its provider, used for unified model+provider selection.
+/// Wrapper for displaying models in selection menus
 ///
-/// This wrapper enables the `/model` command to display models from all
-/// configured providers in a single list, with the provider name shown
-/// alongside each model entry.
+/// This component provides consistent formatting for model selection across
+/// the application, showing model ID with contextual information like
+/// context length and tools support.
 #[derive(Clone)]
-pub struct CliModelWithProvider {
-    pub model: Model,
-    pub provider_id: ProviderId,
-}
+pub struct CliModel(pub Model);
 
-impl CliModelWithProvider {
-    /// Creates a new `CliModelWithProvider` from a model and its provider ID.
-    pub fn new(model: Model, provider_id: ProviderId) -> Self {
-        Self { model, provider_id }
-    }
-
-    /// Returns the model ID.
-    pub fn model_id(&self) -> &ModelId {
-        &self.model.id
-    }
-}
-
-impl Display for CliModelWithProvider {
+impl Display for CliModel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.model.id)?;
+        write!(f, "{}", self.0.id)?;
 
         let mut info_parts = Vec::new();
 
         // Add context length if available
-        if let Some(limit) = self.model.context_length {
+        if let Some(limit) = self.0.context_length {
             if limit >= 1_000_000 {
                 info_parts.push(format!("{}M", limit / 1_000_000));
             } else if limit >= 1000 {
@@ -89,7 +74,7 @@ impl Display for CliModelWithProvider {
         }
 
         // Add tools support indicator if explicitly supported
-        if self.model.tools_supported == Some(true) {
+        if self.0.tools_supported == Some(true) {
             info_parts.push("🛠️".to_string());
         }
 
@@ -98,9 +83,6 @@ impl Display for CliModelWithProvider {
             let info = format!("[ {} ]", info_parts.join(" "));
             write!(f, " {}", info.dimmed())?;
         }
-
-        // Show provider as a separate suffix
-        write!(f, " {}", format!("[{}]", self.provider_id).dimmed())?;
 
         Ok(())
     }
