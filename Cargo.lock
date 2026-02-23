@@ -1762,6 +1762,7 @@ dependencies = [
  "futures",
  "glob",
  "handlebars",
+ "include_dir",
  "insta",
  "lazy_static",
  "merge",
@@ -1769,7 +1770,6 @@ dependencies = [
  "regex",
  "reqwest 0.12.28",
  "reqwest-eventsource",
- "rust-embed",
  "schemars 1.1.0",
  "serde",
  "serde_json",
@@ -1954,6 +1954,7 @@ dependencies = [
  "forge_walker",
  "futures",
  "humantime",
+ "include_dir",
  "indexmap 2.13.0",
  "insta",
  "lazy_static",
@@ -1964,7 +1965,6 @@ dependencies = [
  "open",
  "pretty_assertions",
  "reedline",
- "rust-embed",
  "rustls 0.23.36",
  "serde",
  "serde_json",
@@ -2111,7 +2111,6 @@ dependencies = [
  "regex",
  "reqwest 0.12.28",
  "reqwest-eventsource",
- "rust-embed",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -2661,7 +2660,6 @@ dependencies = [
  "num-order",
  "pest",
  "pest_derive",
- "rust-embed",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -3174,6 +3172,25 @@ dependencies = [
  "num-traits",
  "png",
  "tiff",
+]
+
+[[package]]
+name = "include_dir"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "923d117408f1e49d914f1a379a309cffe4f18c05cf4e3d12e613a15fc81bd0dd"
+dependencies = [
+ "include_dir_macros",
+]
+
+[[package]]
+name = "include_dir_macros"
+version = "0.7.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7cab85a7ed0bd5f0e76d93846e0147172bed2e2d3f859bcc33a8d9699cad1a75"
+dependencies = [
+ "proc-macro2",
+ "quote",
 ]
 
 [[package]]
@@ -4996,42 +5013,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rust-embed"
-version = "8.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04113cb9355a377d83f06ef1f0a45b8ab8cd7d8b1288160717d66df5c7988d27"
-dependencies = [
- "rust-embed-impl",
- "rust-embed-utils",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-impl"
-version = "8.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fa2c8c9e8711e10f9c4fd2d64317ef13feaab820a4c51541f1a8c8e2e851ab2"
-dependencies = [
- "proc-macro2",
- "quote",
- "rust-embed-utils",
- "shellexpand",
- "syn 2.0.116",
- "walkdir",
-]
-
-[[package]]
-name = "rust-embed-utils"
-version = "8.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60b161f275cb337fe0a44d924a5f4df0ed69c2c39519858f931ce61c779d3475"
-dependencies = [
- "globset",
- "sha2",
- "walkdir",
-]
-
-[[package]]
 name = "rustc-hash"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5542,15 +5523,6 @@ name = "shell-words"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc6fe69c597f9c37bfeeeeeb33da3530379845f10be461a66d16d03eca2ded77"
-
-[[package]]
-name = "shellexpand"
-version = "3.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b1fdf65dd6331831494dd616b30351c38e96e45921a27745cf98490458b90bb"
-dependencies = [
- "dirs",
-]
 
 [[package]]
 name = "shlex"

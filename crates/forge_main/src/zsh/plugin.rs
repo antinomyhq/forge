@@ -7,30 +7,28 @@ use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap_complete::generate;
 use clap_complete::shells::Zsh;
-use rust_embed::RustEmbed;
+use include_dir::{Dir, include_dir};
 
 use crate::cli::Cli;
 
 /// Embeds shell plugin files for zsh integration
-#[derive(RustEmbed)]
-#[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin/lib"]
-#[include = "**/*.zsh"]
-#[exclude = "forge.plugin.zsh"]
-struct ZshPluginLib;
+static ZSH_PLUGIN_LIB: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
 
-/// Generates the complete zsh plugin by combining embedded files and clap
-/// completions
-pub fn generate_zsh_plugin() -> Result<String> {
-    let mut output = String::new();
-
-    // Iterate through all embedded files and combine them
-    for file in ZshPluginLib::iter().flat_map(|path| ZshPluginLib::get(&path).into_iter()) {
-        let content = std::str::from_utf8(file.data.as_ref())?;
-
-        // Process other files to strip comments and empty lines
+/// Recursively collects all `.zsh` files from an embedded directory, stripping
+/// comments and empty lines, and excluding `forge.plugin.zsh`.
+fn collect_zsh_files(dir: &Dir<'_>, output: &mut String) {
+    for file in dir.files() {
+        let path = file.path();
+        // Only include .zsh files, exclude forge.plugin.zsh
+        if path.extension().and_then(|e| e.to_str()) != Some("zsh") {
+            continue;
+        }
+        if path.file_name().and_then(|n| n.to_str()) == Some("forge.plugin.zsh") {
+            continue;
+        }
+        let content = file.contents_utf8().expect("zsh file must be valid UTF-8");
         for line in content.lines() {
             let trimmed = line.trim();
-
             // Skip empty lines and comment lines
             if !trimmed.is_empty() && !trimmed.starts_with('#') {
                 output.push_str(line);
@@ -38,6 +36,18 @@ pub fn generate_zsh_plugin() -> Result<String> {
             }
         }
     }
+    for sub_dir in dir.dirs() {
+        collect_zsh_files(sub_dir, output);
+    }
+}
+
+/// Generates the complete zsh plugin by combining embedded files and clap
+/// completions
+pub fn generate_zsh_plugin() -> Result<String> {
+    let mut output = String::new();
+
+    // Iterate through all embedded .zsh files and combine them
+    collect_zsh_files(&ZSH_PLUGIN_LIB, &mut output);
 
     // Generate clap completions for the CLI
     let mut cmd = Cli::command();
