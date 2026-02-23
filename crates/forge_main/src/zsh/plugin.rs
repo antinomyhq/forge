@@ -7,8 +7,7 @@ use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap_complete::generate;
 use clap_complete::shells::Zsh;
-use forge_embed::Dir;
-use include_dir::include_dir;
+use include_dir::{Dir, include_dir};
 
 use crate::cli::Cli;
 

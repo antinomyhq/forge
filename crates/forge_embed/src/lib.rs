@@ -1,5 +1,4 @@
-pub use include_dir::{Dir, DirEntry, File};
-pub use include_dir::include_dir;
+use include_dir::{Dir, DirEntry, File};
 
 use handlebars::Handlebars;
 

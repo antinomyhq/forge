@@ -6,8 +6,7 @@ use forge_domain::{
     ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
-use forge_embed::Dir;
-use include_dir::include_dir;
+use include_dir::{Dir, include_dir};
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;

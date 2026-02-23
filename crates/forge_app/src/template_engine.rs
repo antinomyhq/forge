@@ -1,9 +1,8 @@
 use std::sync::LazyLock;
 
 use forge_domain::Template;
-use forge_embed::Dir;
-use include_dir::include_dir;
 use handlebars::{Handlebars, no_escape};
+use include_dir::{Dir, include_dir};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
