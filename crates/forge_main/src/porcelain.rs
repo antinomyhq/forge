@@ -87,13 +87,14 @@ impl Porcelain {
         )
     }
 
-    /// Truncates the specified column to a maximum length (including "..."),
-    /// appending "..." if truncated
+    /// Truncates the specified column to a maximum number of characters,
+    /// appending "..." after the kept characters if truncated. The "..." is
+    /// not counted toward `max_len`.
     pub fn truncate(self, c: usize, max_len: usize) -> Self {
         self.map_col(c, |col| {
             col.map(|value| {
                 if value.chars().count() > max_len {
-                    let truncated: String = value.chars().take(max_len.saturating_sub(3)).collect();
+                    let truncated: String = value.chars().take(max_len).collect();
                     format!("{}...", truncated)
                 } else {
                     value
@@ -635,13 +636,14 @@ mod tests {
             ],
         ]);
 
+        // truncate(2, 5): "very_long_name" has 14 chars > 5, keep 5 then append "..."
         let actual = info.truncate(2, 5).into_rows();
 
         let expected = vec![
             vec![
                 Some("user1".into()),
                 Some("Alice".into()),
-                Some("ve...".into()),
+                Some("very_...".into()), // 5 chars kept + "..."
             ],
             vec![
                 Some("user2".into()),
@@ -662,7 +664,7 @@ mod tests {
         ]]);
         let actual = fixture.truncate(0, 5).into_rows();
         let expected = vec![vec![
-            Some("🦀🦀...".into()), // 2 chars + "..."
+            Some("🦀🦀🦀🦀🦀...".into()), // 5 chars kept + "..."
             Some("hi".into()),
         ]];
         assert_eq!(actual, expected)
@@ -682,7 +684,7 @@ mod tests {
         // 'é' is 2 bytes but 1 char — byte-based slicing would panic or cut wrong
         let fixture = Porcelain(vec![vec![Some("héllo world".into())]]); // 11 chars
         let actual = fixture.truncate(0, 8).into_rows();
-        let expected = vec![vec![Some("héllo...".into())]]; // 5 chars + "..."
+        let expected = vec![vec![Some("héllo wo...".into())]]; // 8 chars kept + "..."
         assert_eq!(actual, expected)
     }
 
