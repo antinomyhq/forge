@@ -1,6 +1,5 @@
-use include_dir::{Dir, DirEntry, File};
-
 use handlebars::Handlebars;
+use include_dir::{Dir, DirEntry, File};
 
 /// Returns an iterator over all files embedded in `dir`, recursively
 /// descending into subdirectories.
@@ -8,7 +7,9 @@ pub fn files(dir: &'static Dir<'static>) -> impl Iterator<Item = &'static File<'
     dir.entries().iter().flat_map(walk_entry)
 }
 
-fn walk_entry(entry: &'static DirEntry<'static>) -> Box<dyn Iterator<Item = &'static File<'static>>> {
+fn walk_entry(
+    entry: &'static DirEntry<'static>,
+) -> Box<dyn Iterator<Item = &'static File<'static>>> {
     match entry {
         DirEntry::File(f) => Box::new(std::iter::once(f)),
         DirEntry::Dir(d) => Box::new(d.entries().iter().flat_map(walk_entry)),
@@ -23,10 +24,12 @@ fn walk_entry(entry: &'static DirEntry<'static>) -> Box<dyn Iterator<Item = &'st
 /// parsing fails.
 pub fn register_templates(hb: &mut Handlebars<'_>, dir: &'static Dir<'static>) {
     for file in files(dir) {
-        let name = file
-            .path()
-            .to_str()
-            .unwrap_or_else(|| panic!("embedded template path '{:?}' is not valid UTF-8", file.path()));
+        let name = file.path().to_str().unwrap_or_else(|| {
+            panic!(
+                "embedded template path '{:?}' is not valid UTF-8",
+                file.path()
+            )
+        });
         let content = file
             .contents_utf8()
             .unwrap_or_else(|| panic!("embedded template '{}' is not valid UTF-8", name));
