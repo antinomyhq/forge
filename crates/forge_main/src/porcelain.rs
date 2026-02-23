@@ -660,7 +660,7 @@ mod tests {
         // Each emoji is 4 bytes but 1 char — byte-based truncation would misbehave here
         let fixture = Porcelain(vec![vec![
             Some("🦀🦀🦀🦀🦀🦀".into()), // 6 chars, 24 bytes
-            Some("hi".into()),              // 2 chars, under limit
+            Some("hi".into()),           // 2 chars, under limit
         ]]);
         let actual = fixture.truncate(0, 5).into_rows();
         let expected = vec![vec![
