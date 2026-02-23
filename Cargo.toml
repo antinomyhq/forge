@@ -134,6 +134,7 @@ async-openai = { version = "0.32.4", default-features = false, features = ["resp
 google-cloud-auth = "1.5.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
+forge_embed = { path = "crates/forge_embed" }
 forge_api = { path = "crates/forge_api" }
 forge_app = { path = "crates/forge_app" }
 forge_ci = { path = "crates/forge_ci" }

@@ -1756,6 +1756,7 @@ dependencies = [
  "fake",
  "forge_display",
  "forge_domain",
+ "forge_embed",
  "forge_stream",
  "forge_template",
  "forge_test_kit",
@@ -1855,6 +1856,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_embed"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "handlebars",
+ "include_dir",
+]
+
+[[package]]
 name = "forge_fs"
 version = "0.1.0"
 dependencies = [
@@ -1946,6 +1956,7 @@ dependencies = [
  "forge_app",
  "forge_display",
  "forge_domain",
+ "forge_embed",
  "forge_fs",
  "forge_markdown_stream",
  "forge_select",

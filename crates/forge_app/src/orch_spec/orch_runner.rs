@@ -6,7 +6,8 @@ use forge_domain::{
     ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
-use include_dir::{Dir, include_dir};
+use forge_embed::Dir;
+use include_dir::include_dir;
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
@@ -21,19 +22,6 @@ use crate::{
 };
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
-
-/// Recursively registers all files from an embedded directory as Handlebars
-/// templates.
-fn register_templates_from_dir(hb: &mut Handlebars<'_>, dir: &Dir<'_>) {
-    for file in dir.files() {
-        let name = file.path().to_string_lossy();
-        let content = file.contents_utf8().expect("template must be valid UTF-8");
-        hb.register_template_string(&name, content).unwrap();
-    }
-    for sub_dir in dir.dirs() {
-        register_templates_from_dir(hb, sub_dir);
-    }
-}
 
 pub struct Runner {
     hb: Handlebars<'static>,
@@ -59,7 +47,7 @@ impl Runner {
         hb.register_escape_fn(no_escape);
 
         // Register all embedded templates from the templates directory
-        register_templates_from_dir(&mut hb, &TEMPLATE_DIR);
+        forge_embed::register_templates(&mut hb, &TEMPLATE_DIR);
         for (name, tpl) in &setup.templates {
             hb.register_template_string(name, tpl).unwrap();
         }

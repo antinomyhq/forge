@@ -7,17 +7,22 @@ use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap_complete::generate;
 use clap_complete::shells::Zsh;
-use include_dir::{Dir, include_dir};
+use forge_embed::Dir;
+use include_dir::include_dir;
 
 use crate::cli::Cli;
 
 /// Embeds shell plugin files for zsh integration
 static ZSH_PLUGIN_LIB: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
 
-/// Recursively collects all `.zsh` files from an embedded directory, stripping
-/// comments and empty lines, and excluding `forge.plugin.zsh`.
-fn collect_zsh_files(dir: &Dir<'_>, output: &mut String) {
-    for file in dir.files() {
+/// Generates the complete zsh plugin by combining embedded files and clap
+/// completions
+pub fn generate_zsh_plugin() -> Result<String> {
+    let mut output = String::new();
+
+    // Iterate through all embedded .zsh files, stripping comments and empty lines,
+    // excluding forge.plugin.zsh
+    for file in forge_embed::files(&ZSH_PLUGIN_LIB) {
         let path = file.path();
         // Only include .zsh files, exclude forge.plugin.zsh
         if path.extension().and_then(|e| e.to_str()) != Some("zsh") {
@@ -36,18 +41,6 @@ fn collect_zsh_files(dir: &Dir<'_>, output: &mut String) {
             }
         }
     }
-    for sub_dir in dir.dirs() {
-        collect_zsh_files(sub_dir, output);
-    }
-}
-
-/// Generates the complete zsh plugin by combining embedded files and clap
-/// completions
-pub fn generate_zsh_plugin() -> Result<String> {
-    let mut output = String::new();
-
-    // Iterate through all embedded .zsh files and combine them
-    collect_zsh_files(&ZSH_PLUGIN_LIB, &mut output);
 
     // Generate clap completions for the CLI
     let mut cmd = Cli::command();
