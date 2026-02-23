@@ -10,44 +10,6 @@ use strum_macros::{EnumIter, EnumProperty};
 use crate::display_constants::markers;
 use crate::info::Info;
 
-/// Wrapper for displaying providers in selection menus
-///
-/// This component provides consistent formatting for provider selection across
-/// the application, showing provider ID with domain information.
-#[derive(Clone)]
-pub struct CliProvider(pub AnyProvider);
-
-impl Display for CliProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Use fixed width for alignment
-        // Format: "✓ " + name_padded + " [" + domain + "]"
-        // Longest built-in provider display name is "AnthropicCompatible" (20 chars)
-        // But we use 19 to account for the space before "["
-        let name_width = ProviderId::built_in_providers()
-            .iter()
-            .map(|id| id.to_string().len())
-            .max()
-            .unwrap_or(10);
-
-        let name = self.0.id().to_string();
-
-        match &self.0 {
-            AnyProvider::Url(provider) => {
-                write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
-                if let Some(domain) = provider.url.domain() {
-                    write!(f, " [{domain}]")?;
-                } else {
-                    write!(f, " {}", markers::EMPTY)?;
-                }
-            }
-            AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
-            }
-        }
-        Ok(())
-    }
-}
-
 /// Wrapper for displaying models in selection menus
 ///
 /// This component provides consistent formatting for model selection across
@@ -84,6 +46,44 @@ impl Display for CliModel {
             write!(f, " {}", info.dimmed())?;
         }
 
+        Ok(())
+    }
+}
+
+/// Wrapper for displaying providers in selection menus
+///
+/// This component provides consistent formatting for provider selection across
+/// the application, showing provider ID with domain information.
+#[derive(Clone)]
+pub struct CliProvider(pub AnyProvider);
+
+impl Display for CliProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Use fixed width for alignment
+        // Format: "✓ " + name_padded + " [" + domain + "]"
+        // Longest built-in provider display name is "AnthropicCompatible" (20 chars)
+        // But we use 19 to account for the space before "["
+        let name_width = ProviderId::built_in_providers()
+            .iter()
+            .map(|id| id.to_string().len())
+            .max()
+            .unwrap_or(10);
+
+        let name = self.0.id().to_string();
+
+        match &self.0 {
+            AnyProvider::Url(provider) => {
+                write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
+                if let Some(domain) = provider.url.domain() {
+                    write!(f, " [{domain}]")?;
+                } else {
+                    write!(f, " {}", markers::EMPTY)?;
+                }
+            }
+            AnyProvider::Template(_) => {
+                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
+            }
+        }
         Ok(())
     }
 }
@@ -917,8 +917,8 @@ mod tests {
         id: &str,
         context_length: Option<u64>,
         tools_supported: Option<bool>,
-    ) -> CliModelWithProvider {
-        let model = Model {
+    ) -> Model {
+        Model {
             id: ModelId::new(id),
             name: None,
             description: None,
@@ -927,106 +927,105 @@ mod tests {
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
             input_modalities: vec![InputModality::Text],
-        };
-        CliModelWithProvider::new(model, ProviderId::OPENAI)
+        }
     }
 
     #[test]
     fn test_cli_model_display_with_context_and_tools() {
         let fixture = create_model_fixture("gpt-4", Some(128000), Some(true));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "gpt-4 [ 128k 🛠️ ] [OpenAI]";
+        let expected = "gpt-4 [ 128k 🛠️ ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_with_large_context() {
         let fixture = create_model_fixture("claude-3", Some(2000000), Some(true));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "claude-3 [ 2M 🛠️ ] [OpenAI]";
+        let expected = "claude-3 [ 2M 🛠️ ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_with_small_context() {
         let fixture = create_model_fixture("small-model", Some(512), Some(false));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "small-model [ 512 ] [OpenAI]";
+        let expected = "small-model [ 512 ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_with_context_only() {
         let fixture = create_model_fixture("text-model", Some(4096), Some(false));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "text-model [ 4k ] [OpenAI]";
+        let expected = "text-model [ 4k ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_with_tools_only() {
         let fixture = create_model_fixture("tool-model", None, Some(true));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "tool-model [ 🛠️ ] [OpenAI]";
+        let expected = "tool-model [ 🛠️ ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_empty_context_and_no_tools() {
         let fixture = create_model_fixture("basic-model", None, Some(false));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "basic-model [OpenAI]";
+        let expected = "basic-model";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_empty_context_and_none_tools() {
         let fixture = create_model_fixture("unknown-model", None, None);
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "unknown-model [OpenAI]";
+        let expected = "unknown-model";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_exact_thousands() {
         let fixture = create_model_fixture("exact-k", Some(8000), Some(true));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-k [ 8k 🛠️ ] [OpenAI]";
+        let expected = "exact-k [ 8k 🛠️ ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_exact_millions() {
         let fixture = create_model_fixture("exact-m", Some(1000000), Some(true));
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-m [ 1M 🛠️ ] [OpenAI]";
+        let expected = "exact-m [ 1M 🛠️ ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_edge_case_999() {
         let fixture = create_model_fixture("edge-999", Some(999), None);
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-999 [ 999 ] [OpenAI]";
+        let expected = "edge-999 [ 999 ]";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_cli_model_display_edge_case_1001() {
         let fixture = create_model_fixture("edge-1001", Some(1001), None);
-        let formatted = fixture.to_string();
+        let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-1001 [ 1k ] [OpenAI]";
+        let expected = "edge-1001 [ 1k ]";
         assert_eq!(actual, expected);
     }
 
