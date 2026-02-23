@@ -3128,16 +3128,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.activate_provider(provider).await?;
             }
             ConfigSetField::Model { model } => {
-                let model_id = self.validate_model(model.as_str()).await?;
+                let model_id = self.validate_model(model.as_str(), None).await?;
                 self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
             }
             ConfigSetField::Commit { provider, model } => {
-                // Validate provider exists and model is known
-                self.api.get_provider(&provider).await?;
-                let validated_model = self.validate_model(model.as_str()).await?;
+                // Validate provider exists and model belongs to that specific provider
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
                 let commit_config = forge_domain::CommitConfig::default()
                     .provider(provider.clone())
                     .model(validated_model.clone());
@@ -3264,26 +3263,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Some(rprompt.to_string())
     }
 
-    /// Validate model exists
-    async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
-        let models = self.api.get_models().await?;
+    /// Validates that a model exists, optionally scoped to a specific provider.
+    /// When `provider` is `None`, models are fetched from the default provider.
+    async fn validate_model(
+        &self,
+        model_str: &str,
+        provider: Option<&forge_domain::ProviderId>,
+    ) -> Result<ModelId> {
+        let models = match provider {
+            None => self.api.get_models().await?,
+            Some(provider_id) => {
+                self.api
+                    .get_all_provider_models()
+                    .await?
+                    .into_iter()
+                    .find(|pm| &pm.provider_id == provider_id)
+                    .with_context(|| format!("Provider '{provider_id}' not found or returned no models"))?
+                    .models
+            }
+        };
         let model_id = ModelId::new(model_str);
-
-        if models.iter().any(|m| m.id == model_id) {
-            Ok(model_id)
-        } else {
-            // Show first 10 models as suggestions
-            let available: Vec<_> = models.iter().take(10).map(|m| m.id.as_str()).collect();
-            let suggestion = if models.len() > 10 {
-                format!("{} (and {} more)", available.join(", "), models.len() - 10)
-            } else {
-                available.join(", ")
-            };
-
-            Err(anyhow::anyhow!(
-                "Model '{model_str}' not found. Available models: {suggestion}"
-            ))
-        }
+        models
+            .iter()
+            .find(|m| m.id == model_id)
+            .map(|_| model_id)
+            .with_context(|| {
+                let hints = models.iter().take(10).map(|m| m.id.as_str()).collect::<Vec<_>>().join(", ");
+                let suggestion = if models.len() > 10 { format!("{hints} (and {} more)", models.len() - 10) } else { hints };
+                format!("Model '{model_str}' not found. Available models: {suggestion}")
+            })
     }
 
     /// Shows the last message from a conversation
