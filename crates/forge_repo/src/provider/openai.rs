@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
@@ -9,7 +9,6 @@ use forge_app::domain::{
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use forge_domain::{ChatRepository, Provider};
-use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
@@ -199,13 +198,10 @@ impl<H: HttpInfra> OpenAIProvider<H> {
 
     /// Load Vertex AI models from static JSON file
     fn inner_vertex_models(&self) -> Vec<forge_app::domain::Model> {
-        lazy_static! {
-            static ref VERTEX_MODELS: Vec<forge_app::domain::Model> = {
-                let models =
-                    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
-                serde_json::from_str(models).unwrap()
-            };
-        }
+        static VERTEX_MODELS: LazyLock<Vec<forge_app::domain::Model>> = LazyLock::new(|| {
+            let models = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
+            serde_json::from_str(models).unwrap()
+        });
         VERTEX_MODELS.clone()
     }
 }
