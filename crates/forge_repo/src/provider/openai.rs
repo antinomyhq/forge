@@ -87,20 +87,22 @@ impl<H: HttpInfra> OpenAIProvider<H> {
     /// Transforms headers using a pipeline of header transformers
     fn transform_headers(&self, request: &Request) -> reqwest::header::HeaderMap {
         use forge_domain::Transformer;
-        
+
         let base_headers = create_headers(self.get_headers_with_request(request));
-        
+
         // Check provider conditions
-        let is_zai = self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING;
+        let is_zai =
+            self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING;
         let is_opencode_zen = self.provider.id.as_ref() == "opencode_zen";
         let has_session = request.session_id.is_some();
-        
+
         // Build transformer pipeline conditionally
         if is_zai && has_session {
             let session_id = request.session_id.clone().unwrap_or_default();
             crate::provider::ZaiSessionHeader::new(session_id).transform(base_headers)
         } else if is_opencode_zen {
-            crate::provider::OpenCodeZenHeaders::new(request.session_id.clone()).transform(base_headers)
+            crate::provider::OpenCodeZenHeaders::new(request.session_id.clone())
+                .transform(base_headers)
         } else {
             base_headers
         }
@@ -626,7 +628,7 @@ mod tests {
     async fn test_get_headers_with_request_opencode_zen_provider() -> anyhow::Result<()> {
         let mut provider = openai("public");
         provider.id = "opencode_zen".to_string().into();
-        
+
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
@@ -641,15 +643,18 @@ mod tests {
         // Check Authorization header
         assert!(headers.contains_key("authorization"));
         assert_eq!(headers.get("authorization").unwrap(), "Bearer public");
-        
+
         // Check OpenCode Zen headers
         assert!(headers.contains_key("x-opencode-project"));
         assert!(headers.contains_key("x-opencode-session"));
-        assert_eq!(headers.get("x-opencode-session").unwrap(), "test-conversation-id");
+        assert_eq!(
+            headers.get("x-opencode-session").unwrap(),
+            "test-conversation-id"
+        );
         assert!(headers.contains_key("x-opencode-request"));
         assert!(headers.contains_key("x-opencode-client"));
         assert_eq!(headers.get("x-opencode-client").unwrap(), "cli");
-        
+
         Ok(())
     }
 

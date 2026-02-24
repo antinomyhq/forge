@@ -31,11 +31,7 @@ impl OpenCodeZenHeaders {
             Some(format!("forge-temp-{}", timestamp))
         });
 
-        Self {
-            project_id,
-            session_id,
-            user_id,
-        }
+        Self { project_id, session_id, user_id }
     }
 }
 
@@ -48,28 +44,28 @@ impl Transformer for OpenCodeZenHeaders {
         // x-opencode-project
         headers.insert(
             "x-opencode-project",
-            HeaderValue::from_str(&self.project_id).unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+            HeaderValue::from_str(&self.project_id)
+                .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
         );
 
         // x-opencode-session (always present since we generate if needed)
         if let Some(session_id) = &self.session_id {
             headers.insert(
                 "x-opencode-session",
-                HeaderValue::from_str(session_id).unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+                HeaderValue::from_str(session_id)
+                    .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
             );
         }
 
         // x-opencode-request
         headers.insert(
             "x-opencode-request",
-            HeaderValue::from_str(&self.user_id).unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+            HeaderValue::from_str(&self.user_id)
+                .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
         );
 
         // x-opencode-client
-        headers.insert(
-            "x-opencode-client",
-            HeaderValue::from_static("cli"),
-        );
+        headers.insert("x-opencode-client", HeaderValue::from_static("cli"));
 
         headers
     }
@@ -94,7 +90,8 @@ impl Transformer for ZaiSessionHeader {
 
         headers.insert(
             "Session-Id",
-            HeaderValue::from_str(&self.session_id).unwrap_or_else(|_| HeaderValue::from_static("unknown")),
+            HeaderValue::from_str(&self.session_id)
+                .unwrap_or_else(|_| HeaderValue::from_static("unknown")),
         );
 
         headers
@@ -103,8 +100,9 @@ impl Transformer for ZaiSessionHeader {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_opencode_zen_headers_transform() {
@@ -139,10 +137,14 @@ mod tests {
         assert!(actual.contains_key("x-opencode-session")); // Now auto-generated
         assert!(actual.contains_key("x-opencode-request"));
         assert!(actual.contains_key("x-opencode-client"));
-        
+
         // Verify the session was auto-generated with "forge-temp-" prefix
         let session = actual.get("x-opencode-session").unwrap().to_str().unwrap();
-        assert!(session.starts_with("forge-temp-"), "Session should start with 'forge-temp-' but was: {}", session);
+        assert!(
+            session.starts_with("forge-temp-"),
+            "Session should start with 'forge-temp-' but was: {}",
+            session
+        );
     }
 
     #[test]

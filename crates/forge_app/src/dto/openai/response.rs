@@ -935,7 +935,7 @@ mod tests {
         let response = actual.unwrap();
         let completion_result = ChatCompletionMessage::try_from(response);
         assert!(completion_result.is_ok());
-        
+
         let message = completion_result.unwrap();
         assert_eq!(message.content.unwrap().as_str(), "");
     }
