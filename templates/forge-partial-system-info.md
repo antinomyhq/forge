@@ -7,3 +7,9 @@
 {{#each files}} - {{path}}{{#if is_dir}}/{{/if}}
 {{/each}}</file_list>
 {{/if}}
+{{#if extensions}}
+<workspace_extensions command="git ls-files" files="{{extensions.git_tracked_files}}" extensions="{{extensions.total_extensions}}">
+{{#each extensions.extension_stats}} - .{{extension}}: {{count}} files ({{percentage}}%)
+{{/each}}{{#if (gt extensions.total_extensions extensions.max_extensions)}}(showing top {{extensions.max_extensions}} of {{extensions.total_extensions}} extensions; other extensions account for {{extensions.remaining_percentage}}% of files)
+{{/if}}</workspace_extensions>
+{{/if}}

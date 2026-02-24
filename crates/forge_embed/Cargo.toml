@@ -1,0 +1,10 @@
+[package]
+name = "forge_embed"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+include_dir.workspace = true
+handlebars.workspace = true
+anyhow.workspace = true

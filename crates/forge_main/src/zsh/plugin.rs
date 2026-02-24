@@ -7,30 +7,24 @@ use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap_complete::generate;
 use clap_complete::shells::Zsh;
-use rust_embed::RustEmbed;
+use include_dir::{Dir, include_dir};
 
 use crate::cli::Cli;
 
 /// Embeds shell plugin files for zsh integration
-#[derive(RustEmbed)]
-#[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin/lib"]
-#[include = "**/*.zsh"]
-#[exclude = "forge.plugin.zsh"]
-struct ZshPluginLib;
+static ZSH_PLUGIN_LIB: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
 
 /// Generates the complete zsh plugin by combining embedded files and clap
 /// completions
 pub fn generate_zsh_plugin() -> Result<String> {
     let mut output = String::new();
 
-    // Iterate through all embedded files and combine them
-    for file in ZshPluginLib::iter().flat_map(|path| ZshPluginLib::get(&path).into_iter()) {
-        let content = std::str::from_utf8(file.data.as_ref())?;
-
-        // Process other files to strip comments and empty lines
+    // Iterate through all embedded files in shell-plugin/lib, stripping comments
+    // and empty lines. All files in this directory are .zsh files.
+    for file in forge_embed::files(&ZSH_PLUGIN_LIB) {
+        let content = std::str::from_utf8(file.contents())?;
         for line in content.lines() {
             let trimmed = line.trim();
-
             // Skip empty lines and comment lines
             if !trimmed.is_empty() && !trimmed.starts_with('#') {
                 output.push_str(line);
@@ -349,12 +343,12 @@ pub fn setup_zsh_integration(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Mutex;
+    use std::sync::{LazyLock, Mutex};
 
     use super::*;
 
     // Mutex to ensure tests that modify environment variables run serially
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
+    static ENV_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 
     /// Test that the doctor script executes and streams output
     /// Note: The script may fail with non-zero exit code in test environment

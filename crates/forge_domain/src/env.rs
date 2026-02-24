@@ -1,5 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use derive_more::Display;
 use derive_setters::Setters;
@@ -52,6 +53,9 @@ pub struct Environment {
     pub max_line_length: usize,
     /// Maximum number of lines to read from a file
     pub max_read_size: u64,
+    /// Maximum number of files that can be read in a single batch operation.
+    /// Controlled by FORGE_MAX_READ_BATCH_SIZE environment variable.
+    pub max_file_read_batch_size: usize,
     /// Http configuration
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
@@ -93,6 +97,36 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Maximum number of file extensions to include in the system prompt.
+    /// Controlled by FORGE_MAX_EXTENSIONS environment variable.
+    pub max_extensions: usize,
+    /// Format for automatically creating a dump when a task is completed.
+    /// Controlled by FORGE_AUTO_DUMP environment variable.
+    /// Set to "json" (or "true"/"1"/"yes") for JSON, "html" for HTML, or
+    /// unset/other to disable.
+    pub auto_dump: Option<AutoDumpFormat>,
+}
+
+/// The output format used when auto-dumping a conversation on task completion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[serde(rename_all = "camelCase")]
+pub enum AutoDumpFormat {
+    /// Dump as a JSON file.
+    Json,
+    /// Dump as an HTML file.
+    Html,
+}
+
+impl FromStr for AutoDumpFormat {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "html" => Ok(AutoDumpFormat::Html),
+            "json" | "true" | "1" | "yes" => Ok(AutoDumpFormat::Json),
+            _ => Err(()),
+        }
+    }
 }
 
 impl Environment {
@@ -162,6 +196,12 @@ impl Environment {
     /// Returns the project-local skills directory path (.forge/skills)
     pub fn local_skills_path(&self) -> PathBuf {
         self.cwd.join(".forge/skills")
+    }
+
+    /// Returns the path to the credentials file where provider API keys are
+    /// stored
+    pub fn credentials_path(&self) -> PathBuf {
+        self.base_path.join(".credentials.json")
     }
 
     pub fn workspace_hash(&self) -> WorkspaceHash {
@@ -289,6 +329,7 @@ fn test_command_path() {
         stdout_max_line_length: 500,
         max_line_length: 2000,
         max_read_size: 2000,
+        max_file_read_batch_size: 50,
         http: HttpConfig::default(),
         max_file_size: 104857600,
         tool_timeout: 300,
@@ -302,6 +343,8 @@ fn test_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_extensions: 15,
+        auto_dump: None,
     };
 
     let actual = fixture.command_path();
@@ -329,6 +372,7 @@ fn test_command_cwd_path() {
         stdout_max_line_length: 500,
         max_line_length: 2000,
         max_read_size: 2000,
+        max_file_read_batch_size: 50,
         http: HttpConfig::default(),
         max_file_size: 104857600,
         tool_timeout: 300,
@@ -342,6 +386,8 @@ fn test_command_cwd_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_extensions: 15,
+        auto_dump: None,
     };
 
     let actual = fixture.command_cwd_path();
@@ -369,6 +415,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         stdout_max_line_length: 500,
         max_line_length: 2000,
         max_read_size: 2000,
+        max_file_read_batch_size: 50,
         http: HttpConfig::default(),
         max_file_size: 104857600,
         tool_timeout: 300,
@@ -382,6 +429,8 @@ fn test_command_cwd_path_independent_from_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_extensions: 15,
+        auto_dump: None,
     };
 
     let command_path = fixture.command_path();
