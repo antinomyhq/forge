@@ -79,7 +79,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
     }
 
     /// Creates headers including Session-Id for zai and zai_coding providers,
-    /// and OpenCode-specific headers for opencode_zen provider
+    /// and OpenCode-specific headers for OpenCode Zen provider
     fn get_headers_with_request(&self, _request: &Request) -> Vec<(String, String)> {
         self.get_headers()
     }
@@ -93,7 +93,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         // Check provider conditions
         let is_zai =
             self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING;
-        let is_opencode_zen = self.provider.id.as_ref() == "opencode_zen";
+        let is_opencode_zen = self.provider.id == ProviderId::OPENCODE_ZEN;
         let has_session = request.session_id.is_some();
 
         // Build transformer pipeline conditionally
@@ -627,7 +627,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_headers_with_request_opencode_zen_provider() -> anyhow::Result<()> {
         let mut provider = openai("public");
-        provider.id = "opencode_zen".to_string().into();
+        provider.id = ProviderId::OPENCODE_ZEN;
 
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);

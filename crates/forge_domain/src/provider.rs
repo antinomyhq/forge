@@ -66,6 +66,7 @@ impl ProviderId {
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
+    pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
 
     /// Returns all built-in provider IDs
     ///
@@ -93,6 +94,7 @@ impl ProviderId {
             ProviderId::IO_INTELLIGENCE,
             ProviderId::BEDROCK,
             ProviderId::CODEX,
+            ProviderId::OPENCODE_ZEN,
         ]
     }
 
@@ -114,6 +116,7 @@ impl ProviderId {
             "openai_compatible" => "OpenAICompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
             "codex" => "Codex".to_string(),
+            "opencode_zen" => "OpenCodeZen".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -154,6 +157,7 @@ impl std::str::FromStr for ProviderId {
             "forge_services" => ProviderId::FORGE_SERVICES,
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
             "codex" => ProviderId::CODEX,
+            "opencode_zen" => ProviderId::OPENCODE_ZEN,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -492,6 +496,7 @@ mod tests {
         );
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
         assert_eq!(ProviderId::CODEX.to_string(), "Codex");
+        assert_eq!(ProviderId::OPENCODE_ZEN.to_string(), "OpenCodeZen");
     }
 
     #[test]
