@@ -106,6 +106,16 @@ Always verify changes by running tests and linting the codebase
    - For verification, use `cargo check` (fastest), `cargo insta test`, or `cargo build` (debug mode)
    - Release builds take significantly longer and are rarely needed for development verification
 
+3. **Formatting**:
+   - Run `cargo fmt --all --check` to verify formatting matches CI expectations
+   - Use `--check` flag to verify without modifying files locally
+   - CI uses strict formatting rules that may not be enforced with stable channel tools
+
+4. **Linting**:
+   - Run `cargo clippy --all-targets` to catch linting warnings
+   - CI treats warnings as errors with `-Dwarnings` flag, so all clippy warnings must be addressed
+   - Fix issues or add `#[allow(...)]` attributes only when appropriate
+
 ## Writing Domain Types
 
 - Use `derive_setters` to derive setters and use the `strip_option` and the `into` attributes on the struct types.
