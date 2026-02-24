@@ -9,7 +9,9 @@ use update_informer::{Check, Version, registry};
 async fn execute_update_command(api: Arc<impl API>) {
     // Spawn a new task that won't block the main application
     let output = api
-        .execute_shell_command_raw("curl -fsSL https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | sh")
+        .execute_shell_command_raw(
+            "curl -fsSL https://raw.githubusercontent.com/antinomyhq/forge/main/install.sh | sh",
+        )
         .await;
 
     match output {
