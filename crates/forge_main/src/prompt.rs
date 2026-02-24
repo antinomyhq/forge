@@ -16,6 +16,16 @@ use crate::display_constants::markers;
 const MULTILINE_INDICATOR: &str = "::: ";
 const RIGHT_CHEVRON: &str = "❯";
 
+/// Detects if the terminal is in light mode.
+fn is_light_theme() -> bool {
+    use terminal_colorsaurus::{QueryOptions, ThemeMode as ColorsaurusThemeMode, theme_mode};
+
+    matches!(
+        theme_mode(QueryOptions::default()),
+        Ok(ColorsaurusThemeMode::Light)
+    )
+}
+
 /// Very Specialized Prompt for the Agent Chat
 #[derive(Clone, Setters)]
 #[setters(strip_option, borrow_self)]
@@ -28,10 +38,26 @@ pub struct ForgePrompt {
 
 impl Prompt for ForgePrompt {
     fn render_prompt_left(&self) -> Cow<'_, str> {
+        // Detect terminal theme for appropriate colors
+        let is_light_mode = is_light_theme();
+
         // Pre-compute styles to avoid repeated style creation
-        let mode_style = Style::new().fg(Color::White).bold();
-        let folder_style = Style::new().fg(Color::Cyan);
-        let branch_style = Style::new().fg(Color::LightGreen);
+        // Use darker colors for light mode, brighter for dark mode
+        let mode_style = if is_light_mode {
+            Style::new().fg(Color::Black).bold()
+        } else {
+            Style::new().fg(Color::White).bold()
+        };
+        let folder_style = if is_light_mode {
+            Style::new().fg(Color::Blue)
+        } else {
+            Style::new().fg(Color::Cyan)
+        };
+        let branch_style = if is_light_mode {
+            Style::new().fg(Color::Green)
+        } else {
+            Style::new().fg(Color::LightGreen)
+        };
 
         // Get current directory
         let current_dir = self
@@ -45,7 +71,7 @@ impl Prompt for ForgePrompt {
         let branch_opt = get_git_branch();
 
         // Use a string buffer to reduce allocations
-        let mut result = String::with_capacity(64); // Pre-allocate a reasonable size
+        let mut result = String::with_capacity(64);
 
         // Build the string step-by-step
         write!(
@@ -91,11 +117,16 @@ impl Prompt for ForgePrompt {
 
         write!(result, "]").unwrap();
 
-        // Apply styling once at the end
+        // Apply styling once at the end - use darker color for light mode
+        let is_light_mode = is_light_theme();
         Cow::Owned(
             Style::new()
                 .bold()
-                .fg(Color::DarkGray)
+                .fg(if is_light_mode {
+                    Color::Black
+                } else {
+                    Color::DarkGray
+                })
                 .paint(&result)
                 .to_string(),
         )
@@ -106,7 +137,14 @@ impl Prompt for ForgePrompt {
     }
 
     fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
-        Cow::Borrowed(MULTILINE_INDICATOR)
+        let is_light_mode = is_light_theme();
+        let indicator = if is_light_mode {
+            // Black for light mode
+            format!("\x1b[30m{}", MULTILINE_INDICATOR)
+        } else {
+            MULTILINE_INDICATOR.to_string()
+        };
+        Cow::Owned(indicator)
     }
 
     fn render_prompt_history_search_indicator(
@@ -132,7 +170,18 @@ impl Prompt for ForgePrompt {
             .unwrap();
         }
 
-        Cow::Owned(Style::new().fg(Color::White).paint(&result).to_string())
+        // Use darker color for light mode
+        let is_light_mode = is_light_theme();
+        Cow::Owned(
+            Style::new()
+                .fg(if is_light_mode {
+                    Color::Black
+                } else {
+                    Color::White
+                })
+                .paint(&result)
+                .to_string(),
+        )
     }
 }
 
@@ -168,10 +217,8 @@ fn get_git_branch() -> Option<String> {
 mod tests {
     use std::env;
 
-    use nu_ansi_term::Style;
-    use pretty_assertions::assert_eq;
-
     use super::*;
+    use nu_ansi_term::Style;
 
     impl Default for ForgePrompt {
         fn default() -> Self {
@@ -193,6 +240,9 @@ mod tests {
         // Check that it has the expected format with mode and directory displayed
         assert!(actual.contains("FORGE"));
         assert!(actual.contains(RIGHT_CHEVRON));
+        // In light mode, should contain ANSI escape for black text
+        // In dark mode, won't have it (uses terminal default)
+        // We just check it has the expected elements
     }
 
     #[test]
@@ -243,8 +293,10 @@ mod tests {
     fn test_render_prompt_multiline_indicator() {
         let prompt = ForgePrompt::default();
         let actual = prompt.render_prompt_multiline_indicator();
-        let expected = MULTILINE_INDICATOR;
-        assert_eq!(actual, expected);
+        // Accept either with or without ANSI escape code (depends on theme detection)
+        let expected_normal = MULTILINE_INDICATOR.to_string();
+        let expected_light = format!("\x1b[30m{}", MULTILINE_INDICATOR);
+        assert!(actual == expected_normal || actual == expected_light);
     }
 
     #[test]
@@ -255,11 +307,16 @@ mod tests {
             term: "test".to_string(),
         };
         let actual = prompt.render_prompt_history_search_indicator(history_search);
-        let expected = Style::new()
+        // Accept either Black (light mode) or White (dark mode)
+        let expected_white = Style::new()
             .fg(Color::White)
             .paint("(reverse-search: test) ")
             .to_string();
-        assert_eq!(actual, expected);
+        let expected_black = Style::new()
+            .fg(Color::Black)
+            .paint("(reverse-search: test) ")
+            .to_string();
+        assert!(actual == expected_white || actual == expected_black);
     }
 
     #[test]
@@ -270,11 +327,16 @@ mod tests {
             term: "test".to_string(),
         };
         let actual = prompt.render_prompt_history_search_indicator(history_search);
-        let expected = Style::new()
+        // Accept either Black (light mode) or White (dark mode)
+        let expected_white = Style::new()
             .fg(Color::White)
             .paint("(failing reverse-search: test) ")
             .to_string();
-        assert_eq!(actual, expected);
+        let expected_black = Style::new()
+            .fg(Color::Black)
+            .paint("(failing reverse-search: test) ")
+            .to_string();
+        assert!(actual == expected_white || actual == expected_black);
     }
 
     #[test]
@@ -285,11 +347,16 @@ mod tests {
             term: "".to_string(),
         };
         let actual = prompt.render_prompt_history_search_indicator(history_search);
-        let expected = Style::new()
+        // Accept either Black (light mode) or White (dark mode)
+        let expected_white = Style::new()
             .fg(Color::White)
             .paint("(reverse-search) ")
             .to_string();
-        assert_eq!(actual, expected);
+        let expected_black = Style::new()
+            .fg(Color::Black)
+            .paint("(reverse-search) ")
+            .to_string();
+        assert!(actual == expected_white || actual == expected_black);
     }
 
     #[test]

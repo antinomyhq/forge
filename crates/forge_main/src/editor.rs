@@ -3,8 +3,9 @@ use std::sync::Arc;
 use forge_api::Environment;
 use nu_ansi_term::{Color, Style};
 use reedline::{
-    ColumnarMenu, DefaultHinter, EditCommand, Emacs, FileBackedHistory, KeyCode, KeyModifiers,
-    MenuBuilder, Prompt, Reedline, ReedlineEvent, ReedlineMenu, Signal, default_emacs_keybindings,
+    ColumnarMenu, DefaultHinter, EditCommand, Emacs, FileBackedHistory, Highlighter, KeyCode,
+    KeyModifiers, MenuBuilder, Prompt, Reedline, ReedlineEvent, ReedlineMenu, Signal, StyledText,
+    default_emacs_keybindings,
 };
 
 use super::completer::InputCompleter;
@@ -13,6 +14,30 @@ use crate::model::ForgeCommandManager;
 // TODO: Store the last `HISTORY_CAPACITY` commands in the history file
 const HISTORY_CAPACITY: usize = 1024 * 1024;
 const COMPLETION_MENU: &str = "completion_menu";
+
+/// Custom highlighter that sets input text color based on terminal theme.
+struct ThemeAwareHighlighter;
+
+impl Highlighter for ThemeAwareHighlighter {
+    fn highlight(&self, line: &str, _cursor: usize) -> StyledText {
+        let is_light_mode = matches!(
+            terminal_colorsaurus::theme_mode(terminal_colorsaurus::QueryOptions::default()),
+            Ok(terminal_colorsaurus::ThemeMode::Light)
+        );
+
+        let style = if is_light_mode {
+            // Use black for light mode
+            nu_ansi_term::Style::new().fg(Color::Black)
+        } else {
+            // Use default for dark mode (no styling)
+            nu_ansi_term::Style::new()
+        };
+
+        let mut styled_text = StyledText::new();
+        styled_text.push((style, line.to_string()));
+        styled_text
+    }
+}
 
 pub struct ForgeEditor {
     editor: Reedline,
@@ -64,6 +89,12 @@ impl ForgeEditor {
     }
 
     pub fn new(env: Environment, manager: Arc<ForgeCommandManager>) -> Self {
+        // Detect terminal theme for appropriate colors
+        let is_light_mode = matches!(
+            terminal_colorsaurus::theme_mode(terminal_colorsaurus::QueryOptions::default()),
+            Ok(terminal_colorsaurus::ThemeMode::Light)
+        );
+
         // Store file history in system config directory
         let history_file = env.history_path();
 
@@ -74,7 +105,11 @@ impl ForgeEditor {
             ColumnarMenu::default()
                 .with_name(COMPLETION_MENU)
                 .with_marker("")
-                .with_text_style(Style::new().bold().fg(Color::Cyan))
+                .with_text_style(if is_light_mode {
+                    Style::new().bold().fg(Color::Blue)
+                } else {
+                    Style::new().bold().fg(Color::Cyan)
+                })
                 .with_selected_text_style(Style::new().on(Color::White).fg(Color::Black)),
         );
 
@@ -90,6 +125,7 @@ impl ForgeEditor {
             .with_edit_mode(edit_mode)
             .with_quick_completions(true)
             .with_ansi_colors(true)
+            .with_highlighter(Box::new(ThemeAwareHighlighter))
             .use_bracketed_paste(true);
         Self { editor }
     }

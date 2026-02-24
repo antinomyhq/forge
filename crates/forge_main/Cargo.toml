@@ -61,7 +61,9 @@ indexmap.workspace = true
 async-recursion.workspace = true
 
 forge_markdown_stream.workspace = true
+crossterm = "0.29"
 terminal_size = "0.4"
+terminal-colorsaurus = "1.0.3"
 rustls.workspace = true
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
