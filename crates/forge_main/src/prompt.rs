@@ -16,16 +16,6 @@ use crate::display_constants::markers;
 const MULTILINE_INDICATOR: &str = "::: ";
 const RIGHT_CHEVRON: &str = "❯";
 
-/// Detects if the terminal is in light mode.
-fn is_light_theme() -> bool {
-    use terminal_colorsaurus::{QueryOptions, ThemeMode as ColorsaurusThemeMode, theme_mode};
-
-    matches!(
-        theme_mode(QueryOptions::default()),
-        Ok(ColorsaurusThemeMode::Light)
-    )
-}
-
 /// Very Specialized Prompt for the Agent Chat
 #[derive(Clone, Setters)]
 #[setters(strip_option, borrow_self)]
@@ -34,12 +24,30 @@ pub struct ForgePrompt {
     pub usage: Option<Usage>,
     pub agent_id: AgentId,
     pub model: Option<ModelId>,
+    /// Cached terminal theme to avoid repeated detection
+    pub is_light_mode: bool,
+}
+
+impl Default for ForgePrompt {
+    fn default() -> Self {
+        use terminal_colorsaurus::{QueryOptions, ThemeMode as ColorsaurusThemeMode, theme_mode};
+
+        Self {
+            cwd: PathBuf::from("."),
+            usage: None,
+            agent_id: AgentId::default(),
+            model: None,
+            is_light_mode: matches!(
+                theme_mode(QueryOptions::default()),
+                Ok(ColorsaurusThemeMode::Light)
+            ),
+        }
+    }
 }
 
 impl Prompt for ForgePrompt {
     fn render_prompt_left(&self) -> Cow<'_, str> {
-        // Detect terminal theme for appropriate colors
-        let is_light_mode = is_light_theme();
+        let is_light_mode = self.is_light_mode;
 
         // Pre-compute styles to avoid repeated style creation
         // Use darker colors for light mode, brighter for dark mode
@@ -118,11 +126,10 @@ impl Prompt for ForgePrompt {
         write!(result, "]").unwrap();
 
         // Apply styling once at the end - use darker color for light mode
-        let is_light_mode = is_light_theme();
         Cow::Owned(
             Style::new()
                 .bold()
-                .fg(if is_light_mode {
+                .fg(if self.is_light_mode {
                     Color::Black
                 } else {
                     Color::DarkGray
@@ -137,8 +144,7 @@ impl Prompt for ForgePrompt {
     }
 
     fn render_prompt_multiline_indicator(&self) -> Cow<'_, str> {
-        let is_light_mode = is_light_theme();
-        let indicator = if is_light_mode {
+        let indicator = if self.is_light_mode {
             // Black for light mode
             format!("\x1b[30m{}", MULTILINE_INDICATOR)
         } else {
@@ -171,10 +177,9 @@ impl Prompt for ForgePrompt {
         }
 
         // Use darker color for light mode
-        let is_light_mode = is_light_theme();
         Cow::Owned(
             Style::new()
-                .fg(if is_light_mode {
+                .fg(if self.is_light_mode {
                     Color::Black
                 } else {
                     Color::White
@@ -220,17 +225,6 @@ mod tests {
     use nu_ansi_term::Style;
 
     use super::*;
-
-    impl Default for ForgePrompt {
-        fn default() -> Self {
-            ForgePrompt {
-                cwd: PathBuf::from("."),
-                usage: None,
-                agent_id: AgentId::default(),
-                model: None,
-            }
-        }
-    }
 
     #[test]
     fn test_render_prompt_left() {
