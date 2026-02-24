@@ -20,7 +20,7 @@ async-recursion = "1.1.1"
 async-stream = "0.3"
 async-trait = "0.1.89"
 aws-config = { version = "1.8.13", features = ["behavior-version-latest"], default-features = false }
-aws-sdk-bedrockruntime = { version = "1.124.0", features = ["behavior-version-latest"], default-features = false }
+aws-sdk-bedrockruntime = { version = "1.126.0", features = ["behavior-version-latest"], default-features = false }
 aws-credential-types = "1.2.13"
 aws-smithy-types = "1.4.3"
 aws-smithy-runtime-api = "1.11.3"
@@ -76,7 +76,7 @@ rustls = { version = "0.23", features = ["ring"], default-features = false }
 reqwest-eventsource = "0.6.0"
 eventsource-stream = "0.2.3"
 include_dir = "0.7.4"
-schemars = "1.0"
+schemars = "1.2"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.143"
 serde_yml = "0.0.12"
@@ -110,7 +110,7 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 url = { version = "2.5.8", features = ["serde"] }
 backon = "1.5.2"
 eserde = "0.1.7"
-uuid = { version = "1.20.0", features = [
+uuid = { version = "1.21.0", features = [
     "v4",
     "fast-rng",
     "serde",
@@ -131,7 +131,7 @@ num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
 async-openai = { version = "0.32.4", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
-google-cloud-auth = "1.5.0" # Google Cloud authentication with automatic token refresh
+google-cloud-auth = "1.6.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
 forge_embed = { path = "crates/forge_embed" }
