@@ -923,7 +923,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },{
         "id": "gemini-3-flash-preview",
         "name": "Gemini 3 Flash Preview",

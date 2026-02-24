@@ -576,14 +576,34 @@ impl From<forge_domain::Image> for Part {
 
 impl From<forge_domain::Document> for Part {
     fn from(document: forge_domain::Document) -> Self {
+        // Match Vercel-style mapping semantics:
+        // - provider-hosted URLs -> fileData
+        // - raw/base64 payloads -> inlineData
+        let mime_type = document.mime_type().to_string();
+        let data = document.base64_data().to_string();
+
+        if data.starts_with("http://") || data.starts_with("https://") || data.starts_with("gs://") {
+            return Part::FileData {
+                file_data: FileDataInfo {
+                    mime_type,
+                    file_uri: data,
+                },
+            };
+        }
+
         Part::Image {
             inline_data: ImageSource {
-                mime_type: Some(document.mime_type().to_string()),
-                data: Some(document.base64_data().to_string()),
+                mime_type: Some(mime_type),
+                data: Some(data),
             },
             cache_control: None,
         }
     }
+}
+
+#[cfg(test)]
+fn fixture_video_document() -> forge_domain::Document {
+    forge_domain::Document::new_base64("video_base64_data".to_string(), "video/mp4")
 }
 
 #[cfg(test)]
@@ -917,6 +937,63 @@ mod tests {
                 assert_eq!(inline_data.data.as_deref(), Some("base64data"));
             }
             _ => panic!("Expected Image part"),
+        }
+    }
+
+    #[test]
+    fn test_video_document_conversion_for_google_provider() {
+        let video_document = fixture_video_document();
+
+        let actual_content = Content::from(video_document.clone());
+        let expected_role = Some(self::Role::User);
+
+        assert_eq!(actual_content.role, expected_role);
+        assert_eq!(actual_content.parts.len(), 1);
+
+        match &actual_content.parts[0] {
+            Part::Image { inline_data, .. } => {
+                assert_eq!(inline_data.mime_type.as_deref(), Some("video/mp4"));
+                assert_eq!(inline_data.data.as_deref(), Some("video_base64_data"));
+            }
+            _ => panic!("Expected inline_data image part for video document"),
+        }
+
+        let actual_part = Part::from(video_document);
+        match actual_part {
+            Part::Image { inline_data, .. } => {
+                assert_eq!(inline_data.mime_type.as_deref(), Some("video/mp4"));
+                assert_eq!(inline_data.data.as_deref(), Some("video_base64_data"));
+            }
+            _ => panic!("Expected inline_data image part for video document"),
+        }
+    }
+
+    #[test]
+    fn test_document_url_conversion_for_google_provider() {
+        let document_url =
+            forge_domain::Document::new_base64("https://example.com/file.pdf".to_string(), "application/pdf");
+
+        let actual_content = Content::from(document_url.clone());
+        let expected_role = Some(self::Role::User);
+
+        assert_eq!(actual_content.role, expected_role);
+        assert_eq!(actual_content.parts.len(), 1);
+
+        match &actual_content.parts[0] {
+            Part::FileData { file_data } => {
+                assert_eq!(file_data.mime_type, "application/pdf");
+                assert_eq!(file_data.file_uri, "https://example.com/file.pdf");
+            }
+            _ => panic!("Expected file_data part for URL document"),
+        }
+
+        let actual_part = Part::from(document_url);
+        match actual_part {
+            Part::FileData { file_data } => {
+                assert_eq!(file_data.mime_type, "application/pdf");
+                assert_eq!(file_data.file_uri, "https://example.com/file.pdf");
+            }
+            _ => panic!("Expected file_data part for URL document"),
         }
     }
 
