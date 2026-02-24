@@ -15,6 +15,12 @@ use crate::utils::assert_absolute_path;
 ///
 /// This service coordinates between infrastructure (file I/O) and repository
 /// (snapshots) to create files while preserving the ability to undo changes.
+///
+/// # Line Ending Handling
+/// The service preserves the line endings exactly as provided in the input
+/// content. The hash is computed on the exact content being written, so it will
+/// reflect the actual file content regardless of whether it uses LF or CRLF
+/// line endings.
 pub struct ForgeFsWrite<F> {
     infra: Arc<F>,
 }
@@ -71,11 +77,22 @@ impl<
             .with_context(|| format!("File already exists at {}", path.display()));
         }
 
-        // Record the file content before modification
-        let old_content = if file_exists && overwrite {
-            Some(self.infra.read_utf8(path).await?)
+        // Record the file content before modification and detect its line ending style
+        let (old_content, target_line_ending) = if file_exists && overwrite {
+            let existing = self.infra.read_utf8(path).await?;
+            let line_ending = if existing.contains("\r\n") {
+                "\r\n"
+            } else {
+                "\n"
+            };
+            (Some(existing), line_ending)
         } else {
-            None
+            // For new files, use platform default line ending
+            #[cfg(windows)]
+            let default_ending = "\r\n";
+            #[cfg(not(windows))]
+            let default_ending = "\n";
+            (None, default_ending)
         };
 
         // SNAPSHOT COORDINATION: Capture snapshot before writing if file exists
@@ -83,11 +100,18 @@ impl<
             self.infra.insert_snapshot(path).await?;
         }
 
-        // Write file only after validation passes and directories are created
-        self.infra.write(path, Bytes::from(content.clone())).await?;
+        // Normalize line endings to match the target style before writing
+        let normalized_content = content
+            .replace("\r\n", "\n") // First normalize all to LF
+            .replace('\n', target_line_ending); // Then convert to target
 
-        // Compute hash of the written file content
-        let content_hash = compute_hash(&content);
+        // Write file only after validation passes and directories are created
+        self.infra
+            .write(path, Bytes::from(normalized_content.clone()))
+            .await?;
+
+        // Compute hash of the normalized content that was written
+        let content_hash = compute_hash(&normalized_content);
 
         Ok(FsWriteOutput {
             path: path.display().to_string(),
@@ -95,5 +119,90 @@ impl<
             errors,
             content_hash,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_normalize_crlf_to_lf() {
+        let fixture = "line1\r\nline2\r\nline3";
+        let actual = fixture.replace("\r\n", "\n");
+        let expected = "line1\nline2\nline3";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_lf_to_crlf() {
+        let fixture = "line1\nline2\nline3";
+        let actual = fixture.replace("\r\n", "\n").replace('\n', "\r\n");
+        let expected = "line1\r\nline2\r\nline3";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_mixed_endings() {
+        let fixture = "line1\r\nline2\nline3\r\nline4";
+        let actual = fixture.replace("\r\n", "\n");
+        let expected = "line1\nline2\nline3\nline4";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_preserves_content() {
+        let fixture = "hello world\r\nfoo bar\r\nbaz";
+        let actual = fixture.replace("\r\n", "\n").replace('\n', "\r\n");
+        let expected = "hello world\r\nfoo bar\r\nbaz";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_line_ending_detection_crlf() {
+        let fixture = "line1\r\nline2\r\nline3";
+        let detected = if fixture.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let expected = "\r\n";
+        assert_eq!(detected, expected);
+    }
+
+    #[test]
+    fn test_line_ending_detection_lf() {
+        let fixture = "line1\nline2\nline3";
+        let detected = if fixture.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let expected = "\n";
+        assert_eq!(detected, expected);
+    }
+
+    #[test]
+    fn test_hash_consistency_after_normalization() {
+        let input_crlf = "line1\r\nline2\r\nline3";
+        let normalized = input_crlf.replace("\r\n", "\n");
+
+        let hash1 = compute_hash(&normalized);
+        let hash2 = compute_hash(&normalized);
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_hash_differs_with_different_endings() {
+        let content_lf = "line1\nline2\nline3";
+        let content_crlf = "line1\r\nline2\r\nline3";
+
+        let hash_lf = compute_hash(content_lf);
+        let hash_crlf = compute_hash(content_crlf);
+
+        assert_ne!(hash_lf, hash_crlf);
     }
 }

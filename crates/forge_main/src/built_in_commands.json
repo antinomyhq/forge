@@ -76,6 +76,14 @@
     "description": "Sync the current workspace for codebase search"
   },
   {
+    "command": "sync-status",
+    "description": "Show sync status of all workspace files"
+  },
+  {
+    "command": "sync-info",
+    "description": "Show workspace information with sync details"
+  },
+  {
     "command": "clone",
     "description": "Clone and manage conversation context"
   },

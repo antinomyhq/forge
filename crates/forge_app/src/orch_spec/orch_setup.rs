@@ -10,6 +10,7 @@ use forge_domain::{
 };
 use url::Url;
 
+use crate::ShellOutput;
 use crate::orch_spec::orch_runner::Runner;
 
 // User prompt
@@ -23,6 +24,7 @@ const USER_PROMPT: &str = r#"
 pub struct TestContext {
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
+    pub mock_shell_outputs: Vec<ShellOutput>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
     pub files: Vec<File>,
@@ -46,6 +48,7 @@ impl Default for TestContext {
             current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
+            mock_shell_outputs: Default::default(),
             workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
@@ -75,12 +78,14 @@ impl Default for TestContext {
                 stdout_max_prefix_length: 256,
                 stdout_max_suffix_length: 256,
                 max_read_size: 4096,
+                max_file_read_batch_size: 50,
                 http: HttpConfig::default(),
                 max_file_size: 1024 * 1024 * 5,
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB
                 max_line_length: 2000,
                 auto_open_dump: false,
+                auto_dump: None,
                 debug_requests: None,
                 custom_history_path: None,
                 max_conversations: 100,
@@ -90,6 +95,7 @@ impl Default for TestContext {
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,
                 override_provider: None,
+                max_extensions: 15,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

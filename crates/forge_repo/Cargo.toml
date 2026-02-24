@@ -54,10 +54,10 @@ tonic.workspace = true
 prost = "0.14.3"
 
 prost-types = "0.14.3"
-tonic-prost = "0.14.3"
+tonic-prost = "0.14.4"
 
 [build-dependencies]
-tonic-prost-build = "0.14.3"
+tonic-prost-build = "0.14.4"
 
 [dev-dependencies]
 forge_test_kit.workspace = true
@@ -65,7 +65,7 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }
 insta = { workspace = true }
-serial_test = "3.3"
+serial_test = "3.4"
 fake = { version = "4.4.0", features = ["derive"] }
 derive_setters.workspace = true
 mockito = { workspace = true }

@@ -1,11 +1,10 @@
+use std::sync::LazyLock;
+
 use forge_domain::Template;
 use handlebars::{Handlebars, no_escape};
-use lazy_static::lazy_static;
-use rust_embed::Embed;
+use include_dir::{Dir, include_dir};
 
-#[derive(Embed)]
-#[folder = "../../templates/"]
-struct TemplateSource;
+static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
 /// Creates a new Handlebars instance with all custom helpers registered.
 ///
@@ -99,27 +98,26 @@ fn create_handlebar() -> Handlebars<'static> {
         ),
     );
 
-    // Register all partial templates
-    hb.register_embed_templates::<TemplateSource>().unwrap();
+    // Register all embedded templates from the templates directory
+    forge_embed::register_templates(&mut hb, &TEMPLATE_DIR);
 
     hb
 }
 
-lazy_static! {
-    /// Global template engine instance with all custom helpers and templates registered.
-    ///
-    /// This static instance is lazily initialized on first access and provides:
-    /// - The 'inc' helper for incrementing values (useful for 1-based indexing)
-    /// - The 'json' helper for serializing values to JSON strings
-    /// - The 'contains' helper for checking if an array contains a value
-    /// - Strict mode enabled
-    /// - No HTML escaping
-    /// - All embedded templates registered
-    ///
-    /// Use this instance for template rendering throughout the application to avoid
-    /// creating multiple Handlebars instances.
-    static ref HANDLEBARS: Handlebars<'static> = create_handlebar();
-}
+/// Global template engine instance with all custom helpers and templates
+/// registered.
+///
+/// This static instance is lazily initialized on first access and provides:
+/// - The 'inc' helper for incrementing values (useful for 1-based indexing)
+/// - The 'json' helper for serializing values to JSON strings
+/// - The 'contains' helper for checking if an array contains a value
+/// - Strict mode enabled
+/// - No HTML escaping
+/// - All embedded templates registered
+///
+/// Use this instance for template rendering throughout the application to avoid
+/// creating multiple Handlebars instances.
+static HANDLEBARS: LazyLock<Handlebars<'static>> = LazyLock::new(create_handlebar);
 
 /// A wrapper around the Handlebars template engine providing a simplified API.
 ///
