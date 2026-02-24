@@ -14,7 +14,7 @@ summary {
 h1,
 h2,
 h3 {
-  color: #2c3e50;
+  color: #1a1a1a;
 }
 
 h1 {
@@ -24,8 +24,8 @@ h1 {
 
 .section {
   padding: 20px;
-  background-color: #f9f9f9;
-  border: 1px solid #eee;
+  background-color: #f5f5f5;
+  border: 1px solid #ccc;
 }
 
 .agent,
@@ -33,7 +33,7 @@ h1 {
 .variable {
   padding: 15px;
   background-color: white;
-  border: 1px solid #ddd;
+  border: 1px solid #bbb;
 }
 
 .agent-header,
@@ -89,28 +89,28 @@ td {
 
 .message-card {
   padding: 15px;
-  border: 1px solid #ddd;
+  border: 1px solid #bbb;
 }
 
 .message-system {
-  background-color: #f8f9fa;
+  background-color: #f0f0f0;
 }
 
 .message-user {
-  background-color: #e9f5ff;
+  background-color: #d4e8ff;
 }
 
 .message-assistant {
-  background-color: #f0f7e6;
+  background-color: #e0f0d0;
 }
 
 .message-tool {
-  background-color: #fff8e6;
+  background-color: #fff0c0;
 }
 
 .tool-call,
 .tool-result {
-  background-color: #f5f5f5;
+  background-color: #e8e8e8;
 }
 
 .tool-choice {
@@ -144,11 +144,11 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #faf5ff;
-  border: 1px solid #e9d5ff;  
+  border: 1px solid #e9d5ff;
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
-  color: #6b7280;
+  color: #4b5563;
   font-style: italic;
   line-height: 1.6;
 }
@@ -202,7 +202,7 @@ img {
 }
 
 .usage-item {
-  color: #6c757d;
+  color: #4a5568;
   font-weight: 500;
 }
 
@@ -232,7 +232,7 @@ img {
   border-radius: 4px;
   margin-top: 8px;
   font-size: 0.9em;
-  color: #7f1d1d;
+  color: #991b1b;
 }
 
 /* Agent Conversation Link Styles */
