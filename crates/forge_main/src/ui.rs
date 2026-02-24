@@ -167,7 +167,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if self.cli.is_interactive() {
             banner::display(false)?;
             self.writeln_title(TitleFormat::warning(
-                "⚠️ REPL mode is deprecated. Please use zsh integration instead: https://forgecode.dev/docs/zsh-support/",
+                "REPL mode is deprecated. Please use zsh integration instead: https://forgecode.dev/docs/zsh-support/",
             ))?;
         }
         Ok(())
