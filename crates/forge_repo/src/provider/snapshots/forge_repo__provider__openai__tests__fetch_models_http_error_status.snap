@@ -6,6 +6,6 @@ Error {
     context: "Failed to fetch the models",
     source: Error {
         context: "401 GET http://127.0.0.1:<port>/models",
-        source: "{\"error\":{\"code\":401,\"message\":\"Invalid API key\"}}",
+        source: "{\"error\":{\"message\":\"Invalid API key\",\"code\":401}}",
     },
 }

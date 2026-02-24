@@ -6,6 +6,6 @@ Error {
     context: "Failed to fetch the models",
     source: Error {
         context: "401 GET http://127.0.0.1:<port>/models",
-        source: "{\"error\":{\"code\":401,\"message\":\"Authentication failed: API key is invalid or expired. Please check your API key.\"}}",
+        source: "{\"error\":{\"message\":\"Authentication failed: API key is invalid or expired. Please check your API key.\",\"code\":401}}",
     },
 }

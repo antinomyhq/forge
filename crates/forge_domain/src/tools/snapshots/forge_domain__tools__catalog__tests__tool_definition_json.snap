@@ -6,23 +6,23 @@ expression: tools
   "title": "FSRead",
   "type": "object",
   "properties": {
-    "end_line": {
-      "description": "The line number to stop reading at (inclusive). Only provide if the file\nis too large to read at once",
-      "type": "integer",
-      "format": "int32",
-      "nullable": true
-    },
     "file_path": {
       "description": "The absolute path to the file to read",
       "type": "string"
+    },
+    "start_line": {
+      "description": "The line number to start reading from starting from 1 not 0. Only\nprovide if the file is too large to read at once",
+      "type": "integer",
+      "format": "int32",
+      "nullable": true
     },
     "show_line_numbers": {
       "description": "If true, prefixes each line with its line index (starting at 1).\nDefaults to true.",
       "type": "boolean",
       "default": true
     },
-    "start_line": {
-      "description": "The line number to start reading from starting from 1 not 0. Only\nprovide if the file is too large to read at once",
+    "end_line": {
+      "description": "The line number to stop reading at (inclusive). Only provide if the file\nis too large to read at once",
       "type": "integer",
       "format": "int32",
       "nullable": true
@@ -36,12 +36,12 @@ expression: tools
   "title": "FSWrite",
   "type": "object",
   "properties": {
-    "content": {
-      "description": "The content to write to the file",
-      "type": "string"
-    },
     "file_path": {
       "description": "The absolute path to the file to write (must be absolute, not relative)",
+      "type": "string"
+    },
+    "content": {
+      "description": "The content to write to the file",
       "type": "string"
     },
     "overwrite": {
@@ -58,59 +58,18 @@ expression: tools
   "title": "FSSearch",
   "type": "object",
   "properties": {
-    "-A": {
-      "description": "Number of lines to show after each match (rg -A). Requires output_mode:\n\"content\", ignored otherwise.",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
+    "pattern": {
+      "description": "The regular expression pattern to search for in file contents.",
+      "type": "string"
     },
-    "-B": {
-      "description": "Number of lines to show before each match (rg -B). Requires output_mode:\n\"content\", ignored otherwise.",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    },
-    "-C": {
-      "description": "Number of lines to show before and after each match (rg -C). Requires\noutput_mode: \"content\", ignored otherwise.",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    },
-    "-i": {
-      "description": "Case insensitive search (rg -i)",
-      "type": "boolean",
-      "nullable": true
-    },
-    "-n": {
-      "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\",\nignored otherwise.",
-      "type": "boolean",
+    "path": {
+      "description": "File or directory to search in (rg PATH). Defaults to current working\ndirectory.",
+      "type": "string",
       "nullable": true
     },
     "glob": {
       "description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg\n--glob",
       "type": "string",
-      "nullable": true
-    },
-    "head_limit": {
-      "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works\nacross all output modes: content (limits output lines),\nfiles_with_matches (limits file paths), count (limits count entries).\nWhen unspecified, shows all results from ripgrep.",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    },
-    "multiline": {
-      "description": "Enable multiline mode where . matches newlines and patterns can span\nlines (rg -U --multiline-dotall). Default: false.",
-      "type": "boolean",
-      "nullable": true
-    },
-    "offset": {
-      "description": "Skip first N lines/entries before applying head_limit",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
       "nullable": true
     },
     "output_mode": {
@@ -124,18 +83,59 @@ expression: tools
       ],
       "nullable": true
     },
-    "path": {
-      "description": "File or directory to search in (rg PATH). Defaults to current working\ndirectory.",
-      "type": "string",
+    "-B": {
+      "description": "Number of lines to show before each match (rg -B). Requires output_mode:\n\"content\", ignored otherwise.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
       "nullable": true
     },
-    "pattern": {
-      "description": "The regular expression pattern to search for in file contents.",
-      "type": "string"
+    "-A": {
+      "description": "Number of lines to show after each match (rg -A). Requires output_mode:\n\"content\", ignored otherwise.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "-C": {
+      "description": "Number of lines to show before and after each match (rg -C). Requires\noutput_mode: \"content\", ignored otherwise.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "-n": {
+      "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\",\nignored otherwise.",
+      "type": "boolean",
+      "nullable": true
+    },
+    "-i": {
+      "description": "Case insensitive search (rg -i)",
+      "type": "boolean",
+      "nullable": true
     },
     "type": {
       "description": "File type to search (rg --type). Common types: js, py, rust, go, java,\netc. More efficient than include for standard file types.",
       "type": "string",
+      "nullable": true
+    },
+    "head_limit": {
+      "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works\nacross all output modes: content (limits output lines),\nfiles_with_matches (limits file paths), count (limits count entries).\nWhen unspecified, shows all results from ripgrep.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "offset": {
+      "description": "Skip first N lines/entries before applying head_limit",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "multiline": {
+      "description": "Enable multiline mode where . matches newlines and patterns can span\nlines (rg -U --multiline-dotall). Default: false.",
+      "type": "boolean",
       "nullable": true
     }
   },
@@ -195,12 +195,12 @@ expression: tools
       "description": "The absolute path to the file to modify",
       "type": "string"
     },
-    "new_string": {
-      "description": "The text to replace it with (must be different from old_string)",
-      "type": "string"
-    },
     "old_string": {
       "description": "The text to replace",
+      "type": "string"
+    },
+    "new_string": {
+      "description": "The text to replace it with (must be different from old_string)",
       "type": "string"
     },
     "replace_all": {
@@ -219,6 +219,10 @@ expression: tools
   "title": "FSMultiPatch",
   "type": "object",
   "properties": {
+    "file_path": {
+      "description": "The absolute path to the file to modify",
+      "type": "string"
+    },
     "edits": {
       "description": "Array of edit operations to perform sequentially on the file",
       "type": "array",
@@ -226,12 +230,12 @@ expression: tools
         "description": "A single edit operation in a multi-patch",
         "type": "object",
         "properties": {
-          "new_string": {
-            "description": "The text to replace it with (must be different from old_string)",
-            "type": "string"
-          },
           "old_string": {
             "description": "The text to replace",
+            "type": "string"
+          },
+          "new_string": {
+            "description": "The text to replace it with (must be different from old_string)",
             "type": "string"
           },
           "replace_all": {
@@ -245,10 +249,6 @@ expression: tools
           "new_string"
         ]
       }
-    },
-    "file_path": {
-      "description": "The absolute path to the file to modify",
-      "type": "string"
     }
   },
   "required": [
@@ -282,10 +282,9 @@ expression: tools
       "type": "string",
       "nullable": true
     },
-    "description": {
-      "description": "Clear, concise description of what this command does. Recommended to be\n5-10 words for simple commands. For complex commands with pipes or\nmultiple operations, provide more context. Examples: \"Lists files in\ncurrent directory\", \"Installs package dependencies\", \"Compiles Rust\nproject with release optimizations\".",
-      "type": "string",
-      "nullable": true
+    "keep_ansi": {
+      "description": "Whether to preserve ANSI escape codes in the output.\nIf true, ANSI escape codes will be preserved in the output.\nIf false (default), ANSI escape codes will be stripped from the output.",
+      "type": "boolean"
     },
     "env": {
       "description": "Environment variable names to pass to command execution (e.g., [\"PATH\",\n\"HOME\", \"USER\"]). The system automatically reads the specified\nvalues and applies them during command execution.",
@@ -295,9 +294,10 @@ expression: tools
       },
       "nullable": true
     },
-    "keep_ansi": {
-      "description": "Whether to preserve ANSI escape codes in the output.\nIf true, ANSI escape codes will be preserved in the output.\nIf false (default), ANSI escape codes will be stripped from the output.",
-      "type": "boolean"
+    "description": {
+      "description": "Clear, concise description of what this command does. Recommended to be\n5-10 words for simple commands. For complex commands with pipes or\nmultiple operations, provide more context. Examples: \"Lists files in\ncurrent directory\", \"Installs package dependencies\", \"Compiles Rust\nproject with release optimizations\".",
+      "type": "string",
+      "nullable": true
     }
   },
   "required": [
@@ -309,14 +309,14 @@ expression: tools
   "description": "Input type for the net fetch tool",
   "type": "object",
   "properties": {
+    "url": {
+      "description": "URL to fetch",
+      "type": "string"
+    },
     "raw": {
       "description": "Get raw content without any markdown conversion (default: false)",
       "type": "boolean",
       "nullable": true
-    },
-    "url": {
-      "description": "URL to fetch",
-      "type": "string"
     }
   },
   "required": [
@@ -327,6 +327,10 @@ expression: tools
   "title": "Followup",
   "type": "object",
   "properties": {
+    "question": {
+      "description": "Question to ask the user",
+      "type": "string"
+    },
     "multiple": {
       "description": "If true, allows selecting multiple options; if false (default), only one\noption can be selected",
       "type": "boolean",
@@ -356,10 +360,6 @@ expression: tools
       "description": "Fifth option to choose from",
       "type": "string",
       "nullable": true
-    },
-    "question": {
-      "description": "Question to ask the user",
-      "type": "string"
     }
   },
   "required": [
@@ -370,16 +370,16 @@ expression: tools
   "title": "PlanCreate",
   "type": "object",
   "properties": {
-    "content": {
-      "description": "The content to write to the plan file. This should be the complete\nplan content in markdown format.",
-      "type": "string"
-    },
     "plan_name": {
       "description": "The name of the plan (will be used in the filename)",
       "type": "string"
     },
     "version": {
       "description": "The version of the plan (e.g., \"v1\", \"v2\", \"1.0\")",
+      "type": "string"
+    },
+    "content": {
+      "description": "The content to write to the plan file. This should be the complete\nplan content in markdown format.",
       "type": "string"
     }
   },
@@ -413,12 +413,12 @@ expression: tools
         "description": "A todo item",
         "type": "object",
         "properties": {
-          "content": {
-            "description": "Content/description of the todo item",
-            "type": "string"
-          },
           "id": {
             "description": "Unique identifier for the todo item",
+            "type": "string"
+          },
+          "content": {
+            "description": "Content/description of the todo item",
             "type": "string"
           },
           "status": {
@@ -448,6 +448,13 @@ expression: tools
   "description": "Input structure for the Task tool - delegates work to specialized agents",
   "type": "object",
   "properties": {
+    "tasks": {
+      "description": "A list of clear and detailed descriptions of the tasks to be performed\nby the agent in parallel. Provide sufficient context and specific\nrequirements to enable the agent to understand and execute the work\naccurately.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "agent_id": {
       "description": "The ID of the specialized agent to delegate to (e.g., \"sage\", \"forge\",\n\"muse\")",
       "type": "string"
@@ -456,13 +463,6 @@ expression: tools
       "description": "Optional session ID to continue an existing agent session. If not\nprovided, a new stateless session will be created. Use this to\nmaintain context across multiple task invocations with the same\nagent.",
       "type": "string",
       "nullable": true
-    },
-    "tasks": {
-      "description": "A list of clear and detailed descriptions of the tasks to be performed\nby the agent in parallel. Provide sufficient context and specific\nrequirements to enable the agent to understand and execute the work\naccurately.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
     }
   },
   "required": [
@@ -474,24 +474,6 @@ expression: tools
   "title": "LspTool",
   "type": "object",
   "properties": {
-    "character": {
-      "description": "The character offset (1-based, as shown in editors)",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    },
-    "file_path": {
-      "description": "The absolute or relative path to the file",
-      "type": "string"
-    },
-    "line": {
-      "description": "The line number (1-based, as shown in editors)",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    },
     "operation": {
       "description": "The LSP operation to perform",
       "type": "string",
@@ -507,6 +489,24 @@ expression: tools
         "outgoing_calls",
         "get_diagnostics"
       ]
+    },
+    "file_path": {
+      "description": "The absolute or relative path to the file",
+      "type": "string"
+    },
+    "line": {
+      "description": "The line number (1-based, as shown in editors)",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
+    },
+    "character": {
+      "description": "The character offset (1-based, as shown in editors)",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0,
+      "nullable": true
     }
   },
   "required": [

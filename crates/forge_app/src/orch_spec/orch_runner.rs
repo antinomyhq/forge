@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
-    FinishReason, ProviderId, ToolCallArguments, ToolCallFull, ToolErrorTracker,
-    ToolResult,
+    FinishReason, ProviderId, ToolCallArguments, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use rust_embed::Embed;

@@ -298,7 +298,7 @@ impl<S> ToolRegistry<S> {
             .collect();
 
         // Filter out current agent to prevent self-delegation
-        let filtered_agents = if let Some(current_id) = current_agent_id {
+        let mut filtered_agents = if let Some(current_id) = current_agent_id {
             agents
                 .into_iter()
                 .filter(|agent| agent.id != *current_id)
@@ -306,6 +306,9 @@ impl<S> ToolRegistry<S> {
         } else {
             agents
         };
+
+        // Sort agents by name for stable serialization (implicit caching)
+        filtered_agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
 
         // Create template data with environment nested under "env"
         let ctx = SystemContext {

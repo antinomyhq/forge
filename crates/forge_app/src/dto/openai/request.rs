@@ -198,9 +198,15 @@ pub struct Prediction {
     pub content: String,
 }
 
+/// OpenRouter provider routing preferences.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ProviderPreferences {
-    // Define fields as necessary
+    /// Ordered list of provider backends to prioritize.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<Vec<String>>,
+    /// Provider backends to exclude from routing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore: Option<Vec<String>>,
 }
 
 /// Z.ai-specific thinking type
