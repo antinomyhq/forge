@@ -15,7 +15,7 @@ tool_supported: true
 # Global compact configuration applied to all agents
 compact:
   max_tokens: 2000
-  token_threshold: 100000
+  token_threshold: 150000
   retention_window: 6
   message_threshold: 200
   eviction_window: 0.2

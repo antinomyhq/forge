@@ -19,6 +19,11 @@ pub struct ImageUrl {
     pub detail: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct VideoUrl {
+    pub url: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Message {
     pub role: Role,
@@ -104,8 +109,25 @@ pub enum ContentPart {
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
+    VideoUrl {
+        video_url: VideoUrl,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
     File {
         file: FileData,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    InputVideo {
+        video_url: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    InputFile {
+        file_data: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        filename: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
@@ -130,7 +152,16 @@ impl ContentPart {
             ContentPart::ImageUrl { cache_control, .. } => {
                 *cache_control = None;
             }
+            ContentPart::VideoUrl { cache_control, .. } => {
+                *cache_control = None;
+            }
             ContentPart::File { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::InputVideo { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::InputFile { cache_control, .. } => {
                 *cache_control = None;
             }
         }
@@ -146,7 +177,16 @@ impl ContentPart {
             ContentPart::ImageUrl { cache_control, .. } => {
                 *cache_control = src_cache_control;
             }
+            ContentPart::VideoUrl { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
             ContentPart::File { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::InputVideo { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::InputFile { cache_control, .. } => {
                 *cache_control = src_cache_control;
             }
         }
@@ -504,10 +544,17 @@ impl From<ContextMessage> for Message {
             }
             ContextMessage::Document(doc) => {
                 let data_uri = format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
-                let content = vec![ContentPart::File {
-                    file: FileData { file_data: data_uri, filename: doc.filename().clone() },
-                    cache_control: None,
-                }];
+                let content = vec![
+                    ContentPart::File {
+                        file: FileData { file_data: data_uri.clone(), filename: doc.filename().clone() },
+                        cache_control: None,
+                    },
+                    ContentPart::InputFile {
+                        file_data: data_uri,
+                        filename: doc.filename().clone(),
+                        cache_control: None,
+                    },
+                ];
                 Message {
                     role: Role::User,
                     content: Some(MessageContent::Parts(content)),
@@ -553,7 +600,12 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Document(doc) => {
                     let data_uri = format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
                     parts.push(ContentPart::File {
-                        file: FileData { file_data: data_uri, filename: doc.filename().clone() },
+                        file: FileData { file_data: data_uri.clone(), filename: doc.filename().clone() },
+                        cache_control: None,
+                    });
+                    parts.push(ContentPart::InputFile {
+                        file_data: data_uri,
+                        filename: doc.filename().clone(),
                         cache_control: None,
                     });
                 }

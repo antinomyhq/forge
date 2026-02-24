@@ -71,7 +71,7 @@ mod tests {
         assert_eq!(config.max_retry_attempts, 8);
         assert_eq!(
             config.retry_status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522]
+            vec![429, 500, 502, 503, 504, 408, 522, 499]
         );
         assert_eq!(config.suppress_retry_errors, false);
     }

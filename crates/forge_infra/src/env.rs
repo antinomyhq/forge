@@ -126,7 +126,7 @@ impl ForgeEnvironmentInfra {
                 }),
             http: resolve_http_config(),
             max_file_size: 1 << 20, // 1 MiB
-            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(1 << 20), /* 1 MiB */
+            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(15 << 20), /* 1 MiB */
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
