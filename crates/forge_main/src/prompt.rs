@@ -215,9 +215,11 @@ fn get_git_branch() -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use nu_ansi_term::Style;
     use std::env;
+
+    use nu_ansi_term::Style;
+
+    use super::*;
 
     impl Default for ForgePrompt {
         fn default() -> Self {
