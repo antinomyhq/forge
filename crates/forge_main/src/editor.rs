@@ -16,20 +16,26 @@ const HISTORY_CAPACITY: usize = 1024 * 1024;
 const COMPLETION_MENU: &str = "completion_menu";
 
 /// Custom highlighter that sets input text color based on terminal theme.
-struct ThemeAwareHighlighter;
+struct ThemeAwareHighlighter {
+    is_light_mode: bool,
+}
+
+impl ThemeAwareHighlighter {
+    fn new() -> Self {
+        Self {
+            is_light_mode: matches!(
+                terminal_colorsaurus::theme_mode(terminal_colorsaurus::QueryOptions::default()),
+                Ok(terminal_colorsaurus::ThemeMode::Light)
+            ),
+        }
+    }
+}
 
 impl Highlighter for ThemeAwareHighlighter {
     fn highlight(&self, line: &str, _cursor: usize) -> StyledText {
-        let is_light_mode = matches!(
-            terminal_colorsaurus::theme_mode(terminal_colorsaurus::QueryOptions::default()),
-            Ok(terminal_colorsaurus::ThemeMode::Light)
-        );
-
-        let style = if is_light_mode {
-            // Use black for light mode
+        let style = if self.is_light_mode {
             nu_ansi_term::Style::new().fg(Color::Black)
         } else {
-            // Use default for dark mode (no styling)
             nu_ansi_term::Style::new()
         };
 
@@ -125,7 +131,7 @@ impl ForgeEditor {
             .with_edit_mode(edit_mode)
             .with_quick_completions(true)
             .with_ansi_colors(true)
-            .with_highlighter(Box::new(ThemeAwareHighlighter))
+            .with_highlighter(Box::new(ThemeAwareHighlighter::new()))
             .use_bracketed_paste(true);
         Self { editor }
     }
