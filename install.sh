@@ -206,7 +206,11 @@ echo -e "${BLUE}Detected platform: $TARGET${NC}"
 VERSION="${1:-latest}"
 
 # Construct download URL
-DOWNLOAD_URL="https://release-download.tailcall.workers.dev/download/$VERSION/forge-$TARGET"
+if [ "$VERSION" = "latest" ]; then
+    DOWNLOAD_URL="https://github.com/antinomyhq/forge/releases/latest/download/forge-$TARGET"
+else
+    DOWNLOAD_URL="https://github.com/antinomyhq/forge/releases/download/$VERSION/forge-$TARGET"
+fi
 
 # Create temp directory
 TMP_DIR=$(mktemp -d)
