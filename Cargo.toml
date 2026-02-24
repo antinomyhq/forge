@@ -47,7 +47,7 @@ gh-workflow = "0.8.1"
 glob = "0.3.3"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
-handlebars = { version = "6.4.0", features = ["rust-embed"] }
+handlebars = "6.4.0"
 html2md = "0.2.15"
 http = "1.2.0"
 ignore = "0.4.23"
@@ -75,7 +75,7 @@ reqwest = { version = "0.12.23", features = [
 rustls = { version = "0.23", features = ["ring"], default-features = false }
 reqwest-eventsource = "0.6.0"
 eventsource-stream = "0.2.3"
-rust-embed = "8.11.0"
+include_dir = "0.7.4"
 schemars = "1.0"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.143"
@@ -134,6 +134,7 @@ async-openai = { version = "0.32.4", default-features = false, features = ["resp
 google-cloud-auth = "1.5.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
+forge_embed = { path = "crates/forge_embed" }
 forge_api = { path = "crates/forge_api" }
 forge_app = { path = "crates/forge_app" }
 forge_ci = { path = "crates/forge_ci" }
