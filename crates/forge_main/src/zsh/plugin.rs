@@ -127,9 +127,10 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
     // Clean up temporary script file
     let _ = fs::remove_file(&script_path);
 
-    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are informational
-    // They indicate environment issues found, not script execution failures
-    // Only propagate the error if the script actually failed to execute
+    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are
+    // informational They indicate environment issues found, not script
+    // execution failures Only propagate the error if the script actually failed
+    // to execute
     if !status.success() {
         anyhow::bail!(
             "ZSH {} script failed with exit code: {:?}",
