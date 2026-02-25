@@ -20,9 +20,14 @@ impl DisplayBox {
 
 impl fmt::Display for DisplayBox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let visible_len =
-            |s: &str| strip_ansi_escapes::strip_str(s).chars().count();
-        let width: usize = self.messages.iter().map(|s| visible_len(s)).max().unwrap_or(0) + 4;
+        let visible_len = |s: &str| strip_ansi_escapes::strip_str(s).chars().count();
+        let width: usize = self
+            .messages
+            .iter()
+            .map(|s| visible_len(s))
+            .max()
+            .unwrap_or(0)
+            + 4;
         let top = format!("┌{}┐", "─".repeat(width.saturating_sub(2)));
         let bottom = format!("└{}┘", "─".repeat(width.saturating_sub(2)));
         let fmt_line = |s: &str| {
@@ -99,12 +104,12 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
         );
     }
 
-    println!("{banner}\n");
-
-    // Show deprecation warning for REPL mode after the banner
+    // Show deprecation warning for REPL mode before the banner
     if !cli_mode {
         display_deprecation_warning();
     }
+
+    println!("{banner}\n");
 
     Ok(())
 }
