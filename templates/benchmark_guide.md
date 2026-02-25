@@ -35,7 +35,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - dna-insert: [ ] inspect FASTA targets and localize insertion/mutation site first [ ] generate candidate edited sequence/primer design deterministically (e.g., primer3/oligotm constraints) [ ] verify final artifact format/content (e.g., `primers.fasta` or required sequence output)
 - extract-elf: [ ] inspect ELF headers/sections first (`file`/`readelf`) [ ] run deterministic extraction script/tooling [ ] verify extracted artifacts and clean temp files
 - extract-moves-from-video: [ ] inspect video sample and fetch source deterministically first [ ] run frame/OCR extraction pipeline with one canonical script path [ ] verify final move transcript format/content and clean temp media artifacts
-- feal-differential-cryptanalysis: [ ] run differential analysis pipeline [ ] recover key material [ ] verify decryption/checks
+- feal-differential-cryptanalysis: [ ] inspect FEAL implementation and chosen-plaintext pair format first [ ] run deterministic differential analysis pipeline to recover subkeys/key material [ ] verify recovered key by decrypting/validating against required check vector
 - feal-linear-cryptanalysis: [ ] run linear analysis pipeline [ ] recover key material [ ] verify against test vector
 - filter-js-from-html: [ ] parse HTML and isolate script payloads only [ ] normalize/clean JS (entities/attrs/self-closing edge cases) [ ] run exact-output verifier against tricky fixtures
 - financial-document-processor: [ ] parse financial docs [ ] transform/aggregate fields [ ] verify expected report/output
@@ -57,7 +57,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - mailman: [ ] inspect mail stack config/state first (`mailman3`/`postfix`/policy) [ ] apply required list/policy/script updates deterministically [ ] run end-to-end post/join/delivery checks and verify expected mailbox artifacts
 - make-doom-for-mips: [ ] set cross-build toolchain [ ] build target binary [ ] verify executable/runtime output
 - make-mips-interpreter: [ ] inspect target MIPS binary first (ELF headers/symbols/syscall surface) [ ] install minimal cross-tooling and implement interpreter/patch path deterministically [ ] run VM/sample execution checks and verify required output artifacts
-- mcmc-sampling-stan: [ ] prepare Stan model/data [ ] run sampler [ ] verify posterior/output diagnostics
+- mcmc-sampling-stan: [ ] verify R/Stan toolchain first (R, compiler, BLAS/LAPACK) [ ] prepare Stan model/data and run deterministic sampling script [ ] verify required posterior summary artifact(s) and diagnostics output
 - merge-diff-arc-agi-task: [ ] inspect diff/task sources [ ] apply merge strategy [ ] verify merged result correctness
 - model-extraction-relu-logits: [ ] load model and inspect layers [ ] extract requested activations/logits [ ] verify output against checks
 - modernize-scientific-stack: [ ] update legacy stack components [ ] run compatibility/build checks [ ] verify final runtime behavior
@@ -77,7 +77,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - prove-plus-comm: [ ] encode proof goal [ ] complete proof steps [ ] verify checker acceptance
 - pypi-server: [ ] configure/start package server [ ] publish/query test package [ ] verify service behavior
 - pytorch-model-cli: [ ] implement/patch CLI model commands [ ] run CLI workflows [ ] verify outputs
-- pytorch-model-recovery: [ ] inspect corrupted/incomplete model state [ ] recover model artifact [ ] verify load/inference
+- pytorch-model-recovery: [ ] inspect corrupted/incomplete checkpoint structure first (state_dict keys/shapes/metadata) [ ] recover/repair model artifact deterministically [ ] verify `torch.load` + inference shape/output sanity
 - qemu-alpine-ssh: [ ] boot Alpine in QEMU with hostfwd (e.g., `2222->22`) [ ] configure/enable sshd + root password inside guest [ ] verify login non-interactively (`sshpass`/scripted ssh)
 - qemu-startup: [ ] configure QEMU startup params [ ] boot VM successfully [ ] verify expected console/availability
 - query-optimize: [ ] profile baseline query [ ] apply optimization [ ] verify latency/plan improvement
@@ -85,7 +85,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - regex-chess: [ ] inspect checker constraints first (`check.py`/task rules) [ ] generate regex candidate deterministically (single generator script) [ ] run official checker until exact pass then cleanup temp scripts
 - regex-log: [ ] craft extraction regex [ ] run against log corpus [ ] verify extracted records
 - reshard-c4-data: [ ] locate input shard set [ ] run reshaping/reshard pipeline [ ] verify shard counts/content
-- rstan-to-pystan: [ ] translate Stan workflow to PyStan [ ] run model sampling [ ] verify parity/results
+- rstan-to-pystan: [ ] inspect original RStan workflow/data contracts first [ ] translate to PyStan API with deterministic sampling configuration [ ] verify required posterior CSV artifacts and parity constraints
 - sam-cell-seg: [ ] load SAM model weights and validate image/metadata inputs [ ] run mask conversion/segmentation pipeline with required CLI args [ ] verify output CSV/mask artifacts and dimensions
 - sanitize-git-repo: [ ] identify sensitive history/content [ ] rewrite/sanitize repository [ ] verify sensitive content removed
 - schemelike-metacircular-eval: [ ] implement/fix evaluator semantics [ ] run language tests [ ] verify expected eval outputs
