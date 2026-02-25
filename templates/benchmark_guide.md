@@ -1,0 +1,108 @@
+# Benchmark guide (trajectory-derived)
+
+Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and stop after first valid pass.
+
+## Universal todo list
+- [ ] Parse task and extract required artifact path(s)
+- [ ] Run a quick env gate (OS/arch, disk, memory, required tools)
+- [ ] Execute minimum deterministic path
+- [ ] Run official verifier/harness (or direct requirement check)
+- [ ] Finalize immediately after first pass
+
+## Per-task todo templates
+
+- adaptive-rejection-sampler: [ ] create helper script/config [ ] run sampler/stat check [ ] verify output
+- bn-fit-modify: [ ] inspect sample/input [ ] run fit script [ ] verify expected metrics
+- break-filter-js-from-html: [ ] inspect extraction target [ ] apply minimal file transform [ ] verify filtered JS output
+- build-cython-ext: [ ] install build deps [ ] patch/build extension [ ] run import/smoke test
+- build-pmars: [ ] install source/build deps [ ] apply required patch/config [ ] compile and smoke test
+- build-pov-ray: [ ] install POV-Ray deps [ ] render target scene [ ] verify rendered artifact
+- caffe-cifar-10: [ ] follow minimal build path [ ] use safe parallelism [ ] run quick model/binary smoke check
+- cancel-async-tasks: [ ] implement canonical cancellation pattern [ ] run deterministic async test [ ] confirm interrupt/cancel behavior
+- chess-best-move: [ ] derive board state once [ ] validate with engine once [ ] write move artifact
+- circuit-fibsqrt: [ ] generate gates via script [ ] run simulator on sentinel inputs [ ] validate output set
+- cobol-modernization: [ ] apply deterministic modernization transform [ ] compile/run [ ] verify behavior parity
+- code-from-image: [ ] extract logic from image once [ ] resolve ambiguity with one hint check [ ] write final output and verify once
+- compile-compcert: [ ] install exact deps [ ] configure target and build with safe jobs [ ] verify /tmp/CompCert/ccomp with smoke compile/run
+- configure-git-webserver: [ ] inspect repo/server config [ ] apply minimal webserver/git config [ ] verify endpoint/repo access
+- constraints-scheduling: [ ] encode constraints [ ] run solver once [ ] verify schedule validity
+- count-dataset-tokens: [ ] load dataset [ ] run token counter [ ] verify count/output format
+- crack-7z-hash: [ ] set cracking strategy/tooling [ ] run crack workflow [ ] verify recovered secret
+- custom-memory-heap-crash: [ ] reproduce crash [ ] patch allocator/heap path [ ] re-run to confirm fix
+- db-wal-recovery: [ ] inspect WAL/db state [ ] perform recovery path [ ] verify restored records
+- distribution-search: [ ] implement search method [ ] run target query set [ ] verify expected distributions/results
+- dna-assembly: [ ] load reads [ ] run assembly workflow [ ] validate assembled sequence output
+- dna-insert: [ ] identify insertion rules [ ] apply edit [ ] verify resulting sequence
+- extract-elf: [ ] inspect ELF target [ ] run extraction script/tooling [ ] verify extracted artifacts
+- extract-moves-from-video: [ ] inspect video sample [ ] run move extraction [ ] verify move list format/content
+- feal-differential-cryptanalysis: [ ] run differential analysis pipeline [ ] recover key material [ ] verify decryption/checks
+- feal-linear-cryptanalysis: [ ] run linear analysis pipeline [ ] recover key material [ ] verify against test vector
+- filter-js-from-html: [ ] parse HTML input [ ] extract/clean JS only [ ] verify exact output constraints
+- financial-document-processor: [ ] parse financial docs [ ] transform/aggregate fields [ ] verify expected report/output
+- fix-code-vulnerability: [ ] reproduce vulnerability test [ ] apply minimal safe patch [ ] re-run security/functional checks
+- fix-git: [ ] inspect git state/history [ ] apply corrective git operations [ ] verify repository state
+- fix-ocaml-gc: [ ] locate failing GC path [ ] patch minimal OCaml logic [ ] run regression tests
+- gcode-to-text: [ ] parse G-code input [ ] convert to text/commands [ ] verify target output format
+- git-leak-recovery: [ ] locate leaked history/content [ ] rewrite/sanitize history [ ] verify leak removed
+- git-multibranch: [ ] inspect branch topology [ ] apply required branch/merge operations [ ] verify final branch state
+- gpt2-codegolf: [ ] build shortest valid solution path [ ] run correctness checks [ ] verify size and output
+- headless-terminal: [ ] run headless workflow script [ ] validate command execution path [ ] verify expected output artifact
+- hf-model-inference: [ ] load model/runtime deps [ ] run inference on target input [ ] verify output schema/quality
+- install-windows-3.11: [ ] prepare installer/runtime artifacts [ ] perform install path [ ] verify boot/command success
+- kv-store-grpc: [ ] implement/start gRPC KV service [ ] run client operations [ ] verify CRUD behavior
+- large-scale-text-editing: [ ] locate all target edits [ ] apply deterministic batch edit [ ] verify all replacements
+- largest-eigenval: [ ] load matrix/data [ ] compute dominant eigenvalue [ ] verify numerical tolerance
+- llm-inference-batching-scheduler: [ ] implement batching scheduler policy [ ] run load simulation [ ] verify correctness/throughput
+- log-summary-date-ranges: [ ] parse logs/date windows [ ] aggregate summaries [ ] verify date-range outputs
+- mailman: [ ] inspect mail/task workflow files [ ] apply required script/config updates [ ] verify generated output
+- make-doom-for-mips: [ ] set cross-build toolchain [ ] build target binary [ ] verify executable/runtime output
+- make-mips-interpreter: [ ] install cross-toolchain deps [ ] compile interpreter [ ] run sample program verification
+- mcmc-sampling-stan: [ ] prepare Stan model/data [ ] run sampler [ ] verify posterior/output diagnostics
+- merge-diff-arc-agi-task: [ ] inspect diff/task sources [ ] apply merge strategy [ ] verify merged result correctness
+- model-extraction-relu-logits: [ ] load model and inspect layers [ ] extract requested activations/logits [ ] verify output against checks
+- modernize-scientific-stack: [ ] update legacy stack components [ ] run compatibility/build checks [ ] verify final runtime behavior
+- mteb-leaderboard: [ ] run evaluation pipeline [ ] collect leaderboard metrics [ ] verify output table/artifact
+- mteb-retrieve: [ ] load retriever/model assets [ ] run retrieval benchmark [ ] verify retrieval metrics/output
+- multi-source-data-merger: [ ] load all source datasets [ ] merge by required keys/rules [ ] verify merged output integrity
+- nginx-request-logging: [ ] configure nginx logging directives [ ] generate request traffic [ ] verify log format/fields
+- openssl-selfsigned-cert: [ ] generate certificate/key with required params [ ] validate cert details [ ] verify usage in target flow
+- overfull-hbox: [ ] reproduce TeX overflow [ ] apply minimal layout fix [ ] verify warning resolved
+- password-recovery: [ ] identify recovery vector [ ] execute recovery steps [ ] verify recovered credential/output
+- path-tracing: [ ] patch/compile renderer [ ] run target trace/render [ ] verify rendered result
+- path-tracing-reverse: [ ] inspect reverse-tracing target [ ] apply algorithmic fix [ ] verify output against expected
+- polyglot-c-py: [ ] satisfy polyglot constraints [ ] compile/run in C and Python modes [ ] verify both outputs
+- polyglot-rust-c: [ ] satisfy polyglot constraints [ ] compile/run in Rust and C modes [ ] verify both outputs
+- portfolio-optimization: [ ] load assets/constraints [ ] run optimizer [ ] verify allocation and objective metrics
+- protein-assembly: [ ] parse sequence/fragments [ ] assemble candidate proteins [ ] verify output constraints
+- prove-plus-comm: [ ] encode proof goal [ ] complete proof steps [ ] verify checker acceptance
+- pypi-server: [ ] configure/start package server [ ] publish/query test package [ ] verify service behavior
+- pytorch-model-cli: [ ] implement/patch CLI model commands [ ] run CLI workflows [ ] verify outputs
+- pytorch-model-recovery: [ ] inspect corrupted/incomplete model state [ ] recover model artifact [ ] verify load/inference
+- qemu-alpine-ssh: [ ] provision Alpine VM in QEMU [ ] configure networking/SSH [ ] verify SSH login
+- qemu-startup: [ ] configure QEMU startup params [ ] boot VM successfully [ ] verify expected console/availability
+- query-optimize: [ ] profile baseline query [ ] apply optimization [ ] verify latency/plan improvement
+- raman-fitting: [ ] load Raman data [ ] run fit routine [ ] verify fitted parameters/output
+- regex-chess: [ ] craft regex strategy for chess task [ ] run matcher on target input [ ] verify exact match/output
+- regex-log: [ ] craft extraction regex [ ] run against log corpus [ ] verify extracted records
+- reshard-c4-data: [ ] locate input shard set [ ] run reshaping/reshard pipeline [ ] verify shard counts/content
+- rstan-to-pystan: [ ] translate Stan workflow to PyStan [ ] run model sampling [ ] verify parity/results
+- sam-cell-seg: [ ] load SAM and images [ ] run segmentation pipeline [ ] verify masks/output artifacts
+- sanitize-git-repo: [ ] identify sensitive history/content [ ] rewrite/sanitize repository [ ] verify sensitive content removed
+- schemelike-metacircular-eval: [ ] implement/fix evaluator semantics [ ] run language tests [ ] verify expected eval outputs
+- sparql-university: [ ] inspect RDF/SPARQL targets [ ] run required queries [ ] verify result set
+- sqlite-db-truncate: [ ] identify DB/tables to truncate [ ] run safe truncate/delete flow [ ] verify emptied state
+- sqlite-with-gcov: [ ] build sqlite with coverage flags [ ] run target workload [ ] verify gcov outputs
+- torch-pipeline-parallelism: [ ] set pipeline partition plan [ ] run distributed inference/train smoke test [ ] verify outputs and sync
+- torch-tensor-parallelism: [ ] configure tensor parallel groups [ ] run parallel workload [ ] verify correctness/perf signals
+- train-fasttext: [ ] prepare training corpus [ ] train fastText model [ ] verify model and sample predictions
+- tune-mjcf: [ ] inspect MJCF target parameters [ ] apply minimal tuning edits [ ] verify simulator behavior
+- video-processing: [ ] run required video transform pipeline [ ] generate output artifact [ ] verify format/content
+- vulnerable-secret: [ ] locate vulnerable secret path [ ] perform extraction/recovery [ ] verify recovered secret
+- winning-avg-corewars: [ ] inspect corewars setup [ ] optimize warrior strategy [ ] run evaluation and verify winning average
+- write-compressor: [ ] implement compressor logic [ ] run encode/decode checks [ ] verify correctness and required ratios
+
+## Guardrails
+- Keep todos compact (2-3) for linear runs
+- Keep reasoning to one actionable line per iteration
+- Use bounded retries; switch strategy instead of long thrash loops
+- On strict schemas, validate required fields before completion
