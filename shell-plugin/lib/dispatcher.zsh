@@ -162,6 +162,9 @@ function forge-accept-line() {
         model|m)
             _forge_action_model "$input_text"
         ;;
+        config-commit-model|ccm)
+            _forge_action_commit_model "$input_text"
+        ;;
         tools|t)
             _forge_action_tools
         ;;

@@ -284,6 +284,14 @@ impl<
         result
     }
 
+    async fn get_commit_config(&self) -> anyhow::Result<Option<CommitConfig>> {
+        self.services.get_commit_config().await
+    }
+
+    async fn set_commit_config(&self, config: CommitConfig) -> anyhow::Result<()> {
+        self.services.set_commit_config(config).await
+    }
+
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
     }
