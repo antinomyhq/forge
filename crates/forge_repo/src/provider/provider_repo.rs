@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock};
 
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
@@ -97,15 +97,15 @@ impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     }
 }
 
-static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
+static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
+    let json_str = include_str!("provider.json");
+    serde_json::from_str(json_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
+        .unwrap()
+});
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
-    PROVIDER_CONFIGS.get_or_init(|| {
-        let json_str = include_str!("provider.json");
-        serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
-            .unwrap()
-    })
+    &PROVIDER_CONFIGS
 }
 
 pub struct ForgeProviderRepository<F> {

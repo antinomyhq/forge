@@ -6,7 +6,7 @@ use forge_domain::{
     ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
-use rust_embed::Embed;
+use include_dir::{Dir, include_dir};
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
@@ -20,9 +20,7 @@ use crate::{
     AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
 };
 
-#[derive(Embed)]
-#[folder = "../../templates/"]
-struct Templates;
+static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
 pub struct Runner {
     hb: Handlebars<'static>,
@@ -47,8 +45,8 @@ impl Runner {
         hb.set_strict_mode(true);
         hb.register_escape_fn(no_escape);
 
-        // Register all partial templates
-        hb.register_embed_templates::<Templates>().unwrap();
+        // Register all embedded templates from the templates directory
+        forge_embed::register_templates(&mut hb, &TEMPLATE_DIR);
         for (name, tpl) in &setup.templates {
             hb.register_template_string(name, tpl).unwrap();
         }
