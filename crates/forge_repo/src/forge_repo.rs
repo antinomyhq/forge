@@ -68,14 +68,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        // CLI flags take precedence; fall back to (deprecated) env vars
-        let effective_model = override_model.or(env.override_model.clone());
-        let effective_provider = override_provider.or(env.override_provider.clone());
-
         let app_config_repository = Arc::new(
             AppConfigRepositoryImpl::new(infra.clone())
-                .override_model(effective_model)
-                .override_provider(effective_provider),
+                .override_model(override_model)
+                .override_provider(override_provider),
         );
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
