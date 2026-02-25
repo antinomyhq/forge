@@ -461,7 +461,7 @@ mod tests {
 
         let infra = Arc::new(
             MockInfra::new(config_path)
-            .override_provider(expected.clone())
+                .override_provider(expected.clone())
                 .override_model(ModelId::new("test-model")),
         );
         let repo = AppConfigRepositoryImpl::new(infra);
@@ -480,7 +480,7 @@ mod tests {
 
         let infra = Arc::new(
             MockInfra::new(config_path)
-            .override_provider(provider.clone())
+                .override_provider(provider.clone())
                 .override_model(expected.clone()),
         );
         let repo = AppConfigRepositoryImpl::new(infra);
@@ -498,7 +498,7 @@ mod tests {
 
         let infra = Arc::new(
             MockInfra::new(config_path)
-            .override_provider(expected.clone())
+                .override_provider(expected.clone())
                 .override_model(ModelId::new("test-model")),
         );
         let repo = AppConfigRepositoryImpl::new(infra);
@@ -521,7 +521,7 @@ mod tests {
 
         let infra = Arc::new(
             MockInfra::new(config_path)
-            .override_provider(provider.clone())
+                .override_provider(provider.clone())
                 .override_model(expected.clone()),
         );
         let repo = AppConfigRepositoryImpl::new(infra);
