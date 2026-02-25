@@ -51,7 +51,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").replace('\r', "");
+    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").to_string();
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -69,21 +69,12 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// # Errors
 ///
 /// Returns error if the script cannot be executed, if output streaming fails,
-/// or if the script exits with a critical error code (>125)
+/// or if the script exits with a non-zero status code
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
-    // Normalize line endings to LF (strip carriage returns from CRLF)
-    let script_content = script_content.replace('\r', "");
-
-    // Write script to a temporary file - this is the most reliable approach
-    // Used by many production tools (kubectl, terraform, etc.)
-    let temp_dir = std::env::temp_dir();
-    let script_path = temp_dir.join(format!("forge_{}.zsh", script_name));
-    fs::write(&script_path, &script_content)
-        .context(format!("Failed to write {} script to temp file", script_name))?;
-
-    // Execute the script file in a zsh subprocess with piped output
+    // Execute the script in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
-        .arg(&script_path)
+        .arg("-c")
+        .arg(script_content)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -123,23 +114,12 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .wait()
         .context(format!("Failed to wait for zsh {} script", script_name))?;
 
-    // Clean up temporary script file
-    let _ = fs::remove_file(&script_path);
-
-    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are informational
-    // They indicate environment issues found, not script execution failures
-    // Only propagate the error if the script actually failed to execute
     if !status.success() {
-        // Exit codes 1-125 are typically used for reporting issues found, not execution errors
-        if let Some(code) = status.code() {
-            if code > 125 {
-                anyhow::bail!(
-                    "ZSH {} script failed with exit code: {}",
-                    script_name,
-                    code
-                );
-            }
-        }
+        anyhow::bail!(
+            "ZSH {} script failed with exit code: {:?}",
+            script_name,
+            status.code()
+        );
     }
 
     Ok(())
