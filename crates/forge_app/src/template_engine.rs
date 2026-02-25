@@ -2,11 +2,9 @@ use std::sync::LazyLock;
 
 use forge_domain::Template;
 use handlebars::{Handlebars, no_escape};
-use rust_embed::Embed;
+use include_dir::{Dir, include_dir};
 
-#[derive(Embed)]
-#[folder = "../../templates/"]
-struct TemplateSource;
+static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
 /// Creates a new Handlebars instance with all custom helpers registered.
 ///
@@ -100,8 +98,8 @@ fn create_handlebar() -> Handlebars<'static> {
         ),
     );
 
-    // Register all partial templates
-    hb.register_embed_templates::<TemplateSource>().unwrap();
+    // Register all embedded templates from the templates directory
+    forge_embed::register_templates(&mut hb, &TEMPLATE_DIR);
 
     hb
 }
