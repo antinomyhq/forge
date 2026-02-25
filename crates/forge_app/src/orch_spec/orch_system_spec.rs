@@ -123,7 +123,8 @@ async fn test_system_prompt_with_extensions_truncated() {
 
 #[tokio::test]
 async fn test_system_prompt_with_files_no_extensions() {
-    // Test files with no extension (common in projects like Makefile, LICENSE, etc.)
+    // Test files with no extension (common in projects like Makefile, LICENSE,
+    // etc.)
     let shell_output = ShellOutput {
         output: CommandOutput {
             stdout: "LICENSE\nREADME\nMakefile\nDockerfile\n.gitignore\nsrc/main\nsrc/lib"
