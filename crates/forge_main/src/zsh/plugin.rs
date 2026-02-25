@@ -51,7 +51,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").to_string();
+    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").replace('\r', "");
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -87,7 +87,7 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .stderr(Stdio::piped())
         .spawn()
         .context(format!("Failed to execute zsh {} script", script_name))?;
-    let _ = fs::remove_file(&script_path);
+
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
     let stderr = child.stderr.take().context("Failed to capture stderr")?;
@@ -122,6 +122,12 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .wait()
         .context(format!("Failed to wait for zsh {} script", script_name))?;
 
+    // Clean up temporary script file
+    let _ = fs::remove_file(&script_path);
+
+    // For diagnostic scripts (doctor, keyboard), non-zero exit codes are informational
+    // They indicate environment issues found, not script execution failures
+    // Only propagate the error if the script actually failed to execute
     if !status.success() {
         anyhow::bail!(
             "ZSH {} script failed with exit code: {:?}",
