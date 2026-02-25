@@ -198,6 +198,11 @@ impl<S: AgentService> Orchestrator<S> {
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
 
         while !should_yield {
+            // Update metrics in conversation BEFORE saving
+            tool_context.with_metrics(|metrics| {
+                self.conversation.metrics = metrics.clone();
+            })?;
+
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
@@ -316,6 +321,12 @@ impl<S: AgentService> Orchestrator<S> {
             // Update context in the conversation
             context = SetModel::new(model_id.clone()).transform(context);
             self.conversation.context = Some(context.clone());
+
+            // Update metrics in conversation BEFORE saving
+            tool_context.with_metrics(|metrics| {
+                self.conversation.metrics = metrics.clone();
+            })?;
+
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
 
@@ -341,11 +352,6 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = true;
                 }
             }
-
-            // Update metrics in conversation
-            tool_context.with_metrics(|metrics| {
-                self.conversation.metrics = metrics.clone();
-            })?;
         }
 
         // Fire the End lifecycle event (title will be set here by the hook)
