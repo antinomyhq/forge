@@ -19,7 +19,7 @@ impl DisplayBox {
 
 impl fmt::Display for DisplayBox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let visible_len = |s: &str| console::measure_text_width(&s);
+        let visible_len = |s: &str| console::measure_text_width(s);
         let width: usize = self
             .messages
             .iter()
@@ -135,5 +135,5 @@ fn display_deprecation_warning() {
             "https://forgecode.dev/docs/zsh-support".cyan()
         ),
     ]);
-    println!("{}", warning.to_string());
+    println!("{}", warning);
 }
