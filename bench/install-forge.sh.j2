@@ -1,5 +1,6 @@
 apt-get update
-apt-get install -y curl git
+apt-get install -y curl git coreutils
+command -v nohup >/dev/null 2>&1 || (echo "nohup not found" && exit 1)
 
 # Note that we use uv instead of pip because there's a task,
 # broken-python, that intentionally breaks pip.

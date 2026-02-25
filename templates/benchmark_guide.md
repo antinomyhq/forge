@@ -6,7 +6,9 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - [ ] Parse task and extract required artifact path(s)
 - [ ] Run a quick env gate (OS/arch, disk, memory, required tools)
 - [ ] Execute minimum deterministic path
+- [ ] For long commands (>20s), use background pattern: `nohup <cmd> > /tmp/forge_job.log 2>&1 & echo $! >/tmp/forge_job.pid`; poll with `kill -0 $(cat /tmp/forge_job.pid) && tail -n 40 /tmp/forge_job.log`
 - [ ] Run official verifier/harness (or direct requirement check)
+- [ ] Run task preflight: required artifact path exists, output schema/format matches, threshold/metric constraints pass
 - [ ] Finalize immediately after first pass
 
 ## Per-task todo templates
@@ -82,7 +84,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - qemu-startup: [ ] configure QEMU startup params [ ] boot VM successfully [ ] verify expected console/availability
 - query-optimize: [ ] profile baseline query [ ] apply optimization [ ] verify latency/plan improvement
 - raman-fitting: [ ] inspect `graphene.dat` shape/range/baseline first (`head`/`tail` + one inspect script) [ ] run deterministic constrained fit via single `fit_peaks.py` path [ ] verify `results.json` with a dedicated results-check script
-- regex-chess: [ ] inspect checker constraints first (`check.py`/task rules) [ ] generate regex candidate deterministically (single generator script) [ ] run official checker until exact pass then cleanup temp scripts
+- regex-chess: [ ] inspect checker constraints first (`check.py`/task rules + perf/timeout expectations) [ ] generate regex candidate deterministically in one canonical script path (e.g., `/app/generate.py`) and keep iterative edits in that file only [ ] run official checker after each change until exact pass, then run one final perf/edge check and cleanup temp scripts
 - regex-log: [ ] craft extraction regex [ ] run against log corpus [ ] verify extracted records
 - reshard-c4-data: [ ] locate input shard set [ ] run reshaping/reshard pipeline [ ] verify shard counts/content
 - rstan-to-pystan: [ ] inspect original RStan workflow/data contracts first [ ] translate to PyStan API with deterministic sampling configuration [ ] verify required posterior CSV artifacts and parity constraints

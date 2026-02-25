@@ -13,6 +13,7 @@ This skill provides a systematic approach to verifying your work, ensuring it is
 2. **Verify Functional Correctness**: Compilation or parsing success does NOT mean the solution works. Always run functional tests.
 3. **Traceability**: Every requirement must map to at least one concrete verification command. If a requirement has no runnable test, it is not verified.
 4. **Minimal State Changes**: Only modify files necessary to satisfy the requirements. Do not leave behind temporary scripts or modified configurations unless requested.
+5. **Hard Completion Gate**: Completion is forbidden unless task preflight passes: required artifacts exist, output schema/format is valid, and required verifier/harness checks pass. Invoking this skill alone is not sufficient.
 
 ---
 
@@ -77,7 +78,8 @@ For each row in the Requirements Matrix, run the exact verification command and 
 
 1. **Remove temporary artifacts**: Delete any test scripts or files created solely for verification using the `remove` tool.
 2. **Search for missed cases**: If the task involved replacing or removing all occurrences of something, run `fs_search` to confirm no instances remain.
-3. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
+3. **Task preflight check (mandatory)**: Confirm required artifact path(s) exist, output schema/format matches task contract, and threshold/metric constraints pass where applicable.
+4. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
 
 ---
 
