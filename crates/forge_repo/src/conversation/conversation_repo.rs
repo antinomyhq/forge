@@ -897,7 +897,8 @@ mod tests {
     fn test_legacy_tool_value_pair_deserialization() {
         use crate::conversation::conversation_record::ToolOutputRecord;
 
-        // This JSON represents the old Pair variant format that was stored in the database
+        // This JSON represents the old Pair variant format that was stored in the
+        // database
         let legacy_json = r#"{
             "is_error": false,
             "values": [
@@ -911,7 +912,8 @@ mod tests {
         let record: ToolOutputRecord = serde_json::from_str(legacy_json).unwrap();
         let actual: forge_domain::ToolOutput = record.try_into().unwrap();
 
-        // The Pair variant should be converted by taking the first element (LLM content)
+        // The Pair variant should be converted by taking the first element (LLM
+        // content)
         assert!(!actual.is_error);
         assert_eq!(actual.values.len(), 1);
         assert_eq!(
