@@ -75,27 +75,25 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// # Errors
 ///
 /// Returns error if the script cannot be executed, if output streaming fails,
-/// or if the script exits with a non-zero status code
+/// or if the script exits with a critical error code (>125)
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
     // Normalize line endings to LF (strip carriage returns from CRLF)
     let script_content = script_content.replace('\r', "");
 
-    // Execute zsh with stdin piped - avoids shell escaping issues with long scripts
+    // Write script to a temporary file - this is the most reliable approach
+    // Used by many production tools (kubectl, terraform, etc.)
+    let temp_dir = std::env::temp_dir();
+    let script_path = temp_dir.join(format!("forge_{}.zsh", script_name));
+    fs::write(&script_path, &script_content)
+        .context(format!("Failed to write {} script to temp file", script_name))?;
+
+    // Execute the script file in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
-        .stdin(Stdio::piped())
+        .arg(&script_path)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .context(format!("Failed to execute zsh {} script", script_name))?;
-
-    // Write script content to stdin
-    if let Some(mut stdin) = child.stdin.take() {
-        use std::io::Write;
-        stdin
-            .write_all(script_content.as_bytes())
-            .context("Failed to write script to zsh stdin")?;
-        // stdin is automatically closed when dropped
-    }
 
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
@@ -130,6 +128,9 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
     let status = child
         .wait()
         .context(format!("Failed to wait for zsh {} script", script_name))?;
+
+    // Clean up temporary script file
+    let _ = fs::remove_file(&script_path);
 
     // For diagnostic scripts (doctor, keyboard), non-zero exit codes are informational
     // They indicate environment issues found, not script execution failures
