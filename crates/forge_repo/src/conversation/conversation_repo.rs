@@ -892,4 +892,71 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_legacy_tool_value_pair_deserialization() {
+        use crate::conversation::conversation_record::ToolOutputRecord;
+
+        // This JSON represents the old Pair variant format that was stored in the database
+        let legacy_json = r#"{
+            "is_error": false,
+            "values": [
+                {"pair": [
+                    {"text": "XML content for LLM"},
+                    {"fileDiff": {"path": "/test/file.rs", "old_text": "old", "new_text": "new"}}
+                ]}
+            ]
+        }"#;
+
+        let record: ToolOutputRecord = serde_json::from_str(legacy_json).unwrap();
+        let actual: forge_domain::ToolOutput = record.try_into().unwrap();
+
+        // The Pair variant should be converted by taking the first element (LLM content)
+        assert!(!actual.is_error);
+        assert_eq!(actual.values.len(), 1);
+        assert_eq!(
+            actual.values[0],
+            forge_domain::ToolValue::Text("XML content for LLM".to_string())
+        );
+    }
+
+    #[test]
+    fn test_legacy_tool_value_markdown_deserialization() {
+        use crate::conversation::conversation_record::ToolOutputRecord;
+
+        let legacy_json = r##"{
+            "is_error": false,
+            "values": [{"markdown": "# Heading - Some bold text"}]
+        }"##;
+
+        let record: ToolOutputRecord = serde_json::from_str(legacy_json).unwrap();
+        let actual: forge_domain::ToolOutput = record.try_into().unwrap();
+
+        // Markdown should be converted to Text
+        assert_eq!(actual.values.len(), 1);
+        assert_eq!(
+            actual.values[0],
+            forge_domain::ToolValue::Text("# Heading - Some bold text".to_string())
+        );
+    }
+
+    #[test]
+    fn test_legacy_tool_value_file_diff_deserialization() {
+        use crate::conversation::conversation_record::ToolOutputRecord;
+
+        let legacy_json = r#"{
+            "is_error": false,
+            "values": [{"fileDiff": {"path": "/src/main.rs", "old_text": "fn old()", "new_text": "fn new()"}}]
+        }"#;
+
+        let record: ToolOutputRecord = serde_json::from_str(legacy_json).unwrap();
+        let actual: forge_domain::ToolOutput = record.try_into().unwrap();
+
+        // FileDiff should be converted to a text summary
+        assert_eq!(actual.values.len(), 1);
+        assert_eq!(
+            actual.values[0],
+            forge_domain::ToolValue::Text("[File diff: /src/main.rs]".to_string())
+        );
+    }
 }
