@@ -12,8 +12,7 @@ This skill provides a systematic approach to verifying your work, ensuring it is
 1. **Reconstruct Requirements from Context**: You have the full conversation history. Use it — scroll back to the original user message that defined this task and extract requirements from it.
 2. **Verify Functional Correctness**: Compilation or parsing success does NOT mean the solution works. Always run functional tests.
 3. **Traceability**: Every requirement must map to at least one concrete verification command. If a requirement has no runnable test, it is not verified.
-4. **Minimal State Changes**: Only modify files necessary to satisfy the requirements. Do not leave behind temporary scripts or modified configurations unless requested.
-5. **Hard Completion Gate**: Completion is forbidden unless task preflight passes: required artifacts exist, output schema/format is valid, and required verifier/harness checks pass. Invoking this skill alone is not sufficient.
+4. **Hard Completion Gate**: Completion is forbidden unless task preflight passes: required artifacts exist, output schema/format is valid, and required verifier/harness checks pass. Invoking this skill alone is not sufficient.
 
 ---
 
@@ -76,10 +75,9 @@ For each row in the Requirements Matrix, run the exact verification command and 
 
 ## Step 3 — Cleanup & Final Audit
 
-1. **Remove temporary artifacts**: Delete any test scripts or files created solely for verification using the `remove` tool.
-2. **Search for missed cases**: If the task involved replacing or removing all occurrences of something, run `fs_search` to confirm no instances remain.
-3. **Task preflight check (mandatory)**: Confirm required artifact path(s) exist, output schema/format matches task contract, and threshold/metric constraints pass where applicable.
-4. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
+1. **Search for missed cases**: If the task involved replacing or removing all occurrences of something, run `fs_search` to confirm no instances remain.
+2. **Task preflight check (mandatory)**: Confirm required artifact path(s) exist, output schema/format matches task contract, and threshold/metric constraints pass where applicable.
+3. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
 
 ---
 
@@ -101,7 +99,8 @@ Before closing the task, output the final Requirements Matrix with all statuses 
 - **Vague Verification Commands**: "Check the output looks right" is not a verification command. Use executable commands with observable pass/fail results.
 - **Incomplete Solutions**: Partial implementations assumed to work. Every requirement must be fully implemented and verified.
 - **Compound Requirements**: Bundling multiple behaviors into one row makes it impossible to tell which part failed.
-- **Test Script Cleanup**: Forgetting to remove temporary test scripts after verification.
+- **Unsafe Cleanup**: Deleting harness files, checker scripts, or required outputs during cleanup.
+- **Test Script Cleanup**: Forgetting to remove assistant-created temporary test scripts after verification.
 - **Assuming Tests Pass**: Never mark a requirement `verified` without running its test command.
 
 ---

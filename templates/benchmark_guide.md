@@ -117,7 +117,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - [ ] set up git SSH access (`git` user, password auth) and nginx HTTPS serving (`/var/www/main`, `/var/www/dev`) deterministically [ ] create bare repo + robust `post-receive` hook that deploys by branch (`main`→`/var/www/main`, `dev`→`/var/www/dev`) and clears stale files before extract [ ] verify with scripted clone/push of both branches plus `curl -k` checks for `/index.html` and `/dev/index.html` content
 
 ### gpt2-codegolf
-- [ ] verifier-first: read exact scoring/check harness [ ] iterate shortest candidate with strict correctness first [ ] only then optimize byte count with re-check each change
+- [ ] verifier-first: read exact scoring/check harness and required artifact paths [ ] ensure implementation is written to required path `/app/gpt2.c` (do not use alternate filename/location) and pass correctness first [ ] only then optimize byte count with re-check each change
 
 ### headless-terminal
 - [ ] run headless workflow script and validate required terminal interactions/dependencies (e.g., `tmux`, `nano`) [ ] verify command execution path including interrupt/editor behaviors [ ] run final verifier script and clean temporary test artifacts
@@ -138,7 +138,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - [ ] inspect evaluator + matrix source first [ ] implement fast dominant-eigenvalue path (power/compiled fallback) [ ] run official eval and verify tolerance/format
 
 ### llm-inference-batching-scheduler
-- [ ] inspect cost model/baseline packer and input bucket constraints first [ ] implement deterministic scheduler in one canonical script path and generate required plans for each bucket [ ] verify request coverage/uniqueness and run final verifier script, then clean temporary tests
+- [ ] inspect cost model/baseline packer and input bucket constraints first, including performance threshold conditions from official tests [ ] implement deterministic scheduler in one canonical script path and generate required plans for each bucket while minimizing overhead in hot path decisions [ ] verify request coverage/uniqueness, then run `../tests/test_outputs.py::test_performance_thresholds` (or equivalent official perf test) before final verifier; tune and recheck until threshold passes
 
 ### log-summary-date-ranges
 - [ ] inspect raw log format/levels and date windows first [ ] generate deterministic summary CSV in required schema/order [ ] verify counts/headers/date-range outputs with checker script and remove temporary verifier files
@@ -279,7 +279,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - [ ] inspect corewars setup and baseline warriors first (`warriors/*.red`, `pmars -V`) [ ] optimize warrior strategy deterministically from baseline variants and sanity-check against key opponents before full eval [ ] run official evaluation and verify winning average metric
 
 ### write-compressor
-- [ ] inspect decompressor/format constraints first (compile `decomp.c` if needed) [ ] generate compressed artifact deterministically with one script and bounded parameter search [ ] verify roundtrip (`decomp` + `cmp`) plus strict size/ratio target, then clean temporary compressor artifacts
+- [ ] inspect decompressor/format constraints first (compile `decomp.c` if needed) [ ] generate compressed artifact deterministically with one script and bounded parameter search, writing final output to required path `/app/data.comp` [ ] verify roundtrip (`decomp` + `cmp`) plus strict size/ratio target, and keep `/app/data.comp` present for verifier (clean only temporary helper files)
 ## Guardrails
 - Keep todos compact (2-3) for linear runs
 - Keep reasoning to one actionable line per iteration
