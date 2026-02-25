@@ -1,7 +1,7 @@
 <h1 align="center">⚒️ Forge: AI-Enhanced Terminal Development Environment</h1>
 <p align="center">A comprehensive coding agent that integrates AI capabilities with your development environment</p>
 
-<p align="center"><code>curl -fsSL https://forgecode.dev/install.sh | sh</code></p>
+<p align="center"><code>curl -fsSL https://forgecode.dev/cli | sh</code></p>
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
@@ -41,7 +41,7 @@
 To get started with Forge, run the command below:
 
 ```bash
-curl -fsSL https://forgecode.dev/install.sh | sh
+curl -fsSL https://forgecode.dev/cli | sh
 ```
 
 On first run, Forge will guide you through setting up your AI provider credentials using the interactive login flow. Alternatively, you can configure providers beforehand:

@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock};
 
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
@@ -97,15 +97,15 @@ impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     }
 }
 
-static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
+static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
+    let json_str = include_str!("provider.json");
+    serde_json::from_str(json_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
+        .unwrap()
+});
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
-    PROVIDER_CONFIGS.get_or_init(|| {
-        let json_str = include_str!("provider.json");
-        serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
-            .unwrap()
-    })
+    &PROVIDER_CONFIGS
 }
 
 pub struct ForgeProviderRepository<F> {
@@ -165,11 +165,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
     pub async fn migrate_env_to_file(&self) -> anyhow::Result<Option<MigrationResult>> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         // Check if credentials file already exists
         if self.infra.read_utf8(&path).await.is_ok() {
@@ -393,11 +389,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     }
 
     async fn read_credentials(&self) -> Vec<AuthCredential> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         match self.infra.read_utf8(&path).await {
             Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
@@ -407,11 +399,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
     /// Writes credentials to the JSON file
     async fn write_credentials(&self, credentials: &Vec<AuthCredential>) -> anyhow::Result<()> {
-        let path = self
-            .infra
-            .get_environment()
-            .base_path
-            .join(".credentials.json");
+        let path = self.infra.get_environment().credentials_path();
 
         let content = serde_json::to_string_pretty(credentials)?;
         self.infra.write(&path, Bytes::from(content)).await?;
@@ -424,7 +412,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
     for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
-        Ok(self.get_providers().await.clone())
+        Ok(self.get_providers().await)
     }
 
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<forge_domain::ProviderTemplate> {
@@ -666,7 +654,7 @@ mod env_tests {
     impl FileReaderInfra for MockInfra {
         async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
             // Check if it's the credentials file
-            if path.ends_with(".credentials.json") {
+            if path == self.get_environment().credentials_path() {
                 let guard = self.credentials.lock().await;
                 if let Some(ref creds) = *guard {
                     return Ok(serde_json::to_string(creds)?);
@@ -701,7 +689,7 @@ mod env_tests {
     impl FileWriterInfra for MockInfra {
         async fn write(&self, path: &std::path::Path, content: Bytes) -> anyhow::Result<()> {
             // Capture writes to credentials file
-            if path.ends_with(".credentials.json") {
+            if path == self.get_environment().credentials_path() {
                 let content_str = String::from_utf8(content.to_vec())?;
                 let creds: Vec<AuthCredential> = serde_json::from_str(&content_str)?;
                 let mut guard = self.credentials.lock().await;
@@ -1057,7 +1045,7 @@ mod env_tests {
         let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
 
-        // Migrate environment variables to .credentials.json
+        // Migrate environment variables to credentials file
         registry.migrate_env_to_file().await.unwrap();
 
         let providers = registry.get_all_providers().await.unwrap();
