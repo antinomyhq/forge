@@ -163,7 +163,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Displays banner only if user is in interactive mode.
-    fn display_banner(&mut self) -> Result<()> {
+    fn display_banner(&self) -> Result<()> {
         if self.cli.is_interactive() {
             banner::display(false)?;
         }
