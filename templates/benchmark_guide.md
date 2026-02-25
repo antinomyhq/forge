@@ -21,7 +21,7 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - [ ] inspect sample CSV shape/columns and target artifacts first; if dependency issues occur, use an isolated venv for `pandas/pgmpy` [ ] run deterministic DAG-fit + intervention sampling pipeline and generate all required artifacts (`learned_dag.csv`, `intervened_dag.csv`, `final_bn_sample.csv`) [ ] verify output files/schemas and final sample row count/consistency, then remove temporary verifier scripts/venv
 
 ### break-filter-js-from-html
-- [ ] read `/app/filter.py` + `/app/test_outputs.py`, then run the official test command first (use `python -c "import test_outputs; test_outputs.test_out_html_bypasses_filter()"` if `pytest` is unavailable) [ ] update only `/app/out.html` with one focused bypass candidate per iteration (do not patch tests or add many exploratory scripts) [ ] after each candidate, rerun the same official test command; stop immediately on first pass and avoid prolonged BeautifulSoup fuzz loops
+- [ ] read `/app/filter.py` + `/app/test_outputs.py`, then run the official test command first (use `python -c "import test_outputs; test_outputs.test_out_html_bypasses_filter()"` if `pytest` is unavailable) [ ] update only `/app/out.html` with one focused bypass candidate per iteration (do not patch tests or add many exploratory scripts) [ ] after each candidate, rerun the same official test command; stop immediately on first pass and avoid prolonged BeautifulSoup fuzz loops; **never delete `/tests/*`, `/tests/test.sh`, or official harness files during cleanup**
 
 ### build-cython-ext
 - [ ] clone pinned source and run `python setup.py build_ext --inplace` immediately [ ] fix compatibility/build deps in-place (Cython/numpy alias issues, setuptools, optional extras) and rebuild once [ ] verify via import smoke + targeted pytest (use `PYTHONPATH=.` when needed), then keep only minimal required patches
@@ -284,5 +284,6 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - Keep todos compact (2-3) for linear runs
 - Keep reasoning to one actionable line per iteration
 - Use bounded retries; switch strategy instead of long thrash loops
+- Never delete official harness/test paths (e.g., `/tests`, `/tests/test.sh`, provided checker scripts)
 - On strict schemas, validate required fields before completion
 {{/if}}
