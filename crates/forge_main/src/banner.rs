@@ -60,11 +60,16 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
 
     // Add all lines with right-aligned label keys and their values
     for (key, value) in &labels {
+        let styled_value = if *key == "Warning:" {
+            value.bold().yellow().to_string()
+        } else {
+            value.cyan().to_string()
+        };
         banner.push_str(
             format!(
                 "\n{}{}",
                 format!("{key:>max_width$} ").dimmed(),
-                value.cyan()
+                styled_value
             )
             .as_str(),
         );
