@@ -5,6 +5,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum_macros::Display as StrumDisplay;
 
 use crate::compact::Compact;
 use crate::temperature::Temperature;
@@ -212,12 +213,29 @@ pub struct ReasoningConfig {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay)]
 #[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
 pub enum Effort {
     High,
     Medium,
     Low,
+}
+
+/// Converts a thinking budget (max_tokens) to Effort
+/// - 0-1024 → Low
+/// - 1025-8192 → Medium
+/// - 8193+ → High
+impl From<usize> for Effort {
+    fn from(budget: usize) -> Self {
+        if budget <= 1024 {
+            Effort::Low
+        } else if budget <= 8192 {
+            Effort::Medium
+        } else {
+            Effort::High
+        }
+    }
 }
 
 fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
@@ -275,6 +293,27 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn test_effort_from_budget_low() {
+        assert_eq!(Effort::from(0), Effort::Low);
+        assert_eq!(Effort::from(1), Effort::Low);
+        assert_eq!(Effort::from(1024), Effort::Low);
+    }
+
+    #[test]
+    fn test_effort_from_budget_medium() {
+        assert_eq!(Effort::from(1025), Effort::Medium);
+        assert_eq!(Effort::from(5000), Effort::Medium);
+        assert_eq!(Effort::from(8192), Effort::Medium);
+    }
+
+    #[test]
+    fn test_effort_from_budget_high() {
+        assert_eq!(Effort::from(8193), Effort::High);
+        assert_eq!(Effort::from(10000), Effort::High);
+        assert_eq!(Effort::from(100000), Effort::High);
+    }
 
     #[test]
     fn test_merge_model() {
