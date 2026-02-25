@@ -103,7 +103,7 @@ impl ProviderId {
     /// - "openai" -> "OpenAI"
     /// - "open_router" -> "Open Router"
     /// - "xai" -> "XAI"
-    pub fn display_name(&self) -> String {
+    fn display_name(&self) -> String {
         // Special cases for known providers with acronyms
         match self.0.as_ref() {
             "openai" => "OpenAI".to_string(),
