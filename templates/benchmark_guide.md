@@ -11,13 +11,13 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 
 ## Per-task todo templates
 
-- adaptive-rejection-sampler: [ ] create helper script/config [ ] run sampler/stat check [ ] verify output
+- adaptive-rejection-sampler: [ ] verify R runtime first (`R --version`; install `r-base` if missing) [ ] write deterministic `ars.R` helper and generate samples once [ ] run sampler/stat checks and verify output artifact(s)
 - bn-fit-modify: [ ] inspect sample CSV shape/columns and target artifacts first [ ] run deterministic DAG-fit + intervention sampling pipeline [ ] verify output files/schemas and final sample row count/consistency
 - break-filter-js-from-html: [ ] inspect extraction target [ ] apply minimal file transform [ ] verify filtered JS output
 - build-cython-ext: [ ] clone pinned source and run initial `python setup.py build_ext --inplace` [ ] install/fix build deps (setuptools/Cython/numpy compat) then rebuild extension [ ] run README/import smoke test and package-level verify (`pip install .` + targeted pytest)
 - build-pmars: [ ] install source/build deps [ ] apply required patch/config [ ] compile and smoke test
 - build-pov-ray: [ ] install POV-Ray deps [ ] render target scene [ ] verify rendered artifact
-- caffe-cifar-10: [ ] follow minimal build path [ ] use safe parallelism [ ] run quick model/binary smoke check
+- caffe-cifar-10: [ ] run env gate first (disk/RAM/toolchain) and install minimal CPU deps only [ ] follow conservative build path with capped parallelism (`-j2`, avoid `-j$(nproc)`) [ ] run caffe/CIFAR smoke check and stop at first verifier-valid result
 - cancel-async-tasks: [ ] implement canonical `Semaphore + TaskGroup` cancellation flow [ ] run deterministic async suite (concurrency + cancellation + KeyboardInterrupt) [ ] verify graceful shutdown and no leaked tasks
 - chess-best-move: [ ] derive board state once [ ] validate with engine once [ ] write move artifact
 - circuit-fibsqrt: [ ] generate gates via script [ ] run simulator on sentinel inputs [ ] validate output set
@@ -31,18 +31,18 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - custom-memory-heap-crash: [ ] reproduce crash [ ] patch allocator/heap path [ ] re-run to confirm fix
 - db-wal-recovery: [ ] inspect `main.db` + WAL metadata first [ ] recover records via deterministic SQLite/WAL parse flow [ ] write expected recovery artifact (e.g., `recovered.json`) and verify schema/content
 - distribution-search: [ ] implement search method [ ] run target query set [ ] verify expected distributions/results
-- dna-assembly: [ ] inspect FASTA fragments/read ordering and junction constraints first [ ] run deterministic assembly + primer/junction generation workflow [ ] verify assembled sequence and junction consistency in required output artifact
+- dna-assembly: [ ] inspect FASTA fragments/read ordering and junction constraints first; verify `oligotm`/primer tooling availability (`primer3`) [ ] run deterministic assembly + primer/junction generation workflow (single canonical scripts for assembly and primer generation) [ ] verify assembled sequence and junction consistency in required output artifact
 - dna-insert: [ ] inspect FASTA targets and localize insertion/mutation site first [ ] generate candidate edited sequence/primer design deterministically (e.g., primer3/oligotm constraints) [ ] verify final artifact format/content (e.g., `primers.fasta` or required sequence output)
-- extract-elf: [ ] inspect ELF headers/sections first (`file`/`readelf`) [ ] run deterministic extraction script/tooling [ ] verify extracted artifacts and clean temp files
+- extract-elf: [ ] inspect ELF headers/sections first (`file`/`readelf`) [ ] run deterministic extraction script/tooling (e.g., canonical `extract.js`) [ ] verify extracted artifacts against expected output and clean temp files
 - extract-moves-from-video: [ ] inspect video sample and fetch source deterministically first [ ] run frame/OCR extraction pipeline with one canonical script path [ ] verify final move transcript format/content and clean temp media artifacts
 - feal-differential-cryptanalysis: [ ] inspect FEAL implementation and chosen-plaintext pair format first [ ] run deterministic differential analysis pipeline to recover subkeys/key material [ ] verify recovered key by decrypting/validating against required check vector
 - feal-linear-cryptanalysis: [ ] run linear analysis pipeline [ ] recover key material [ ] verify against test vector
-- filter-js-from-html: [ ] parse HTML and isolate script payloads only [ ] normalize/clean JS (entities/attrs/self-closing edge cases) [ ] run exact-output verifier against tricky fixtures
+- filter-js-from-html: [ ] parse HTML and isolate script payloads only [ ] normalize/clean JS (entities/attrs/self-closing edge cases) in one canonical `/app/filter.py` path [ ] run exact-output verifier against tricky fixtures
 - financial-document-processor: [ ] parse financial docs [ ] transform/aggregate fields [ ] verify expected report/output
 - fix-code-vulnerability: [ ] reproduce vulnerability test [ ] apply minimal safe patch [ ] re-run security/functional checks
 - fix-git: [ ] inspect git state/history [ ] apply corrective git operations [ ] verify repository state
 - fix-ocaml-gc: [ ] locate failing GC path [ ] patch minimal OCaml logic [ ] run regression tests
-- gcode-to-text: [ ] inspect G-code comment/trace sections for embedded text path [ ] decode to required plain-text output file (`/app/out.txt`) [ ] run provided check script/format assertion
+- gcode-to-text: [ ] inspect `text.gcode` traces/comments first (optionally quick plot for path sanity) [ ] decode embedded text and write exact `/app/out.txt` content once [ ] run provided check script and assert exact format/newline
 - git-leak-recovery: [ ] locate leaked history/content [ ] rewrite/sanitize history [ ] verify leak removed
 - git-multibranch: [ ] inspect branch topology [ ] apply required branch/merge operations [ ] verify final branch state
 - gpt2-codegolf: [ ] verifier-first: read exact scoring/check harness [ ] iterate shortest candidate with strict correctness first [ ] only then optimize byte count with re-check each change
@@ -55,25 +55,25 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - llm-inference-batching-scheduler: [ ] implement batching scheduler policy [ ] run load simulation [ ] verify correctness/throughput
 - log-summary-date-ranges: [ ] parse logs/date windows [ ] aggregate summaries [ ] verify date-range outputs
 - mailman: [ ] inspect mail stack config/state first (`mailman3`/`postfix`/policy) [ ] apply required list/policy/script updates deterministically [ ] run end-to-end post/join/delivery checks and verify expected mailbox artifacts
-- make-doom-for-mips: [ ] set cross-build toolchain [ ] build target binary [ ] verify executable/runtime output
+- make-doom-for-mips: [ ] install MIPS cross-toolchain and verify target endianness/VM expectations first (`mips-linux-gnu` vs `mipsel-linux-gnu`) [ ] build with `Makefile.mips` and patch missing headers/toolchain issues deterministically (e.g., `my_stdlib.h`) [ ] run binary in `/app/vm.js` and verify frame/output artifacts
 - make-mips-interpreter: [ ] inspect target MIPS binary first (ELF headers/symbols/syscall surface) [ ] install minimal cross-tooling and implement interpreter/patch path deterministically [ ] run VM/sample execution checks and verify required output artifacts
-- mcmc-sampling-stan: [ ] verify R/Stan toolchain first (R, compiler, BLAS/LAPACK) [ ] prepare Stan model/data and run deterministic sampling script [ ] verify required posterior summary artifact(s) and diagnostics output
+- mcmc-sampling-stan: [ ] verify R/Stan toolchain first (R, compiler, BLAS/LAPACK; install `libcurl/libssl/libxml2` dev deps if missing) [ ] prepare Stan model/data and run deterministic sampling script (`analysis.R`) [ ] verify required posterior summary artifact(s) (e.g., `posterior_alpha_mean.txt`, `posterior_beta_mean.txt`) and diagnostics output
 - merge-diff-arc-agi-task: [ ] inspect diff/task sources [ ] apply merge strategy [ ] verify merged result correctness
-- model-extraction-relu-logits: [ ] load model and inspect layers [ ] extract requested activations/logits [ ] verify output against checks
+- model-extraction-relu-logits: [ ] inspect `forward.py` interface/shape behavior first [ ] implement deterministic extraction script in one canonical path (`/app/steal.py`) [ ] run official check/verify script and ensure required output contract
 - modernize-scientific-stack: [ ] update legacy stack components [ ] run compatibility/build checks [ ] verify final runtime behavior
 - mteb-leaderboard: [ ] run evaluation pipeline [ ] collect leaderboard metrics [ ] verify output table/artifact
-- mteb-retrieve: [ ] instantiate exact model/revision expected by task [ ] run retrieval on required query/corpus path [ ] write required result file and verify with harness
+- mteb-retrieve: [ ] inspect corpus file first (`wc/head`) and load exact model+revision (confirm embedding shape/dtype) [ ] run retrieval with deterministic sort/tie-break (score desc, index asc) [ ] write exact required output line to result file (trimmed, newline-safe) and verify with harness
 - multi-source-data-merger: [ ] load all source datasets [ ] merge by required keys/rules [ ] verify merged output integrity
 - nginx-request-logging: [ ] configure nginx logging directives [ ] generate request traffic [ ] verify log format/fields
 - openssl-selfsigned-cert: [ ] generate certificate/key with required params [ ] validate cert details [ ] verify usage in target flow
-- overfull-hbox: [ ] run `pdflatex` once to reproduce [ ] apply minimal text/layout replacement only in target source [ ] rerun `pdflatex` and verify `main.log` has no `Overfull \\hbox`
+- overfull-hbox: [ ] inspect `main.tex` + inputs/synonyms first, then run `pdflatex` once to reproduce [ ] apply minimal text/layout replacement only in target source [ ] rerun `pdflatex` and verify `main.log` contains no `Overfull \\hbox`
 - password-recovery: [ ] identify recovery vector [ ] execute recovery steps [ ] verify recovered credential/output
-- path-tracing: [ ] inspect target image/error surface first (quick pixel-diff/stat pass) [ ] apply minimal deterministic renderer/math patch and rebuild [ ] run render + strict compare harness once and keep smallest passing diff
+- path-tracing: [ ] inspect baseline renderer/output first (quick stat/pixel diff; convert preview with `ffmpeg` if useful) [ ] apply minimal deterministic renderer/math patch and rebuild [ ] run official render/compare harness and keep the smallest passing diff
 - path-tracing-reverse: [ ] inspect binary/output artifact first (`file`/`strings`/initial run) [ ] recover/patch core tracing math deterministically (minimal edits) [ ] rebuild and verify output parity/expected diff in one check
-- polyglot-c-py: [ ] satisfy polyglot constraints [ ] compile/run in C and Python modes [ ] verify both outputs
-- polyglot-rust-c: [ ] satisfy polyglot constraints [ ] compile/run in Rust and C modes [ ] verify both outputs
-- portfolio-optimization: [ ] load assets/constraints [ ] run optimizer [ ] verify allocation and objective metrics
-- protein-assembly: [ ] parse sequence/fragments [ ] assemble candidate proteins [ ] verify output constraints
+- polyglot-c-py: [ ] create `/app/polyglot` scaffold and write one source satisfying polyglot constraints [ ] compile/run in Python mode (`python3`) and C mode (`gcc`) [ ] verify both outputs match required text via one test script
+- polyglot-rust-c: [ ] create `/app/polyglot` scaffold and write one source satisfying polyglot constraints [ ] compile/run in Rust mode (`rustc`) and C/C++ mode (`g++ -x c++`) [ ] verify both outputs match required text via one test script
+- portfolio-optimization: [ ] inspect baseline + extension skeleton first (`portfolio_baseline.py`/`portfolio_optimized.c`/`benchmark.py`) [ ] implement C extension + thin wrapper with contiguous float64 paths and minimal overhead, then build via `python3 setup.py build_ext --inplace` [ ] run benchmark twice; require correctness parity and stable speedup margin (target >1.2x, prefer >=1.25x before finalize)
+- protein-assembly: [ ] inspect `antibody.fasta` and `pdb_ids.txt` inputs first [ ] run deterministic assembly/search workflow with minimal required deps (e.g., `requests`, `biopython`) [ ] verify required output artifact constraints
 - prove-plus-comm: [ ] encode proof goal [ ] complete proof steps [ ] verify checker acceptance
 - pypi-server: [ ] configure/start package server [ ] publish/query test package [ ] verify service behavior
 - pytorch-model-cli: [ ] implement/patch CLI model commands [ ] run CLI workflows [ ] verify outputs
@@ -81,25 +81,25 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - qemu-alpine-ssh: [ ] boot Alpine in QEMU with hostfwd (e.g., `2222->22`) [ ] configure/enable sshd + root password inside guest [ ] verify login non-interactively (`sshpass`/scripted ssh)
 - qemu-startup: [ ] configure QEMU startup params [ ] boot VM successfully [ ] verify expected console/availability
 - query-optimize: [ ] profile baseline query [ ] apply optimization [ ] verify latency/plan improvement
-- raman-fitting: [ ] inspect data shape/baseline first [ ] run constrained peak-fitting routine [ ] verify fitted params in required `results.json` schema
+- raman-fitting: [ ] inspect `graphene.dat` shape/range/baseline first (`head`/`tail` + one inspect script) [ ] run deterministic constrained fit via single `fit_peaks.py` path [ ] verify `results.json` with a dedicated results-check script
 - regex-chess: [ ] inspect checker constraints first (`check.py`/task rules) [ ] generate regex candidate deterministically (single generator script) [ ] run official checker until exact pass then cleanup temp scripts
 - regex-log: [ ] craft extraction regex [ ] run against log corpus [ ] verify extracted records
 - reshard-c4-data: [ ] locate input shard set [ ] run reshaping/reshard pipeline [ ] verify shard counts/content
 - rstan-to-pystan: [ ] inspect original RStan workflow/data contracts first [ ] translate to PyStan API with deterministic sampling configuration [ ] verify required posterior CSV artifacts and parity constraints
-- sam-cell-seg: [ ] load SAM model weights and validate image/metadata inputs [ ] run mask conversion/segmentation pipeline with required CLI args [ ] verify output CSV/mask artifacts and dimensions
-- sanitize-git-repo: [ ] identify sensitive history/content [ ] rewrite/sanitize repository [ ] verify sensitive content removed
+- sam-cell-seg: [ ] validate input image/metadata shapes first and ensure MobileSAM + CPU torch runtime are importable [ ] fetch/confirm weights path (`/app/mobile_sam.pt`) and run one canonical conversion script (`/app/convert_masks.py`) with exact required CLI args [ ] verify output CSV exists, row-count/column schema match metadata, and mask dimensions are valid
+- sanitize-git-repo: [ ] identify sensitive content in working tree and git history first [ ] rewrite/sanitize history and head consistently (not just working tree replacement) [ ] verify no secret patterns remain via repo scan + history-aware checks
 - schemelike-metacircular-eval: [ ] implement/fix evaluator semantics [ ] run language tests [ ] verify expected eval outputs
 - sparql-university: [ ] inspect RDF/SPARQL targets [ ] run required queries [ ] verify result set
 - sqlite-db-truncate: [ ] identify DB/tables to truncate [ ] run safe truncate/delete flow [ ] verify emptied state
 - sqlite-with-gcov: [ ] build sqlite with coverage flags [ ] run target workload [ ] verify gcov outputs
-- torch-pipeline-parallelism: [ ] validate model block/forward signature compatibility first [ ] implement fixed pipeline partitions + microbatch schedule deterministically [ ] run single-process then pipeline smoke tests and verify output shape/numerics
-- torch-tensor-parallelism: [ ] verify torch distributed runtime first (`torch.distributed.run`) [ ] implement tensor-parallel split/merge with deterministic test harness [ ] run single-proc then multi-proc checks and verify numerics
+- torch-pipeline-parallelism: [ ] verify Python/torch runtime first and inspect model `forward`/block signatures before edits [ ] implement fixed partitions + deterministic microbatch schedule in one canonical script path (`/app/pipeline_parallel.py`) [ ] run single-process then pipeline smoke tests and verify output shape/numerics
+- torch-tensor-parallelism: [ ] verify Python + torch distributed runtime first (`python`/`python3`/`/uv/forge/bin/python`, `torch.distributed.run`); install CPU torch if missing [ ] implement tensor-parallel split/merge with deterministic test harness [ ] run single-proc then multi-proc checks and verify numerics
 - train-fasttext: [ ] prepare training corpus [ ] train fastText model [ ] verify model and sample predictions
 - tune-mjcf: [ ] start from `model_ref.xml` baseline and inspect target MJCF options [ ] apply minimal option/flag edits one at a time [ ] run `eval.py` after each edit and keep best passing config
-- video-processing: [ ] extract frames/track once with deterministic script [ ] compute requested metric/artifact and write required output file(s) [ ] run task verifier and clean temporary media files
+- video-processing: [ ] inspect input media + metadata first, ensure required lightweight deps (e.g., `toml`) are present, then use one deterministic script path (`/app/jump_analyzer.py`) [ ] compute requested metric/artifact and write required output file(s) [ ] run task verifier and clean temporary media/test artifacts
 - vulnerable-secret: [ ] locate vulnerable secret path [ ] perform extraction/recovery [ ] verify recovered secret
-- winning-avg-corewars: [ ] inspect corewars setup [ ] optimize warrior strategy [ ] run evaluation and verify winning average
-- write-compressor: [ ] inspect decompressor/format constraints first [ ] generate compressed artifact deterministically [ ] verify roundtrip (`decomp` + `cmp`) and size/ratio target
+- winning-avg-corewars: [ ] inspect corewars setup and baseline warriors first (`warriors/*.red`, `pmars -V`) [ ] optimize warrior strategy deterministically from baseline variants [ ] run official evaluation and verify winning average metric
+- write-compressor: [ ] inspect decompressor/format constraints first (compile `decomp.c` if needed) [ ] generate compressed artifact deterministically with one script [ ] verify roundtrip (`decomp` + `cmp`) plus size/ratio target
 
 ## Guardrails
 - Keep todos compact (2-3) for linear runs
