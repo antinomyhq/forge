@@ -171,15 +171,24 @@ mod tests {
     use super::*;
 
     /// Mock infrastructure for testing that stores files in memory
-    #[derive(Clone)]
+    #[derive(Clone, derive_setters::Setters)]
     struct MockInfra {
         files: Arc<Mutex<HashMap<PathBuf, String>>>,
         config_path: PathBuf,
+        #[setters(strip_option)]
+        override_provider: Option<ProviderId>,
+        #[setters(strip_option)]
+        override_model: Option<ModelId>,
     }
 
     impl MockInfra {
         fn new(config_path: PathBuf) -> Self {
-            Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
+            Self {
+                files: Arc::new(Mutex::new(HashMap::new())),
+                config_path,
+                override_provider: None,
+                override_model: None,
+            }
         }
     }
 
@@ -188,6 +197,14 @@ mod tests {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
             env = env.base_path(self.config_path.parent().unwrap().to_path_buf());
+
+            if let Some(ref provider) = self.override_provider {
+                env = env.override_provider(provider.clone());
+            }
+            if let Some(ref model) = self.override_model {
+                env = env.override_model(model.clone());
+            }
+
             env
         }
 
@@ -379,11 +396,12 @@ mod tests {
         );
         let content = serde_json::to_string_pretty(&config).unwrap();
 
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        let infra = Arc::new(
+            MockInfra::new(config_path.clone()).override_model(ModelId::new("override-model")),
+        );
         infra.files.lock().unwrap().insert(config_path, content);
 
-        let repo =
-            AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
+        let repo = AppConfigRepositoryImpl::new(infra);
         let actual = repo.get_app_config().await.unwrap();
 
         // The override model should be applied to all providers
@@ -402,10 +420,11 @@ mod tests {
         let config = AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        let infra =
+            Arc::new(MockInfra::new(config_path.clone()).override_provider(ProviderId::OPENAI));
         infra.files.lock().unwrap().insert(config_path, content);
 
-        let repo = AppConfigRepositoryImpl::new(infra).override_provider(ProviderId::OPENAI);
+        let repo = AppConfigRepositoryImpl::new(infra);
         let actual = repo.get_app_config().await.unwrap();
 
         // The override provider should be applied
@@ -417,9 +436,9 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let config_path = temp_dir.path().join(".config.json");
 
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo =
-            AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
+        let infra =
+            Arc::new(MockInfra::new(config_path).override_model(ModelId::new("override-model")));
+        let repo = AppConfigRepositoryImpl::new(infra);
 
         // Attempting to write config when override is set should fail
         let config = AppConfig::default();
@@ -440,10 +459,12 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
         let expected = ProviderId::from_str("open_router").unwrap();
 
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
+        let infra = Arc::new(
+            MockInfra::new(config_path)
             .override_provider(expected.clone())
-            .override_model(ModelId::new("test-model"));
+                .override_model(ModelId::new("test-model")),
+        );
+        let repo = AppConfigRepositoryImpl::new(infra);
 
         let actual = repo.get_app_config().await.unwrap();
 
@@ -457,10 +478,12 @@ mod tests {
         let provider = ProviderId::OPENAI;
         let expected = ModelId::new("gpt-4-test");
 
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
+        let infra = Arc::new(
+            MockInfra::new(config_path)
             .override_provider(provider.clone())
-            .override_model(expected.clone());
+                .override_model(expected.clone()),
+        );
+        let repo = AppConfigRepositoryImpl::new(infra);
 
         let actual = repo.get_app_config().await.unwrap();
 
@@ -473,10 +496,12 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
         let expected = ProviderId::ANTHROPIC;
 
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
+        let infra = Arc::new(
+            MockInfra::new(config_path)
             .override_provider(expected.clone())
-            .override_model(ModelId::new("test-model"));
+                .override_model(ModelId::new("test-model")),
+        );
+        let repo = AppConfigRepositoryImpl::new(infra);
 
         // First call populates cache
         repo.get_app_config().await.unwrap();
@@ -494,10 +519,12 @@ mod tests {
         let provider = ProviderId::OPENAI;
         let expected = ModelId::new("gpt-4-cached");
 
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
+        let infra = Arc::new(
+            MockInfra::new(config_path)
             .override_provider(provider.clone())
-            .override_model(expected.clone());
+                .override_model(expected.clone()),
+        );
+        let repo = AppConfigRepositoryImpl::new(infra);
 
         // First call populates cache
         repo.get_app_config().await.unwrap();
@@ -518,10 +545,10 @@ mod tests {
         let config = AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        let infra = Arc::new(MockInfra::new(config_path.clone()).override_model(expected.clone()));
         infra.files.lock().unwrap().insert(config_path, content);
 
-        let repo = AppConfigRepositoryImpl::new(infra).override_model(expected.clone());
+        let repo = AppConfigRepositoryImpl::new(infra);
         let actual = repo.get_app_config().await.unwrap();
 
         assert_eq!(actual.model.get(&ProviderId::ANTHROPIC), Some(&expected));
