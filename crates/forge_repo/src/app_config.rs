@@ -76,7 +76,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
     fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
         // CLI/API overrides take precedence, fall back to env var values
         let env = self.infra.get_environment();
-        (self.override_model.clone().or(env.override_model), self.override_provider.clone().or(env.override_provider))
+        (
+            self.override_model.clone().or(env.override_model),
+            self.override_provider.clone().or(env.override_provider),
+        )
     }
 
     fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {
