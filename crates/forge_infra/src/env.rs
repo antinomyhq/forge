@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{AutoDumpFormat, Environment, RetryConfig, TlsBackend, TlsVersion};
+use forge_domain::{AutoDumpFormat, Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 use tracing::warn;
 
@@ -56,18 +56,20 @@ impl ForgeEnvironmentInfra {
         // Parse custom history file path from environment variable
         let custom_history_path = parse_env::<String>("FORGE_HISTORY_FILE").map(PathBuf::from);
 
-        if parse_env::<String>("FORGE_OVERRIDE_MODEL").is_some() {
+        let override_model = parse_env::<String>("FORGE_OVERRIDE_MODEL").map(|s| {
             warn!(
                 "FORGE_OVERRIDE_MODEL is deprecated and will be removed in a future release. \
                  Use the --model CLI flag instead: `forge --model <model>`"
             );
-        }
-        if parse_env::<String>("FORGE_OVERRIDE_PROVIDER").is_some() {
+            ModelId::new(s)
+        });
+        let override_provider = parse_env::<String>("FORGE_OVERRIDE_PROVIDER").and_then(|s| {
             warn!(
                 "FORGE_OVERRIDE_PROVIDER is deprecated and will be removed in a future release. \
                  Use the --provider CLI flag instead: `forge --provider <provider>`"
             );
-        }
+            ProviderId::from_str(&s).ok()
+        });
 
         Environment {
             os: std::env::consts::OS.to_string(),
@@ -111,6 +113,8 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             max_extensions: parse_env::<usize>("FORGE_MAX_EXTENSIONS").unwrap_or(15),
             auto_dump: parse_env::<AutoDumpFormat>("FORGE_AUTO_DUMP"),
+            override_model,
+            override_provider,
         }
     }
 
