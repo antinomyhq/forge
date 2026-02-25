@@ -19,7 +19,7 @@ impl DisplayBox {
 
 impl fmt::Display for DisplayBox {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let visible_len = |s: &str| strip_ansi_escapes::strip_str(s).chars().count();
+        let visible_len = |s: &str| console::measure_text_width(&s);
         let width: usize = self
             .messages
             .iter()
@@ -105,7 +105,7 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
 
     println!("{banner}\n");
 
-    // Show deprecation warning for REPL mode before the banner
+    // Show deprecation warning for REPL mode after the banner
     if !cli_mode {
         display_deprecation_warning();
     }
@@ -118,17 +118,19 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
 fn display_deprecation_warning() {
     let warning = DisplayBox::new(vec![
         format!(
-            "⚠️ {} {}",
+            "{} {}",
             "IMPORTANT:".bold().yellow(),
             "REPL MODE WILL BE DEPRECATED SOON".bold()
         ),
         format!(
-            "  {} {}",
+            "{} {} {}",
+            "·".dimmed(),
             "Use forge via our zsh plugin:".dimmed(),
-            "forge zsh setup".bold().cyan(),
+            "forge zsh setup".bold().green(),
         ),
         format!(
-            "  {} {}",
+            "{} {} {}",
+            "·".dimmed(),
             "Learn more:".dimmed(),
             "https://forgecode.dev/docs/zsh-support".cyan()
         ),
