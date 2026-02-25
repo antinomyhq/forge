@@ -41,9 +41,14 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
-    pub fn init(restricted: bool, cwd: PathBuf) -> Self {
+    pub fn init(
+        restricted: bool,
+        cwd: PathBuf,
+        override_model: Option<forge_domain::ModelId>,
+        override_provider: Option<forge_domain::ProviderId>,
+    ) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
-        let repo = Arc::new(ForgeRepo::new(infra.clone()));
+        let repo = Arc::new(ForgeRepo::new(infra.clone(), override_model, override_provider));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
     }

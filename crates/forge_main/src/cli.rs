@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ConversationId, ProviderId};
+use forge_domain::{AgentId, ConversationId, ModelId, ProviderId};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -61,6 +61,20 @@ pub struct Cli {
     /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
+
+    /// Override the model to use for this session.
+    ///
+    /// When provided, uses this model instead of the configured default.
+    /// This is a runtime override and does not change the permanent configuration.
+    #[arg(long, value_parser = clap::builder::NonEmptyStringValueParser::new())]
+    pub model: Option<ModelId>,
+
+    /// Override the provider to use for this session.
+    ///
+    /// When provided, uses this provider instead of the configured default.
+    /// This is a runtime override and does not change the permanent configuration.
+    #[arg(long, value_parser = clap::builder::NonEmptyStringValueParser::new())]
+    pub provider: Option<ProviderId>,
 
     /// Top-level subcommands.
     #[command(subcommand)]

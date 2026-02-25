@@ -500,8 +500,6 @@ Override default API endpoints and provider/model settings:
 ```bash
 # .env
 FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
-FORGE_OVERRIDE_MODEL=claude-3.7-sonnet   # Override model for all providers (takes precedence over configured models)
-FORGE_OVERRIDE_PROVIDER=anthropic         # Override default provider (takes precedence over configured provider)
 FORGE_WORKSPACE_SERVER_URL=http://localhost:8080  # URL for the indexing server (default: https://api.forgecode.dev/)
 ```
 
