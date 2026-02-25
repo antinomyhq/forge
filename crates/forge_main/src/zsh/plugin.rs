@@ -77,8 +77,10 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
     // Used by many production tools (kubectl, terraform, etc.)
     let temp_dir = std::env::temp_dir();
     let script_path = temp_dir.join(format!("forge_{}.zsh", script_name));
-    fs::write(&script_path, &script_content)
-        .context(format!("Failed to write {} script to temp file", script_name))?;
+    fs::write(&script_path, &script_content).context(format!(
+        "Failed to write {} script to temp file",
+        script_name
+    ))?;
 
     // Execute the script in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
