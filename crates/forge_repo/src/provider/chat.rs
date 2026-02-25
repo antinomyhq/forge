@@ -114,7 +114,11 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
 
         let cache_key = format!("models:{}", provider.id);
 
-        if let Ok(Some(cached)) = self.model_cache.cache_get::<_, Vec<Model>>(&cache_key).await {
+        if let Ok(Some(cached)) = self
+            .model_cache
+            .cache_get::<_, Vec<Model>>(&cache_key)
+            .await
+        {
             tracing::debug!(provider_id = %provider.id, "returning cached models");
             return Ok(cached);
         }
