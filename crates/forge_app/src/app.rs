@@ -313,7 +313,7 @@ impl<S: Services> ForgeApp<S> {
 
         Ok(results)
     }
-    
+
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }

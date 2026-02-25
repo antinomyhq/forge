@@ -8,6 +8,7 @@ use super::make_openai_compat::MakeOpenAiCompat;
 use super::minimax::SetMinimaxParams;
 use super::normalize_tool_schema::NormalizeToolSchema;
 use super::set_cache::SetCache;
+use super::set_reasoning_effort::SetReasoningEffort;
 use super::strip_thought_signature::StripThoughtSignature;
 use super::tool_choice::SetToolChoice;
 use super::trim_tool_call_ids::TrimToolCallIds;
@@ -41,7 +42,7 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(SetMinimaxParams.when(when_model("minimax")))
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
-            .pipe(SetCache.when(when_model("gemini|anthropic")))
+            .pipe(SetCache.when(when_model("gemini|anthropic|minimax")))
             .when(move |_| supports_open_router_params(provider));
 
         // Strip thought signatures for all models except gemini-3
@@ -49,6 +50,9 @@ impl Transformer for ProviderPipeline<'_> {
             StripThoughtSignature.when(move |req: &Request| !is_gemini3_model(req));
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
+
+        let set_reasoning_effort =
+            SetReasoningEffort.when(move |_| provider.id == ProviderId::REQUESTY);
 
         let github_copilot_reasoning =
             GitHubCopilotReasoning.when(move |_| provider.id == ProviderId::GITHUB_COPILOT);
@@ -60,6 +64,7 @@ impl Transformer for ProviderPipeline<'_> {
         let mut combined = zai_thinking
             .pipe(or_transformers)
             .pipe(strip_thought_signature)
+            .pipe(set_reasoning_effort)
             .pipe(open_ai_compat)
             .pipe(github_copilot_reasoning)
             .pipe(cerebras_compat)
@@ -237,8 +242,8 @@ mod tests {
         assert!(supports_open_router_params(&forge("forge")));
         assert!(supports_open_router_params(&open_router("open-router")));
 
-        assert!(!supports_open_router_params(&openai("openai")));
         assert!(!supports_open_router_params(&requesty("requesty")));
+        assert!(!supports_open_router_params(&openai("openai")));
         assert!(!supports_open_router_params(&xai("xai")));
         assert!(!supports_open_router_params(&anthropic("claude")));
     }
@@ -435,6 +440,120 @@ mod tests {
         // Thought signature should be stripped for non-gemini-3 models
         let messages = actual.messages.unwrap();
         assert!(messages[0].extra_content.is_none());
+    }
+
+    #[test]
+    fn test_minimax_model_applies_cache_via_open_router() {
+        use crate::dto::openai::{Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("minimax/minimax-m2"))
+            .messages(vec![
+                Message {
+                    role: Role::User,
+                    content: Some(MessageContent::Text("Hello".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+                Message {
+                    role: Role::Assistant,
+                    content: Some(MessageContent::Text("Hi there".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+            ]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Cache should be applied: first and last messages cached
+        let messages = actual.messages.unwrap();
+        assert!(
+            messages
+                .first()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
+        assert!(
+            messages
+                .last()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
+    }
+
+    #[test]
+    fn test_non_minimax_model_does_not_apply_cache_via_open_router() {
+        use crate::dto::openai::{Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("openai/gpt-4o"))
+            .messages(vec![
+                Message {
+                    role: Role::User,
+                    content: Some(MessageContent::Text("Hello".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+                Message {
+                    role: Role::Assistant,
+                    content: Some(MessageContent::Text("Hi there".to_string())),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: None,
+                },
+            ]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Cache should NOT be applied for non-minimax/gemini/anthropic models
+        let messages = actual.messages.unwrap();
+        assert!(
+            !messages
+                .first()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
+        assert!(
+            !messages
+                .last()
+                .unwrap()
+                .content
+                .as_ref()
+                .unwrap()
+                .is_cached()
+        );
     }
 
     #[test]
