@@ -22,7 +22,12 @@ pub struct AppConfigRepositoryImpl<F> {
 
 impl<F> AppConfigRepositoryImpl<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Mutex::new(None)), override_model: None, override_provider: None }
+        Self {
+            infra,
+            cache: Arc::new(Mutex::new(None)),
+            override_model: None,
+            override_provider: None,
+        }
     }
 }
 
@@ -377,8 +382,8 @@ mod tests {
         let infra = Arc::new(MockInfra::new(config_path.clone()));
         infra.files.lock().unwrap().insert(config_path, content);
 
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_model(ModelId::new("override-model"));
+        let repo =
+            AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
         let actual = repo.get_app_config().await.unwrap();
 
         // The override model should be applied to all providers
@@ -400,8 +405,7 @@ mod tests {
         let infra = Arc::new(MockInfra::new(config_path.clone()));
         infra.files.lock().unwrap().insert(config_path, content);
 
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_provider(ProviderId::OPENAI);
+        let repo = AppConfigRepositoryImpl::new(infra).override_provider(ProviderId::OPENAI);
         let actual = repo.get_app_config().await.unwrap();
 
         // The override provider should be applied
@@ -414,8 +418,8 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
 
         let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_model(ModelId::new("override-model"));
+        let repo =
+            AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
 
         // Attempting to write config when override is set should fail
         let config = AppConfig::default();

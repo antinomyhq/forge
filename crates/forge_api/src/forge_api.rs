@@ -48,7 +48,11 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
         override_provider: Option<forge_domain::ProviderId>,
     ) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
-        let repo = Arc::new(ForgeRepo::new(infra.clone(), override_model, override_provider));
+        let repo = Arc::new(ForgeRepo::new(
+            infra.clone(),
+            override_model,
+            override_provider,
+        ));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
     }

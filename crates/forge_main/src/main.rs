@@ -63,7 +63,12 @@ async fn main() -> Result<()> {
     let cli_model = cli.model.clone();
     let cli_provider = cli.provider.clone();
     let mut ui = UI::init(cli, move || {
-        ForgeAPI::init(restricted, cwd.clone(), cli_model.clone(), cli_provider.clone())
+        ForgeAPI::init(
+            restricted,
+            cwd.clone(),
+            cli_model.clone(),
+            cli_provider.clone(),
+        )
     })?;
     ui.run().await;
 

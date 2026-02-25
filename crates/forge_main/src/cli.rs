@@ -65,14 +65,16 @@ pub struct Cli {
     /// Override the model to use for this session.
     ///
     /// When provided, uses this model instead of the configured default.
-    /// This is a runtime override and does not change the permanent configuration.
+    /// This is a runtime override and does not change the permanent
+    /// configuration.
     #[arg(long, value_parser = clap::builder::NonEmptyStringValueParser::new())]
     pub model: Option<ModelId>,
 
     /// Override the provider to use for this session.
     ///
     /// When provided, uses this provider instead of the configured default.
-    /// This is a runtime override and does not change the permanent configuration.
+    /// This is a runtime override and does not change the permanent
+    /// configuration.
     #[arg(long, value_parser = clap::builder::NonEmptyStringValueParser::new())]
     pub provider: Option<ProviderId>,
 
