@@ -1,5 +1,4 @@
-use std::fmt;
-use std::io;
+use std::{fmt, io};
 
 use colored::Colorize;
 use forge_tracker::VERSION;
@@ -114,7 +113,8 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
     Ok(())
 }
 
-/// Displays a deprecation warning for REPL mode with instructions to use zsh integration.
+/// Displays a deprecation warning for REPL mode with instructions to use zsh
+/// integration.
 fn display_deprecation_warning() {
     let warning = DisplayBox::new(vec![
         "REPL mode is deprecated. Please use zsh integration instead.".to_string(),
