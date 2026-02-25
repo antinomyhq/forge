@@ -12,64 +12,64 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 ## Per-task todo templates
 
 - adaptive-rejection-sampler: [ ] create helper script/config [ ] run sampler/stat check [ ] verify output
-- bn-fit-modify: [ ] inspect sample/input [ ] run fit script [ ] verify expected metrics
+- bn-fit-modify: [ ] inspect sample CSV shape/columns and target artifacts first [ ] run deterministic DAG-fit + intervention sampling pipeline [ ] verify output files/schemas and final sample row count/consistency
 - break-filter-js-from-html: [ ] inspect extraction target [ ] apply minimal file transform [ ] verify filtered JS output
-- build-cython-ext: [ ] install build deps [ ] patch/build extension [ ] run import/smoke test
+- build-cython-ext: [ ] clone pinned source and run initial `python setup.py build_ext --inplace` [ ] install/fix build deps (setuptools/Cython/numpy compat) then rebuild extension [ ] run README/import smoke test and package-level verify (`pip install .` + targeted pytest)
 - build-pmars: [ ] install source/build deps [ ] apply required patch/config [ ] compile and smoke test
 - build-pov-ray: [ ] install POV-Ray deps [ ] render target scene [ ] verify rendered artifact
 - caffe-cifar-10: [ ] follow minimal build path [ ] use safe parallelism [ ] run quick model/binary smoke check
-- cancel-async-tasks: [ ] implement canonical cancellation pattern [ ] run deterministic async test [ ] confirm interrupt/cancel behavior
+- cancel-async-tasks: [ ] implement canonical `Semaphore + TaskGroup` cancellation flow [ ] run deterministic async suite (concurrency + cancellation + KeyboardInterrupt) [ ] verify graceful shutdown and no leaked tasks
 - chess-best-move: [ ] derive board state once [ ] validate with engine once [ ] write move artifact
 - circuit-fibsqrt: [ ] generate gates via script [ ] run simulator on sentinel inputs [ ] validate output set
 - cobol-modernization: [ ] apply deterministic modernization transform [ ] compile/run [ ] verify behavior parity
 - code-from-image: [ ] extract logic from image once [ ] resolve ambiguity with one hint check [ ] write final output and verify once
 - compile-compcert: [ ] install exact deps [ ] configure target and build with safe jobs [ ] verify /tmp/CompCert/ccomp with smoke compile/run
-- configure-git-webserver: [ ] inspect repo/server config [ ] apply minimal webserver/git config [ ] verify endpoint/repo access
+- configure-git-webserver: [ ] create bare repo + post-receive deploy hook [ ] run static HTTP server from deploy dir [ ] verify by push-to-repo then `curl` served file
 - constraints-scheduling: [ ] encode constraints [ ] run solver once [ ] verify schedule validity
 - count-dataset-tokens: [ ] load dataset [ ] run token counter [ ] verify count/output format
 - crack-7z-hash: [ ] set cracking strategy/tooling [ ] run crack workflow [ ] verify recovered secret
 - custom-memory-heap-crash: [ ] reproduce crash [ ] patch allocator/heap path [ ] re-run to confirm fix
-- db-wal-recovery: [ ] inspect WAL/db state [ ] perform recovery path [ ] verify restored records
+- db-wal-recovery: [ ] inspect `main.db` + WAL metadata first [ ] recover records via deterministic SQLite/WAL parse flow [ ] write expected recovery artifact (e.g., `recovered.json`) and verify schema/content
 - distribution-search: [ ] implement search method [ ] run target query set [ ] verify expected distributions/results
-- dna-assembly: [ ] load reads [ ] run assembly workflow [ ] validate assembled sequence output
-- dna-insert: [ ] identify insertion rules [ ] apply edit [ ] verify resulting sequence
-- extract-elf: [ ] inspect ELF target [ ] run extraction script/tooling [ ] verify extracted artifacts
-- extract-moves-from-video: [ ] inspect video sample [ ] run move extraction [ ] verify move list format/content
+- dna-assembly: [ ] inspect FASTA fragments/read ordering and junction constraints first [ ] run deterministic assembly + primer/junction generation workflow [ ] verify assembled sequence and junction consistency in required output artifact
+- dna-insert: [ ] inspect FASTA targets and localize insertion/mutation site first [ ] generate candidate edited sequence/primer design deterministically (e.g., primer3/oligotm constraints) [ ] verify final artifact format/content (e.g., `primers.fasta` or required sequence output)
+- extract-elf: [ ] inspect ELF headers/sections first (`file`/`readelf`) [ ] run deterministic extraction script/tooling [ ] verify extracted artifacts and clean temp files
+- extract-moves-from-video: [ ] inspect video sample and fetch source deterministically first [ ] run frame/OCR extraction pipeline with one canonical script path [ ] verify final move transcript format/content and clean temp media artifacts
 - feal-differential-cryptanalysis: [ ] run differential analysis pipeline [ ] recover key material [ ] verify decryption/checks
 - feal-linear-cryptanalysis: [ ] run linear analysis pipeline [ ] recover key material [ ] verify against test vector
-- filter-js-from-html: [ ] parse HTML input [ ] extract/clean JS only [ ] verify exact output constraints
+- filter-js-from-html: [ ] parse HTML and isolate script payloads only [ ] normalize/clean JS (entities/attrs/self-closing edge cases) [ ] run exact-output verifier against tricky fixtures
 - financial-document-processor: [ ] parse financial docs [ ] transform/aggregate fields [ ] verify expected report/output
 - fix-code-vulnerability: [ ] reproduce vulnerability test [ ] apply minimal safe patch [ ] re-run security/functional checks
 - fix-git: [ ] inspect git state/history [ ] apply corrective git operations [ ] verify repository state
 - fix-ocaml-gc: [ ] locate failing GC path [ ] patch minimal OCaml logic [ ] run regression tests
-- gcode-to-text: [ ] parse G-code input [ ] convert to text/commands [ ] verify target output format
+- gcode-to-text: [ ] inspect G-code comment/trace sections for embedded text path [ ] decode to required plain-text output file (`/app/out.txt`) [ ] run provided check script/format assertion
 - git-leak-recovery: [ ] locate leaked history/content [ ] rewrite/sanitize history [ ] verify leak removed
 - git-multibranch: [ ] inspect branch topology [ ] apply required branch/merge operations [ ] verify final branch state
-- gpt2-codegolf: [ ] build shortest valid solution path [ ] run correctness checks [ ] verify size and output
+- gpt2-codegolf: [ ] verifier-first: read exact scoring/check harness [ ] iterate shortest candidate with strict correctness first [ ] only then optimize byte count with re-check each change
 - headless-terminal: [ ] run headless workflow script [ ] validate command execution path [ ] verify expected output artifact
 - hf-model-inference: [ ] load model/runtime deps [ ] run inference on target input [ ] verify output schema/quality
 - install-windows-3.11: [ ] prepare installer/runtime artifacts [ ] perform install path [ ] verify boot/command success
 - kv-store-grpc: [ ] implement/start gRPC KV service [ ] run client operations [ ] verify CRUD behavior
 - large-scale-text-editing: [ ] locate all target edits [ ] apply deterministic batch edit [ ] verify all replacements
-- largest-eigenval: [ ] load matrix/data [ ] compute dominant eigenvalue [ ] verify numerical tolerance
+- largest-eigenval: [ ] inspect evaluator + matrix source first [ ] implement fast dominant-eigenvalue path (power/compiled fallback) [ ] run official eval and verify tolerance/format
 - llm-inference-batching-scheduler: [ ] implement batching scheduler policy [ ] run load simulation [ ] verify correctness/throughput
 - log-summary-date-ranges: [ ] parse logs/date windows [ ] aggregate summaries [ ] verify date-range outputs
-- mailman: [ ] inspect mail/task workflow files [ ] apply required script/config updates [ ] verify generated output
+- mailman: [ ] inspect mail stack config/state first (`mailman3`/`postfix`/policy) [ ] apply required list/policy/script updates deterministically [ ] run end-to-end post/join/delivery checks and verify expected mailbox artifacts
 - make-doom-for-mips: [ ] set cross-build toolchain [ ] build target binary [ ] verify executable/runtime output
-- make-mips-interpreter: [ ] install cross-toolchain deps [ ] compile interpreter [ ] run sample program verification
+- make-mips-interpreter: [ ] inspect target MIPS binary first (ELF headers/symbols/syscall surface) [ ] install minimal cross-tooling and implement interpreter/patch path deterministically [ ] run VM/sample execution checks and verify required output artifacts
 - mcmc-sampling-stan: [ ] prepare Stan model/data [ ] run sampler [ ] verify posterior/output diagnostics
 - merge-diff-arc-agi-task: [ ] inspect diff/task sources [ ] apply merge strategy [ ] verify merged result correctness
 - model-extraction-relu-logits: [ ] load model and inspect layers [ ] extract requested activations/logits [ ] verify output against checks
 - modernize-scientific-stack: [ ] update legacy stack components [ ] run compatibility/build checks [ ] verify final runtime behavior
 - mteb-leaderboard: [ ] run evaluation pipeline [ ] collect leaderboard metrics [ ] verify output table/artifact
-- mteb-retrieve: [ ] load retriever/model assets [ ] run retrieval benchmark [ ] verify retrieval metrics/output
+- mteb-retrieve: [ ] instantiate exact model/revision expected by task [ ] run retrieval on required query/corpus path [ ] write required result file and verify with harness
 - multi-source-data-merger: [ ] load all source datasets [ ] merge by required keys/rules [ ] verify merged output integrity
 - nginx-request-logging: [ ] configure nginx logging directives [ ] generate request traffic [ ] verify log format/fields
 - openssl-selfsigned-cert: [ ] generate certificate/key with required params [ ] validate cert details [ ] verify usage in target flow
-- overfull-hbox: [ ] reproduce TeX overflow [ ] apply minimal layout fix [ ] verify warning resolved
+- overfull-hbox: [ ] run `pdflatex` once to reproduce [ ] apply minimal text/layout replacement only in target source [ ] rerun `pdflatex` and verify `main.log` has no `Overfull \\hbox`
 - password-recovery: [ ] identify recovery vector [ ] execute recovery steps [ ] verify recovered credential/output
-- path-tracing: [ ] patch/compile renderer [ ] run target trace/render [ ] verify rendered result
-- path-tracing-reverse: [ ] inspect reverse-tracing target [ ] apply algorithmic fix [ ] verify output against expected
+- path-tracing: [ ] inspect target image/error surface first (quick pixel-diff/stat pass) [ ] apply minimal deterministic renderer/math patch and rebuild [ ] run render + strict compare harness once and keep smallest passing diff
+- path-tracing-reverse: [ ] inspect binary/output artifact first (`file`/`strings`/initial run) [ ] recover/patch core tracing math deterministically (minimal edits) [ ] rebuild and verify output parity/expected diff in one check
 - polyglot-c-py: [ ] satisfy polyglot constraints [ ] compile/run in C and Python modes [ ] verify both outputs
 - polyglot-rust-c: [ ] satisfy polyglot constraints [ ] compile/run in Rust and C modes [ ] verify both outputs
 - portfolio-optimization: [ ] load assets/constraints [ ] run optimizer [ ] verify allocation and objective metrics
@@ -78,28 +78,28 @@ Use this only for benchmark/eval runs. Keep execution terse, verifier-first, and
 - pypi-server: [ ] configure/start package server [ ] publish/query test package [ ] verify service behavior
 - pytorch-model-cli: [ ] implement/patch CLI model commands [ ] run CLI workflows [ ] verify outputs
 - pytorch-model-recovery: [ ] inspect corrupted/incomplete model state [ ] recover model artifact [ ] verify load/inference
-- qemu-alpine-ssh: [ ] provision Alpine VM in QEMU [ ] configure networking/SSH [ ] verify SSH login
+- qemu-alpine-ssh: [ ] boot Alpine in QEMU with hostfwd (e.g., `2222->22`) [ ] configure/enable sshd + root password inside guest [ ] verify login non-interactively (`sshpass`/scripted ssh)
 - qemu-startup: [ ] configure QEMU startup params [ ] boot VM successfully [ ] verify expected console/availability
 - query-optimize: [ ] profile baseline query [ ] apply optimization [ ] verify latency/plan improvement
-- raman-fitting: [ ] load Raman data [ ] run fit routine [ ] verify fitted parameters/output
-- regex-chess: [ ] craft regex strategy for chess task [ ] run matcher on target input [ ] verify exact match/output
+- raman-fitting: [ ] inspect data shape/baseline first [ ] run constrained peak-fitting routine [ ] verify fitted params in required `results.json` schema
+- regex-chess: [ ] inspect checker constraints first (`check.py`/task rules) [ ] generate regex candidate deterministically (single generator script) [ ] run official checker until exact pass then cleanup temp scripts
 - regex-log: [ ] craft extraction regex [ ] run against log corpus [ ] verify extracted records
 - reshard-c4-data: [ ] locate input shard set [ ] run reshaping/reshard pipeline [ ] verify shard counts/content
 - rstan-to-pystan: [ ] translate Stan workflow to PyStan [ ] run model sampling [ ] verify parity/results
-- sam-cell-seg: [ ] load SAM and images [ ] run segmentation pipeline [ ] verify masks/output artifacts
+- sam-cell-seg: [ ] load SAM model weights and validate image/metadata inputs [ ] run mask conversion/segmentation pipeline with required CLI args [ ] verify output CSV/mask artifacts and dimensions
 - sanitize-git-repo: [ ] identify sensitive history/content [ ] rewrite/sanitize repository [ ] verify sensitive content removed
 - schemelike-metacircular-eval: [ ] implement/fix evaluator semantics [ ] run language tests [ ] verify expected eval outputs
 - sparql-university: [ ] inspect RDF/SPARQL targets [ ] run required queries [ ] verify result set
 - sqlite-db-truncate: [ ] identify DB/tables to truncate [ ] run safe truncate/delete flow [ ] verify emptied state
 - sqlite-with-gcov: [ ] build sqlite with coverage flags [ ] run target workload [ ] verify gcov outputs
-- torch-pipeline-parallelism: [ ] set pipeline partition plan [ ] run distributed inference/train smoke test [ ] verify outputs and sync
-- torch-tensor-parallelism: [ ] configure tensor parallel groups [ ] run parallel workload [ ] verify correctness/perf signals
+- torch-pipeline-parallelism: [ ] validate model block/forward signature compatibility first [ ] implement fixed pipeline partitions + microbatch schedule deterministically [ ] run single-process then pipeline smoke tests and verify output shape/numerics
+- torch-tensor-parallelism: [ ] verify torch distributed runtime first (`torch.distributed.run`) [ ] implement tensor-parallel split/merge with deterministic test harness [ ] run single-proc then multi-proc checks and verify numerics
 - train-fasttext: [ ] prepare training corpus [ ] train fastText model [ ] verify model and sample predictions
-- tune-mjcf: [ ] inspect MJCF target parameters [ ] apply minimal tuning edits [ ] verify simulator behavior
-- video-processing: [ ] run required video transform pipeline [ ] generate output artifact [ ] verify format/content
+- tune-mjcf: [ ] start from `model_ref.xml` baseline and inspect target MJCF options [ ] apply minimal option/flag edits one at a time [ ] run `eval.py` after each edit and keep best passing config
+- video-processing: [ ] extract frames/track once with deterministic script [ ] compute requested metric/artifact and write required output file(s) [ ] run task verifier and clean temporary media files
 - vulnerable-secret: [ ] locate vulnerable secret path [ ] perform extraction/recovery [ ] verify recovered secret
 - winning-avg-corewars: [ ] inspect corewars setup [ ] optimize warrior strategy [ ] run evaluation and verify winning average
-- write-compressor: [ ] implement compressor logic [ ] run encode/decode checks [ ] verify correctness and required ratios
+- write-compressor: [ ] inspect decompressor/format constraints first [ ] generate compressed artifact deterministically [ ] verify roundtrip (`decomp` + `cmp`) and size/ratio target
 
 ## Guardrails
 - Keep todos compact (2-3) for linear runs

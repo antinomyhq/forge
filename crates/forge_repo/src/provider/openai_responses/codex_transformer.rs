@@ -39,7 +39,7 @@ impl CodexTransformer {
         } else if assistant_msg_count >= 10 {
             oai::ReasoningEffort::Medium
         } else {
-            oai::ReasoningEffort::Low
+            oai::ReasoningEffort::Xhigh
         }
     }
 }
