@@ -45,7 +45,10 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
             ("Switch agent:", "/forge or /muse or /agent"),
             ("Update:", "/update"),
             ("Quit:", "/exit or <CTRL+D>"),
-            ("Warning:", "REPL mode is deprecated. Run `forge zsh setup` to setup zsh integration."),
+            (
+                "Warning:",
+                "REPL mode is deprecated. Run `forge zsh setup` to setup zsh integration.",
+            ),
         ]
     };
 
