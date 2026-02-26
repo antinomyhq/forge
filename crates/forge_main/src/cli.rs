@@ -151,7 +151,7 @@ pub enum TopLevelCommand {
     Vscode(VscodeCommand),
 
     /// Update forge to the latest version.
-    Update,
+    Update(UpdateArgs),
 }
 
 /// Command group for custom command management.
@@ -716,6 +716,26 @@ impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
 pub enum VscodeCommand {
     /// Install the Forge VS Code extension.
     InstallExtension,
+}
+
+/// Update command arguments.
+#[derive(Parser, Debug, Clone)]
+pub struct UpdateArgs {
+    /// Check for available updates.
+    #[arg(long, conflicts_with_all = ["auto", "no_auto", "frequency"])]
+    pub check: bool,
+
+    /// Enable auto-update.
+    #[arg(long, conflicts_with = "no_auto")]
+    pub auto: Option<bool>,
+
+    /// Disable auto-update.
+    #[arg(long, conflicts_with = "auto")]
+    pub no_auto: Option<bool>,
+
+    /// Set update frequency (daily, weekly, always).
+    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(["daily", "weekly", "always"]))]
+    pub frequency: Option<String>,
 }
 
 #[cfg(test)]

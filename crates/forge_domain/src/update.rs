@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::time::Duration;
 
 use derive_setters::Setters;
@@ -14,6 +15,19 @@ pub enum UpdateFrequency {
     Always,
 }
 
+impl FromStr for UpdateFrequency {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "daily" => Ok(UpdateFrequency::Daily),
+            "weekly" => Ok(UpdateFrequency::Weekly),
+            "always" => Ok(UpdateFrequency::Always),
+            _ => Err(format!("Unknown update frequency: {}", s)),
+        }
+    }
+}
+
 impl From<UpdateFrequency> for Duration {
     fn from(val: UpdateFrequency) -> Self {
         match val {
@@ -26,7 +40,6 @@ impl From<UpdateFrequency> for Duration {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Merge, Default, JsonSchema, Setters)]
 #[merge(strategy = merge::option::overwrite_none)]
-#[setters(strip_option)]
 pub struct Update {
     pub frequency: Option<UpdateFrequency>,
     pub auto_update: Option<bool>,

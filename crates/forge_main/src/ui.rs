@@ -11,8 +11,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Update, UserPrompt,
-    Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -671,8 +670,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Update => {
-                on_update(self.api.clone(), Some(&Update::default().auto_update(true))).await;
+            TopLevelCommand::Update(args) => {
+                use forge_domain::UpdateFrequency;
+                let update = forge_domain::Update::default()
+                    .frequency(
+                        args.frequency
+                            .and_then(|f| f.parse::<UpdateFrequency>().ok()),
+                    )
+                    .auto_update(args.auto.or(args.no_auto));
+                on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
         }
