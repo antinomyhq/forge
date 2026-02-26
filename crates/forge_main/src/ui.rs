@@ -677,7 +677,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         args.frequency
                             .and_then(|f| f.parse::<UpdateFrequency>().ok()),
                     )
-                    .auto_update(args.auto.or(args.no_auto));
+                    .auto_update(args.auto);
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
