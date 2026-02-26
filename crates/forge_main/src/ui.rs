@@ -9,9 +9,7 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
 use forge_api::{
-    API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
-    ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
+    API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest, ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event, InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Update, UserPrompt, Workflow
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -671,7 +669,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Update => {
-                on_update(self.api.clone(), None).await;
+                on_update(self.api.clone(),Some(&Update::default().auto_update(true))).await;
                 return Ok(());
             }
         }

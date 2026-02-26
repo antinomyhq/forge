@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -23,8 +24,9 @@ impl From<UpdateFrequency> for Duration {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default, JsonSchema,Setters)]
 #[merge(strategy = merge::option::overwrite_none)]
+#[setters(strip_option)]
 pub struct Update {
     pub frequency: Option<UpdateFrequency>,
     pub auto_update: Option<bool>,
