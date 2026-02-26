@@ -80,11 +80,13 @@ class ForgeAgent(BaseInstalledAgent):
     def __init__(
         self,
         max_thinking_tokens: int | None = None,
+        payload_dir: str | None = None,
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._max_thinking_tokens = max_thinking_tokens
+        self._payload_dir = Path(payload_dir) if payload_dir else None
         self._conversation_id: str | None = None
         self._cached_template_path: Path | None = None
 
@@ -762,6 +764,54 @@ class ForgeAgent(BaseInstalledAgent):
                 target_path=f"{self.FORGE_CONTAINER_CONFIG_DIR}/.credentials.json",
             )
 
+        # Upload agent guidelines per task if present
+        uploaded_agent_md = False
+        
+        # Check if we have a specific payload file based on task path
+        if hasattr(self, "logs_dir"):
+            config_path = self.logs_dir.parent / "config.json"
+            if config_path.exists():
+                try:
+                    import json
+                    with open(config_path, "r") as f:
+                        config_data = json.load(f)
+                    task_path = config_data.get("task", {}).get("path")
+                    if task_path:
+                        payload_md_path = Path(__file__).parent.parent / "payload" / f"{task_path}.md"
+                        if payload_md_path.exists():
+                            await environment.upload_file(
+                                source_path=payload_md_path,
+                                target_path="/root/AGENTS.md",
+                            )
+                            uploaded_agent_md = True
+                except Exception as e:
+                    self.logger.warning(f"Failed to load specific agent md from payload: {e}")
+
+        if not uploaded_agent_md:
+            # Check payload_dir (if provided via kwargs), the task directory (logs_dir.parent), and host cwd
+            search_dirs = [
+                self._payload_dir,
+                self.logs_dir.parent if hasattr(self, "logs_dir") else None,
+                Path.cwd()
+            ]
+            
+            for search_dir in search_dirs:
+                if not search_dir or not search_dir.exists():
+                    continue
+                
+                for filename in ["AGENTS.md", "agent.md", "Agents.md"]:
+                    md_path = search_dir / filename
+                    if md_path.exists():
+                        await environment.upload_file(
+                            source_path=md_path,
+                            target_path="/root/AGENTS.md",
+                        )
+                        uploaded_agent_md = True
+                        break
+                
+                if uploaded_agent_md:
+                    break
+
     def populate_context_post_run(self, context: AgentContext) -> None:
         pass
 
@@ -774,8 +824,33 @@ class ForgeAgent(BaseInstalledAgent):
         self._conversation_id = str(uuid.uuid4())
         env["_FORGE_CONVERSATION_ID"] = self._conversation_id
 
+        task_path = ""
+        if hasattr(self, "logs_dir"):
+            config_path = self.logs_dir.parent / "config.json"
+            if config_path.exists():
+                try:
+                    import json
+                    with open(config_path, "r") as f:
+                        config_data = json.load(f)
+                    task_path = config_data.get("task", {}).get("path", "")
+                except Exception:
+                    pass
+
+        cp_commands = ["cp /root/AGENTS.md ./AGENTS.md 2>/dev/null"]
+        if task_path:
+            cp_commands.append(f"cp /installed-agent/payload/{task_path}.md ./AGENTS.md 2>/dev/null")
+        cp_commands.extend([
+            "cp /installed-agent/payload/AGENTS.md ./AGENTS.md 2>/dev/null",
+            "cp /installed-agent/payload/agent.md ./AGENTS.md 2>/dev/null",
+            "true"
+        ])
+        cp_command_str = " || ".join(cp_commands)
 
         return [
+            ExecInput(
+                command=cp_command_str,
+                env=env,
+            ),
             ExecInput(
                 command=(
                     f"/usr/local/bin/forge --verbose "

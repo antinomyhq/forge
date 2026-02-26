@@ -48,3 +48,4 @@ Cargo.lock
 node_modules/
 jobs/
 bench/__pycache__
+payload/*
