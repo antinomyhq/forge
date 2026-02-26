@@ -1700,7 +1700,10 @@ mod tests {
     #[test]
     fn test_update_requires_at_least_one_option() {
         let actual = Cli::try_parse_from(["forge", "update"]);
-        assert!(actual.is_err(), "Expected error when no update options are provided");
+        assert!(
+            actual.is_err(),
+            "Expected error when no update options are provided"
+        );
     }
 
     #[test]
