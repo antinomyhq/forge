@@ -24,7 +24,7 @@ impl From<UpdateFrequency> for Duration {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default, JsonSchema,Setters)]
+#[derive(Debug, Clone, Serialize, Deserialize, Merge, Default, JsonSchema, Setters)]
 #[merge(strategy = merge::option::overwrite_none)]
 #[setters(strip_option)]
 pub struct Update {
