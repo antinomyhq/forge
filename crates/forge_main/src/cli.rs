@@ -721,10 +721,6 @@ pub enum VscodeCommand {
 /// Update command arguments.
 #[derive(Parser, Debug, Clone)]
 pub struct UpdateArgs {
-    /// Check for available updates.
-    #[arg(long, conflicts_with_all = ["auto", "no_auto", "frequency"])]
-    pub check: bool,
-
     /// Enable auto-update.
     #[arg(long, conflicts_with = "no_auto")]
     pub auto: Option<bool>,
