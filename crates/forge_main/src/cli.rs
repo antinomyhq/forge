@@ -149,6 +149,9 @@ pub enum TopLevelCommand {
     /// VS Code integration commands.
     #[command(subcommand)]
     Vscode(VscodeCommand),
+
+    /// Update forge to the latest version.
+    Update,
 }
 
 /// Command group for custom command management.

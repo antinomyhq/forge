@@ -670,6 +670,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            TopLevelCommand::Update => {
+                on_update(self.api.clone(), None).await;
+                return Ok(());
+            }
         }
         Ok(())
     }

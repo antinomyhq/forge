@@ -77,6 +77,8 @@ function _forge_action_default() {
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
+    # Start background update check
+    _forge_start_background_update
 }
 
 function forge-accept-line() {
