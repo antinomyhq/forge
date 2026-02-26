@@ -279,6 +279,17 @@ impl<
         result
     }
 
+    async fn set_agent_model(
+        &self,
+        agent_id: AgentId,
+        provider_id: ProviderId,
+        model_id: ModelId,
+    ) -> anyhow::Result<()> {
+        self.services
+            .set_agent_model(agent_id, provider_id, model_id)
+            .await
+    }
+
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
     }

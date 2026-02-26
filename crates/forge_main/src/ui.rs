@@ -384,6 +384,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::AgentCommand::List => {
                         self.on_show_agents(agent_group.porcelain, false).await?;
                     }
+                    crate::cli::AgentCommand::SetModel(args) => {
+                        self.handle_agent_set_model(args).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -3144,6 +3147,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
+        Ok(())
+    }
+
+    /// Sets the provider and model for a specific agent, persisting the
+    /// override to app config.
+    async fn handle_agent_set_model(
+        &mut self,
+        args: crate::cli::AgentSetModelArgs,
+    ) -> Result<()> {
+        self.api
+            .set_agent_model(args.agent_id.clone(), args.provider_id.clone(), args.model_id.clone())
+            .await?;
+        self.writeln_title(
+            TitleFormat::action(format!(
+                "{}/{}",
+                args.provider_id,
+                args.model_id.as_str()
+            ))
+            .sub_title(format!("is now the model for agent {}", args.agent_id.as_str())),
+        )?;
         Ok(())
     }
 
