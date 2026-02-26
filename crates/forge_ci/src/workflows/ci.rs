@@ -16,11 +16,6 @@ pub fn generate_ci_workflow() {
         .add_step(
             Step::new("Generate coverage")
                 .run("cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info"),
-        )
-        .add_step(
-            Step::new("Upload coverage to Coveralls")
-                .uses("coverallsapp", "github-action", "v2")
-                .with(("path-to-lcov", "lcov.info")),
         );
 
     // Create a performance test job to ensure zsh rprompt stays fast

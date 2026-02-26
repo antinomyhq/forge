@@ -8,6 +8,7 @@ use super::make_openai_compat::MakeOpenAiCompat;
 use super::minimax::SetMinimaxParams;
 use super::normalize_tool_schema::NormalizeToolSchema;
 use super::set_cache::SetCache;
+use super::set_reasoning_effort::SetReasoningEffort;
 use super::strip_thought_signature::StripThoughtSignature;
 use super::tool_choice::SetToolChoice;
 use super::trim_tool_call_ids::TrimToolCallIds;
@@ -50,6 +51,9 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
+        let set_reasoning_effort =
+            SetReasoningEffort.when(move |_| provider.id == ProviderId::REQUESTY);
+
         let github_copilot_reasoning =
             GitHubCopilotReasoning.when(move |_| provider.id == ProviderId::GITHUB_COPILOT);
 
@@ -60,6 +64,7 @@ impl Transformer for ProviderPipeline<'_> {
         let mut combined = zai_thinking
             .pipe(or_transformers)
             .pipe(strip_thought_signature)
+            .pipe(set_reasoning_effort)
             .pipe(open_ai_compat)
             .pipe(github_copilot_reasoning)
             .pipe(cerebras_compat)
@@ -237,8 +242,8 @@ mod tests {
         assert!(supports_open_router_params(&forge("forge")));
         assert!(supports_open_router_params(&open_router("open-router")));
 
-        assert!(!supports_open_router_params(&openai("openai")));
         assert!(!supports_open_router_params(&requesty("requesty")));
+        assert!(!supports_open_router_params(&openai("openai")));
         assert!(!supports_open_router_params(&xai("xai")));
         assert!(!supports_open_router_params(&anthropic("claude")));
     }
