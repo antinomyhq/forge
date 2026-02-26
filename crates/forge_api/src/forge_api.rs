@@ -269,7 +269,8 @@ impl<
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
-        self.services.get_provider_model(None).await.ok()
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        agent_provider_resolver.get_model(None).await.ok()
     }
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
         let result = self.services.set_default_model(model_id).await;
