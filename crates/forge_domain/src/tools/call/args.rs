@@ -193,8 +193,8 @@ mod tests {
             "enabled": true
         }));
         let actual = serde_json::to_string(&fixture).unwrap();
-        // The order of keys in JSON object serialization is not guaranteed unless using indexmap, 
-        // so we should parse back and compare the objects.
+        // The order of keys in JSON object serialization is not guaranteed unless using
+        // indexmap, so we should parse back and compare the objects.
         let actual_json: serde_json::Value = serde_json::from_str(&actual).unwrap();
         let expected_json = json!({
             "name": "test",

@@ -582,20 +582,13 @@ impl From<forge_domain::Document> for Part {
         let mime_type = document.mime_type().to_string();
         let data = document.base64_data().to_string();
 
-        if data.starts_with("http://") || data.starts_with("https://") || data.starts_with("gs://") {
-            return Part::FileData {
-                file_data: FileDataInfo {
-                    mime_type,
-                    file_uri: data,
-                },
-            };
+        if data.starts_with("http://") || data.starts_with("https://") || data.starts_with("gs://")
+        {
+            return Part::FileData { file_data: FileDataInfo { mime_type, file_uri: data } };
         }
 
         Part::Image {
-            inline_data: ImageSource {
-                mime_type: Some(mime_type),
-                data: Some(data),
-            },
+            inline_data: ImageSource { mime_type: Some(mime_type), data: Some(data) },
             cache_control: None,
         }
     }
@@ -970,8 +963,10 @@ mod tests {
 
     #[test]
     fn test_document_url_conversion_for_google_provider() {
-        let document_url =
-            forge_domain::Document::new_base64("https://example.com/file.pdf".to_string(), "application/pdf");
+        let document_url = forge_domain::Document::new_base64(
+            "https://example.com/file.pdf".to_string(),
+            "application/pdf",
+        );
 
         let actual_content = Content::from(document_url.clone());
         let expected_role = Some(self::Role::User);

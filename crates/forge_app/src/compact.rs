@@ -208,7 +208,7 @@ impl Compactor {
             msg.reasoning_details = Some(reasoning);
         }
 
-        // Inject preserved todo list as a droppable system message if we found any
+        // Inject preserved todo list as a droppable user message if we found any
         // This makes the current todo state available to the agent after compaction
         if let Some(todos) = latest_todos
             && !todos.is_empty()
@@ -216,11 +216,11 @@ impl Compactor {
             // Format todos as markdown checkboxes for easy agent comprehension
             let todo_content = format_todos_for_context(&todos);
 
-            // Create a droppable system message with the current todos
+            // Create a droppable user message with the current todos
             // This will be removed in next compaction if newer todos exist
             let todo_message = TextMessage {
-                role: Role::System,
-                content: format!("<current_todos>\n{}\n</current_todos>", todo_content),
+                role: Role::User,
+                content: format!("<system-reminder>\n{}\n</system-reminder>", todo_content),
                 raw_content: None,
                 tool_calls: None,
                 reasoning_details: None,
@@ -723,11 +723,11 @@ mod tests {
         // Compact the sequence containing the todo_write
         let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
-        // Verify that a system message with todos was injected
+        // Verify that a user message with todos was injected
         let has_todo_message = actual.messages.iter().any(|msg| {
             if let ContextMessage::Text(text_msg) = &msg.message {
-                text_msg.role == Role::System
-                    && text_msg.content.contains("<current_todos>")
+                text_msg.role == Role::User
+                    && text_msg.content.contains("<system-reminder>")
                     && text_msg.content.contains("Task 1")
                     && text_msg.content.contains("Task 2")
                     && text_msg.content.contains("Task 3")
@@ -739,7 +739,7 @@ mod tests {
 
         assert!(
             has_todo_message,
-            "Compaction should preserve todo list state as a droppable system message"
+            "Compaction should preserve todo list state as a droppable user message"
         );
 
         // Verify the todo message contains the correct format
@@ -748,7 +748,7 @@ mod tests {
             .iter()
             .find(|msg| {
                 if let ContextMessage::Text(text_msg) = &msg.message {
-                    text_msg.content.contains("<current_todos>")
+                    text_msg.content.contains("<system-reminder>")
                 } else {
                     false
                 }

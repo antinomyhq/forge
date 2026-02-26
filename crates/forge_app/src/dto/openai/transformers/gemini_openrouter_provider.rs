@@ -13,7 +13,7 @@ impl Transformer for SetGeminiOpenRouterProvider {
             order: Some(vec!["google-ai-studio".to_string()]),
             ignore: Some(vec!["google-vertex".to_string()]),
         });
-        request.temperature= Some(0.7);
+        request.temperature = Some(0.7);
         request.top_p = Some(0.95);
         request.top_k = Some(64);
         if let Some(ref mut reasoning) = request.reasoning {

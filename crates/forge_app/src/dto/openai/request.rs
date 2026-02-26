@@ -546,7 +546,10 @@ impl From<ContextMessage> for Message {
                 let data_uri = format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
                 let content = vec![
                     ContentPart::File {
-                        file: FileData { file_data: data_uri.clone(), filename: doc.filename().clone() },
+                        file: FileData {
+                            file_data: data_uri.clone(),
+                            filename: doc.filename().clone(),
+                        },
                         cache_control: None,
                     },
                     ContentPart::InputFile {
@@ -600,7 +603,10 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Document(doc) => {
                     let data_uri = format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
                     parts.push(ContentPart::File {
-                        file: FileData { file_data: data_uri.clone(), filename: doc.filename().clone() },
+                        file: FileData {
+                            file_data: data_uri.clone(),
+                            filename: doc.filename().clone(),
+                        },
                         cache_control: None,
                     });
                     parts.push(ContentPart::InputFile {
