@@ -8,7 +8,7 @@ use crate::database::DatabasePool;
 use crate::database::schema::conversations;
 
 pub struct ConversationRepositoryImpl {
-    pool: Arc<DatabasePool>,
+    pub(crate) pool: Arc<DatabasePool>,
     wid: WorkspaceHash,
 }
 
@@ -34,6 +34,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
                 conversations::context.eq(&record.context),
                 conversations::updated_at.eq(record.updated_at),
                 conversations::metrics.eq(&record.metrics),
+                conversations::todos.eq(&record.todos),
             ))
             .execute(&mut connection)?;
         Ok(())
@@ -349,6 +350,7 @@ mod tests {
             updated_at: None,
             workspace_id: 0,
             metrics: None,
+            todos: None,
         };
 
         let actual = Conversation::try_from(fixture)?;
@@ -792,6 +794,7 @@ mod tests {
             updated_at: None,
             workspace_id: 0,
             metrics: None,
+            todos: None,
         };
 
         let result = Conversation::try_from(fixture);
@@ -889,6 +892,37 @@ mod tests {
         // Verify new conversation exists
         let new_check = repo.get_conversation(&new_conversation_id).await?;
         assert!(new_check.is_some());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_upsert_writes_todos_atomically() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation_id = ConversationId::generate();
+
+        // 1. Create conversation with initial todos
+        let todo1 = forge_domain::Todo::new("Task 1");
+        let conversation = Conversation::new(conversation_id)
+            .title(Some("Test Conversation".to_string()))
+            .todos(vec![todo1.clone()]);
+
+        repo.upsert_conversation(conversation.clone()).await?;
+
+        // Verify initial todos
+        let retrieved = repo.get_conversation(&conversation_id).await?.unwrap();
+        assert_eq!(retrieved.todos.len(), 1);
+        assert_eq!(retrieved.todos[0].content, "Task 1");
+
+        // 2. Upsert conversation with updated todos (new atomic write)
+        let todo2 = forge_domain::Todo::new("Task 2");
+        let updated_conversation = conversation.todos(vec![todo2]);
+        repo.upsert_conversation(updated_conversation).await?;
+
+        // Verify DB has the new todos written atomically
+        let final_retrieved = repo.get_conversation(&conversation_id).await?.unwrap();
+        assert_eq!(final_retrieved.todos.len(), 1);
+        assert_eq!(final_retrieved.todos[0].content, "Task 2");
 
         Ok(())
     }

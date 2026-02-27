@@ -4,7 +4,9 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
+use crate::Todo;
 pub use crate::file_operation::FileOperation;
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
@@ -20,6 +22,10 @@ pub struct Metrics {
     /// Tracks all files that have been read in this session
     #[serde(default, skip_serializing_if = "HashSet::is_empty")]
     pub files_accessed: HashSet<String>,
+
+    /// Tracks the current list of todos for the session
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub todos: Vec<Todo>,
 }
 
 impl Metrics {
@@ -35,10 +41,39 @@ impl Metrics {
     }
 
     /// Gets the session duration if tracking has started
-    /// Gets the session duration if tracking has started
     pub fn duration(&self, now: DateTime<Utc>) -> Option<Duration> {
         self.started_at
             .map(|start| (now - start).to_std().unwrap_or_default())
+    }
+
+    /// Returns the current todos list.
+    pub fn get_todos(&self) -> &[Todo] {
+        &self.todos
+    }
+
+    /// Replaces the todos list with the given todos, assigning IDs to any
+    /// todo that has an empty ID, and returns the updated list.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any todo fails validation or if duplicate IDs are
+    /// found.
+    pub fn update_todos(&mut self, mut new_todos: Vec<Todo>) -> anyhow::Result<Vec<Todo>> {
+        for todo in &mut new_todos {
+            todo.validate()?;
+            if todo.id.is_empty() {
+                todo.id = Uuid::new_v4().to_string();
+            }
+        }
+
+        let ids: Vec<&str> = new_todos.iter().map(|t| t.id.as_str()).collect();
+        let unique_ids: HashSet<&str> = ids.iter().copied().collect();
+        if ids.len() != unique_ids.len() {
+            anyhow::bail!("Duplicate todo IDs found in the request");
+        }
+
+        self.todos = new_todos;
+        Ok(self.todos.clone())
     }
 }
 

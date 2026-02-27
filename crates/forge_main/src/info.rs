@@ -990,6 +990,7 @@ mod tests {
             context: None,
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
+            todos: vec![],
         };
 
         let actual = super::Info::from(&fixture);
@@ -1017,6 +1018,7 @@ mod tests {
             context: None,
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
+            todos: vec![],
         };
 
         let actual = super::Info::from(&fixture);
@@ -1062,6 +1064,7 @@ mod tests {
             context: Some(context),
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
+            todos: vec![],
         };
 
         let actual = super::Info::from(&fixture);

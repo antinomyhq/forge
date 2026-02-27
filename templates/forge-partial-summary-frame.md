@@ -34,6 +34,23 @@ Use the following summary frames as the authoritative reference for all coding s
 ```
 {{else if tool_call.tool.mcp}}
 **MCP:** `{{tool_call.tool.mcp.name}}`
+{{else if tool_call.tool.todo_write}}
+**Task Plan:**
+{{#each tool_call.tool.todo_write.changes}}
+{{#if (eq kind "added")}}
+- [ADD] {{todo.content}}
+{{else if (eq kind "updated")}}
+{{#if (eq todo.status "completed")}}
+- [DONE] ~~{{todo.content}}~~
+{{else if (eq todo.status "in_progress")}}
+- [IN_PROGRESS] {{todo.content}}
+{{else}}
+- [UPDATE] {{todo.content}}
+{{/if}}
+{{else if (eq kind "removed")}}
+- [CANCELLED] ~~{{todo.content}}~~
+{{/if}}
+{{/each}}
 {{/if~}}
 {{/if~}}
 

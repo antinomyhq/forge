@@ -4,8 +4,10 @@ use std::sync::Arc;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, Conversation, Environment, Extension, ExtensionStat, File, Model, SystemContext,
-    Template, ToolDefinition, ToolUsagePrompt,
+    Template, ToolCatalog, ToolDefinition, ToolUsagePrompt,
 };
+use serde_json::{Map, Value, json};
+use strum::IntoEnumIterator;
 use tracing::debug;
 
 use crate::{ShellService, SkillFetchService, TemplateEngine};
@@ -89,6 +91,14 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             // Fetch extension statistics from git
             let extensions = self.fetch_extensions(self.environment.max_extensions).await;
 
+            // Build tool_names map from all available tools for template rendering
+            let tool_names: Map<String, Value> = ToolCatalog::iter()
+                .map(|tool| {
+                    let def = tool.definition();
+                    (def.name.to_string(), json!(def.name.to_string()))
+                })
+                .collect();
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
@@ -98,7 +108,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 supports_parallel_tool_calls,
                 skills,
                 model: None,
-                tool_names: Default::default(),
+                tool_names,
                 extensions,
             };
 

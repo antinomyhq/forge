@@ -33,7 +33,19 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         &self,
         conversation: Conversation,
     ) -> anyhow::Result<Conversation> {
+        // Check if this is a resume BEFORE adding new messages
+        let is_resume = conversation
+            .context
+            .as_ref()
+            .map(|ctx| ctx.messages.iter().any(|msg| msg.has_role(Role::User)))
+            .unwrap_or(false);
+
         let (conversation, content) = self.add_rendered_message(conversation).await?;
+        let conversation = if is_resume {
+            self.add_todos_on_resume(conversation)?
+        } else {
+            conversation
+        };
         let conversation = self.add_additional_context(conversation).await?;
         let conversation = if let Some(content) = content {
             self.add_attachments(conversation, &content).await?
@@ -41,6 +53,55 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
             conversation
         };
         Ok(conversation)
+    }
+
+    /// Adds existing todos as a user message when resuming a conversation
+    fn add_todos_on_resume(&self, mut conversation: Conversation) -> anyhow::Result<Conversation> {
+        let mut context = conversation.context.take().unwrap_or_default();
+
+        // Load existing todos from the conversation itself (no separate repository
+        // call)
+        let todos = conversation.todos.clone();
+
+        if !todos.is_empty() {
+            // Format todos as markdown checklist
+            let todo_content = self.format_todos_as_markdown(&todos);
+
+            // Add as a droppable user message after the new task
+            let todo_message = TextMessage {
+                role: Role::User,
+                content: todo_content,
+                raw_content: None,
+                tool_calls: None,
+                thought_signature: None,
+                reasoning_details: None,
+                model: Some(self.agent.model.clone()),
+                droppable: true, // Droppable so it can be removed during context compression
+            };
+            context = context.add_message(ContextMessage::Text(todo_message));
+        }
+
+        Ok(conversation.context(context))
+    }
+
+    /// Formats todos as a markdown checklist
+    fn format_todos_as_markdown(&self, todos: &[Todo]) -> String {
+        use std::fmt::Write;
+
+        let mut content = String::from("Current task list:\n\n");
+
+        for todo in todos {
+            let checkbox = match todo.status {
+                TodoStatus::Completed => "[x]",
+                TodoStatus::InProgress => "[~]",
+                TodoStatus::Pending => "[ ]",
+            };
+
+            writeln!(content, "{} {}", checkbox, todo.content)
+                .expect("Writing to String should not fail");
+        }
+
+        content
     }
 
     /// Adds additional context (piped input) as a droppable user message
@@ -398,5 +459,116 @@ mod tests {
             actual.metrics.files_accessed.contains("/test/file2.rs"),
             "file2.rs should be in files_accessed"
         );
+    }
+
+    #[tokio::test]
+    async fn test_todos_injected_on_resume() {
+        // Setup - Simple mock that returns no attachments
+        struct MockServiceWithTodos;
+
+        #[async_trait::async_trait]
+        impl AttachmentService for MockServiceWithTodos {
+            async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let agent = fixture_agent_without_user_prompt();
+        let event = Event::new("Continue working");
+
+        // Create a conversation with existing context (simulating resume) and todos
+        // stored on the conversation
+        let conversation = Conversation::new(ConversationId::generate())
+            .context(
+                Context::default()
+                    .add_message(ContextMessage::system("System message"))
+                    .add_message(ContextMessage::user("Previous task", None)),
+            )
+            .todos(vec![
+                Todo::new("Task 1").status(TodoStatus::Completed),
+                Todo::new("Task 2").status(TodoStatus::InProgress),
+                Todo::new("Task 3").status(TodoStatus::Pending),
+            ]);
+
+        let generator = UserPromptGenerator::new(
+            Arc::new(MockServiceWithTodos),
+            agent.clone(),
+            event,
+            chrono::Local::now(),
+        );
+
+        // Execute
+        let actual = generator.add_user_prompt(conversation).await.unwrap();
+
+        // Assert - Should have system, previous user, new user message, and todo list
+        let messages = actual.context.unwrap().messages;
+        assert_eq!(messages.len(), 4, "Should have 4 messages");
+
+        // First is system message
+        assert_eq!(messages[0].content().unwrap(), "System message");
+
+        // Second is previous user task
+        assert_eq!(messages[1].content().unwrap(), "Previous task");
+
+        // Third is the new user message
+        assert_eq!(messages[2].content().unwrap(), "Continue working");
+
+        // Fourth should be the todo list (droppable)
+        let todo_message = &messages[3];
+        assert!(
+            todo_message.is_droppable(),
+            "Todo message should be droppable"
+        );
+        let todo_content = todo_message.content().unwrap();
+        assert!(
+            todo_content.contains("Current task list:"),
+            "Should contain task list header"
+        );
+        assert!(
+            todo_content.contains("[x] Task 1"),
+            "Should contain completed task"
+        );
+        assert!(
+            todo_content.contains("[~] Task 2"),
+            "Should contain in-progress task"
+        );
+        assert!(
+            todo_content.contains("[ ] Task 3"),
+            "Should contain pending task"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_todos_not_injected_on_new_conversation() {
+        // Setup - Simple mock with no attachments
+        struct MockServiceNoTodos;
+
+        #[async_trait::async_trait]
+        impl AttachmentService for MockServiceNoTodos {
+            async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
+                Ok(Vec::new())
+            }
+        }
+
+        let agent = fixture_agent_without_user_prompt();
+        let event = Event::new("First task");
+
+        // Create a new conversation (no existing context, no todos)
+        let conversation = Conversation::new(ConversationId::generate());
+
+        let generator = UserPromptGenerator::new(
+            Arc::new(MockServiceNoTodos),
+            agent.clone(),
+            event,
+            chrono::Local::now(),
+        );
+
+        // Execute
+        let actual = generator.add_user_prompt(conversation).await.unwrap();
+
+        // Assert - Should only have the user message, no todos
+        let messages = actual.context.unwrap().messages;
+        assert_eq!(messages.len(), 1, "Should only have user message");
+        assert_eq!(messages[0].content().unwrap(), "First task");
     }
 }

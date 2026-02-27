@@ -30,6 +30,12 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+            ToolOperation::TodoWrite { before, after } => Some(ChatResponseContent::ToolOutput(
+                format_todos_diff(before, after),
+            )),
+            ToolOperation::TodoRead { output } => {
+                Some(ChatResponseContent::ToolOutput(format_todos(output)))
+            }
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
@@ -41,6 +47,93 @@ impl FormatContent for ToolOperation {
             | ToolOperation::Skill { output: _ } => None,
         }
     }
+}
+
+/// Renders a single todo as an indented line with icon and ANSI styling.
+fn format_todo_line(todo: &forge_domain::Todo) -> String {
+    use forge_domain::TodoStatus;
+
+    let dim_start = "\x1b[2m";
+    let dim_end = "\x1b[0m";
+    let strikethrough_start = "\x1b[9m";
+    let strikethrough_end = "\x1b[29m";
+
+    let checkbox = match todo.status {
+        TodoStatus::Completed => "",
+        TodoStatus::InProgress => "󱨈",
+        TodoStatus::Pending => "",
+    };
+
+    let content = match todo.status {
+        TodoStatus::Completed => format!(
+            "{}{}{}",
+            strikethrough_start, todo.content, strikethrough_end
+        ),
+        _ => todo.content.clone(),
+    };
+
+    format!(
+        "             {}{} {}{}\n",
+        dim_start, checkbox, content, dim_end
+    )
+}
+
+/// Formats a todo diff showing only what changed between before and after
+fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]) -> String {
+    let before_map: std::collections::HashMap<&str, &forge_domain::Todo> =
+        before.iter().map(|t| (t.id.as_str(), t)).collect();
+    let after_ids: std::collections::HashSet<&str> = after.iter().map(|t| t.id.as_str()).collect();
+
+    let dim_start = "\x1b[2m";
+    let dim_end = "\x1b[0m";
+    let strikethrough_start = "\x1b[9m";
+    let strikethrough_end = "\x1b[29m";
+
+    let mut result = String::new();
+
+    // Added or updated todos
+    for todo in after {
+        let prev = before_map.get(todo.id.as_str()).copied();
+        let is_new = prev.is_none();
+        let is_changed = prev
+            .map(|p| p.status != todo.status || p.content != todo.content)
+            .unwrap_or(false);
+
+        if !is_new && !is_changed {
+            continue;
+        }
+
+        result.push_str(&format_todo_line(todo));
+    }
+    // Removed todos (show as cancelled with strikethrough)
+    for todo in before {
+        if !after_ids.contains(todo.id.as_str()) {
+            let content = format!(
+                "{}{}{}",
+                strikethrough_start, todo.content, strikethrough_end
+            );
+            result.push_str(&format!(
+                "             {}\u{f057} {}{}\n",
+                dim_start, content, dim_end
+            ));
+        }
+    }
+
+    result
+}
+
+/// Formats todos as markdown-style checkboxes
+fn format_todos(todos: &[forge_domain::Todo]) -> String {
+    if todos.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::new();
+
+    for todo in todos {
+        result.push_str(&format_todo_line(todo));
+    }
+    result
 }
 
 #[cfg(test)]
@@ -530,6 +623,154 @@ mod tests {
             assert_eq!(title.sub_title, None);
         } else {
             panic!("Expected Title content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_empty() {
+        let fixture = ToolOperation::TodoWrite { before: vec![], after: vec![] };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert_eq!(text, "");
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_all_new_todos() {
+        use forge_domain::{Todo, TodoStatus};
+
+        // All todos are new (no before), so all should appear in diff
+        let after = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { before: vec![], after };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("Task 1"));
+            assert!(text.contains("Task 2"));
+            assert!(text.contains("\x1b[9mTask 3\x1b[29m"));
+            for line in text.lines() {
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
+            }
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_unchanged_todos_not_shown() {
+        use forge_domain::{Todo, TodoStatus};
+
+        // Task 1 unchanged, Task 2 status changes: only Task 2 shown
+        let before = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::Pending),
+        ];
+        let after = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::Completed),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { before, after };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(
+                !text.contains("Task 1"),
+                "Unchanged Task 1 should not appear"
+            );
+            assert!(
+                text.contains("\x1b[9mTask 2\x1b[29m"),
+                "Changed Task 2 should appear struck-through"
+            );
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_removed_todo_shown() {
+        use forge_domain::{Todo, TodoStatus};
+
+        // Task 2 removed
+        let before = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
+        ];
+        let after = vec![Todo::new("Task 1").id("1").status(TodoStatus::Pending)];
+
+        let fixture = ToolOperation::TodoWrite { before, after };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(
+                !text.contains("Task 1"),
+                "Unchanged Task 1 should not appear"
+            );
+            assert!(
+                text.contains("\x1b[9mTask 2\x1b[29m"),
+                "Removed Task 2 should appear struck-through"
+            );
+        } else {
+            panic!("Expected ToolOutput content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_realistic() {
+        use forge_domain::{Todo, TodoStatus};
+
+        // Marking task 1 as completed, adding new task 2
+        let before = vec![
+            Todo::new("Implement user authentication")
+                .id("1")
+                .status(TodoStatus::InProgress),
+        ];
+        let after = vec![
+            Todo::new("Implement user authentication")
+                .id("1")
+                .status(TodoStatus::Completed),
+            Todo::new("Walk the dog")
+                .id("2")
+                .status(TodoStatus::Pending),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { before, after };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("\x1b[9mImplement user authentication\x1b[29m"));
+            assert!(text.contains("Walk the dog"));
+            for line in text.lines() {
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
+            }
+        } else {
+            panic!("Expected ToolOutput content");
         }
     }
 }

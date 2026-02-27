@@ -46,6 +46,18 @@ impl ToolCallContext {
             .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
         Ok(f(&mut metrics))
     }
+
+    /// Execute a fallible closure with access to the metrics
+    pub fn try_with_metrics<F, R>(&self, f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Metrics) -> anyhow::Result<R>,
+    {
+        let mut metrics = self
+            .metrics
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
+        f(&mut metrics)
+    }
 }
 
 #[cfg(test)]
@@ -61,8 +73,6 @@ mod tests {
 
     #[test]
     fn test_with_sender() {
-        // This is just a type check test - we don't actually create a sender
-        // as it's complex to set up in a unit test
         let metrics = Metrics::default();
         let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());
