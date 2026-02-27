@@ -194,9 +194,11 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.agent.max_requests_per_turn;
+        // Seed metrics.todos from conversation.todos so tool calls have access to
+        // any persisted todos from a previous session.
+        self.conversation.metrics.todos = self.conversation.todos.clone();
         let tool_context = ToolCallContext::new(self.conversation.metrics.clone())
-            .sender(self.sender.clone())
-            .conversation_id(Some(self.conversation.id));
+            .sender(self.sender.clone());
 
         while !should_yield {
             // Set context for the current loop iteration
@@ -343,8 +345,9 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            // Update metrics in conversation
+            // Update metrics in conversation and sync todos
             tool_context.with_metrics(|metrics| {
+                self.conversation.todos = metrics.todos.clone();
                 self.conversation.metrics = metrics.clone();
             })?;
         }

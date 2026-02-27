@@ -34,6 +34,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
                 conversations::context.eq(&record.context),
                 conversations::updated_at.eq(record.updated_at),
                 conversations::metrics.eq(&record.metrics),
+                conversations::todos.eq(&record.todos),
             ))
             .execute(&mut connection)?;
         Ok(())
@@ -896,7 +897,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_upsert_preserves_todos_updated_by_repository() -> anyhow::Result<()> {
+    async fn test_upsert_writes_todos_atomically() -> anyhow::Result<()> {
         let repo = repository()?;
         let conversation_id = ConversationId::generate();
 
@@ -913,22 +914,12 @@ mod tests {
         assert_eq!(retrieved.todos.len(), 1);
         assert_eq!(retrieved.todos[0].content, "Task 1");
 
-        // 2. Update todos via TodoRepository (simulating TodoService/Tool execution)
+        // 2. Upsert conversation with updated todos (new atomic write)
         let todo2 = forge_domain::Todo::new("Task 2");
-        let todo_repo = crate::conversation::TodoRepositoryImpl::new(repo.pool.clone());
-        use forge_domain::TodoRepository;
-        todo_repo.save_todos(&conversation_id, vec![todo2]).await?;
+        let updated_conversation = conversation.todos(vec![todo2]);
+        repo.upsert_conversation(updated_conversation).await?;
 
-        // Verify DB has new todos
-        let retrieved_after_tool = repo.get_conversation(&conversation_id).await?.unwrap();
-        assert_eq!(retrieved_after_tool.todos.len(), 1);
-        assert_eq!(retrieved_after_tool.todos[0].content, "Task 2");
-
-        // 3. Upsert conversation with STALE todos (original conversation struct)
-        // This simulates the Orchestrator saving the stale conversation state
-        repo.upsert_conversation(conversation).await?;
-
-        // Verify DB STILL has new todos (Task 2), not reverted to Task 1
+        // Verify DB has the new todos written atomically
         let final_retrieved = repo.get_conversation(&conversation_id).await?.unwrap();
         assert_eq!(final_retrieved.todos.len(), 1);
         assert_eq!(final_retrieved.todos[0].content, "Task 2");

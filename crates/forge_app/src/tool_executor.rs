@@ -11,7 +11,7 @@ use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
     ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    TodoService, WorkspaceService,
+    WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -34,7 +34,6 @@ impl<
         + EnvironmentService
         + PlanCreateService
         + SkillFetchService
-        + TodoService
         + AgentRegistry
         + ProviderService
         + Services,
@@ -307,30 +306,14 @@ impl<
                 ToolOperation::Skill { output: skill }
             }
             ToolCatalog::TodoWrite(input) => {
-                let conversation_id = _context
-                    .get_conversation_id()
-                    .ok_or_else(|| anyhow::anyhow!("Conversation ID not available in context"))?;
-                let before = self
-                    .services
-                    .todo_service()
-                    .get_todos(conversation_id)
-                    .await?;
-                let after = self
-                    .services
-                    .todo_service()
-                    .update_todos(conversation_id, input.todos.clone())
-                    .await?;
+                let before = _context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
+                let after = _context.try_with_metrics(|metrics| {
+                    metrics.update_todos(input.todos.clone())
+                })?;
                 ToolOperation::TodoWrite { before, after }
             }
             ToolCatalog::TodoRead(_input) => {
-                let conversation_id = _context
-                    .get_conversation_id()
-                    .ok_or_else(|| anyhow::anyhow!("Conversation ID not available in context"))?;
-                let todos = self
-                    .services
-                    .todo_service()
-                    .get_todos(conversation_id)
-                    .await?;
+                let todos = _context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
                 ToolOperation::TodoRead { output: todos }
             }
         })

@@ -2,29 +2,19 @@ use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 
-use crate::{ArcSender, ChatResponse, ConversationId, Metrics, TitleFormat};
+use crate::{ArcSender, ChatResponse, Metrics, TitleFormat};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
     metrics: Arc<Mutex<Metrics>>,
-    conversation_id: Option<ConversationId>,
 }
 
 impl ToolCallContext {
     /// Creates a new ToolCallContext with default values
     pub fn new(metrics: Metrics) -> Self {
-        Self {
-            sender: None,
-            metrics: Arc::new(Mutex::new(metrics)),
-            conversation_id: None,
-        }
-    }
-
-    /// Get the conversation ID if available
-    pub fn get_conversation_id(&self) -> Option<&ConversationId> {
-        self.conversation_id.as_ref()
+        Self { sender: None, metrics: Arc::new(Mutex::new(metrics)) }
     }
 
     /// Send a message through the sender if available
@@ -56,6 +46,18 @@ impl ToolCallContext {
             .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
         Ok(f(&mut metrics))
     }
+
+    /// Execute a fallible closure with access to the metrics
+    pub fn try_with_metrics<F, R>(&self, f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Metrics) -> anyhow::Result<R>,
+    {
+        let mut metrics = self
+            .metrics
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
+        f(&mut metrics)
+    }
 }
 
 #[cfg(test)]
@@ -71,8 +73,6 @@ mod tests {
 
     #[test]
     fn test_with_sender() {
-        // This is just a type check test - we don't actually create a sender
-        // as it's complex to set up in a unit test
         let metrics = Metrics::default();
         let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());

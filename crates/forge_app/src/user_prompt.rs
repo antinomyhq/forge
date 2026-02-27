@@ -5,7 +5,7 @@ use forge_domain::{Agent, *};
 use serde_json::json;
 use tracing::debug;
 
-use crate::{AttachmentService, TemplateEngine, TodoService};
+use crate::{AttachmentService, TemplateEngine};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -16,7 +16,7 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AttachmentService + TodoService> UserPromptGenerator<S> {
+impl<S: AttachmentService> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -42,7 +42,7 @@ impl<S: AttachmentService + TodoService> UserPromptGenerator<S> {
 
         let (conversation, content) = self.add_rendered_message(conversation).await?;
         let conversation = if is_resume {
-            self.add_todos_on_resume(conversation).await?
+            self.add_todos_on_resume(conversation)?
         } else {
             conversation
         };
@@ -56,14 +56,14 @@ impl<S: AttachmentService + TodoService> UserPromptGenerator<S> {
     }
 
     /// Adds existing todos as a user message when resuming a conversation
-    async fn add_todos_on_resume(
+    fn add_todos_on_resume(
         &self,
         mut conversation: Conversation,
     ) -> anyhow::Result<Conversation> {
         let mut context = conversation.context.take().unwrap_or_default();
 
-        // Load existing todos for this conversation
-        let todos = self.services.get_todos(&conversation.id).await?;
+        // Load existing todos from the conversation itself (no separate repository call)
+        let todos = conversation.todos.clone();
 
         if !todos.is_empty() {
             // Format todos as markdown checklist
@@ -257,21 +257,6 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
-    impl crate::TodoService for MockService {
-        async fn update_todos(
-            &self,
-            _conversation_id: &ConversationId,
-            _todos: Vec<Todo>,
-        ) -> anyhow::Result<Vec<Todo>> {
-            Ok(Vec::new())
-        }
-
-        async fn get_todos(&self, _conversation_id: &ConversationId) -> anyhow::Result<Vec<Todo>> {
-            Ok(Vec::new())
-        }
-    }
-
     fn fixture_agent_without_user_prompt() -> Agent {
         Agent::new(
             AgentId::from("test_agent"),
@@ -424,24 +409,6 @@ mod tests {
             }
         }
 
-        #[async_trait::async_trait]
-        impl crate::TodoService for MockServiceWithFiles {
-            async fn update_todos(
-                &self,
-                _conversation_id: &ConversationId,
-                _todos: Vec<Todo>,
-            ) -> anyhow::Result<Vec<Todo>> {
-                Ok(Vec::new())
-            }
-
-            async fn get_todos(
-                &self,
-                _conversation_id: &ConversationId,
-            ) -> anyhow::Result<Vec<Todo>> {
-                Ok(Vec::new())
-            }
-        }
-
         let agent = fixture_agent_without_user_prompt();
         let event = Event::new("Task with @[/test/file1.rs] and @[/test/file2.rs]");
         let conversation = Conversation::new(ConversationId::default());
@@ -498,7 +465,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_todos_injected_on_resume() {
-        // Setup - Create a service that returns existing todos
+        // Setup - Simple mock that returns no attachments
         struct MockServiceWithTodos;
 
         #[async_trait::async_trait]
@@ -508,37 +475,22 @@ mod tests {
             }
         }
 
-        #[async_trait::async_trait]
-        impl crate::TodoService for MockServiceWithTodos {
-            async fn update_todos(
-                &self,
-                _conversation_id: &ConversationId,
-                _todos: Vec<Todo>,
-            ) -> anyhow::Result<Vec<Todo>> {
-                Ok(Vec::new())
-            }
-
-            async fn get_todos(
-                &self,
-                _conversation_id: &ConversationId,
-            ) -> anyhow::Result<Vec<Todo>> {
-                Ok(vec![
-                    Todo::new("Task 1").status(TodoStatus::Completed),
-                    Todo::new("Task 2").status(TodoStatus::InProgress),
-                    Todo::new("Task 3").status(TodoStatus::Pending),
-                ])
-            }
-        }
-
         let agent = fixture_agent_without_user_prompt();
         let event = Event::new("Continue working");
 
-        // Create a conversation with existing context (simulating resume)
-        let conversation = Conversation::new(ConversationId::generate()).context(
-            Context::default()
-                .add_message(ContextMessage::system("System message"))
-                .add_message(ContextMessage::user("Previous task", None)),
-        );
+        // Create a conversation with existing context (simulating resume) and todos stored on the
+        // conversation
+        let conversation = Conversation::new(ConversationId::generate())
+            .context(
+                Context::default()
+                    .add_message(ContextMessage::system("System message"))
+                    .add_message(ContextMessage::user("Previous task", None)),
+            )
+            .todos(vec![
+                Todo::new("Task 1").status(TodoStatus::Completed),
+                Todo::new("Task 2").status(TodoStatus::InProgress),
+                Todo::new("Task 3").status(TodoStatus::Pending),
+            ]);
 
         let generator = UserPromptGenerator::new(
             Arc::new(MockServiceWithTodos),
@@ -590,42 +542,24 @@ mod tests {
 
     #[tokio::test]
     async fn test_todos_not_injected_on_new_conversation() {
-        // Setup - Create a service that returns todos (but shouldn't be called)
-        struct MockServiceWithTodos;
+        // Setup - Simple mock with no attachments
+        struct MockServiceNoTodos;
 
         #[async_trait::async_trait]
-        impl AttachmentService for MockServiceWithTodos {
+        impl AttachmentService for MockServiceNoTodos {
             async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
                 Ok(Vec::new())
-            }
-        }
-
-        #[async_trait::async_trait]
-        impl crate::TodoService for MockServiceWithTodos {
-            async fn update_todos(
-                &self,
-                _conversation_id: &ConversationId,
-                _todos: Vec<Todo>,
-            ) -> anyhow::Result<Vec<Todo>> {
-                Ok(Vec::new())
-            }
-
-            async fn get_todos(
-                &self,
-                _conversation_id: &ConversationId,
-            ) -> anyhow::Result<Vec<Todo>> {
-                panic!("get_todos should not be called for new conversations");
             }
         }
 
         let agent = fixture_agent_without_user_prompt();
         let event = Event::new("First task");
 
-        // Create a new conversation (no existing context)
+        // Create a new conversation (no existing context, no todos)
         let conversation = Conversation::new(ConversationId::generate());
 
         let generator = UserPromptGenerator::new(
-            Arc::new(MockServiceWithTodos),
+            Arc::new(MockServiceNoTodos),
             agent.clone(),
             event,
             chrono::Local::now(),
