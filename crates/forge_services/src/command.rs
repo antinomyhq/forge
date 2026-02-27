@@ -26,9 +26,12 @@ impl<F> CommandLoaderService<F> {
     /// Load built-in commands that are embedded in the application binary.
     fn init_default(&self) -> anyhow::Result<Vec<Command>> {
         parse_command_iter(
-            [("github-pr-description", include_str!("commands/github-pr-description.md"))]
-                .into_iter()
-                .map(|(name, content)| (name.to_string(), content.to_string())),
+            [
+                ("github-pr-description", include_str!("../../../commands/github-pr-description.md")),
+                ("fixme", include_str!("../../../commands/fixme.md")),
+            ]
+            .into_iter()
+            .map(|(name, content)| (name.to_string(), content.to_string())),
         )
     }
 }
@@ -204,22 +207,32 @@ mod tests {
     }
 
     #[test]
-    fn test_init_default_contains_github_pr_description() {
+    fn test_init_default_contains_builtin_commands() {
         // Fixture
         let service = CommandLoaderService::<()> { infra: Arc::new(()), cache: Default::default() };
 
         // Execute
         let actual = service.init_default().unwrap();
 
-        // Verify
+        // Verify github-pr-description
         let command = actual
             .iter()
             .find(|c| c.name.as_str() == "github-pr-description")
             .expect("github-pr-description should be a built-in command");
 
         assert_eq!(command.name.as_str(), "github-pr-description");
-        assert!(!command.description.is_empty());
+        assert_eq!(command.description.as_str(), "Updates the description of the PR");
         assert!(command.prompt.is_some());
+
+        // Verify fixme
+        let fixme = actual
+            .iter()
+            .find(|c| c.name.as_str() == "fixme")
+            .expect("fixme should be a built-in command");
+
+        assert_eq!(fixme.name.as_str(), "fixme");
+        assert_eq!(fixme.description.as_str(), "Looks for all the fixme comments in the code and attempts to fix them");
+        assert!(fixme.prompt.is_some());
     }
 
     #[test]
