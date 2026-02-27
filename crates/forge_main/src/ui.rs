@@ -671,13 +671,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Update(args) => {
-                use forge_domain::UpdateFrequency;
-                let update = forge_domain::Update::default()
-                    .frequency(
-                        args.frequency
-                            .and_then(|f| f.parse::<UpdateFrequency>().ok()),
-                    )
-                    .auto_update(args.auto);
+                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }

@@ -720,19 +720,10 @@ pub enum VscodeCommand {
 
 /// Update command arguments.
 #[derive(Parser, Debug, Clone)]
-#[command(group(
-    clap::ArgGroup::new("update_options")
-        .required(true)
-        .args(["auto", "frequency"])
-))]
 pub struct UpdateArgs {
-    /// Enable or disable auto-update (e.g. --auto true or --auto false).
-    #[arg(long)]
-    pub auto: Option<bool>,
-
-    /// Set update frequency.
-    #[arg(long, value_parser = clap::builder::PossibleValuesParser::new(["daily", "weekly", "always"]))]
-    pub frequency: Option<String>,
+    /// Skip the confirmation prompt when applying updates.
+    #[arg(long, default_value_t = false)]
+    pub no_confirm: bool,
 }
 
 #[cfg(test)]
@@ -1698,44 +1689,22 @@ mod tests {
     }
 
     #[test]
-    fn test_update_requires_at_least_one_option() {
-        let actual = Cli::try_parse_from(["forge", "update"]);
-        assert!(
-            actual.is_err(),
-            "Expected error when no update options are provided"
-        );
+    fn test_update_with_no_confirm() {
+        let fixture = Cli::parse_from(["forge", "update", "--no-confirm"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Update(args)) => args.no_confirm,
+            _ => panic!("Expected Update command"),
+        };
+        assert!(actual);
     }
 
     #[test]
-    fn test_update_with_auto_true() {
-        let fixture = Cli::parse_from(["forge", "update", "--auto", "true"]);
+    fn test_update_without_no_confirm() {
+        let fixture = Cli::parse_from(["forge", "update"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Update(args)) => args.auto,
+            Some(TopLevelCommand::Update(args)) => args.no_confirm,
             _ => panic!("Expected Update command"),
         };
-        let expected = Some(true);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_update_with_auto_false() {
-        let fixture = Cli::parse_from(["forge", "update", "--auto", "false"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Update(args)) => args.auto,
-            _ => panic!("Expected Update command"),
-        };
-        let expected = Some(false);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_update_with_frequency() {
-        let fixture = Cli::parse_from(["forge", "update", "--frequency", "daily"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Update(args)) => args.frequency,
-            _ => panic!("Expected Update command"),
-        };
-        let expected = Some("daily".to_string());
-        assert_eq!(actual, expected);
+        assert!(!actual);
     }
 }
