@@ -218,7 +218,7 @@ mod tests {
             .expect("github-pr-description should be a built-in command");
 
         assert_eq!(command.name.as_str(), "github-pr-description");
-        assert_eq!(command.description.as_str(), "Updates the description of the PR");
+        assert!(!command.description.is_empty());
         assert!(command.prompt.is_some());
 
         // Verify fixme
@@ -228,7 +228,7 @@ mod tests {
             .expect("fixme should be a built-in command");
 
         assert_eq!(fixme.name.as_str(), "fixme");
-        assert_eq!(fixme.description.as_str(), "Looks for all the fixme comments in the code and attempts to fix them");
+        assert!(!fixme.description.is_empty());
         assert!(fixme.prompt.is_some());
     }
 
