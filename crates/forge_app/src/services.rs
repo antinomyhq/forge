@@ -207,6 +207,26 @@ pub trait AppConfigService: Send + Sync {
     /// # Errors
     /// Returns an error if no default provider is configured.
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
+
+    /// Gets the stored provider+model override for a specific agent, if one is
+    /// set.
+    async fn get_agent_model(
+        &self,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>>;
+
+    /// Sets a provider+model override for a specific agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent to configure.
+    /// * `provider` - The provider the model belongs to.
+    /// * `model` - The model ID within the provider's namespace.
+    async fn set_agent_model(
+        &self,
+        agent_id: AgentId,
+        provider: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1024,6 +1044,24 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
         self.config_service().set_default_model(model).await
+    }
+
+    async fn get_agent_model(
+        &self,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+        self.config_service().get_agent_model(agent_id).await
+    }
+
+    async fn set_agent_model(
+        &self,
+        agent_id: AgentId,
+        provider: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .set_agent_model(agent_id, provider, model)
+            .await
     }
 }
 

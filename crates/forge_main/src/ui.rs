@@ -143,10 +143,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    /// Helper to get model for an optional agent, defaulting to the current
-    /// active agent's model
+    /// Helper to get model for an optional agent.
+    /// Priority: given agent_id > active agent > global default model.
     async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
-        match agent_id {
+        let resolved = agent_id.or(self.api.get_active_agent().await);
+        match resolved {
             Some(agent_id) => self.api.get_agent_model(agent_id).await,
             None => self.api.get_default_model().await,
         }
@@ -383,6 +384,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 match agent_group.command {
                     crate::cli::AgentCommand::List => {
                         self.on_show_agents(agent_group.porcelain, false).await?;
+                    }
+                    crate::cli::AgentCommand::SetModel(args) => {
+                        self.handle_agent_set_model(args).await?;
                     }
                 }
                 return Ok(());
@@ -3147,6 +3151,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    /// Sets the provider and model for a specific agent, persisting the
+    /// override to app config.
+    async fn handle_agent_set_model(
+        &mut self,
+        args: crate::cli::AgentSetModelArgs,
+    ) -> Result<()> {
+        self.api
+            .set_agent_model(args.agent_id.clone(), args.provider_id.clone(), args.model_id.clone())
+            .await?;
+        self.writeln_title(
+            TitleFormat::action(format!(
+                "{}/{}",
+                args.provider_id,
+                args.model_id.as_str()
+            ))
+            .sub_title(format!("is now the model for agent {}", args.agent_id.as_str())),
+        )?;
+        Ok(())
+    }
+
     /// Handle prompt command - returns model and conversation stats for shell
     /// integration
     async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
@@ -3155,14 +3179,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .filter(|text| !text.trim().is_empty())
             .and_then(|str| ConversationId::from_str(str.as_str()).ok());
 
-        // Make IO calls in parallel
-        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
-            if let Some(cid) = cid {
-                self.api.conversation(&cid).await.ok().flatten()
-            } else {
-                None
+        // Resolve the active agent from the shell environment variable
+        let active_agent = std::env::var("_FORGE_ACTIVE_AGENT")
+            .ok()
+            .filter(|text| !text.trim().is_empty())
+            .map(AgentId::new);
+
+        // Make IO calls in parallel; use agent model if active, else global default
+        let (model_id, conversation) = tokio::join!(
+            self.get_agent_model(active_agent.clone()),
+            async {
+                if let Some(cid) = cid {
+                    self.api.conversation(&cid).await.ok().flatten()
+                } else {
+                    None
+                }
             }
-        });
+        );
 
         // Calculate total cost including related conversations
         let cost = if let Some(ref conv) = conversation {
@@ -3193,12 +3226,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or(1.0);
 
         let rprompt = ZshRPrompt::default()
-            .agent(
-                std::env::var("_FORGE_ACTIVE_AGENT")
-                    .ok()
-                    .filter(|text| !text.trim().is_empty())
-                    .map(AgentId::new),
-            )
+            .agent(active_agent)
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)

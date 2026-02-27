@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
+use forge_domain::{
+    AgentId, AgentModelConfig, AppConfig, AppConfigRepository, ModelId, ProviderId,
+    ProviderRepository,
+};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -77,6 +80,28 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
 
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
+        })
+        .await
+    }
+
+    async fn get_agent_model(
+        &self,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<Option<AgentModelConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.agent_model.get(agent_id).cloned())
+    }
+
+    async fn set_agent_model(
+        &self,
+        agent_id: AgentId,
+        provider: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            config
+                .agent_model
+                .insert(agent_id.clone(), AgentModelConfig { provider, model });
         })
         .await
     }

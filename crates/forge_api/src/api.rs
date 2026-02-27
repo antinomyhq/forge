@@ -152,6 +152,19 @@ pub trait API: Sync + Send {
     /// Sets the operating model
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 
+    /// Sets a provider+model override for a specific agent.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The agent to configure.
+    /// * `provider_id` - The provider the model belongs to.
+    /// * `model_id` - The model ID within the provider's namespace.
+    async fn set_agent_model(
+        &self,
+        agent_id: AgentId,
+        provider_id: ProviderId,
+        model_id: ModelId,
+    ) -> anyhow::Result<()>;
+
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 

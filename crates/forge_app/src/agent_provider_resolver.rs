@@ -44,20 +44,25 @@ where
     }
 
     /// Gets the model for the specified agent, or the default model if no agent
-    /// is provided
+    /// is provided.
+    ///
+    /// Priority: agent's configured model > active agent's model > global
+    /// provider model.
     pub async fn get_model(&self, agent_id: Option<AgentId>) -> Result<ModelId> {
-        if let Some(agent_id) = agent_id {
+        // Resolve the effective agent: explicit arg > active agent
+        let resolved = match agent_id {
+            Some(id) => Some(id),
+            None => self.0.get_active_agent_id().await.ok().flatten(),
+        };
+
+        if let Some(agent_id) = resolved {
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
-                Ok(agent.model)
-            } else {
-                // TODO: Needs review, should we throw an err here?
-                // we can throw crate::Error::AgentNotFound
-                let provider_id = self.get_provider(Some(agent_id)).await?.id;
-                Ok(self.0.get_provider_model(Some(&provider_id)).await?)
+                return Ok(agent.model);
             }
-        } else {
-            let provider_id = self.get_provider(None).await?.id;
-            Ok(self.0.get_provider_model(Some(&provider_id)).await?)
         }
+
+        // Fall back to the global model set for the active provider
+        let provider_id = self.get_provider(None).await?.id;
+        Ok(self.0.get_provider_model(Some(&provider_id)).await?)
     }
 }
