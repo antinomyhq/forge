@@ -562,39 +562,6 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-/// Todo management service for task tracking
-#[async_trait::async_trait]
-pub trait TodoService: Send + Sync {
-    /// Updates or creates todos for a conversation
-    ///
-    /// # Arguments
-    ///
-    /// * `conversation_id` - The conversation these todos belong to
-    /// * `todos` - List of todos to create or update
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if todos cannot be persisted or validation fails
-    async fn update_todos(
-        &self,
-        conversation_id: &ConversationId,
-        todos: Vec<forge_domain::Todo>,
-    ) -> anyhow::Result<Vec<forge_domain::Todo>>;
-
-    /// Gets all todos for a conversation
-    ///
-    /// # Arguments
-    ///
-    /// * `conversation_id` - The conversation to get todos for
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if todos cannot be retrieved
-    async fn get_todos(
-        &self,
-        conversation_id: &ConversationId,
-    ) -> anyhow::Result<Vec<forge_domain::Todo>>;
-}
 
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
@@ -626,7 +593,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ProviderAuthService: ProviderAuthService;
     type WorkspaceService: WorkspaceService;
     type SkillFetchService: SkillFetchService;
-    type TodoService: TodoService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -657,7 +623,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
     fn workspace_service(&self) -> &Self::WorkspaceService;
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
-    fn todo_service(&self) -> &Self::TodoService;
 }
 
 #[async_trait::async_trait]
@@ -1167,25 +1132,5 @@ impl<I: Services> WorkspaceService for I {
 
     async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId> {
         self.workspace_service().init_workspace(path).await
-    }
-}
-
-#[async_trait::async_trait]
-impl<I: Services> TodoService for I {
-    async fn update_todos(
-        &self,
-        conversation_id: &ConversationId,
-        todos: Vec<forge_domain::Todo>,
-    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
-        self.todo_service()
-            .update_todos(conversation_id, todos)
-            .await
-    }
-
-    async fn get_todos(
-        &self,
-        conversation_id: &ConversationId,
-    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
-        self.todo_service().get_todos(conversation_id).await
     }
 }
