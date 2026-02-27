@@ -22,6 +22,21 @@ impl<F> CommandLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Default::default() }
     }
+
+    /// Load built-in commands that are embedded in the application binary.
+    fn init_default(&self) -> anyhow::Result<Vec<Command>> {
+        parse_command_iter(
+            [
+                (
+                    "github-pr-description",
+                    include_str!("../../../commands/github-pr-description.md"),
+                ),
+                ("fixme", include_str!("../../../commands/fixme.md")),
+            ]
+            .into_iter()
+            .map(|(name, content)| (name.to_string(), content.to_string())),
+        )
+    }
 }
 
 #[async_trait::async_trait]
@@ -42,8 +57,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 
     async fn init(&self) -> anyhow::Result<Vec<Command>> {
-        // Load built-in commands
-        let mut commands = vec![];
+        // Load built-in commands first (lowest precedence)
+        let mut commands = self.init_default()?;
 
         // Load custom commands from global directory
         let dir = self.infra.get_environment().command_path();
@@ -178,7 +193,7 @@ mod tests {
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
         let builtin_commands = [
-            ("fixme", "../../.forge/commands/fixme.md"),
+            ("fixme", "../../commands/fixme.md"),
             ("check", "../../.forge/commands/check.md"),
         ];
 
@@ -192,6 +207,35 @@ mod tests {
             assert!(!command.description.is_empty());
             assert!(command.prompt.is_some());
         }
+    }
+
+    #[test]
+    fn test_init_default_contains_builtin_commands() {
+        // Fixture
+        let service = CommandLoaderService::<()> { infra: Arc::new(()), cache: Default::default() };
+
+        // Execute
+        let actual = service.init_default().unwrap();
+
+        // Verify github-pr-description
+        let command = actual
+            .iter()
+            .find(|c| c.name.as_str() == "github-pr-description")
+            .expect("github-pr-description should be a built-in command");
+
+        assert_eq!(command.name.as_str(), "github-pr-description");
+        assert!(!command.description.is_empty());
+        assert!(command.prompt.is_some());
+
+        // Verify fixme
+        let fixme = actual
+            .iter()
+            .find(|c| c.name.as_str() == "fixme")
+            .expect("fixme should be a built-in command");
+
+        assert_eq!(fixme.name.as_str(), "fixme");
+        assert!(!fixme.description.is_empty());
+        assert!(fixme.prompt.is_some());
     }
 
     #[test]
