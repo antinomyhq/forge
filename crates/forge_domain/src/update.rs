@@ -15,19 +15,6 @@ pub enum UpdateFrequency {
     Always,
 }
 
-impl FromStr for UpdateFrequency {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.to_lowercase().as_str() {
-            "daily" => Ok(UpdateFrequency::Daily),
-            "weekly" => Ok(UpdateFrequency::Weekly),
-            "always" => Ok(UpdateFrequency::Always),
-            _ => Err(format!("Unknown update frequency: {}", s)),
-        }
-    }
-}
-
 impl From<UpdateFrequency> for Duration {
     fn from(val: UpdateFrequency) -> Self {
         match val {
