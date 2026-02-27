@@ -68,7 +68,7 @@ fn map_reasoning_details_to_input_items(
 
             let summary: Vec<oai::SummaryPart> = summary_texts
                 .into_iter()
-                .map(|text| oai::SummaryPart::SummaryText(oai::Summary { text }))
+                .map(|text| oai::SummaryPart::SummaryText(oai::SummaryTextContent { text }))
                 .collect();
 
             Some(oai::InputItem::Item(oai::Item::Reasoning(
@@ -908,7 +908,7 @@ mod tests {
 
         let expected = oai::ReasoningItem {
             id: "rs_123".to_string(),
-            summary: vec![oai::SummaryPart::SummaryText(oai::Summary {
+            summary: vec![oai::SummaryPart::SummaryText(oai::SummaryTextContent {
                 text: "Summary of reasoning".to_string(),
             })],
             content: None,

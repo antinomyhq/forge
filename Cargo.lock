@@ -138,9 +138,9 @@ dependencies = [
 
 [[package]]
 name = "async-openai"
-version = "0.32.4"
+version = "0.33.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4d91c2005832450ad9ac92411b9d4cec39e30be21adc76553efc47f812d59c7"
+checksum = "b3ef6d66e53b3ec8ed4bae8e6dcdda75c0f5b4f67faba78fac1b09434cb4f2fc"
 dependencies = [
  "derive_builder",
  "getrandom 0.3.4",
@@ -887,6 +887,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "convert_case"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "affbf0190ed2caf063e3def54ff444b449371d55c58e513a95ab98eca50adb49"
+dependencies = [
+ "unicode-segmentation",
+]
+
+[[package]]
 name = "cookie"
 version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1282,7 +1291,7 @@ version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
 dependencies = [
- "convert_case",
+ "convert_case 0.10.0",
  "proc-macro2",
  "quote",
  "rustc_version",
@@ -1750,7 +1759,7 @@ dependencies = [
  "bytes",
  "chrono",
  "console 0.16.2",
- "convert_case",
+ "convert_case 0.11.0",
  "dashmap",
  "derive_more",
  "derive_setters",
@@ -1777,8 +1786,8 @@ dependencies = [
  "serde_json",
  "serde_yml",
  "sha2",
- "strum 0.27.2",
- "strum_macros 0.27.2",
+ "strum 0.28.0",
+ "strum_macros 0.28.0",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -1822,7 +1831,7 @@ dependencies = [
  "async-trait",
  "base64 0.22.1",
  "chrono",
- "convert_case",
+ "convert_case 0.11.0",
  "derive-getters",
  "derive_more",
  "derive_setters",
@@ -1846,8 +1855,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yml",
- "strum 0.27.2",
- "strum_macros 0.27.2",
+ "strum 0.28.0",
+ "strum_macros 0.28.0",
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
@@ -1950,7 +1959,7 @@ dependencies = [
  "clap_complete",
  "colored",
  "console 0.16.2",
- "convert_case",
+ "convert_case 0.11.0",
  "derive_setters",
  "fake",
  "forge_api",
@@ -1982,8 +1991,8 @@ dependencies = [
  "serde_json",
  "serial_test",
  "strip-ansi-escapes",
- "strum 0.27.2",
- "strum_macros 0.27.2",
+ "strum 0.28.0",
+ "strum_macros 0.28.0",
  "tempfile",
  "terminal_size",
  "thiserror 2.0.18",
@@ -2059,7 +2068,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "strum 0.27.2",
+ "strum 0.28.0",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -2128,8 +2137,8 @@ dependencies = [
  "serde_urlencoded",
  "serde_yml",
  "strip-ansi-escapes",
- "strum 0.27.2",
- "strum_macros 0.27.2",
+ "strum 0.28.0",
+ "strum_macros 0.28.0",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -2208,7 +2217,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
- "convert_case",
+ "convert_case 0.11.0",
  "derive_more",
  "dirs",
  "forge_domain",
@@ -5810,9 +5819,9 @@ checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 
 [[package]]
 name = "strum"
-version = "0.27.2"
+version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
 
 [[package]]
 name = "strum_macros"
@@ -5832,6 +5841,18 @@ name = "strum_macros"
 version = "0.27.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.116",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
 dependencies = [
  "heck",
  "proc-macro2",

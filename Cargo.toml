@@ -34,7 +34,7 @@ clap_complete = "4.5.66"
 colored = "3.1.1"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
-convert_case = "0.10.0"
+convert_case = "0.11.0"
 
 crossterm = "0.29.0"
 derive_more = { version = "2.1.1", features = ["from", "display", "debug", "deref", "as_ref"] }
@@ -83,8 +83,8 @@ serde_yml = "0.0.12"
 sha2 = "0.10"
 similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
-strum = "0.27.1"
-strum_macros = "0.27.1"
+strum = "0.28.0"
+strum_macros = "0.28.0"
 syn = { version = "2.0.116", features = ["derive", "parsing"] }
 sysinfo = "0.38.2"
 tempfile = "3.25.0"
@@ -130,7 +130,7 @@ gray_matter = "0.3.2"
 num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
-async-openai = { version = "0.32.4", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
+async-openai = { version = "0.33.0", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
 google-cloud-auth = "1.6.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
