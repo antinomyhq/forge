@@ -1,5 +1,5 @@
 ---
-name: pr-description
+name: github-pr-description
 description: Updates the description of the PR
 ---
 
