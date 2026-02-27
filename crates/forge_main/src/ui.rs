@@ -1087,8 +1087,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let id = model.id.to_string();
 
             info = info
-                .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id);
+                .add_title(&id)
+                .add_key_value("Model", model.name.as_ref().unwrap_or(&id));
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
@@ -1129,7 +1129,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).swap_cols(0, 1).uppercase_headers())?;
+            self.writeln(Porcelain::from(&info).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -2882,6 +2882,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
+                }
+                if let Some(format) = self.api.environment().auto_dump {
+                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                    self.on_dump(html).await?;
                 }
             }
         }

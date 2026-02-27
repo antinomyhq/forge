@@ -20,8 +20,8 @@ async-recursion = "1.1.1"
 async-stream = "0.3"
 async-trait = "0.1.89"
 aws-config = { version = "1.8.13", features = ["behavior-version-latest"], default-features = false }
-aws-sdk-bedrockruntime = { version = "1.124.0", features = ["behavior-version-latest"], default-features = false }
-aws-credential-types = "1.2.11"
+aws-sdk-bedrockruntime = { version = "1.126.0", features = ["behavior-version-latest"], default-features = false }
+aws-credential-types = "1.2.13"
 aws-smithy-types = "1.4.3"
 aws-smithy-runtime-api = "1.11.3"
 aws-smithy-async = { version = "1.2.11", features = ["rt-tokio"] }
@@ -29,8 +29,8 @@ aws-smithy-runtime = { version = "1.10", features = ["connector-hyper-0-14-x", "
 base64 = "0.22.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.43", features = ["serde"] }
-clap = { version = "4.5.57", features = ["derive"] }
-clap_complete = "4.5.65"
+clap = { version = "4.5.59", features = ["derive"] }
+clap_complete = "4.5.66"
 colored = "3.1.1"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
@@ -42,12 +42,12 @@ derive_setters = "0.1.9"
 dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenvy = "0.15.7"
-futures = "0.3.31"
+futures = "0.3.32"
 gh-workflow = "0.8.1"
 glob = "0.3.3"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
-handlebars = { version = "6.4.0", features = ["rust-embed"] }
+handlebars = "6.4.0"
 html2md = "0.2.15"
 http = "1.2.0"
 ignore = "0.4.23"
@@ -75,8 +75,8 @@ reqwest = { version = "0.12.23", features = [
 rustls = { version = "0.23", features = ["ring"], default-features = false }
 reqwest-eventsource = "0.6.0"
 eventsource-stream = "0.2.3"
-rust-embed = "8.11.0"
-schemars = "1.0"
+include_dir = "0.7.4"
+schemars = "1.2"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.143"
 serde_yml = "0.0.12"
@@ -85,8 +85,8 @@ similar = { version = "2.4", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.27.1"
 strum_macros = "0.27.1"
-syn = { version = "2.0.114", features = ["derive", "parsing"] }
-sysinfo = "0.38.0"
+syn = { version = "2.0.116", features = ["derive", "parsing"] }
+sysinfo = "0.38.2"
 tempfile = "3.25.0"
 termimad = "0.34.1"
 syntect = { version = "5", default-features = false, features = ["default-syntaxes", "default-themes", "regex-onig"] }
@@ -103,14 +103,14 @@ tokio = { version = "1.49.0", features = [
 ] }
 tokio-stream = "0.1.18"
 tokio-util = "0.7"
-tonic = { version = "0.14.3", features = ["tls-webpki-roots"] }
+tonic = { version = "0.14.4", features = ["tls-webpki-roots"] }
 tracing = "0.1.44"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
 url = { version = "2.5.8", features = ["serde"] }
 backon = "1.5.2"
 eserde = "0.1.7"
-uuid = { version = "1.20.0", features = [
+uuid = { version = "1.21.0", features = [
     "v4",
     "fast-rng",
     "serde",
@@ -131,9 +131,10 @@ num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
 async-openai = { version = "0.32.4", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
-google-cloud-auth = "1.5.0" # Google Cloud authentication with automatic token refresh
+google-cloud-auth = "1.6.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
+forge_embed = { path = "crates/forge_embed" }
 forge_api = { path = "crates/forge_api" }
 forge_app = { path = "crates/forge_app" }
 forge_ci = { path = "crates/forge_ci" }

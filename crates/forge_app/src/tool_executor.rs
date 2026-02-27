@@ -215,7 +215,7 @@ impl<
                 let output = input
                     .queries
                     .into_iter()
-                    .zip(results.into_iter())
+                    .zip(results)
                     .map(|(query, results)| CodebaseQueryResult {
                         query: query.query,
                         use_case: query.use_case,
@@ -281,10 +281,10 @@ impl<
                             .option1
                             .clone()
                             .into_iter()
-                            .chain(input.option2.clone().into_iter())
-                            .chain(input.option3.clone().into_iter())
-                            .chain(input.option4.clone().into_iter())
-                            .chain(input.option5.clone().into_iter())
+                            .chain(input.option2.clone())
+                            .chain(input.option3.clone())
+                            .chain(input.option4.clone())
+                            .chain(input.option5.clone())
                             .collect(),
                         input.multiple,
                     )
