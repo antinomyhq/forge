@@ -22,6 +22,15 @@ impl<F> CommandLoaderService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Default::default() }
     }
+
+    /// Load built-in commands that are embedded in the application binary.
+    fn init_default(&self) -> anyhow::Result<Vec<Command>> {
+        parse_command_iter(
+            [("github-pr-description", include_str!("commands/github-pr-description.md"))]
+                .into_iter()
+                .map(|(name, content)| (name.to_string(), content.to_string())),
+        )
+    }
 }
 
 #[async_trait::async_trait]
@@ -42,8 +51,8 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
     }
 
     async fn init(&self) -> anyhow::Result<Vec<Command>> {
-        // Load built-in commands
-        let mut commands = vec![];
+        // Load built-in commands first (lowest precedence)
+        let mut commands = self.init_default()?;
 
         // Load custom commands from global directory
         let dir = self.infra.get_environment().command_path();
@@ -192,6 +201,25 @@ mod tests {
             assert!(!command.description.is_empty());
             assert!(command.prompt.is_some());
         }
+    }
+
+    #[test]
+    fn test_init_default_contains_github_pr_description() {
+        // Fixture
+        let service = CommandLoaderService::<()> { infra: Arc::new(()), cache: Default::default() };
+
+        // Execute
+        let actual = service.init_default().unwrap();
+
+        // Verify
+        let command = actual
+            .iter()
+            .find(|c| c.name.as_str() == "github-pr-description")
+            .expect("github-pr-description should be a built-in command");
+
+        assert_eq!(command.name.as_str(), "github-pr-description");
+        assert!(!command.description.is_empty());
+        assert!(command.prompt.is_some());
     }
 
     #[test]
