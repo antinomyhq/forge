@@ -633,5 +633,3 @@ impl<F: forge_domain::ConsoleWriter> forge_domain::ConsoleWriter for ForgeRepo<F
         self.infra.flush_err()
     }
 }
-
-

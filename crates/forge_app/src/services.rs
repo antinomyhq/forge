@@ -562,7 +562,6 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;

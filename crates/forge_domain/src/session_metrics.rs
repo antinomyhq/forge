@@ -6,8 +6,8 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-pub use crate::file_operation::FileOperation;
 use crate::Todo;
+pub use crate::file_operation::FileOperation;
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]

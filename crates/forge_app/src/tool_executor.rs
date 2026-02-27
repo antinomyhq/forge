@@ -307,9 +307,8 @@ impl<
             }
             ToolCatalog::TodoWrite(input) => {
                 let before = _context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
-                let after = _context.try_with_metrics(|metrics| {
-                    metrics.update_todos(input.todos.clone())
-                })?;
+                let after = _context
+                    .try_with_metrics(|metrics| metrics.update_todos(input.todos.clone()))?;
                 ToolOperation::TodoWrite { before, after }
             }
             ToolCatalog::TodoRead(_input) => {

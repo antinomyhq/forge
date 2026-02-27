@@ -197,8 +197,8 @@ impl<S: AgentService> Orchestrator<S> {
         // Seed metrics.todos from conversation.todos so tool calls have access to
         // any persisted todos from a previous session.
         self.conversation.metrics.todos = self.conversation.todos.clone();
-        let tool_context = ToolCallContext::new(self.conversation.metrics.clone())
-            .sender(self.sender.clone());
+        let tool_context =
+            ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
 
         while !should_yield {
             // Set context for the current loop iteration

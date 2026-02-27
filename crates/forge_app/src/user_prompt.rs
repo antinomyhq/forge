@@ -56,13 +56,11 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
     }
 
     /// Adds existing todos as a user message when resuming a conversation
-    fn add_todos_on_resume(
-        &self,
-        mut conversation: Conversation,
-    ) -> anyhow::Result<Conversation> {
+    fn add_todos_on_resume(&self, mut conversation: Conversation) -> anyhow::Result<Conversation> {
         let mut context = conversation.context.take().unwrap_or_default();
 
-        // Load existing todos from the conversation itself (no separate repository call)
+        // Load existing todos from the conversation itself (no separate repository
+        // call)
         let todos = conversation.todos.clone();
 
         if !todos.is_empty() {
@@ -478,8 +476,8 @@ mod tests {
         let agent = fixture_agent_without_user_prompt();
         let event = Event::new("Continue working");
 
-        // Create a conversation with existing context (simulating resume) and todos stored on the
-        // conversation
+        // Create a conversation with existing context (simulating resume) and todos
+        // stored on the conversation
         let conversation = Conversation::new(ConversationId::generate())
             .context(
                 Context::default()
