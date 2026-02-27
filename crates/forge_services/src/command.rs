@@ -27,7 +27,10 @@ impl<F> CommandLoaderService<F> {
     fn init_default(&self) -> anyhow::Result<Vec<Command>> {
         parse_command_iter(
             [
-                ("github-pr-description", include_str!("../../../commands/github-pr-description.md")),
+                (
+                    "github-pr-description",
+                    include_str!("../../../commands/github-pr-description.md"),
+                ),
                 ("fixme", include_str!("../../../commands/fixme.md")),
             ]
             .into_iter()
@@ -189,7 +192,10 @@ mod tests {
     #[tokio::test]
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
-        let builtin_commands = [("fixme", "../../commands/fixme.md")];
+        let builtin_commands = [
+            ("fixme", "../../commands/fixme.md"),
+            ("check", "../../.forge/commands/check.md"),
+        ];
 
         for (name, path) in builtin_commands {
             let content = forge_test_kit::fixture!(path).await;
