@@ -189,10 +189,7 @@ mod tests {
     #[tokio::test]
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
-        let builtin_commands = [
-            ("fixme", "../../.forge/commands/fixme.md"),
-            ("check", "../../.forge/commands/check.md"),
-        ];
+        let builtin_commands = [("fixme", "../../commands/fixme.md")];
 
         for (name, path) in builtin_commands {
             let content = forge_test_kit::fixture!(path).await;
