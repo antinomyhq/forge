@@ -1858,5 +1858,14 @@
         }
       }
     ]
+  },
+  {
+    "id": "opencode_zen",
+    "api_key_vars": "OPENCODE_ZEN_API_KEY",
+    "default_api_key": "public",
+    "response_type": "OpenAI",
+    "url": "https://opencode.ai/zen/v1/chat/completions",
+    "models": "https://opencode.ai/zen/v1/models",
+    "auth_methods": ["api_key"]
   }
 ]

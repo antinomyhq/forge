@@ -94,6 +94,7 @@ fn supports_open_router_params(provider: &Provider<Url>) -> bool {
         || provider.id == ProviderId::FORGE
         || provider.id == ProviderId::ZAI
         || provider.id == ProviderId::ZAI_CODING
+        || provider.id == ProviderId::OPENCODE_ZEN
 }
 
 #[cfg(test)]

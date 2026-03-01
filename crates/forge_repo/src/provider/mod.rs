@@ -4,6 +4,7 @@ mod bedrock_cache;
 mod chat;
 mod event;
 mod google;
+mod header_transformer;
 #[cfg(test)]
 mod mock_server;
 mod openai;
@@ -13,6 +14,7 @@ mod retry;
 mod utils;
 
 pub use chat::*;
+pub use header_transformer::*;
 pub use provider_repo::*;
 
 /// Trait for converting types into domain types
