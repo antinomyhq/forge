@@ -61,7 +61,7 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
                     .text("The following files have been modified externally. Please re-read them if its relevant for the task."),
             )
             .append(Element::new("files").append(file_elements))
-            .to_string();
+            .render();
 
         let context = conversation.context.take().unwrap_or_default();
 

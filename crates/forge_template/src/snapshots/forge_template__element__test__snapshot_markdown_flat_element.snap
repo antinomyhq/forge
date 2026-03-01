@@ -1,0 +1,7 @@
+---
+source: crates/forge_template/src/element.rs
+expression: elem.render_as_markdown()
+---
+# Message
+
+Hello, world!

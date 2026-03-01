@@ -2,12 +2,15 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<search_results
-  path="/home/user/project"
-  max_bytes_allowed="256000"
-  total_lines="1"
-  display_lines="1-1"
-  pattern="struct.*\{.*field"
-><![CDATA[types.rs:10:struct User {
-    field: String]]>
-</search_results>
+# Search Results
+
+- **Path**: /home/user/project
+- **Max Bytes Allowed**: 256000
+- **Total Lines**: 1
+- **Display Lines**: 1-1
+- **Pattern**: Struct.*\{.*field
+
+```
+types.rs:10:struct User {
+    field: String
+```

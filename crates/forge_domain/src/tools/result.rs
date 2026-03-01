@@ -60,7 +60,8 @@ impl ToolResult {
                 self.output = ToolOutput::text(
                     Element::new("tool_call_error")
                         .append(Element::new("cause").cdata(message.join("\n")))
-                        .append(Element::new("reflection").text(REFLECTION_PROMPT)),
+                        .append(Element::new("reflection").text(REFLECTION_PROMPT))
+                        .render_as_markdown(),
                 )
                 .is_error(true);
             }

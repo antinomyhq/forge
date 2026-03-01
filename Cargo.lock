@@ -2179,7 +2179,9 @@ dependencies = [
 name = "forge_template"
 version = "0.1.0"
 dependencies = [
+ "convert_case",
  "html-escape",
+ "insta",
  "pretty_assertions",
 ]
 
