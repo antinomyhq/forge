@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, InitAuth, ModelId};
+use forge_domain::{AgentId, InitAuth, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -22,6 +22,11 @@ pub trait API: Sync + Send {
 
     /// Provides a list of models available in the current environment
     async fn get_models(&self) -> Result<Vec<Model>>;
+
+    /// Provides models from all configured providers. Providers that fail to
+    /// return models are silently skipped.
+    async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>>;
+
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment

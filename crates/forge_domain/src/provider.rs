@@ -296,6 +296,15 @@ impl AnyProvider {
     }
 }
 
+/// Represents a provider with its available models
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ProviderModels {
+    /// The provider identifier
+    pub provider_id: ProviderId,
+    /// Available models from this provider
+    pub models: Vec<Model>,
+}
+
 #[cfg(test)]
 mod test_helpers {
     use std::collections::HashMap;

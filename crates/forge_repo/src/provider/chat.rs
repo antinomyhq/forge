@@ -5,6 +5,7 @@ use forge_app::domain::{
 };
 use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{ChatRepository, Provider, ProviderId};
+use forge_infra::CacacheStorage;
 use url::Url;
 
 use crate::provider::anthropic::AnthropicResponseRepository;
@@ -12,6 +13,9 @@ use crate::provider::bedrock::BedrockResponseRepository;
 use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
+
+/// TTL for cached model lists: 2 hours in seconds.
+const MODEL_CACHE_TTL_SECS: u128 = 7200;
 
 /// Repository responsible for routing chat requests to the appropriate provider
 /// implementation based on the provider's response type.
@@ -21,6 +25,7 @@ pub struct ForgeChatRepository<F> {
     anthropic_repo: AnthropicResponseRepository<F>,
     bedrock_repo: BedrockResponseRepository,
     google_repo: GoogleResponseRepository<F>,
+    model_cache: Arc<CacacheStorage>,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
@@ -47,12 +52,18 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let google_repo =
             GoogleResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
+        let model_cache = Arc::new(CacacheStorage::new(
+            env.cache_dir().join("model_cache"),
+            Some(MODEL_CACHE_TTL_SECS),
+        ));
+
         Self {
             openai_repo,
             codex_repo,
             anthropic_repo,
             bedrock_repo,
             google_repo,
+            model_cache,
         }
     }
 }
@@ -99,8 +110,20 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        // Route based on provider response type
-        match provider.response {
+        use forge_app::KVStore;
+
+        let cache_key = format!("models:{}", provider.id);
+
+        if let Ok(Some(cached)) = self
+            .model_cache
+            .cache_get::<_, Vec<Model>>(&cache_key)
+            .await
+        {
+            tracing::debug!(provider_id = %provider.id, "returning cached models");
+            return Ok(cached);
+        }
+
+        let models = match provider.response {
             Some(ProviderResponse::OpenAI) => self.openai_repo.models(provider).await,
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
             Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
@@ -109,6 +132,12 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
                 "Provider response type not configured for provider: {}",
                 provider.id
             )),
+        }?;
+
+        if let Err(err) = self.model_cache.cache_set(&cache_key, &models).await {
+            tracing::warn!(error = %err, "failed to cache model list");
         }
+
+        Ok(models)
     }
 }
