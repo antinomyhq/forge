@@ -147,11 +147,23 @@ impl<S: AgentService> Orchestrator<S> {
         reasoning_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let tool_supported = self.is_tool_supported()?;
+
+        // OpenRouter has a bug where it adds `signature: null` when converting
+        // reasoning_details to Anthropic's thinking blocks, which Anthropic rejects.
+        // For OpenRouter + Anthropic models, drop reasoning from messages created
+        // before the current model (model switch detection).
+        let is_openrouter_anthropic = self.agent.provider == ProviderId::OPEN_ROUTER
+            && model_id.as_str().starts_with("anthropic/");
+
         let mut transformers = DefaultTransformation::default()
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
-            .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
+            .pipe(
+                DropReasoningDetailsFromOtherModels::new(model_id.clone())
+                    .when(|_| is_openrouter_anthropic),
+            )
+            .pipe(DropReasoningDetails.when(|_| !reasoning_supported && !is_openrouter_anthropic))
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
         let response = self
             .services
