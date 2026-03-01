@@ -18,6 +18,25 @@ use crate::provider::event::into_chat_completion_message;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, join_url, sanitize_headers};
 
+/// Enhances error messages with provider-specific helpful information
+fn enhance_error(error: anyhow::Error, provider_id: &ProviderId) -> anyhow::Error {
+    // GitHub Copilot specific error enhancements
+    if *provider_id == ProviderId::GITHUB_COPILOT {
+        let error_string = format!("{:#}", error);
+
+        // Check if this is a model_not_supported error
+        if error_string.contains("model_not_supported")
+            || error_string.contains("requested model is not supported")
+        {
+            return error.context(
+                "This model may not be enabled for your GitHub Copilot subscription. Visit https://github.com/settings/copilot/features to check which models are available to you."
+            );
+        }
+    }
+
+    error
+}
+
 #[derive(Clone)]
 struct OpenAIProvider<H> {
     provider: Provider<Url>,
@@ -124,7 +143,8 @@ impl<H: HttpInfra> OpenAIProvider<H> {
             .http
             .http_eventsource(&url, Some(headers), json_bytes.into())
             .await
-            .with_context(|| format_http_context(None, "POST", &url))?;
+            .with_context(|| format_http_context(None, "POST", &url))
+            .map_err(|e| enhance_error(e, &self.provider.id))?;
 
         let stream = into_chat_completion_message::<Response>(url, es);
 
@@ -657,6 +677,20 @@ mod tests {
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }
+
+    #[test]
+    fn test_enhance_error_github_copilot_model_not_supported() {
+        use crate::provider::openai::enhance_error;
+        // Setup - simulate the actual error from GitHub Copilot
+        let fixture = anyhow::anyhow!(
+            "400 Bad Request Reason: {{\"error\":{{\"message\":\"The requested model is not supported.\",\"code\":\"model_not_supported\"}}}}"
+        );
+
+        // Execute
+        let actual = enhance_error(fixture, &ProviderId::GITHUB_COPILOT);
+        let error_string = format!("{:#}", actual);
+        insta::assert_snapshot!(error_string);
+    }
 }
 
 /// Repository for OpenAI-compatible provider responses
@@ -690,6 +724,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let retry_config = self.retry_config.clone();
+        let provider_id = provider.id.clone();
         let provider_client = OpenAIProvider::new(provider, self.infra.clone());
         let stream = provider_client
             .chat(model_id, context)
@@ -697,7 +732,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
             .map_err(|e| into_retry(e, &retry_config))?;
 
         Ok(Box::pin(stream.map(move |item| {
-            item.map_err(|e| into_retry(e, &retry_config))
+            item.map_err(|e| enhance_error(into_retry(e, &retry_config), &provider_id))
         })))
     }
 
