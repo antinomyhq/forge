@@ -8,6 +8,7 @@
 # - :conversation -        - Toggle between current and previous conversation (like cd -)
 # - :clone                 - Clone current or selected conversation
 # - :clone <id>            - Clone specific conversation by ID
+# - :copy                  - Copy last assistant message to OS clipboard as raw markdown
 #
 # Helper Functions:
 # - _forge_switch_conversation <id>  - Switch to a conversation and track previous
@@ -192,6 +193,45 @@ function _forge_action_clone() {
         local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
         _forge_clone_and_switch "$conversation_id"
     fi
+}
+
+# Action handler: Copy last assistant message to OS clipboard as raw markdown
+# Usage: :copy
+function _forge_action_copy() {
+    echo
+
+    if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+        _forge_log error "No active conversation. Start a conversation first or use :list to see existing ones"
+        return 0
+    fi
+
+    # Fetch raw markdown from the last assistant message
+    local content
+    content=$($_FORGE_BIN conversation show --md "$_FORGE_CONVERSATION_ID" 2>/dev/null)
+
+    if [[ -z "$content" ]]; then
+        _forge_log error "No assistant message found in the current conversation"
+        return 0
+    fi
+
+    # Copy to clipboard (pbcopy on macOS, xclip/xsel on Linux)
+    if command -v pbcopy &>/dev/null; then
+        echo -n "$content" | pbcopy
+    elif command -v xclip &>/dev/null; then
+        echo -n "$content" | xclip -selection clipboard
+    elif command -v xsel &>/dev/null; then
+        echo -n "$content" | xsel --clipboard --input
+    else
+        _forge_log error "No clipboard utility found (pbcopy, xclip, or xsel required)"
+        return 0
+    fi
+
+    # Count lines and bytes for the confirmation message
+    local line_count byte_count
+    line_count=$(echo "$content" | wc -l | tr -d ' ')
+    byte_count=$(echo -n "$content" | wc -c | tr -d ' ')
+
+    _forge_log success "Copied to clipboard \033[90m[${line_count} lines, ${byte_count} bytes]\033[0m"
 }
 
 # Helper function to clone and switch to conversation
