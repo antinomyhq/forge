@@ -1985,6 +1985,7 @@ dependencies = [
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "tempfile",
+ "terminal-colorsaurus",
  "terminal_size",
  "thiserror 2.0.18",
  "tokio",
@@ -2164,6 +2165,7 @@ dependencies = [
  "indicatif",
  "pretty_assertions",
  "rand 0.10.0",
+ "terminal-colorsaurus",
  "tokio",
 ]
 

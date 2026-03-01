@@ -254,7 +254,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let model = self
             .get_agent_model(self.api.get_active_agent().await)
             .await;
-        let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
+        use terminal_colorsaurus::{QueryOptions, ThemeMode as ColorsaurusThemeMode, theme_mode};
+        let is_light_mode = matches!(
+            theme_mode(QueryOptions::default()),
+            Ok(ColorsaurusThemeMode::Light)
+        );
+        let forge_prompt = ForgePrompt {
+            cwd: self.state.cwd.clone(),
+            usage,
+            agent_id,
+            model,
+            is_light_mode,
+        };
         self.console.prompt(forge_prompt).await
     }
 
