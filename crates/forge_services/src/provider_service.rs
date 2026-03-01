@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::ProviderService;
 use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
+use forge_app::{EnvironmentInfra, ProviderService};
 use forge_domain::{
     AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
     ProviderRepository, ProviderTemplate,
@@ -29,16 +29,29 @@ impl<R> ForgeProviderService<R> {
         }
     }
 
-    /// Renders a URL template with provided parameters
+    /// Renders a URL template with provided parameters.
+    ///
+    /// Template data is built from all env vars (including computed defaults)
+    /// via `EnvironmentInfra::get_env_vars()`, then overlaid with explicit
+    /// `params` from the stored credential which take precedence.
     fn render_url_template(
         &self,
         template: &str,
         params: &HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
-    ) -> Result<Url> {
-        let template_data: HashMap<&str, &str> = params
+    ) -> Result<Url>
+    where
+        R: EnvironmentInfra,
+    {
+        let env_vars = self.repository.get_env_vars();
+        let mut template_data: HashMap<&str, &str> = env_vars
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect();
+
+        // Explicit credential params take precedence over env vars.
+        for (k, v) in params {
+            template_data.insert(k.as_str(), v.as_str());
+        }
 
         let handlebars = forge_app::TemplateEngine::handlebar_instance();
         let rendered = handlebars.render_template(template, &template_data)?;
@@ -47,7 +60,10 @@ impl<R> ForgeProviderService<R> {
     }
 
     /// Renders a provider from template to fully resolved URLs
-    fn render_provider(&self, template_provider: ProviderTemplate) -> Result<Provider<Url>> {
+    fn render_provider(&self, template_provider: ProviderTemplate) -> Result<Provider<Url>>
+    where
+        R: EnvironmentInfra,
+    {
         let credential = template_provider
             .credential
             .as_ref()
@@ -82,7 +98,9 @@ impl<R> ForgeProviderService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderService<R> {
+impl<R: ChatRepository + ProviderRepository + EnvironmentInfra> ProviderService
+    for ForgeProviderService<R>
+{
     async fn chat(
         &self,
         model_id: &ModelId,
@@ -160,6 +178,8 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use forge_app::domain::ProviderId;
     use forge_domain::{
         AuthDetails, AuthMethod, InputModality, ModelSource, ProviderType, Template,
@@ -173,6 +193,7 @@ mod tests {
         models: Vec<Model>,
         call_count: Arc<Mutex<usize>>,
         providers: Vec<AnyProvider>,
+        env_vars: BTreeMap<String, String>,
     }
 
     impl MockProviderRepository {
@@ -181,6 +202,7 @@ mod tests {
                 models,
                 call_count: Arc::new(Mutex::new(0)),
                 providers: vec![],
+                env_vars: BTreeMap::new(),
             }
         }
 
@@ -191,6 +213,25 @@ mod tests {
 
         async fn get_call_count(&self) -> usize {
             *self.call_count.lock().await
+        }
+    }
+
+    impl EnvironmentInfra for MockProviderRepository {
+        fn get_environment(&self) -> forge_domain::Environment {
+            use fake::{Fake, Faker};
+            Faker.fake()
+        }
+
+        fn get_env_var(&self, key: &str) -> Option<String> {
+            self.env_vars.get(key).cloned()
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            self.env_vars.clone()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
         }
     }
 
