@@ -11,14 +11,23 @@ use tokio::sync::Mutex;
 /// This repository uses infrastructure traits for file I/O operations and
 /// maintains an in-memory cache to reduce file system access. The configuration
 /// file path is automatically inferred from the environment.
+#[derive(derive_setters::Setters)]
+#[setters(into)]
 pub struct AppConfigRepositoryImpl<F> {
     infra: Arc<F>,
     cache: Arc<Mutex<Option<AppConfig>>>,
+    override_model: Option<ModelId>,
+    override_provider: Option<ProviderId>,
 }
 
 impl<F> AppConfigRepositoryImpl<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Mutex::new(None)) }
+        Self {
+            infra,
+            cache: Arc::new(Mutex::new(None)),
+            override_model: None,
+            override_provider: None,
+        }
     }
 }
 
@@ -65,8 +74,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
     }
 
     fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
+        // CLI/API overrides take precedence, fall back to env var values
         let env = self.infra.get_environment();
-        (env.override_model, env.override_provider)
+        (
+            self.override_model.clone().or(env.override_model),
+            self.override_provider.clone().or(env.override_provider),
+        )
     }
 
     fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {

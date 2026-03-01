@@ -20,7 +20,7 @@ run:
         }
     }
     RUSTEOF
-  - FORGE_OVERRIDE_PROVIDER=zai_coding FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee --provider zai_coding --model {{model}} -p '{{task}}'
 
 parallelism: 5
 timeout: 120

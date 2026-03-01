@@ -89,12 +89,11 @@ pub struct Environment {
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
     pub workspace_server_url: Url,
     /// Override model for all providers from FORGE_OVERRIDE_MODEL environment
-    /// variable. If set, this model will be used instead of configured
-    /// models.
+    /// variable. Deprecated: use the --model CLI flag instead.
     #[dummy(default)]
     pub override_model: Option<ModelId>,
     /// Override provider from FORGE_OVERRIDE_PROVIDER environment variable.
-    /// If set, this provider will be used as default.
+    /// Deprecated: use the --provider CLI flag instead.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
     /// Maximum number of file extensions to include in the system prompt.
