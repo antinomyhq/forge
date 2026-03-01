@@ -733,10 +733,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
                 // Interactive mode will be handled by the main loop
             }
-            ConversationCommand::Show { id } => {
+            ConversationCommand::Show { id, md } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
 
-                self.on_show_last_message(conversation).await?;
+                self.on_show_last_message(conversation, md).await?;
             }
             ConversationCommand::Info { id } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
@@ -1695,7 +1695,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.state.conversation_id = Some(conversation_id);
 
             // Show conversation content
-            self.on_show_last_message(conversation).await?;
+            self.on_show_last_message(conversation, false).await?;
 
             // Print log about conversation switching
             self.writeln_title(TitleFormat::info(format!(
@@ -3233,10 +3233,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Shows the last message from a conversation
     ///
+    /// When `md` is true, the raw markdown content is printed without rendering.
+    /// When `md` is false, the content is rendered through the markdown renderer.
+    ///
     /// # Errors
     /// - If the conversation doesn't exist
     /// - If the conversation has no messages
-    async fn on_show_last_message(&mut self, conversation: Conversation) -> Result<()> {
+    async fn on_show_last_message(&mut self, conversation: Conversation, md: bool) -> Result<()> {
         let context = conversation
             .context
             .as_ref()
@@ -3252,7 +3255,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Format and display the message using the message_display module
         if let Some(message) = message {
-            self.writeln(self.markdown.render(message))?;
+            if md {
+                self.writeln(message)?;
+            } else {
+                self.writeln(self.markdown.render(message))?;
+            }
         }
 
         Ok(())

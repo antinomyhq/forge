@@ -568,6 +568,10 @@ pub enum ConversationCommand {
     Show {
         /// Conversation ID.
         id: ConversationId,
+
+        /// Print raw markdown without rendering.
+        #[arg(long)]
+        md: bool,
     },
 
     /// Show conversation details.
@@ -973,17 +977,41 @@ mod tests {
             "show",
             "550e8400-e29b-41d4-a716-446655440004",
         ]);
-        let id = match fixture.subcommands {
+        let (id, md) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Show { id } => id,
-                _ => ConversationId::default(),
+                ConversationCommand::Show { id, md } => (id, md),
+                _ => (ConversationId::default(), false),
             },
-            _ => ConversationId::default(),
+            _ => (ConversationId::default(), false),
         };
         assert_eq!(
             id,
             ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
         );
+        assert_eq!(md, false);
+    }
+
+    #[test]
+    fn test_conversation_show_with_md_flag() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "show",
+            "550e8400-e29b-41d4-a716-446655440004",
+            "--md",
+        ]);
+        let (id, md) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Show { id, md } => (id, md),
+                _ => (ConversationId::default(), false),
+            },
+            _ => (ConversationId::default(), false),
+        };
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
+        );
+        assert_eq!(md, true);
     }
 
     #[test]
