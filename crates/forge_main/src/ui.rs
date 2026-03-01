@@ -3233,8 +3233,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Shows the last message from a conversation
     ///
-    /// When `md` is true, the raw markdown content is printed without rendering.
-    /// When `md` is false, the content is rendered through the markdown renderer.
+    /// When `md` is true, the raw markdown content is printed without
+    /// rendering. When `md` is false, the content is rendered through the
+    /// markdown renderer.
     ///
     /// # Errors
     /// - If the conversation doesn't exist
