@@ -54,6 +54,28 @@ impl From<ImageRecord> for forge_domain::Image {
     }
 }
 
+/// Repository-specific representation of Document
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub(super) struct DocumentRecord {
+    data: String,
+    mime_type: String,
+}
+
+impl From<&forge_domain::Document> for DocumentRecord {
+    fn from(doc: &forge_domain::Document) -> Self {
+        Self {
+            data: doc.data().to_string(),
+            mime_type: doc.mime_type().to_string(),
+        }
+    }
+}
+
+impl From<DocumentRecord> for forge_domain::Document {
+    fn from(record: DocumentRecord) -> Self {
+        forge_domain::Document::new_base64(record.data, record.mime_type)
+    }
+}
+
 /// Repository-specific representation of ToolCallId
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(transparent)]
@@ -376,6 +398,7 @@ pub(super) enum ToolValueRecord {
         conversation_id: String,
     },
     Image(ImageRecord),
+    Document(DocumentRecord),
     Empty,
     // Legacy variants for backward compatibility with old conversations
     // These were removed from the domain model but may exist in stored data
@@ -404,6 +427,7 @@ impl From<&forge_domain::ToolValue> for ToolValueRecord {
                 conversation_id: conversation_id.into_string(),
             },
             forge_domain::ToolValue::Image(img) => Self::Image(ImageRecord::from(img)),
+            forge_domain::ToolValue::Document(doc) => Self::Document(DocumentRecord::from(doc)),
             forge_domain::ToolValue::Empty => Self::Empty,
         }
     }
@@ -420,6 +444,7 @@ impl TryFrom<ToolValueRecord> for forge_domain::ToolValue {
                 conversation_id: ConversationId::parse(conversation_id)?,
             },
             ToolValueRecord::Image(img) => Self::Image(img.into()),
+            ToolValueRecord::Document(doc) => Self::Document(doc.into()),
             ToolValueRecord::Empty => Self::Empty,
             // Legacy variant migrations
             ToolValueRecord::Markdown(md) => Self::Text(md),
@@ -497,6 +522,7 @@ pub(super) enum ContextMessageValueRecord {
     Text(TextMessageRecord),
     Tool(ToolResultRecord),
     Image(ImageRecord),
+    Document(DocumentRecord),
 }
 
 impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
@@ -507,6 +533,9 @@ impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
                 Self::Tool(ToolResultRecord::from(result))
             }
             forge_domain::ContextMessage::Image(img) => Self::Image(ImageRecord::from(img)),
+            forge_domain::ContextMessage::Document(doc) => {
+                Self::Document(DocumentRecord::from(doc))
+            }
         }
     }
 }
@@ -519,6 +548,7 @@ impl TryFrom<ContextMessageValueRecord> for forge_domain::ContextMessage {
             ContextMessageValueRecord::Text(msg) => Self::Text(msg.try_into()?),
             ContextMessageValueRecord::Tool(result) => Self::Tool(result.try_into()?),
             ContextMessageValueRecord::Image(img) => Self::Image(img.into()),
+            ContextMessageValueRecord::Document(doc) => Self::Document(doc.into()),
         })
     }
 }
