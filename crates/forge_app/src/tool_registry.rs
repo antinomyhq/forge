@@ -6,7 +6,7 @@ use console::style;
 use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
     Model, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind,
-    ToolName, ToolOutput, ToolResult,
+    ToolName, ToolOutput, ToolResult, ToolValue,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -21,8 +21,8 @@ use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
-    AgentRegistry, EnvironmentService, McpService, PolicyService, ProviderService, Services,
-    ToolResolver, WorkspaceService,
+    AgentRegistry, EnvironmentService, FsWriteService, McpService, PolicyService, ProviderService,
+    Services, ToolResolver, WorkspaceService,
 };
 
 pub struct ToolRegistry<S> {
@@ -172,7 +172,15 @@ impl<S: Services> ToolRegistry<S> {
                     })
                     .await?;
             }
-            Ok(output)
+
+            let env = self.services.get_environment();
+            Ok(truncate_mcp_output(
+                self.services.clone(),
+                output,
+                env.mcp_truncation_limit,
+                env.max_line_length,
+            )
+            .await)
         } else {
             Err(Error::NotFound(input.name).into())
         }
@@ -370,6 +378,65 @@ impl<S> ToolRegistry<S> {
 
         Ok(())
     }
+}
+
+/// Truncates MCP output using line-based truncation strategy.
+async fn truncate_mcp_output<S: FsWriteService>(
+    services: Arc<S>,
+    output: ToolOutput,
+    line_limit: usize,
+    max_line_length: usize,
+) -> ToolOutput {
+    let mut remaining_lines = line_limit;
+    let mut new_values = Vec::with_capacity(output.values.len());
+    for value in output.values {
+        let new_value = match value {
+            ToolValue::Text(text) if text.lines().count() > remaining_lines => {
+                match crate::truncation::truncate_mcp_content(
+                    &text,
+                    remaining_lines,
+                    max_line_length,
+                ) {
+                    crate::truncation::McpTruncationResult::Truncated(truncated) => {
+                        // Create temp file and convert to XML
+                        match crate::utils::create_temp_file(
+                            &*services,
+                            "forge_mcp_",
+                            ".txt",
+                            &text,
+                        )
+                        .await
+                        {
+                            Ok(temp_path) => {
+                                remaining_lines = 0;
+                                ToolValue::Text(truncated.into_xml(temp_path))
+                            }
+                            Err(_) => {
+                                // Fallback: return original text on error
+                                remaining_lines =
+                                    remaining_lines.saturating_sub(text.lines().count());
+                                ToolValue::Text(text)
+                            }
+                        }
+                    }
+                    crate::truncation::McpTruncationResult::Complete(complete) => {
+                        // Not actually truncated, pass through
+                        remaining_lines = remaining_lines.saturating_sub(text.lines().count());
+                        ToolValue::Text(complete.content)
+                    }
+                }
+            }
+            ToolValue::Text(text) => {
+                // Content fits within limit, pass through
+                remaining_lines = remaining_lines.saturating_sub(text.lines().count());
+                ToolValue::Text(text)
+            }
+            other => other, // Non-text values pass through
+        };
+        new_values.push(new_value);
+    }
+
+    ToolOutput { values: new_values, is_error: output.is_error }
 }
 
 #[cfg(test)]
@@ -914,4 +981,145 @@ fn test_all_rendered_tool_descriptions() {
         "all_rendered_tool_descriptions",
         all_descriptions.join("\n---\n\n")
     );
+}
+
+// Tests for MCP truncation
+#[cfg(test)]
+mod mcp_truncation_tests {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use forge_domain::{ToolOutput, ToolValue};
+
+    use super::*;
+    use crate::{FsWriteOutput, FsWriteService};
+
+    #[derive(Clone)]
+    struct MockFsWriteService {
+        written_files: Arc<Mutex<HashMap<String, String>>>,
+    }
+
+    impl MockFsWriteService {
+        fn new() -> Self {
+            Self { written_files: Arc::new(Mutex::new(HashMap::new())) }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FsWriteService for MockFsWriteService {
+        async fn write(
+            &self,
+            path: String,
+            content: String,
+            _overwrite: bool,
+        ) -> anyhow::Result<FsWriteOutput> {
+            self.written_files
+                .lock()
+                .unwrap()
+                .insert(path.clone(), content);
+            Ok(FsWriteOutput {
+                path,
+                before: None,
+                errors: vec![],
+                content_hash: "mock_hash".to_string(),
+            })
+        }
+    }
+
+    /// Formats ToolOutput for snapshot testing by extracting and formatting
+    /// text values
+    fn format_tool_output(output: ToolOutput) -> String {
+        let mut result = String::new();
+
+        for (i, value) in output.values.iter().enumerate() {
+            if i > 0 {
+                result.push_str("\n---\n");
+            }
+            match value {
+                ToolValue::Text(text) => {
+                    let redacted = redact_temp_path(text);
+                    result.push_str(&redacted);
+                }
+                ToolValue::Image(img) => {
+                    result.push_str(&format!("[Image: {}]", img.mime_type()));
+                }
+                ToolValue::Empty => {
+                    result.push_str("[Empty]");
+                }
+                ToolValue::AI { value, .. } => {
+                    result.push_str(&redact_temp_path(value));
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Redacts temp file paths from XML output for deterministic snapshots
+    fn redact_temp_path(xml: &str) -> String {
+        let re =
+            regex::Regex::new(r"(?:/var/folders/[^/]+/[^/]+/T|/tmp)/forge_mcp_\w+\.txt").unwrap();
+        re.replace_all(xml, "[TEMP_FILE]").to_string()
+    }
+
+    #[tokio::test]
+    async fn test_text_below_limit_passes_through() {
+        let services = Arc::new(MockFsWriteService::new());
+        let fixture = ToolOutput::text("Short text");
+        let actual = truncate_mcp_output(services, fixture, 100, 2000).await;
+        let expected = ToolOutput::text("Short text");
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_multiline_text_below_limit_passes_through() {
+        let services = Arc::new(MockFsWriteService::new());
+        let text = (1..=3)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let fixture = ToolOutput::text(text.clone());
+        // Limit is 10 lines, content has only 3 lines - should pass through unchanged
+        let actual = truncate_mcp_output(services, fixture, 10, 2000).await;
+        let expected = ToolOutput::text(text);
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_text_values_with_limit_across_all() {
+        let services = Arc::new(MockFsWriteService::new());
+        // Create multi-line content: 3 lines in first value, 2 lines in second value
+        let first_text = (1..=3)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let second_text = (4..=5)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let fixture = ToolOutput {
+            values: vec![ToolValue::Text(first_text), ToolValue::Text(second_text)],
+            is_error: false,
+        };
+
+        // Limit to 2 lines total - should keep first 2 lines and truncate the rest
+        let actual = truncate_mcp_output(services, fixture, 2, 2000).await;
+        insta::assert_snapshot!(format_tool_output(actual));
+    }
+
+    #[tokio::test]
+    async fn test_single_value_truncation() {
+        let services = Arc::new(MockFsWriteService::new());
+        // Create content with 10 lines
+        let fixture_text = (1..=10)
+            .map(|i| format!("Line {} with some content", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let fixture = ToolOutput::text(fixture_text);
+
+        // Limit to 3 lines - should keep first 3 lines and truncate the rest
+        let actual = truncate_mcp_output(services, fixture, 3, 2000).await;
+        insta::assert_snapshot!(format_tool_output(actual));
+    }
 }

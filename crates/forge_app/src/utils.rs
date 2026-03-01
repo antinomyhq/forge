@@ -1,6 +1,6 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::{Match, MatchResult};
+use crate::{FsWriteService, Match, MatchResult};
 
 /// Formats a path for display, converting absolute paths to relative when
 /// possible
@@ -87,6 +87,30 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
         }
         None => format_display_path(Path::new(&matched.path), base_dir),
     }
+}
+
+/// Creates a temporary file with the given content
+pub async fn create_temp_file<S: FsWriteService>(
+    services: &S,
+    prefix: &str,
+    ext: &str,
+    content: &str,
+) -> anyhow::Result<PathBuf> {
+    let path = tempfile::Builder::new()
+        .disable_cleanup(true)
+        .prefix(prefix)
+        .suffix(ext)
+        .tempfile()?
+        .into_temp_path()
+        .to_path_buf();
+    services
+        .write(
+            path.to_string_lossy().to_string(),
+            content.to_string(),
+            true,
+        )
+        .await?;
+    Ok(path)
 }
 
 /// Computes SHA-256 hash of the given content
