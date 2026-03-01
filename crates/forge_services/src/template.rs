@@ -178,7 +178,7 @@ mod tests {
 
         // Expected: Result should contain the rendered system info with substituted
         // values
-        assert!(actual.contains("<operating_system>test-os</operating_system>"));
+        assert!(actual.contains("**Operating System**: `test-os`"));
         assert!(actual.contains("file1.txt"));
         assert!(actual.contains("file2.txt"));
     }
