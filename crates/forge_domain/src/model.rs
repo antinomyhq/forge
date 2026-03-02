@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use schemars::JsonSchema;
@@ -57,14 +55,6 @@ pub struct ModelId(String);
 impl ModelId {
     pub fn new<T: Into<String>>(id: T) -> Self {
         Self(id.into())
-    }
-}
-
-impl FromStr for ModelId {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(ModelId::new(s))
     }
 }
 
