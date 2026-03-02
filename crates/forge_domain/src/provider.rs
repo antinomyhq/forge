@@ -96,12 +96,12 @@ impl ProviderId {
         ]
     }
 
-    /// Returns the display name for UI (UpperCamelCase with special handling
+    /// Returns the display name for UI (Title Case with special handling
     /// for acronyms).
     ///
     /// This converts snake_case IDs to proper display names:
     /// - "openai" -> "OpenAI"
-    /// - "open_router" -> "OpenRouter"
+    /// - "open_router" -> "Open Router"
     /// - "xai" -> "XAI"
     fn display_name(&self) -> String {
         // Special cases for known providers with acronyms
@@ -109,15 +109,15 @@ impl ProviderId {
             "openai" => "OpenAI".to_string(),
             "xai" => "XAI".to_string(),
             "zai" => "ZAI".to_string(),
-            "vertex_ai" => "VertexAI".to_string(),
-            "vertex_ai_anthropic" => "VertexAIAnthropic".to_string(),
-            "openai_compatible" => "OpenAICompatible".to_string(),
-            "io_intelligence" => "IOIntelligence".to_string(),
+            "vertex_ai" => "Vertex AI".to_string(),
+            "vertex_ai_anthropic" => "Vertex AI Anthropic".to_string(),
+            "openai_compatible" => "OpenAI Compatible".to_string(),
+            "io_intelligence" => "IO Intelligence".to_string(),
             "codex" => "Codex".to_string(),
             _ => {
-                // For other providers, use UpperCamelCase conversion
+                // For other providers, use Title case conversion
                 use convert_case::{Case, Casing};
-                self.0.to_case(Case::UpperCamel)
+                self.0.to_case(Case::Title)
             }
         }
     }

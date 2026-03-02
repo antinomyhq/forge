@@ -84,7 +84,7 @@ function _forge_action_provider() {
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID) from the selected line
         # Format: "DisplayName  provider_id  host  type  status"
-        local provider_id=$(echo "$selected" | awk '{print $2}')
+        local provider_id=$(echo "$selected" | awk -F '  +' '{print $2}')
         # Always use config set - it will handle authentication if needed
         _forge_exec config set provider "$provider_id"
     fi
@@ -131,14 +131,9 @@ function _forge_action_model() {
         if [[ -n "$selected" ]]; then
             # Field 1 = model_id (raw), field 3 = provider display name,
             # field 4 = provider_id (raw, for config set)
-            # Extract all fields in a single awk call for efficiency
-            local model_id provider_id provider_display
-            read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
-
-            # Trim whitespace
-            model_id=${model_id//[[:space:]]/}
-            provider_id=${provider_id//[[:space:]]/}
-            provider_display=${provider_display//[[:space:]]/}
+            local model_id=$(echo "$selected" | awk -F '  +' '{print $1}')
+            local provider_display=$(echo "$selected" | awk -F '  +' '{print $3}')
+            local provider_id=$(echo "$selected" | awk -F '  +' '{print $4}')
 
             # Switch provider first if it differs from the current one
             # config get provider returns the display name, so compare against that
