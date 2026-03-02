@@ -670,6 +670,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            TopLevelCommand::Update(args) => {
+                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                on_update(self.api.clone(), Some(&update)).await;
+                return Ok(());
+            }
         }
         Ok(())
     }
