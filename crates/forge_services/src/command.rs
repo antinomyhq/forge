@@ -190,7 +190,7 @@ mod tests {
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
         let builtin_commands = [
-            ("fixme", "../../commands/fixme.md"),
+            ("fixme", "../../.forge/commands/fixme.md"),
             ("check", "../../.forge/commands/check.md"),
         ];
 
@@ -223,16 +223,6 @@ mod tests {
         assert_eq!(command.name.as_str(), "github-pr-description");
         assert!(!command.description.is_empty());
         assert!(command.prompt.is_some());
-
-        // Verify fixme
-        let fixme = actual
-            .iter()
-            .find(|c| c.name.as_str() == "fixme")
-            .expect("fixme should be a built-in command");
-
-        assert_eq!(fixme.name.as_str(), "fixme");
-        assert!(!fixme.description.is_empty());
-        assert!(fixme.prompt.is_some());
     }
 
     #[test]
