@@ -32,7 +32,6 @@ use crate::fuzzy_search::ForgeFuzzySearchRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
-use crate::workspace::ForgeWorkspaceRepository;
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -47,7 +46,6 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
-    indexing_repository: Arc<ForgeWorkspaceRepository>,
     codebase_repo: Arc<ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
@@ -56,7 +54,11 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
-    pub fn new(infra: Arc<F>) -> Self {
+    pub fn new(
+        infra: Arc<F>,
+        override_model: Option<forge_domain::ModelId>,
+        override_provider: Option<forge_domain::ProviderId>,
+    ) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -66,7 +68,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
+        let app_config_repository = Arc::new(
+            AppConfigRepositoryImpl::new(infra.clone())
+                .override_model(override_model)
+                .override_provider(override_provider),
+        );
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -75,8 +81,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
-
-        let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
 
         let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
@@ -91,7 +95,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             mcp_cache_repository,
             provider_repository,
             chat_repository,
-            indexing_repository,
             codebase_repo,
             agent_repository,
             skill_repository,
@@ -240,8 +243,13 @@ impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
         self.infra.http_get(url, headers).await
     }
 
-    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.infra.http_post(url, body).await
+    async fn http_post(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Response> {
+        self.infra.http_post(url, headers, body).await
     }
 
     async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
@@ -284,6 +292,15 @@ where
     async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
         self.infra.read_utf8(path).await
     }
+
+    fn read_batch_utf8(
+        &self,
+        batch_size: usize,
+        paths: Vec<PathBuf>,
+    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        self.infra.read_batch_utf8(batch_size, paths)
+    }
+
     async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
         self.infra.read(path).await
     }
@@ -489,32 +506,6 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
-    async fn upsert(
-        &self,
-        workspace_id: &forge_domain::WorkspaceId,
-        user_id: &forge_domain::UserId,
-        path: &std::path::Path,
-    ) -> anyhow::Result<()> {
-        self.indexing_repository
-            .upsert(workspace_id, user_id, path)
-            .await
-    }
-
-    async fn list(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
-        self.indexing_repository.list().await
-    }
-
-    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
-        self.indexing_repository.get_user_id().await
-    }
-
-    async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
-        self.indexing_repository.delete(workspace_id).await
     }
 }
 

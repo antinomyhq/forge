@@ -1,10 +1,88 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use forge_app::domain::{Context as ChatContext, ContextMessage, Role, ToolChoice};
 use forge_app::utils::enforce_strict_schema;
-use forge_domain::{Effort, ReasoningConfig};
+use forge_domain::{Effort, ReasoningConfig, ReasoningFull};
 
 use crate::provider::FromDomain;
+
+/// Groups reasoning details by their ID and builds OpenAI `ReasoningItem`
+/// input items.
+///
+/// Following the reference implementation, each reasoning output item is
+/// identified by an `id`. When replaying multi-turn conversations with
+/// `store=false`, we must reconstruct the `ReasoningItem` with both:
+/// - `encrypted_content` from `reasoning.encrypted` details
+/// - `summary` parts from `reasoning.summary` details
+///
+/// Details sharing the same ID are merged into a single `ReasoningItem`.
+/// Details without an ID or with empty encrypted content are skipped.
+fn map_reasoning_details_to_input_items(
+    reasoning_details: Vec<ReasoningFull>,
+) -> Vec<oai::InputItem> {
+    // Group all details by ID so we can merge encrypted + summary for each
+    // reasoning item.
+    let mut grouped: HashMap<String, (Option<String>, Vec<String>)> = HashMap::new();
+    // Track insertion order so output is deterministic.
+    let mut order: Vec<String> = Vec::new();
+
+    for detail in reasoning_details {
+        let id = match detail.id {
+            Some(ref id) if !id.is_empty() => id.clone(),
+            _ => continue,
+        };
+
+        let entry = grouped.entry(id.clone()).or_insert_with(|| {
+            order.push(id.clone());
+            (None, Vec::new())
+        });
+
+        match detail.type_of.as_deref() {
+            Some("reasoning.encrypted") => {
+                if let Some(data) = detail.data
+                    && !data.is_empty()
+                {
+                    entry.0 = Some(data);
+                }
+            }
+            Some("reasoning.summary") => {
+                if let Some(text) = detail.text
+                    && !text.is_empty()
+                {
+                    entry.1.push(text);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    order
+        .into_iter()
+        .filter_map(|id| {
+            let (encrypted_content, summary_texts) = grouped.remove(&id)?;
+
+            // Must have encrypted content to be a valid reasoning replay item
+            let encrypted_content = encrypted_content?;
+
+            let summary: Vec<oai::SummaryPart> = summary_texts
+                .into_iter()
+                .map(|text| oai::SummaryPart::SummaryText(oai::Summary { text }))
+                .collect();
+
+            Some(oai::InputItem::Item(oai::Item::Reasoning(
+                oai::ReasoningItem {
+                    id,
+                    summary,
+                    content: None,
+                    encrypted_content: Some(encrypted_content),
+                    status: None,
+                },
+            )))
+        })
+        .collect()
+}
 
 impl FromDomain<ToolChoice> for oai::ToolChoiceParam {
     fn from_domain(choice: ToolChoice) -> anyhow::Result<Self> {
@@ -68,9 +146,7 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
 ///
 /// # Errors
 /// Returns an error if schema serialization fails
-fn codex_tool_parameters(
-    schema: &schemars::schema::RootSchema,
-) -> anyhow::Result<serde_json::Value> {
+fn codex_tool_parameters(schema: &schemars::Schema) -> anyhow::Result<serde_json::Value> {
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
@@ -86,20 +162,31 @@ fn codex_tool_parameters(
 ///
 /// Supported subset (first iteration):
 /// - Text messages (system/user/assistant)
+/// - Image messages (user)
 /// - Assistant tool calls (full)
 /// - Tool results
 /// - tools + tool_choice
 /// - max_tokens, temperature, top_p
 impl FromDomain<ChatContext> for oai::CreateResponse {
     fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
-        let mut instructions: Vec<String> = Vec::new();
+        let prompt_cache_key = context.conversation_id.as_ref().map(ToString::to_string);
+
+        let mut instructions: Option<String> = None;
         let mut items: Vec<oai::InputItem> = Vec::new();
 
         for entry in context.messages {
             match entry.message {
                 ContextMessage::Text(message) => match message.role {
                     Role::System => {
-                        instructions.push(message.content);
+                        if instructions.is_none() {
+                            instructions = Some(message.content);
+                        } else {
+                            items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                                r#type: oai::MessageType::Message,
+                                role: oai::Role::Developer,
+                                content: oai::EasyInputContent::Text(message.content),
+                            }));
+                        }
                     }
                     Role::User => {
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
@@ -117,17 +204,20 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                             }));
                         }
 
+                        if let Some(reasoning_details) = message.reasoning_details {
+                            items.extend(map_reasoning_details_to_input_items(reasoning_details));
+                        }
+
                         if let Some(tool_calls) = message.tool_calls {
                             for call in tool_calls {
-                                let call_id = call
-                                    .call_id
-                                    .as_ref()
-                                    .map(|id| id.as_str().to_string())
-                                    .ok_or_else(|| {
-                                    anyhow::anyhow!(
-                                        "Tool call is missing call_id; cannot be sent to Responses API"
-                                    )
-                                })?;
+                                let call_id =
+                                    call.call_id.as_ref().map(|id| id.as_str().to_string()).ok_or_else(
+                                        || {
+                                            anyhow::anyhow!(
+                                                "Tool call is missing call_id; cannot be sent to Responses API"
+                                            )
+                                        },
+                                    )?;
 
                                 items.push(oai::InputItem::Item(oai::Item::FunctionCall(
                                     oai::FunctionToolCall {
@@ -165,13 +255,23 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                         },
                     )));
                 }
-                ContextMessage::Image(_) => {
-                    anyhow::bail!("Codex (Responses API) path does not yet support image inputs");
+                ContextMessage::Image(img) => {
+                    // Mirror the Chat Completions request path: represent image input
+                    // as a user message with structured content.
+                    items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                        r#type: oai::MessageType::Message,
+                        role: oai::Role::User,
+                        content: oai::EasyInputContent::ContentList(vec![
+                            oai::InputContent::InputImage(oai::InputImageContent {
+                                detail: oai::ImageDetail::Auto,
+                                file_id: None,
+                                image_url: Some(img.url().clone()),
+                            }),
+                        ]),
+                    }));
                 }
             }
         }
-
-        let instructions = (!instructions.is_empty()).then(|| instructions.join("\n\n"));
 
         let max_output_tokens = context
             .max_tokens
@@ -231,6 +331,10 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
         if let Some(reasoning) = context.reasoning {
             let reasoning_config = oai::Reasoning::from_domain(reasoning)?;
             builder.reasoning(reasoning_config);
+        }
+
+        if let Some(prompt_cache_key) = prompt_cache_key {
+            builder.prompt_cache_key(prompt_cache_key);
         }
 
         let mut response = builder.build().map_err(anyhow::Error::from)?;
@@ -412,6 +516,67 @@ mod tests {
         forge_app::domain::ToolCallFull::new(name)
             .call_id(ToolCallId::new(call_id))
             .arguments(forge_app::domain::ToolCallArguments::from_json(args))
+    }
+
+    #[test]
+    fn test_codex_request_tools_snapshot() -> anyhow::Result<()> {
+        // Build a schema that exercises OpenAI strict-mode normalization:
+        // - object schema receives additionalProperties=false
+        // - required keys are sorted
+        // - nullable + enum(null) is converted to anyOf
+        let schema_value = serde_json::json!({
+            "type": "object",
+            "properties": {
+                // Intentionally out-of-order to verify required keys are sorted.
+                "zebra": {"type": "string"},
+                "alpha": {"type": "string"},
+                "output_mode": {
+                    "description": "Output mode",
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["content", "count", null]
+                }
+            }
+        });
+        let schema = schemars::Schema::try_from(schema_value).unwrap();
+
+        let tool = forge_app::domain::ToolDefinition::new("shell")
+            .description("Run a shell command")
+            .input_schema(schema);
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_tool(tool)
+            .tool_choice(ToolChoice::Auto);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        insta::assert_json_snapshot!("openai_responses_tools", actual.tools);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_all_catalog_tools_snapshot() -> anyhow::Result<()> {
+        use forge_app::domain::ToolCatalog;
+        use strum::IntoEnumIterator;
+
+        // Ensure we can serialize ALL built-in tool definitions into the OpenAI
+        // Responses API tool format with strict JSON schema normalization.
+        let tools = ToolCatalog::iter()
+            .map(|tool| tool.definition())
+            .collect::<Vec<_>>();
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .tools(tools)
+            .tool_choice(ToolChoice::Auto);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        insta::assert_json_snapshot!("openai_responses_all_catalog_tools", actual.tools);
+
+        Ok(())
     }
 
     #[test]
@@ -668,6 +833,149 @@ mod tests {
         );
     }
     #[test]
+    fn test_codex_request_sets_prompt_cache_key_from_conversation_id() -> anyhow::Result<()> {
+        use forge_domain::ConversationId;
+
+        let conversation_id = ConversationId::generate();
+        let context = ChatContext::default()
+            .conversation_id(conversation_id)
+            .add_message(ContextMessage::user("Hello", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+        let expected = Some(conversation_id.to_string());
+
+        assert_eq!(actual.prompt_cache_key, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_without_conversation_id_has_no_prompt_cache_key() -> anyhow::Result<()> {
+        let context = ChatContext::default().add_message(ContextMessage::user("Hello", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert_eq!(actual.prompt_cache_key, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_maps_reasoning_encrypted_and_summary_to_reasoning_input_items()
+    -> anyhow::Result<()> {
+        use forge_domain::ReasoningFull;
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                Some(vec![
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("rs_123".to_string()))
+                        .data(Some("enc_payload_1".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.summary".to_string()))
+                        .id(Some("rs_123".to_string()))
+                        .text(Some("Summary of reasoning".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.text".to_string()))
+                        .id(Some("rs_123".to_string()))
+                        .text(Some(
+                            "visible reasoning should not be in summary".to_string(),
+                        )),
+                ]),
+                None,
+            ))
+            .add_message(ContextMessage::user("continue", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        assert_eq!(items.len(), 2);
+        assert!(matches!(
+            &items[0],
+            oai::InputItem::Item(oai::Item::Reasoning(_))
+        ));
+        assert!(matches!(&items[1], oai::InputItem::EasyMessage(_)));
+
+        let oai::InputItem::Item(oai::Item::Reasoning(reasoning_item)) = &items[0] else {
+            anyhow::bail!("Expected first item to be reasoning item");
+        };
+
+        let expected = oai::ReasoningItem {
+            id: "rs_123".to_string(),
+            summary: vec![oai::SummaryPart::SummaryText(oai::Summary {
+                text: "Summary of reasoning".to_string(),
+            })],
+            content: None,
+            encrypted_content: Some("enc_payload_1".to_string()),
+            status: None,
+        };
+
+        assert_eq!(reasoning_item, &expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_skips_invalid_encrypted_reasoning_details() -> anyhow::Result<()> {
+        use forge_domain::ReasoningFull;
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                Some(vec![
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("".to_string()))
+                        .data(Some("enc_missing_id".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("rs_missing_data".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("rs_ok".to_string()))
+                        .data(Some("enc_ok".to_string())),
+                ]),
+                None,
+            ))
+            .add_message(ContextMessage::user("continue", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        assert_eq!(items.len(), 2);
+        assert!(matches!(
+            &items[0],
+            oai::InputItem::Item(oai::Item::Reasoning(_))
+        ));
+
+        let oai::InputItem::Item(oai::Item::Reasoning(reasoning_item)) = &items[0] else {
+            anyhow::bail!("Expected first item to be reasoning item");
+        };
+
+        let expected = oai::ReasoningItem {
+            id: "rs_ok".to_string(),
+            summary: vec![],
+            content: None,
+            encrypted_content: Some("enc_ok".to_string()),
+            status: None,
+        };
+
+        assert_eq!(reasoning_item, &expected);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_codex_request_with_temperature() -> anyhow::Result<()> {
         use forge_app::domain::Temperature;
 
@@ -748,7 +1056,23 @@ mod tests {
 
         let actual = oai::CreateResponse::from_domain(context)?;
 
-        assert_eq!(actual.instructions.as_deref(), Some("System 1\n\nSystem 2"));
+        assert_eq!(actual.instructions.as_deref(), Some("System 1"));
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        // System 2 (Developer) + User
+        assert_eq!(items.len(), 2);
+
+        let oai::InputItem::EasyMessage(dev_msg) = &items[0] else {
+            anyhow::bail!("Expected first item to be a message");
+        };
+        assert_eq!(dev_msg.role, oai::Role::Developer);
+        assert_eq!(
+            dev_msg.content,
+            oai::EasyInputContent::Text("System 2".to_string())
+        );
 
         Ok(())
     }
@@ -804,21 +1128,44 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_request_with_image_input_returns_error() {
+    fn test_codex_request_with_image_input_is_supported() -> anyhow::Result<()> {
         use forge_domain::Image;
 
         let image = Image::new_base64("test123".to_string(), "image/png");
         let context = ChatContext::default().add_message(ContextMessage::Image(image));
 
-        let result = oai::CreateResponse::from_domain(context);
+        let actual = oai::CreateResponse::from_domain(context)?;
 
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Codex (Responses API) path does not yet support image inputs")
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        assert_eq!(items.len(), 1);
+
+        let oai::InputItem::EasyMessage(message) = &items[0] else {
+            anyhow::bail!("Expected first item to be an EasyMessage");
+        };
+
+        assert_eq!(message.role, oai::Role::User);
+
+        let oai::EasyInputContent::ContentList(content) = &message.content else {
+            anyhow::bail!("Expected ContentList for image message content");
+        };
+
+        assert_eq!(content.len(), 1);
+
+        let oai::InputContent::InputImage(image) = &content[0] else {
+            anyhow::bail!("Expected InputImage content");
+        };
+
+        assert_eq!(image.detail, oai::ImageDetail::Auto);
+        assert!(image.file_id.is_none());
+        assert_eq!(
+            image.image_url.as_deref(),
+            Some("data:image/png;base64,test123")
         );
+
+        Ok(())
     }
 
     #[test]

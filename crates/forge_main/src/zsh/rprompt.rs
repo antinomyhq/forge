@@ -26,8 +26,14 @@ pub struct ZshRPrompt {
     /// Controls whether to render nerd font symbols. Defaults to `true`.
     #[setters(into)]
     use_nerd_font: bool,
+    /// Currency symbol for cost display (e.g., "INR", "EUR", "$", "€").
+    /// Defaults to "$".
+    #[setters(into)]
+    currency_symbol: String,
+    /// Conversion ratio for cost display. Cost is multiplied by this value.
+    /// Defaults to 1.0.
+    conversion_ratio: f64,
 }
-
 impl Default for ZshRPrompt {
     fn default() -> Self {
         Self {
@@ -36,6 +42,8 @@ impl Default for ZshRPrompt {
             token_count: None,
             cost: None,
             use_nerd_font: true,
+            currency_symbol: "\u{f155}".to_string(),
+            conversion_ratio: 1.0,
         }
     }
 }
@@ -82,7 +90,8 @@ impl Display for ZshRPrompt {
         if let Some(cost) = self.cost
             && active
         {
-            let cost_str = format!("{:.2}", cost);
+            let converted_cost = cost * self.conversion_ratio;
+            let cost_str = format!("{}{:.2}", self.currency_symbol, converted_cost);
             write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN).bold())?;
         }
 
@@ -142,6 +151,7 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .token_count(Some(TokenCount::Actual(1500)))
             .cost(Some(0.0123))
+            .currency_symbol("\u{f155}")
             .to_string();
 
         let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}\u{ec19} gpt-4%f";
@@ -159,6 +169,37 @@ mod tests {
             .to_string();
 
         let expected = " %B%F{15}FORGE%f%b %B%F{15}1.5k%f%b %F{134}gpt-4%f";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_rprompt_with_currency_conversion() {
+        // Test with custom currency symbol and conversion ratio
+        let actual = ZshRPrompt::default()
+            .agent(Some(AgentId::new("forge")))
+            .model(Some(ModelId::new("gpt-4")))
+            .token_count(Some(TokenCount::Actual(1500)))
+            .cost(Some(0.01))
+            .currency_symbol("INR")
+            .conversion_ratio(83.5)
+            .to_string();
+
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}INR0.83%f%b %F{134}\u{ec19} gpt-4%f";
+        assert_eq!(actual, expected);
+    }
+    #[test]
+    fn test_rprompt_with_eur_currency() {
+        // Test with EUR currency
+        let actual = ZshRPrompt::default()
+            .agent(Some(AgentId::new("forge")))
+            .model(Some(ModelId::new("gpt-4")))
+            .token_count(Some(TokenCount::Actual(1500)))
+            .cost(Some(0.01))
+            .currency_symbol("€")
+            .conversion_ratio(0.92)
+            .to_string();
+
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}€0.01%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 }

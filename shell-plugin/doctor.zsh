@@ -140,7 +140,7 @@ if command -v forge &> /dev/null; then
         print_result info "${forge_path}"
     fi
 else
-    print_result fail "Forge binary not found in PATH" "Installation: npm i -g forgecode@latest"
+    print_result fail "Forge binary not found in PATH" "Installation: curl -fsSL https://forgecode.dev/cli | sh"
 fi
 
 # 3. Check shell plugin

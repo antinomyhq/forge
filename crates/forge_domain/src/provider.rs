@@ -65,6 +65,7 @@ impl ProviderId {
     pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
+    pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
 
     /// Returns all built-in provider IDs
     ///
@@ -91,6 +92,7 @@ impl ProviderId {
             ProviderId::FORGE_SERVICES,
             ProviderId::IO_INTELLIGENCE,
             ProviderId::BEDROCK,
+            ProviderId::CODEX,
         ]
     }
 
@@ -111,6 +113,7 @@ impl ProviderId {
             "vertex_ai_anthropic" => "VertexAIAnthropic".to_string(),
             "openai_compatible" => "OpenAICompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
+            "codex" => "Codex".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -150,6 +153,7 @@ impl std::str::FromStr for ProviderId {
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
             "forge_services" => ProviderId::FORGE_SERVICES,
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
+            "codex" => ProviderId::CODEX,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -487,6 +491,20 @@ mod tests {
             "AnthropicCompatible"
         );
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
+        assert_eq!(ProviderId::CODEX.to_string(), "Codex");
+    }
+
+    #[test]
+    fn test_codex_from_str() {
+        let actual = ProviderId::from_str("codex").unwrap();
+        let expected = ProviderId::CODEX;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_codex_in_built_in_providers() {
+        let built_in = ProviderId::built_in_providers();
+        assert!(built_in.contains(&ProviderId::CODEX));
     }
 
     #[test]

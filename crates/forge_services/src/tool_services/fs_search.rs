@@ -527,6 +527,14 @@ mod test {
             unimplemented!()
         }
 
+        fn read_batch_utf8(
+            &self,
+            _batch_size: usize,
+            _paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            futures::stream::empty()
+        }
+
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
             fs::read(path)
                 .await

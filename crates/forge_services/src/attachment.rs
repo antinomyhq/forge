@@ -132,6 +132,7 @@ pub mod tests {
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
     use forge_domain::FileInfo;
+    use futures::stream;
 
     use crate::attachment::ForgeChatRequest;
 
@@ -225,6 +226,14 @@ pub mod tests {
                 }
                 None => Err(anyhow::anyhow!("File not found: {path:?}")),
             }
+        }
+
+        fn read_batch_utf8(
+            &self,
+            _: usize,
+            _: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            stream::empty()
         }
 
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
@@ -433,6 +442,14 @@ pub mod tests {
     impl FileReaderInfra for MockCompositeService {
         async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
             self.file_service.read_utf8(path).await
+        }
+
+        fn read_batch_utf8(
+            &self,
+            batch_size: usize,
+            paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+            self.file_service.read_batch_utf8(batch_size, paths)
         }
 
         async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {

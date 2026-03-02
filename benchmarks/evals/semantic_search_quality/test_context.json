@@ -1,0 +1,22 @@
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Find the retry mechanism with exponential backoff implementation"
+    },
+    {
+      "role": "assistant",
+      "content": "I'll search for the retry mechanism implementation.",
+      "tool_calls": [
+        {
+          "id": "call_1",
+          "type": "function",
+          "function": {
+            "name": "sem_search",
+            "arguments": "{\"queries\":[{\"query\":\"retry mechanism with exponential backoff for API calls handling network failures\",\"use_case\":\"I need to find the implementation code for retry logic with backoff, not documentation or test files\"}]}"
+          }
+        }
+      ]
+    }
+  ]
+}

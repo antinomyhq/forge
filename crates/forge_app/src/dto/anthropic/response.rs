@@ -295,6 +295,10 @@ impl TryFrom<Event> for ChatCompletionMessage {
             | Event::ContentBlockDelta { delta: content_block, .. } => {
                 ChatCompletionMessage::try_from(content_block)?
             }
+            Event::MessageStart { message } => {
+                // Extract usage from MessageStart - this contains input token counts
+                ChatCompletionMessage::assistant(Content::part("")).usage(message.usage)
+            }
             Event::MessageDelta { delta, usage } => {
                 ChatCompletionMessage::assistant(Content::part(""))
                     .finish_reason(delta.stop_reason)
@@ -591,6 +595,73 @@ mod tests {
         // Cache percentage should be 100%
         let cache_percentage = (*actual.cached_tokens * 100) / *actual.prompt_tokens;
         assert_eq!(cache_percentage, 100);
+    }
+
+    #[test]
+    fn test_vertex_ai_streaming_usage() {
+        use forge_domain::TokenCount;
+
+        // Simulate Vertex AI Anthropic streaming response
+        // message_start event with initial usage
+        let message_start_json = r#"{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-3-5-sonnet-v2@20241022","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":100,"cache_creation_input_tokens":0,"cache_read_input_tokens":50,"output_tokens":0}}}"#;
+
+        let message_start_event: Event = serde_json::from_str(message_start_json).unwrap();
+
+        // Extract usage from message_start
+        let initial_usage = match message_start_event {
+            Event::MessageStart { message } => message.usage,
+            _ => panic!("Expected MessageStart event"),
+        };
+
+        // message_delta event with final usage (includes output tokens)
+        let message_delta_json = r#"{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":75}}"#;
+
+        let message_delta_event: Event = serde_json::from_str(message_delta_json).unwrap();
+
+        // Extract usage from message_delta
+        let delta_usage = match message_delta_event {
+            Event::MessageDelta { usage, .. } => usage,
+            _ => panic!("Expected MessageDelta event"),
+        };
+
+        // Convert both to domain Usage
+        let initial_domain: forge_domain::Usage = initial_usage.into();
+        let delta_domain: forge_domain::Usage = delta_usage.into();
+
+        // Verify initial usage
+        assert_eq!(initial_domain.prompt_tokens, TokenCount::Actual(150)); // 100 + 0 + 50
+        assert_eq!(initial_domain.completion_tokens, TokenCount::Actual(0));
+        assert_eq!(initial_domain.cached_tokens, TokenCount::Actual(50));
+
+        // Verify delta usage (only has output_tokens)
+        assert_eq!(delta_domain.prompt_tokens, TokenCount::Actual(0));
+        assert_eq!(delta_domain.completion_tokens, TokenCount::Actual(75));
+        assert_eq!(delta_domain.cached_tokens, TokenCount::Actual(0));
+
+        // Accumulate usage (simulating how we'd combine them in practice)
+        let accumulated = initial_domain.accumulate(&delta_domain);
+        assert_eq!(accumulated.prompt_tokens, TokenCount::Actual(150));
+        assert_eq!(accumulated.completion_tokens, TokenCount::Actual(75));
+        assert_eq!(accumulated.cached_tokens, TokenCount::Actual(50));
+        assert_eq!(accumulated.total_tokens, TokenCount::Actual(225));
+    }
+
+    #[test]
+    fn test_message_start_event_includes_usage() {
+        use forge_domain::TokenCount;
+
+        // Test that MessageStart event properly extracts usage
+        let message_start_json = r#"{"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"claude-3-5-sonnet-v2@20241022","stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1000,"cache_creation_input_tokens":200,"cache_read_input_tokens":300,"output_tokens":0}}}"#;
+
+        let event: Event = serde_json::from_str(message_start_json).unwrap();
+        let message: ChatCompletionMessage = event.try_into().unwrap();
+
+        // Verify usage was extracted from MessageStart
+        let usage = message.usage.expect("Usage should be present");
+        assert_eq!(usage.prompt_tokens, TokenCount::Actual(1500)); // 1000 + 200 + 300
+        assert_eq!(usage.completion_tokens, TokenCount::Actual(0));
+        assert_eq!(usage.cached_tokens, TokenCount::Actual(300));
+        assert_eq!(usage.total_tokens, TokenCount::Actual(1500));
     }
 
     #[test]

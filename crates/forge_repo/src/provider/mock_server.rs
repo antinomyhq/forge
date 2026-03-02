@@ -36,6 +36,26 @@ impl MockServer {
             .await
     }
 
+    /// Mock SSE responses without `Content-Type: text/event-stream`.
+    /// Simulates the Codex backend behavior where SSE data is returned
+    /// as `application/octet-stream` instead of `text/event-stream`.
+    pub async fn mock_codex_responses_stream(
+        &mut self,
+        path: &str,
+        events: Vec<String>,
+        status: usize,
+    ) -> Mock {
+        let sse_body = events.join("\n\n");
+        self.server
+            .mock("POST", path)
+            .with_status(status)
+            .with_header("content-type", "application/octet-stream")
+            .with_header("cache-control", "no-cache")
+            .with_body(sse_body)
+            .create_async()
+            .await
+    }
+
     pub async fn mock_google_chat_stream(
         &mut self,
         model: &str,
