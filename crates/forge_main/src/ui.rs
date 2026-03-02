@@ -1188,14 +1188,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
-        for agent in agents {
+        for agent in &agents {
             let title = agent
                 .title
+                .as_ref()
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
                 .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
+        }
+
+        // Dynamically generate config-<agent>-model commands for every loaded agent
+        for agent in &agents {
+            let agent_id = agent.id.as_str();
+            let command_name = format!("config-{agent_id}-model");
+            let description = format!("Set the model for the {agent_id} agent");
+            info = info
+                .add_title(command_name)
+                .add_key_value("type", CommandType::Command)
+                .add_key_value("description", description);
         }
 
         let custom_commands = self.api.get_commands().await?;
