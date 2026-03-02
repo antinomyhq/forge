@@ -3158,20 +3158,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Sets the provider and model for a specific agent, persisting the
     /// override to app config.
-    async fn handle_agent_set_model(
-        &mut self,
-        args: crate::cli::AgentSetModelArgs,
-    ) -> Result<()> {
+    async fn handle_agent_set_model(&mut self, args: crate::cli::AgentSetModelArgs) -> Result<()> {
         self.api
-            .set_agent_model(args.agent_id.clone(), args.provider_id.clone(), args.model_id.clone())
+            .set_agent_model(
+                args.agent_id.clone(),
+                args.provider_id.clone(),
+                args.model_id.clone(),
+            )
             .await?;
         self.writeln_title(
-            TitleFormat::action(format!(
-                "{}/{}",
-                args.provider_id,
-                args.model_id.as_str()
-            ))
-            .sub_title(format!("is now the model for agent {}", args.agent_id.as_str())),
+            TitleFormat::action(format!("{}/{}", args.provider_id, args.model_id.as_str()))
+                .sub_title(format!(
+                    "is now the model for agent {}",
+                    args.agent_id.as_str()
+                )),
         )?;
         Ok(())
     }
@@ -3191,16 +3191,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(AgentId::new);
 
         // Make IO calls in parallel; use agent model if active, else global default
-        let (model_id, conversation) = tokio::join!(
-            self.get_agent_model(active_agent.clone()),
-            async {
+        let (model_id, conversation) =
+            tokio::join!(self.get_agent_model(active_agent.clone()), async {
                 if let Some(cid) = cid {
                     self.api.conversation(&cid).await.ok().flatten()
                 } else {
                     None
                 }
-            }
-        );
+            });
 
         // Calculate total cost including related conversations
         let cost = if let Some(ref conv) = conversation {

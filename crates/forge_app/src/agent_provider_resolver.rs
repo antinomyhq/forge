@@ -55,14 +55,13 @@ where
             None => self.0.get_active_agent_id().await.ok().flatten(),
         };
 
-        if let Some(agent_id) = resolved {
-            if let Some(agent) = self.0.get_agent(&agent_id).await? {
+        if let Some(agent_id) = resolved
+            && let Some(agent) = self.0.get_agent(&agent_id).await? {
                 return Ok(agent.model);
             }
-        }
 
         // Fall back to the global model set for the active provider
         let provider_id = self.get_provider(None).await?.id;
-        Ok(self.0.get_provider_model(Some(&provider_id)).await?)
+        self.0.get_provider_model(Some(&provider_id)).await
     }
 }
