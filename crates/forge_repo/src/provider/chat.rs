@@ -6,8 +6,8 @@ use forge_app::domain::{
 use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use forge_infra::CacacheStorage;
+use tokio::task::AbortHandle;
 use url::Url;
-
 use crate::provider::anthropic::AnthropicResponseRepository;
 use crate::provider::bedrock::BedrockResponseRepository;
 use crate::provider::google::GoogleResponseRepository;
@@ -22,6 +22,7 @@ const MODEL_CACHE_TTL_SECS: u128 = 7200;
 pub struct ForgeChatRepository<F> {
     router: Arc<ProviderRouter<F>>,
     model_cache: Arc<CacacheStorage>,
+    bg_refresh: BgRefresh,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
@@ -58,6 +59,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
                 google_repo,
             }),
             model_cache,
+            bg_refresh: BgRefresh::default(),
         }
     }
 }
@@ -85,12 +87,12 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
         {
             tracing::debug!(provider_id = %provider.id, "returning cached models; refreshing in background");
 
-            // Spawn a fire-and-forget task to refresh the disk cache. The cloned
-            // Arc references keep the router and cache alive for the full duration.
+            // Spawn a background task to refresh the disk cache. The abort
+            // handle is stored so the task is cancelled if the service is dropped.
             let cache = self.model_cache.clone();
             let router = self.router.clone();
             let key = cache_key;
-            tokio::spawn(async move {
+            let handle = tokio::spawn(async move {
                 match router.models(provider).await {
                     Ok(models) => {
                         if let Err(err) = cache.cache_set(&key, &models).await {
@@ -102,6 +104,7 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
                     }
                 }
             });
+            self.bg_refresh.register(handle.abort_handle());
 
             return Ok(cached);
         }
@@ -174,6 +177,29 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
                 "Provider response type not configured for provider: {}",
                 provider.id
             )),
+        }
+    }
+}
+
+/// Tracks abort handles for background tasks and cancels them on drop.
+#[derive(Default)]
+struct BgRefresh(std::sync::Mutex<Vec<AbortHandle>>);
+
+impl BgRefresh {
+    /// Registers an abort handle to be cancelled when this guard is dropped.
+    fn register(&self, handle: AbortHandle) {
+        if let Ok(mut handles) = self.0.lock() {
+            handles.push(handle);
+        }
+    }
+}
+
+impl Drop for BgRefresh {
+    fn drop(&mut self) {
+        if let Ok(mut handles) = self.0.lock() {
+            for handle in handles.drain(..) {
+                handle.abort();
+            }
         }
     }
 }
