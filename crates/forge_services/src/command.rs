@@ -26,13 +26,10 @@ impl<F> CommandLoaderService<F> {
     /// Load built-in commands that are embedded in the application binary.
     fn init_default(&self) -> anyhow::Result<Vec<Command>> {
         parse_command_iter(
-            [
-                (
-                    "github-pr-description",
-                    include_str!("../../../commands/github-pr-description.md"),
-                ),
-                ("fixme", include_str!("../../../commands/fixme.md")),
-            ]
+            [(
+                "github-pr-description",
+                include_str!("../../../commands/github-pr-description.md"),
+            )]
             .into_iter()
             .map(|(name, content)| (name.to_string(), content.to_string())),
         )
