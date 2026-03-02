@@ -474,6 +474,16 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.3-codex",
+        "name": "GPT-5.3 Codex",
+        "description": "GPT-5.3-Codex is optimized for agentic coding tasks",
+        "context_length": 400000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       }
     ],
     "auth_methods": ["api_key"]
@@ -906,6 +916,15 @@
     "url": "https://{{#if (eq LOCATION \"global\")}}aiplatform.googleapis.com{{else}}{{LOCATION}}-aiplatform.googleapis.com{{/if}}/v1beta1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/google",
     "models": [
       {
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
+        "description": "Most capable Gemini model with advanced reasoning",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },{
         "id": "gemini-3-flash-preview",
         "name": "Gemini 3 Flash Preview",
         "description": "Google's fast and capable model with thinking support",

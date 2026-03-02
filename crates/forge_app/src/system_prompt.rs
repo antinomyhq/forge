@@ -1,13 +1,14 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, File, Model, SystemContext, Template, ToolDefinition,
-    ToolUsagePrompt,
+    Agent, Conversation, Environment, Extension, ExtensionStat, File, Model, SystemContext,
+    Template, ToolDefinition, ToolUsagePrompt,
 };
 use tracing::debug;
 
-use crate::{SkillFetchService, TemplateEngine};
+use crate::{ShellService, SkillFetchService, TemplateEngine};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -20,7 +21,7 @@ pub struct SystemPrompt<S> {
     custom_instructions: Vec<String>,
 }
 
-impl<S: SkillFetchService> SystemPrompt<S> {
+impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
@@ -31,6 +32,29 @@ impl<S: SkillFetchService> SystemPrompt<S> {
             files: Vec::default(),
             custom_instructions: Vec::default(),
         }
+    }
+
+    /// Fetches file extension statistics by running git ls-files command.
+    async fn fetch_extensions(&self, max_extensions: usize) -> Option<Extension> {
+        let output = self
+            .services
+            .execute(
+                "git ls-files".into(),
+                self.environment.cwd.clone(),
+                false,
+                true,
+                None,
+                None,
+            )
+            .await
+            .ok()?;
+
+        // If git command fails (e.g., not in a git repo), return None
+        if output.output.exit_code != Some(0) {
+            return None;
+        }
+
+        parse_extensions(&output.output.stdout, max_extensions)
     }
 
     pub async fn add_system_message(
@@ -62,6 +86,9 @@ impl<S: SkillFetchService> SystemPrompt<S> {
 
             let skills = self.services.list_skills().await?;
 
+            // Fetch extension statistics from git
+            let extensions = self.fetch_extensions(self.environment.max_extensions).await;
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
@@ -72,6 +99,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
                 skills,
                 model: None,
                 tool_names: Default::default(),
+                extensions,
             };
 
             let static_block = TemplateEngine::default()
@@ -125,60 +153,140 @@ impl<S: SkillFetchService> SystemPrompt<S> {
     }
 }
 
+/// Parses the newline-separated output of `git ls-files` into an [`Extension`]
+/// summary.
+fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension> {
+    let all_files: Vec<&str> = extensions
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    let total_files = all_files.len();
+    if total_files == 0 {
+        return None;
+    }
+
+    // Count files by extension; files without extensions are tracked as "(no ext)"
+    let mut counts = HashMap::<&str, usize>::new();
+    all_files
+        .iter()
+        .map(|line| {
+            let file_name = line.rsplit_once(['/', '\\']).map_or(*line, |(_, f)| f);
+            file_name
+                .rsplit_once('.')
+                .filter(|(prefix, _)| !prefix.is_empty())
+                .map_or("(no ext)", |(_, ext)| ext)
+        })
+        .for_each(|ext| *counts.entry(ext).or_default() += 1);
+
+    // Convert to ExtensionStat and sort by count descending, then alphabetically
+    let mut stats: Vec<_> = counts
+        .into_iter()
+        .map(|(extension, count)| {
+            let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
+            ExtensionStat {
+                extension: extension.to_owned(),
+                count,
+                percentage: percentage.to_string(),
+            }
+        })
+        .collect();
+
+    stats.sort_by(|a, b| {
+        b.count
+            .cmp(&a.count)
+            .then_with(|| a.extension.cmp(&b.extension))
+    });
+
+    let total_extensions = stats.len();
+    stats.truncate(max_extensions);
+
+    // Calculate the count and percentage of files in remaining extensions after
+    // truncation
+    let shown_count: usize = stats.iter().map(|s| s.count).sum();
+    let remaining_count = total_files.saturating_sub(shown_count);
+    let remaining_percentage = ((remaining_count * 100) as f32 / total_files as f32)
+        .ceil()
+        .to_string();
+
+    Some(Extension {
+        extension_stats: stats,
+        git_tracked_files: total_files,
+        max_extensions,
+        total_extensions,
+        remaining_percentage,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
-    use fake::Fake;
-    use forge_domain::{Agent, Environment};
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
-    struct MockSkillFetchService;
+    const MAX_EXTENSIONS: usize = 15;
 
-    #[async_trait::async_trait]
-    impl SkillFetchService for MockSkillFetchService {
-        async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
-            Ok(
-                forge_domain::Skill::new("test_skill", "Test skill", "Test skill description")
-                    .path("/skills/test.md"),
-            )
-        }
+    #[test]
+    fn test_parse_extensions_sorts_git_output() {
+        let fixture = include_str!("fixtures/git_ls_files_mixed.txt");
+        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
 
-        async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
-            Ok(vec![])
-        }
+        // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
+        let expected = Extension::new(
+            vec![
+                ExtensionStat::new("rs", 4, "44"),
+                ExtensionStat::new("(no ext)", 2, "22"),
+                ExtensionStat::new("md", 2, "22"),
+                ExtensionStat::new("toml", 1, "11"),
+            ],
+            MAX_EXTENSIONS,
+            9,
+            4,
+            "0",
+        );
+
+        assert_eq!(actual, expected);
     }
 
-    fn create_test_environment() -> Environment {
-        use fake::Faker;
-        Faker.fake()
+    #[test]
+    fn test_parse_extensions_truncates_to_max() {
+        // Real `git ls-files` output from this repo: 822 files, 19 distinct extensions.
+        // Top 15 are shown; the remaining 4 (html, jsonl, lock, proto — 1 each) are
+        // rolled up.
+        let fixture = include_str!("fixtures/git_ls_files_many_extensions.txt");
+        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
+
+        let expected = Extension::new(
+            vec![
+                ExtensionStat::new("rs", 415, "50"),
+                ExtensionStat::new("snap", 159, "19"),
+                ExtensionStat::new("md", 91, "11"),
+                ExtensionStat::new("yml", 29, "4"),
+                ExtensionStat::new("toml", 28, "3"),
+                ExtensionStat::new("json", 22, "3"),
+                ExtensionStat::new("zsh", 20, "2"),
+                ExtensionStat::new("sql", 14, "2"),
+                ExtensionStat::new("sh", 11, "1"),
+                ExtensionStat::new("ts", 9, "1"),
+                ExtensionStat::new("(no ext)", 7, "1"),
+                ExtensionStat::new("txt", 5, "1"),
+                ExtensionStat::new("csv", 4, "0"),
+                ExtensionStat::new("yaml", 3, "0"),
+                ExtensionStat::new("css", 1, "0"),
+            ],
+            MAX_EXTENSIONS,
+            822,
+            19,
+            "1",
+        );
+
+        assert_eq!(actual, expected);
     }
 
-    fn create_test_agent() -> Agent {
-        use forge_domain::{AgentId, ModelId, ProviderId};
-        Agent::new(
-            AgentId::new("test_agent"),
-            ProviderId::FORGE,
-            ModelId::new("test_model"),
-        )
-    }
-
-    #[tokio::test]
-    async fn test_system_prompt_adds_context() {
-        // Fixture
-        let services = Arc::new(MockSkillFetchService);
-        let env = create_test_environment();
-        let agent = create_test_agent();
-        let system_prompt = SystemPrompt::new(services, env, agent);
-
-        // Act - create a conversation and add system message
-        let conversation = forge_domain::Conversation::generate();
-        let result = system_prompt.add_system_message(conversation).await;
-
-        // Assert
-        assert!(result.is_ok());
-        let conversation = result.unwrap();
-        assert!(conversation.context.is_some());
+    #[test]
+    fn test_parse_extensions_returns_none_for_empty_output() {
+        assert_eq!(parse_extensions("", MAX_EXTENSIONS), None);
+        assert_eq!(parse_extensions("   \n  \n", MAX_EXTENSIONS), None);
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -19,17 +19,18 @@ use tracing::{info, warn};
 
 use crate::error::Error as ServiceError;
 
+static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
+    let extensions_str = include_str!("allowed_extensions.txt");
+    extensions_str
+        .lines()
+        .map(|line| line.trim().to_lowercase())
+        .filter(|line| !line.is_empty())
+        .collect()
+});
+
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
-    static ALLOWED_EXTENSIONS: OnceLock<HashSet<String>> = OnceLock::new();
-    ALLOWED_EXTENSIONS.get_or_init(|| {
-        let extensions_str = include_str!("allowed_extensions.txt");
-        extensions_str
-            .lines()
-            .map(|line| line.trim().to_lowercase())
-            .filter(|line| !line.is_empty())
-            .collect()
-    })
+    &ALLOWED_EXTENSIONS
 }
 
 /// Checks if a file has an allowed extension for workspace syncing (O(1)
@@ -176,9 +177,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 let token = token.clone();
                 let file_path = file.path.clone();
                 async move {
+                    info!(path = %file_path, "File sync started");
                     self.upload(&user_id, &workspace_id, &token, vec![file])
                         .await?;
-                    info!(path = %file_path, "File synced successfully");
+                    info!(path = %file_path, "File sync completed");
                     Ok::<_, anyhow::Error>(1)
                 }
             })

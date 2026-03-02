@@ -33,7 +33,6 @@ glob.workspace = true
 grep-searcher.workspace = true
 grep-regex.workspace = true
 ignore.workspace = true
-rust-embed.workspace = true
 base64.workspace = true
 strum_macros.workspace = true
 strum.workspace = true
