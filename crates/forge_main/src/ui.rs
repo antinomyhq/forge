@@ -3253,11 +3253,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .filter(|text| !text.trim().is_empty())
             .and_then(|str| ConversationId::from_str(str.as_str()).ok());
 
-        // Resolve the active agent from the shell environment variable
+        // Resolve the active agent from the shell environment variable,
+        // falling back to the default agent so the prompt always shows the
+        // agent-specific model rather than the bare global default.
         let active_agent = std::env::var("_FORGE_ACTIVE_AGENT")
             .ok()
             .filter(|text| !text.trim().is_empty())
-            .map(AgentId::new);
+            .map(AgentId::new)
+            .or_else(|| Some(AgentId::default()));
 
         // Make IO calls in parallel; use agent model if active, else global default
         let (model_id, conversation) =
