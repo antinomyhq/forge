@@ -219,12 +219,23 @@ pub enum AgentCommand {
     #[command(alias = "ls")]
     List,
 
+    /// Get the provider and model for a specific agent.
+    #[command(name = "get-model")]
+    GetModel(AgentGetModelArgs),
+
     /// Set the provider and model for a specific agent.
     ///
     /// Provider and model are always configured together since a model ID is
     /// scoped to a specific provider's namespace.
     #[command(name = "set-model")]
     SetModel(AgentSetModelArgs),
+}
+
+/// Arguments for `forge agent get-model`.
+#[derive(Parser, Debug, Clone)]
+pub struct AgentGetModelArgs {
+    /// Agent ID to get the model for (e.g. `sage`, `forge`, `muse`).
+    pub agent_id: AgentId,
 }
 
 /// Arguments for `forge agent set-model`.

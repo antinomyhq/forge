@@ -385,6 +385,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::AgentCommand::List => {
                         self.on_show_agents(agent_group.porcelain, false).await?;
                     }
+                    crate::cli::AgentCommand::GetModel(args) => {
+                        self.handle_agent_get_model(args, agent_group.porcelain)
+                            .await?;
+                    }
                     crate::cli::AgentCommand::SetModel(args) => {
                         self.handle_agent_set_model(args).await?;
                     }
@@ -3183,6 +3187,39 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     None => self.writeln("Provider: Not set")?,
                 }
             }
+        }
+
+        Ok(())
+    }
+
+    /// Gets the provider and model for a specific agent.
+    async fn handle_agent_get_model(
+        &mut self,
+        args: crate::cli::AgentGetModelArgs,
+        porcelain: bool,
+    ) -> Result<()> {
+        let agents = self.api.get_agents().await?;
+        let agent = agents
+            .iter()
+            .find(|a| a.id == args.agent_id)
+            .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", args.agent_id))?;
+
+        let provider = self.get_provider(Some(agent.id.clone())).await?;
+
+        let info = Info::new()
+            .add_title(args.agent_id.as_str().to_case(Case::UpperSnake))
+            .add_key_value("provider", provider.id.to_string())
+            .add_key_value("model", agent.model.as_str());
+
+        if porcelain {
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(0)
+                    .uppercase_headers(),
+            )?;
+        } else {
+            self.writeln(info)?;
         }
 
         Ok(())

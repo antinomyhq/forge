@@ -169,7 +169,7 @@ function forge-accept-line() {
             # e.g. :config-sage-model, :config-forge-model, :config-muse-model
             local config_agent="${user_action#config-}"
             config_agent="${config_agent%-model}"
-            _forge_action_config_agent_model "$config_agent" "$input_text"
+            _forge_action_agent_model "$config_agent" "$input_text"
         ;;
         tools|t)
             _forge_action_tools
