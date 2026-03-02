@@ -56,9 +56,10 @@ where
         };
 
         if let Some(agent_id) = resolved
-            && let Some(agent) = self.0.get_agent(&agent_id).await? {
-                return Ok(agent.model);
-            }
+            && let Some(agent) = self.0.get_agent(&agent_id).await?
+        {
+            return Ok(agent.model);
+        }
 
         // Fall back to the global model set for the active provider
         let provider_id = self.get_provider(None).await?.id;
