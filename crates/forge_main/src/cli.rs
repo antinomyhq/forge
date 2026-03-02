@@ -169,7 +169,8 @@ pub enum TopLevelCommand {
     /// Update forge to the latest version.
     Update(UpdateArgs),
 
-    /// Setup zsh integration by updating .zshrc with plugin and theme (alias for `zsh setup`).
+    /// Setup zsh integration by updating .zshrc with plugin and theme (alias
+    /// for `zsh setup`).
     Setup,
 
     /// Run diagnostics on shell environment (alias for `zsh doctor`).
