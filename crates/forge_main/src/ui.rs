@@ -1080,7 +1080,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        self.spinner.start(Some("Loading"))?;
+        self.spinner.start(Some("Fetching Models"))?;
 
         let mut all_provider_models = match self.api.get_all_provider_models().await {
             Ok(provider_models) => provider_models,
