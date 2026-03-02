@@ -62,6 +62,22 @@ pub struct Cli {
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
 
+    /// Override the model to use for this session.
+    ///
+    /// When provided, uses this model instead of the configured default.
+    /// This is a runtime override and does not change the permanent
+    /// configuration.
+    #[arg(long)]
+    pub model: Option<ModelId>,
+
+    /// Override the provider to use for this session.
+    ///
+    /// When provided, uses this provider instead of the configured default.
+    /// This is a runtime override and does not change the permanent
+    /// configuration.
+    #[arg(long)]
+    pub provider: Option<ProviderId>,
+
     /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
@@ -149,6 +165,9 @@ pub enum TopLevelCommand {
     /// VS Code integration commands.
     #[command(subcommand)]
     Vscode(VscodeCommand),
+
+    /// Update forge to the latest version.
+    Update(UpdateArgs),
 }
 
 /// Command group for custom command management.
@@ -588,6 +607,10 @@ pub enum ConversationCommand {
     Show {
         /// Conversation ID.
         id: ConversationId,
+
+        /// Print raw markdown without rendering.
+        #[arg(long)]
+        md: bool,
     },
 
     /// Show conversation details.
@@ -733,6 +756,14 @@ impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
 pub enum VscodeCommand {
     /// Install the Forge VS Code extension.
     InstallExtension,
+}
+
+/// Update command arguments.
+#[derive(Parser, Debug, Clone)]
+pub struct UpdateArgs {
+    /// Skip the confirmation prompt when applying updates.
+    #[arg(long, default_value_t = false)]
+    pub no_confirm: bool,
 }
 
 #[cfg(test)]
@@ -993,17 +1024,41 @@ mod tests {
             "show",
             "550e8400-e29b-41d4-a716-446655440004",
         ]);
-        let id = match fixture.subcommands {
+        let (id, md) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Show { id } => id,
-                _ => ConversationId::default(),
+                ConversationCommand::Show { id, md } => (id, md),
+                _ => (ConversationId::default(), false),
             },
-            _ => ConversationId::default(),
+            _ => (ConversationId::default(), false),
         };
         assert_eq!(
             id,
             ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
         );
+        assert_eq!(md, false);
+    }
+
+    #[test]
+    fn test_conversation_show_with_md_flag() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "show",
+            "550e8400-e29b-41d4-a716-446655440004",
+            "--md",
+        ]);
+        let (id, md) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Show { id, md } => (id, md),
+                _ => (ConversationId::default(), false),
+            },
+            _ => (ConversationId::default(), false),
+        };
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
+        );
+        assert_eq!(md, true);
     }
 
     #[test]
@@ -1722,5 +1777,25 @@ mod tests {
             ModelId::new("claude-sonnet-4"),
         ));
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_update_with_no_confirm() {
+        let fixture = Cli::parse_from(["forge", "update", "--no-confirm"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Update(args)) => args.no_confirm,
+            _ => panic!("Expected Update command"),
+        };
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_update_without_no_confirm() {
+        let fixture = Cli::parse_from(["forge", "update"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Update(args)) => args.no_confirm,
+            _ => panic!("Expected Update command"),
+        };
+        assert!(!actual);
     }
 }

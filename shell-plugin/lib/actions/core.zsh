@@ -23,6 +23,8 @@ function _forge_action_new() {
         
         # Start background sync job if enabled and not already running
         _forge_start_background_sync
+        # Start background update check
+        _forge_start_background_update
     else
         # Only show banner if no input text (starting fresh conversation)
         _forge_exec banner
