@@ -675,6 +675,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
+            TopLevelCommand::Setup => {
+                self.on_zsh_setup().await?;
+                return Ok(());
+            }
+            TopLevelCommand::Doctor => {
+                self.on_zsh_doctor().await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
