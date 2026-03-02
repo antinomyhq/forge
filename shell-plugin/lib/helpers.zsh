@@ -138,3 +138,16 @@ function _forge_start_background_sync() {
     } &!
 }
 
+# Start background update check if not already running
+# Mirrors the background sync pattern to silently check for and apply updates
+function _forge_start_background_update() {
+    {
+        # Run update check in background
+        # Close all output streams immediately to prevent any flashing
+        # Redirect stdin to /dev/null to prevent hanging
+        exec >/dev/null 2>&1 </dev/null
+        setopt NO_NOTIFY NO_MONITOR
+        $_FORGE_BIN update --no-confirm
+    } &!
+}
+
