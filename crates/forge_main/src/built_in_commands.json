@@ -88,6 +88,10 @@
     "description": "Clone and manage conversation context"
   },
   {
+    "command": "copy",
+    "description": "Copy last assistant message to clipboard as raw markdown"
+  },
+  {
     "command": "doctor",
     "description": "Run environment diagnostics for the shell plugin"
   },
