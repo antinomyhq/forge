@@ -149,7 +149,6 @@ function _forge_action_model() {
             # field 4 = provider_id (raw, for config set)
             local model_id provider_display provider_id
             read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
-
             model_id=${model_id//[[:space:]]/}
             provider_id=${provider_id//[[:space:]]/}
             provider_display=${provider_display//[[:space:]]/}
@@ -157,7 +156,7 @@ function _forge_action_model() {
             # Switch provider first if it differs from the current one
             # config get provider returns the display name, so compare against that
             local current_provider
-            current_provider=$(_forge_exec config get provider 2>/dev/null)
+            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
                 _forge_exec config set provider "$provider_id"
             fi
