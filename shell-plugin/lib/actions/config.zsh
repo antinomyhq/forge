@@ -166,6 +166,68 @@ function _forge_select_and_set_config() {
     )
 }
 
+# TODO: replace this will model picker once that PR is merged.
+# Action handler: Set the model for a specific agent.
+# Reuses the same list models porcelain data as :model, then calls
+# `forge agent set-model <agent_id> <provider_id> <model_id>`.
+#
+# Usage:
+#   :config-<agent>-model                      -> fzf picker, uses active provider
+#   :config-<agent>-model <provider> <model>   -> set directly without fzf
+function _forge_action_config_agent_model() {
+    local agent_id="$1"
+    local input_text="$2"
+    (
+        echo
+
+        local provider_id model_id
+        provider_id=$(echo "$input_text" | awk '{print $1}')
+        model_id=$(echo "$input_text" | awk '{print $2}')
+
+        # Both provider and model supplied: set directly
+        if [[ -n "$provider_id" && -n "$model_id" ]]; then
+            _forge_exec agent set-model "$agent_id" "$provider_id" "$model_id"
+            return 0
+        fi
+
+        # Use the same model list + fzf setup as :model
+        local output
+        output=$($_FORGE_BIN list models --porcelain 2>/dev/null)
+
+        if [[ -z "$output" ]]; then
+            _forge_log error "No models available"
+            return 1
+        fi
+
+        local current_model
+        current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+
+        local fzf_args=(
+            --delimiter="$_FORGE_DELIMITER"
+            --prompt="Model for ${agent_id} ❯ "
+            --with-nth="2,3.."
+        )
+
+        if [[ -n "$current_model" ]]; then
+            local index=$(_forge_find_index "$output" "$current_model" 1)
+            fzf_args+=(--bind="start:pos($index)")
+        fi
+
+        local selected
+        selected=$(echo "$output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+        if [[ -n "$selected" ]]; then
+            model_id="${selected%% *}"
+            provider_id=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
+            if [[ -z "$provider_id" ]]; then
+                _forge_log error "No active provider set. Run :provider first."
+                return 1
+            fi
+            _forge_exec agent set-model "$agent_id" "$provider_id" "$model_id"
+        fi
+    )
+}
+
 # Action handler: Show tools
 function _forge_action_tools() {
     echo

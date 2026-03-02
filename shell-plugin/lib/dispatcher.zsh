@@ -164,6 +164,13 @@ function forge-accept-line() {
         model|m)
             _forge_action_model "$input_text"
         ;;
+        config-*-model)
+            # Dynamic :config-<agent>-model — extracts agent name between "config-" and "-model"
+            # e.g. :config-sage-model, :config-forge-model, :config-muse-model
+            local config_agent="${user_action#config-}"
+            config_agent="${config_agent%-model}"
+            _forge_action_config_agent_model "$config_agent" "$input_text"
+        ;;
         tools|t)
             _forge_action_tools
         ;;
