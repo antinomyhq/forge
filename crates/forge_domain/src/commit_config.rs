@@ -7,9 +7,10 @@ use crate::{ModelId, ProviderId};
 
 /// Configuration for commit message generation.
 ///
-/// Allows specifying a dedicated provider and model for commit message generation,
-/// instead of using the active agent's provider and model. This is useful when
-/// you want to use a cheaper or faster model for simple commit message generation.
+/// Allows specifying a dedicated provider and model for commit message
+/// generation, instead of using the active agent's provider and model. This is
+/// useful when you want to use a cheaper or faster model for simple commit
+/// message generation.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
 #[setters(strip_option, into)]
 pub struct CommitConfig {

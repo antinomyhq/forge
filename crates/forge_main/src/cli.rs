@@ -906,7 +906,10 @@ mod tests {
             },
             _ => None,
         };
-        let expected = Some(("Anthropic".to_string(), "claude-haiku-4-20250514".to_string()));
+        let expected = Some((
+            "Anthropic".to_string(),
+            "claude-haiku-4-20250514".to_string(),
+        ));
         assert_eq!(actual, expected);
     }
 

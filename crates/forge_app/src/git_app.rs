@@ -297,7 +297,10 @@ where
             resolver.get_provider(agent_id.clone()),
             resolver.get_model(agent_id)
         )?;
-        let provider = self.services.refresh_provider_credential(provider_template).await?;
+        let provider = self
+            .services
+            .refresh_provider_credential(provider_template)
+            .await?;
         Ok((provider, model))
     }
 
@@ -312,20 +315,28 @@ where
         // Resolve provider and model: commit config takes priority over agent defaults.
         // If the configured provider is unavailable (e.g. logged out), fall back to the
         // agent's provider/model with a warning.
-        let (provider, model) =
-            match commit_config.and_then(|c| c.provider.zip(c.model)) {
-                Some((provider_id, commit_model)) => match self.services.get_provider(provider_id).await {
-                    Ok(provider) => (self.services.refresh_provider_credential(provider).await?, commit_model),
+        let (provider, model) = match commit_config.and_then(|c| c.provider.zip(c.model)) {
+            Some((provider_id, commit_model)) => {
+                match self.services.get_provider(provider_id).await {
+                    Ok(provider) => (
+                        self.services.refresh_provider_credential(provider).await?,
+                        commit_model,
+                    ),
                     Err(err) => {
                         tracing::warn!(
                             error = %err,
                             "Configured commit provider unavailable. Falling back to the active provider."
                         );
-                        self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id).await?
+                        self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
+                            .await?
                     }
-                },
-                None => self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id).await?,
-            };
+                }
+            }
+            None => {
+                self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
+                    .await?
+            }
+        };
 
         let rendered_prompt = self
             .services

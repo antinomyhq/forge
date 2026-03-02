@@ -3146,10 +3146,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .provider(provider.clone())
                     .model(validated_model.clone());
                 self.api.set_commit_config(commit_config).await?;
-                self.writeln_title(
-                    TitleFormat::action(validated_model.as_str())
-                        .sub_title(&format!("is now the commit model for provider '{provider}'")),
-                )?;
+                self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
+                    format!("is now the commit model for provider '{provider}'"),
+                ))?;
             }
         }
 
@@ -3188,8 +3187,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let commit_config = self.api.get_commit_config().await?;
                 match commit_config {
                     Some(config) => {
-                        let provider = config.provider.map(|p| p.to_string()).unwrap_or_else(|| "Not set".to_string());
-                        let model = config.model.map(|m| m.as_str().to_string()).unwrap_or_else(|| "Not set".to_string());
+                        let provider = config
+                            .provider
+                            .map(|p| p.to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
+                        let model = config
+                            .model
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
                         self.writeln(provider)?;
                         self.writeln(model)?;
                     }
@@ -3278,7 +3283,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?
                     .into_iter()
                     .find(|pm| &pm.provider_id == provider_id)
-                    .with_context(|| format!("Provider '{provider_id}' not found or returned no models"))?
+                    .with_context(|| {
+                        format!("Provider '{provider_id}' not found or returned no models")
+                    })?
                     .models
             }
         };
@@ -3288,8 +3295,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .find(|m| m.id == model_id)
             .map(|_| model_id)
             .with_context(|| {
-                let hints = models.iter().take(10).map(|m| m.id.as_str()).collect::<Vec<_>>().join(", ");
-                let suggestion = if models.len() > 10 { format!("{hints} (and {} more)", models.len() - 10) } else { hints };
+                let hints = models
+                    .iter()
+                    .take(10)
+                    .map(|m| m.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let suggestion = if models.len() > 10 {
+                    format!("{hints} (and {} more)", models.len() - 10)
+                } else {
+                    hints
+                };
                 format!("Model '{model_str}' not found. Available models: {suggestion}")
             })
     }
