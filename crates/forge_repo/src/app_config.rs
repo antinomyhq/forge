@@ -179,10 +179,7 @@ mod tests {
 
     impl MockInfra {
         fn new(config_path: PathBuf) -> Self {
-            Self {
-                files: Arc::new(Mutex::new(HashMap::new())),
-                config_path,
-            }
+            Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
         }
     }
 
