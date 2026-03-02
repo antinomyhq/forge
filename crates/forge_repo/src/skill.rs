@@ -52,6 +52,10 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/execute-plan/SKILL.md",
                 include_str!("skills/execute-plan/SKILL.md"),
             ),
+            (
+                "forge://skills/pr-description/SKILL.md",
+                include_str!("skills/pr-description/SKILL.md"),
+            ),
         ];
 
         builtin_skills
