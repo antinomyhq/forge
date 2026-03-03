@@ -15,7 +15,7 @@
 .forge/skills/debug-cli/SKILL.md
 .forge/skills/debug-cli/scripts/README.md
 .forge/skills/debug-cli/scripts/test_cli.sh
-.forge/skills/pr-description/SKILL.md
+.forge/skills/github-pr-description/SKILL.md
 .forge/skills/resolve-conflicts/SKILL.md
 .forge/skills/resolve-conflicts/references/patterns.md
 .forge/skills/resolve-conflicts/references/sample-plan.md
