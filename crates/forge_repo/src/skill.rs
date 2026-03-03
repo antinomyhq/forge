@@ -374,8 +374,7 @@ mod tests {
         assert_eq!(
             pr_description.path,
             Some(
-                std::path::Path::new("forge://skills/github-pr-description/SKILL.md")
-                    .to_path_buf()
+                std::path::Path::new("forge://skills/github-pr-description/SKILL.md").to_path_buf()
             )
         );
         assert!(!pr_description.description.is_empty());
