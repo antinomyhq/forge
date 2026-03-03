@@ -154,7 +154,6 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Zero configuration** - Just add your API key and you're ready to go
 - **Seamless integration** - Works right in your terminal, where you already work
 - **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
-- **Secure by design** - Your code stays on your machine
 - **Open-source** - Transparent, extensible, and community-driven
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
