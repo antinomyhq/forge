@@ -328,7 +328,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
     }
 
-    /// Gets the forge services credential and extracts workspace auth
+    /// Gets the ForgeCode services credential and extracts workspace auth
     /// components
     ///
     /// # Errors

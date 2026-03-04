@@ -424,7 +424,7 @@ model: anthropic.claude-3-opus
 </details>
 
 <details>
-<summary><strong>Forge Services</strong></summary>
+<summary><strong>ForgeCode Services</strong></summary>
 
 ```bash
 # .env
