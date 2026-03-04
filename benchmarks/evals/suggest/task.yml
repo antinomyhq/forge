@@ -1,7 +1,7 @@
 run:
   - mkdir -p test_dir
   - cd test_dir && touch file1.txt file2.py README.md
-  - cd test_dir && FORGE_OVERRIDE_PROVIDER={{provider}} FORGE_OVERRIDE_MODEL={{model}} forgee suggest "{{prompt}}"
+  - cd test_dir && forgee --provider {{provider}} --model {{model}} suggest "{{prompt}}"
 
 parallelism: 2
 timeout: 60
