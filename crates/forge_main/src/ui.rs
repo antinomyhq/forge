@@ -681,6 +681,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            TopLevelCommand::Update(args) => {
+                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                on_update(self.api.clone(), Some(&update)).await;
+                return Ok(());
+            }
+            TopLevelCommand::Setup => {
+                self.on_zsh_setup().await?;
+                return Ok(());
+            }
+            TopLevelCommand::Doctor => {
+                self.on_zsh_doctor().await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -1086,57 +1099,76 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let models = self.get_models().await?;
+        self.spinner.start(Some("Fetching Models"))?;
 
-        if models.is_empty() {
+        let mut all_provider_models = match self.api.get_all_provider_models().await {
+            Ok(provider_models) => provider_models,
+            Err(err) => {
+                self.spinner.stop(None)?;
+                return Err(err);
+            }
+        };
+
+        if all_provider_models.is_empty() {
             return Ok(());
         }
 
+        // Sort models and then providers
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
+
         let mut info = Info::new();
+        for pm in &all_provider_models {
+            let provider_id: &str = &pm.provider_id;
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
 
-        for model in models.iter() {
-            let id = model.id.to_string();
+                info = info
+                    .add_title(&id)
+                    .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Provider", &provider_display)
+                    .add_key_value("Provider Id", provider_id);
 
-            info = info
-                .add_title(&id)
-                .add_key_value("Model", model.name.as_ref().unwrap_or(&id));
-
-            // Add context length if available, otherwise use "unknown"
-            if let Some(limit) = model.context_length {
-                let context = if limit >= 1_000_000 {
-                    format!("{}M", limit / 1_000_000)
-                } else if limit >= 1000 {
-                    format!("{}k", limit / 1000)
+                // Add context length if available, otherwise use "unknown"
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
                 } else {
-                    format!("{limit}")
-                };
-                info = info.add_key_value("Context Window", context);
-            } else {
-                info = info.add_key_value("Context Window", markers::EMPTY)
-            }
+                    info = info.add_key_value("Context Window", markers::EMPTY)
+                }
 
-            // Add tools support indicator if explicitly supported
-            if let Some(supported) = model.tools_supported {
+                // Add tools support indicator if explicitly supported
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    )
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY)
+                }
+
+                // Add image modality support indicator
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
                 info = info.add_key_value(
-                    "Tool Supported",
-                    if supported { status::YES } else { status::NO },
-                )
-            } else {
-                info = info.add_key_value("Tools", markers::EMPTY)
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
             }
-
-            // Add image modality support indicator
-            let supports_image = model
-                .input_modalities
-                .contains(&forge_domain::InputModality::Image);
-            info = info.add_key_value(
-                "Image",
-                if supports_image {
-                    status::YES
-                } else {
-                    status::NO
-                },
-            );
         }
 
         if porcelain {
@@ -2005,6 +2037,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Ok(None),
         }
     }
+
     async fn handle_api_key_input(
         &mut self,
         provider_id: ProviderId,
@@ -2286,14 +2319,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    /// Creates Forge Services credentials if not already authenticated and
+    /// Creates ForgeCode Services credentials if not already authenticated and
     /// displays the credentials file location to the user.
     async fn init_forge_services(&mut self) -> Result<()> {
         self.api.create_auth_credentials().await?;
         let env = self.api.environment();
         let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
         self.writeln_title(
-            TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
+            TitleFormat::info("ForgeCode Services enabled").sub_title(&credentials_path),
         )?;
         Ok(())
     }

@@ -276,6 +276,44 @@ impl<S: Services> ForgeApp<S> {
 
         self.services.models(provider).await
     }
+
+    /// Gets available models from all configured providers concurrently.
+    ///
+    /// Returns a list of `ProviderModels` for each configured provider.
+    /// All providers are queried in parallel; providers that fail to
+    /// return models are silently skipped.
+    pub async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>> {
+        let all_providers = self.services.get_all_providers().await?;
+
+        // Build one future per configured provider
+        let futures: Vec<_> = all_providers
+            .into_iter()
+            .filter_map(|any_provider| any_provider.into_configured())
+            .map(|provider| {
+                let provider_id = provider.id.clone();
+                let services = self.services.clone();
+                async move {
+                    let refreshed = services
+                        .provider_auth_service()
+                        .refresh_provider_credential(provider)
+                        .await
+                        .ok()?;
+                    let models = services.models(refreshed).await.ok()?;
+                    Some(ProviderModels { provider_id, models })
+                }
+            })
+            .collect();
+
+        // Execute all provider fetches concurrently and collect successful results
+        let results = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Ok(results)
+    }
+
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }
