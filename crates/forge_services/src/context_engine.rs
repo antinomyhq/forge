@@ -5,8 +5,8 @@ use std::sync::{Arc, LazyLock};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    EnvironmentInfra, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService,
-    WorkspaceStatus, compute_hash,
+    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkedFile,
+    WorkspaceService, WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -197,9 +197,9 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: ProviderRepository
             + WorkspaceIndexRepository
-            + WalkerInfra
             + FileReaderInfra
-            + EnvironmentInfra,
+            + EnvironmentInfra
+            + CommandInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -410,6 +410,44 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         Ok(best_match.map(|(w, _)| w.clone()))
     }
+    /// Runs `git ls-files` in `dir_path` and returns the tracked files as
+    /// `WalkedFile` entries. Returns `None` when git is unavailable or the
+    /// directory is not a git repository.
+    async fn git_ls_files(&self, dir_path: &Path) -> Option<Vec<WalkedFile>>
+    where
+        F: CommandInfra,
+    {
+        let output = self
+            .infra
+            .execute_command(
+                "git ls-files".to_string(),
+                dir_path.to_path_buf(),
+                true,
+                None,
+            )
+            .await
+            .ok()?;
+
+        if output.exit_code != Some(0) {
+            return None;
+        }
+
+        let files = output
+            .stdout
+            .lines()
+            .filter(|line| !line.is_empty())
+            .map(|line| {
+                let path = line.trim().to_string();
+                let file_name = std::path::Path::new(&path)
+                    .file_name()
+                    .map(|n| n.to_string_lossy().to_string());
+                WalkedFile { path, file_name, size: 0 }
+            })
+            .collect();
+
+        Some(files)
+    }
+
     /// Only includes files with allowed extensions.
     fn read_files(
         &self,
@@ -417,38 +455,27 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         dir_path: &Path,
     ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
     where
-        F: WalkerInfra + FileReaderInfra + EnvironmentInfra,
+        F: FileReaderInfra + EnvironmentInfra + CommandInfra,
     {
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
+        let service = self.clone();
 
         async_stream::stream! {
-            info!("Walking directory to discover files");
-            let walker_config = Walker::unlimited()
-                .cwd(dir_path.clone())
-                .skip_binary(true); // Walker filters binary files
+            info!("Discovering files for sync via git ls-files");
 
-            let walked_files = match infra
-                .walk(walker_config)
-                .await
-                .context("Failed to walk directory")
-            {
-                Ok(files) => files,
-                Err(e) => {
-                    yield Err(e);
+            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
+                Some(files) => {
+                    info!(file_count = files.len(), "Discovered files via git ls-files");
+                    files
+                }
+                None => {
+                    yield Err(anyhow::anyhow!(
+                        "Failed to list files: 'git ls-files' failed or directory is not a git repository"
+                    ));
                     return;
                 }
             };
-
-            let walked_files: Vec<_> = walked_files
-                .into_iter()
-                .filter(|f| !f.is_dir())
-                .collect();
-
-            info!(
-                file_count = walked_files.len(),
-                "Discovered files from walker"
-            );
 
             // Filter files by allowed extension (pure function, no I/O)
             let filtered_files: Vec<_> = walked_files
@@ -537,9 +564,9 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 impl<
     F: ProviderRepository
         + WorkspaceIndexRepository
-        + WalkerInfra
         + FileReaderInfra
         + EnvironmentInfra
+        + CommandInfra
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
