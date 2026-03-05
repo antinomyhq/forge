@@ -8,7 +8,7 @@ use crate::database::DatabasePool;
 use crate::database::schema::conversations;
 
 pub struct ConversationRepositoryImpl {
-    pub(crate) pool: Arc<DatabasePool>,
+    pool: Arc<DatabasePool>,
     wid: WorkspaceHash,
 }
 
