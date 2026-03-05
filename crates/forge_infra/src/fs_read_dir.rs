@@ -113,7 +113,7 @@ impl ForgeDirectoryReaderService {
                 }
             })
             .buffer_unordered(self.parallel_file_reads)
-            .filter_map(|x| async move { x })
+            .filter_map(std::future::ready)
             .collect::<Vec<_>>()
             .await;
 
