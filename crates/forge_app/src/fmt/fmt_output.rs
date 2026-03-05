@@ -49,18 +49,22 @@ impl FormatContent for ToolOperation {
     }
 }
 
-/// Renders a single todo as an indented line with icon and ANSI styling.
-/// Controls the color applied to a rendered todo line.
+/// Controls the styling applied to a rendered todo line.
 enum TodoLineStyle {
-    /// Dim — used for unchanged todos.
+    /// Bold — used for new or changed todos. Color is determined by todo status.
+    Bold,
+    /// Dim — used for unchanged todos. Color is determined by todo status.
     Dim,
-    /// Default terminal color — used for newly created todos.
-    Default,
-    /// Yellow — used for updated or removed todos.
-    Yellow,
 }
 
 /// Renders a single todo as an indented line with icon and ANSI styling.
+///
+/// Color is always driven by the todo's current status:
+/// - Pending → white
+/// - InProgress → cyan
+/// - Completed → green (content also gets strikethrough)
+///
+/// Emphasis is driven by `line_style`: bold for new/changed, dim for unchanged.
 fn format_todo_line(todo: &forge_domain::Todo, line_style: TodoLineStyle) -> String {
     use console::style;
     use forge_domain::TodoStatus;
@@ -77,16 +81,13 @@ fn format_todo_line(todo: &forge_domain::Todo, line_style: TodoLineStyle) -> Str
     };
 
     let line = format!("  {checkbox} {content}");
-    let status_colored_line = match todo.status {
-        TodoStatus::Completed => style(line.as_str()).green().to_string(),
-        TodoStatus::Pending => style(line.as_str()).cyan().to_string(),
-        TodoStatus::InProgress => line.clone(),
-    };
-
-    let styled = match line_style {
-        TodoLineStyle::Dim => style(status_colored_line).dim().to_string(),
-        TodoLineStyle::Default => status_colored_line,
-        TodoLineStyle::Yellow => style(line).yellow().to_string(),
+    let styled = match (&todo.status, line_style) {
+        (TodoStatus::Pending, TodoLineStyle::Bold) => style(line).white().bold().to_string(),
+        (TodoStatus::Pending, TodoLineStyle::Dim) => style(line).white().dim().to_string(),
+        (TodoStatus::InProgress, TodoLineStyle::Bold) => style(line).cyan().bold().to_string(),
+        (TodoStatus::InProgress, TodoLineStyle::Dim) => style(line).cyan().dim().to_string(),
+        (TodoStatus::Completed, TodoLineStyle::Bold) => style(line).green().bold().to_string(),
+        (TodoStatus::Completed, TodoLineStyle::Dim) => style(line).green().dim().to_string(),
     };
     format!("{styled}\n")
 }
@@ -109,10 +110,8 @@ fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]
             .map(|p| p.status != todo.status || p.content != todo.content)
             .unwrap_or(false);
 
-        let line_style = if is_new {
-            TodoLineStyle::Default
-        } else if is_changed {
-            TodoLineStyle::Yellow
+        let line_style = if is_new || is_changed {
+            TodoLineStyle::Bold
         } else {
             TodoLineStyle::Dim
         };
@@ -736,6 +735,186 @@ mod tests {
         } else {
             panic!("Expected ToolOutput content");
         }
+    }
+
+    // ANSI escape sequences emitted by console::style (verified against the library):
+    //   bold white  → \x1b[37m\x1b[1m
+    //   dim  white  → \x1b[37m\x1b[2m
+    //   bold cyan   → \x1b[36m\x1b[1m
+    //   dim  cyan   → \x1b[36m\x1b[2m
+    //   bold green  → \x1b[32m\x1b[1m
+    //   dim  green  → \x1b[32m\x1b[2m
+    //   yellow      → \x1b[33m
+    const BOLD_WHITE: &str = "\x1b[37m\x1b[1m";
+    const DIM_WHITE: &str = "\x1b[37m\x1b[2m";
+    const BOLD_CYAN: &str = "\x1b[36m\x1b[1m";
+    const DIM_CYAN: &str = "\x1b[36m\x1b[2m";
+    const BOLD_GREEN: &str = "\x1b[32m\x1b[1m";
+    const DIM_GREEN: &str = "\x1b[32m\x1b[2m";
+    const YELLOW: &str = "\x1b[33m";
+
+    fn extract_output(op: ToolOperation) -> String {
+        let env = fixture_environment();
+        match op.to_content(&env) {
+            Some(ChatResponseContent::ToolOutput(text)) => text,
+            other => panic!("Expected ToolOutput, got: {other:?}"),
+        }
+    }
+
+    /// ADD_TASK → PENDING: new task should be bold white.
+    #[test]
+    fn test_todo_lifecycle_add_pending() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let after = vec![Todo::new("Buy milk").id("1").status(TodoStatus::Pending)];
+        let actual = extract_output(ToolOperation::TodoWrite { before: vec![], after });
+
+        assert!(
+            actual.contains(BOLD_WHITE),
+            "New pending task should be bold white, got: {actual:?}"
+        );
+    }
+
+    /// ADD_TASK → WIP: new task created directly as in-progress should be bold cyan.
+    #[test]
+    fn test_todo_lifecycle_add_wip() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let after = vec![Todo::new("Buy milk").id("1").status(TodoStatus::InProgress)];
+        let actual = extract_output(ToolOperation::TodoWrite { before: vec![], after });
+
+        assert!(
+            actual.contains(BOLD_CYAN),
+            "New in-progress task should be bold cyan, got: {actual:?}"
+        );
+    }
+
+    /// ADD_TASK → DONE: new task created directly as completed should be bold green.
+    #[test]
+    fn test_todo_lifecycle_add_done() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let after = vec![Todo::new("Buy milk").id("1").status(TodoStatus::Completed)];
+        let actual = extract_output(ToolOperation::TodoWrite { before: vec![], after });
+
+        assert!(
+            actual.contains(BOLD_GREEN),
+            "New completed task should be bold green, got: {actual:?}"
+        );
+    }
+
+    /// PENDING → WIP: state change should be bold cyan.
+    #[test]
+    fn test_todo_lifecycle_pending_to_wip() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let before = vec![Todo::new("Buy milk").id("1").status(TodoStatus::Pending)];
+        let after = vec![Todo::new("Buy milk").id("1").status(TodoStatus::InProgress)];
+        let actual = extract_output(ToolOperation::TodoWrite { before, after });
+
+        assert!(
+            actual.contains(BOLD_CYAN),
+            "Pending→WIP task should be bold cyan, got: {actual:?}"
+        );
+    }
+
+    /// WIP → DONE: state change should be bold green.
+    #[test]
+    fn test_todo_lifecycle_wip_to_done() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let before = vec![Todo::new("Buy milk").id("1").status(TodoStatus::InProgress)];
+        let after = vec![Todo::new("Buy milk").id("1").status(TodoStatus::Completed)];
+        let actual = extract_output(ToolOperation::TodoWrite { before, after });
+
+        assert!(
+            actual.contains(BOLD_GREEN),
+            "WIP→Done task should be bold green, got: {actual:?}"
+        );
+    }
+
+    /// Full lifecycle: PENDING unchanged, WIP unchanged, DONE unchanged — all dim with state colors.
+    #[test]
+    fn test_todo_lifecycle_unchanged_all_dim() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Task A").id("1").status(TodoStatus::Pending),
+            Todo::new("Task B").id("2").status(TodoStatus::InProgress),
+            Todo::new("Task C").id("3").status(TodoStatus::Completed),
+        ];
+        let actual = extract_output(ToolOperation::TodoWrite {
+            before: todos.clone(),
+            after: todos,
+        });
+
+        assert!(
+            actual.contains(DIM_WHITE),
+            "Unchanged pending task should be dim white, got: {actual:?}"
+        );
+        assert!(
+            actual.contains(DIM_CYAN),
+            "Unchanged in-progress task should be dim cyan, got: {actual:?}"
+        );
+        assert!(
+            actual.contains(DIM_GREEN),
+            "Unchanged completed task should be dim green, got: {actual:?}"
+        );
+        assert!(
+            !actual.contains(BOLD_WHITE)
+                && !actual.contains(BOLD_CYAN)
+                && !actual.contains(BOLD_GREEN),
+            "Unchanged tasks should not be bold, got: {actual:?}"
+        );
+    }
+
+    /// Removed task should be yellow with strikethrough.
+    #[test]
+    fn test_todo_lifecycle_removed_yellow() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let before = vec![Todo::new("Buy milk").id("1").status(TodoStatus::Pending)];
+        let actual = extract_output(ToolOperation::TodoWrite { before, after: vec![] });
+
+        assert!(
+            actual.contains(YELLOW),
+            "Removed task should be yellow, got: {actual:?}"
+        );
+        // Strikethrough escape: \x1b[9m
+        assert!(
+            actual.contains("\x1b[9m"),
+            "Removed task content should have strikethrough, got: {actual:?}"
+        );
+    }
+
+    /// Mixed: one unchanged (dim), one changed state (bold), one new (bold).
+    #[test]
+    fn test_todo_lifecycle_mixed_diff() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let before = vec![
+            Todo::new("Task A").id("1").status(TodoStatus::Pending),   // unchanged
+            Todo::new("Task B").id("2").status(TodoStatus::Pending),   // pending → wip
+        ];
+        let after = vec![
+            Todo::new("Task A").id("1").status(TodoStatus::Pending),   // unchanged → dim white
+            Todo::new("Task B").id("2").status(TodoStatus::InProgress), // changed → bold cyan
+            Todo::new("Task C").id("3").status(TodoStatus::Pending),   // new → bold white
+        ];
+        let actual = extract_output(ToolOperation::TodoWrite { before, after });
+
+        assert!(
+            actual.contains(DIM_WHITE),
+            "Unchanged pending task should be dim white, got: {actual:?}"
+        );
+        assert!(
+            actual.contains(BOLD_CYAN),
+            "Changed task (now WIP) should be bold cyan, got: {actual:?}"
+        );
+        assert!(
+            actual.contains(BOLD_WHITE),
+            "New pending task should be bold white, got: {actual:?}"
+        );
     }
 
     #[test]
