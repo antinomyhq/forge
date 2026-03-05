@@ -72,7 +72,7 @@ fn format_todo_line(todo: &forge_domain::Todo, line_style: TodoLineStyle) -> Str
 
     let checkbox = match todo.status {
         TodoStatus::Completed => "󰄵",
-        TodoStatus::InProgress => "󱨈",
+        TodoStatus::InProgress => "󰄗",
         TodoStatus::Pending => "󰄱",
     };
 
