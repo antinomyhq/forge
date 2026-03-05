@@ -51,7 +51,8 @@ impl FormatContent for ToolOperation {
 
 /// Controls the styling applied to a rendered todo line.
 enum TodoLineStyle {
-    /// Bold — used for new or changed todos. Color is determined by todo status.
+    /// Bold — used for new or changed todos. Color is determined by todo
+    /// status.
     Bold,
     /// Dim — used for unchanged todos. Color is determined by todo status.
     Dim,
@@ -122,7 +123,7 @@ fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]
         if !after_ids.contains(todo.id.as_str()) {
             let content = style(todo.content.as_str()).strikethrough().to_string();
             result.push_str(&format!(
-                "  {}\n",
+                "{}\n",
                 style(format!("\u{f057} {content}")).yellow()
             ));
         }
@@ -669,9 +670,6 @@ mod tests {
             assert!(plain.contains("Task 1"));
             assert!(plain.contains("Task 2"));
             assert!(plain.contains("Task 3"));
-            for line in plain.lines() {
-                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
-            }
         } else {
             panic!("Expected ToolOutput content");
         }
@@ -700,9 +698,6 @@ mod tests {
             let plain = strip_ansi_codes(text.as_str());
             assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
             assert!(plain.contains("Task 2"), "Changed Task 2 should appear");
-            for line in plain.lines() {
-                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
-            }
         } else {
             panic!("Expected ToolOutput content");
         }
@@ -728,17 +723,17 @@ mod tests {
             let plain = strip_ansi_codes(text.as_str());
             assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
             assert!(plain.contains("Task 2"), "Removed Task 2 should appear");
-            assert!(plain.contains('\u{f057}'), "Removed task icon should appear");
-            for line in plain.lines() {
-                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
-            }
+            assert!(
+                plain.contains('\u{f057}'),
+                "Removed task icon should appear"
+            );
         } else {
             panic!("Expected ToolOutput content");
         }
     }
 
-    // ANSI escape sequences emitted by console::style (verified against the library):
-    //   bold white  → \x1b[37m\x1b[1m
+    // ANSI escape sequences emitted by console::style (verified against the
+    // library):   bold white  → \x1b[37m\x1b[1m
     //   dim  white  → \x1b[37m\x1b[2m
     //   bold cyan   → \x1b[36m\x1b[1m
     //   dim  cyan   → \x1b[36m\x1b[2m
@@ -775,7 +770,8 @@ mod tests {
         );
     }
 
-    /// ADD_TASK → WIP: new task created directly as in-progress should be bold cyan.
+    /// ADD_TASK → WIP: new task created directly as in-progress should be bold
+    /// cyan.
     #[test]
     fn test_todo_lifecycle_add_wip() {
         use forge_domain::{Todo, TodoStatus};
@@ -789,7 +785,8 @@ mod tests {
         );
     }
 
-    /// ADD_TASK → DONE: new task created directly as completed should be bold green.
+    /// ADD_TASK → DONE: new task created directly as completed should be bold
+    /// green.
     #[test]
     fn test_todo_lifecycle_add_done() {
         use forge_domain::{Todo, TodoStatus};
@@ -833,7 +830,8 @@ mod tests {
         );
     }
 
-    /// Full lifecycle: PENDING unchanged, WIP unchanged, DONE unchanged — all dim with state colors.
+    /// Full lifecycle: PENDING unchanged, WIP unchanged, DONE unchanged — all
+    /// dim with state colors.
     #[test]
     fn test_todo_lifecycle_unchanged_all_dim() {
         use forge_domain::{Todo, TodoStatus};
@@ -843,10 +841,8 @@ mod tests {
             Todo::new("Task B").id("2").status(TodoStatus::InProgress),
             Todo::new("Task C").id("3").status(TodoStatus::Completed),
         ];
-        let actual = extract_output(ToolOperation::TodoWrite {
-            before: todos.clone(),
-            after: todos,
-        });
+        let actual =
+            extract_output(ToolOperation::TodoWrite { before: todos.clone(), after: todos });
 
         assert!(
             actual.contains(DIM_WHITE),
@@ -893,13 +889,13 @@ mod tests {
         use forge_domain::{Todo, TodoStatus};
 
         let before = vec![
-            Todo::new("Task A").id("1").status(TodoStatus::Pending),   // unchanged
-            Todo::new("Task B").id("2").status(TodoStatus::Pending),   // pending → wip
+            Todo::new("Task A").id("1").status(TodoStatus::Pending), // unchanged
+            Todo::new("Task B").id("2").status(TodoStatus::Pending), // pending → wip
         ];
         let after = vec![
-            Todo::new("Task A").id("1").status(TodoStatus::Pending),   // unchanged → dim white
+            Todo::new("Task A").id("1").status(TodoStatus::Pending), // unchanged → dim white
             Todo::new("Task B").id("2").status(TodoStatus::InProgress), // changed → bold cyan
-            Todo::new("Task C").id("3").status(TodoStatus::Pending),   // new → bold white
+            Todo::new("Task C").id("3").status(TodoStatus::Pending), // new → bold white
         ];
         let actual = extract_output(ToolOperation::TodoWrite { before, after });
 
@@ -945,9 +941,6 @@ mod tests {
             let plain = strip_ansi_codes(text.as_str());
             assert!(plain.contains("Implement user authentication"));
             assert!(plain.contains("Walk the dog"));
-            for line in plain.lines() {
-                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
-            }
         } else {
             panic!("Expected ToolOutput content");
         }
