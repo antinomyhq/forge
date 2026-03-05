@@ -78,7 +78,7 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
             return Ok(vec![]);
         }
 
-        // Use DirectoryReaderInfra to read all .md files in parallel (bounded by 64)
+        // Use DirectoryReaderInfra to read all .md files in parallel
         let files = self
             .infra
             .read_directory_files(dir, Some("*.md"))
