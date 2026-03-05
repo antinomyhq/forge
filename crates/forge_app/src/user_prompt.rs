@@ -87,7 +87,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
     fn format_todos_as_markdown(&self, todos: &[Todo]) -> String {
         use std::fmt::Write;
 
-        let mut content = String::from("Current task list:\n\n");
+        let mut content = String::from("**Current task list:**\n\n");
 
         for todo in todos {
             let checkbox = match todo.status {
