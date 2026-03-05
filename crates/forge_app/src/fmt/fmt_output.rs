@@ -118,13 +118,13 @@ fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]
         };
         result.push_str(&format_todo_line(todo, line_style));
     }
-    // Removed todos (show as cancelled with strikethrough + yellow)
+    // Removed todos (show as cancelled with strikethrough + magenta)
     for todo in before {
         if !after_ids.contains(todo.id.as_str()) {
             let content = style(todo.content.as_str()).strikethrough().to_string();
             result.push_str(&format!(
                 "{}\n",
-                style(format!("\u{f057} {content}")).yellow()
+                style(format!("󱋭 {content}")).strikethrough().magenta()
             ));
         }
     }
@@ -148,6 +148,7 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::Mutex;
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
@@ -724,8 +725,8 @@ mod tests {
             assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
             assert!(plain.contains("Task 2"), "Removed Task 2 should appear");
             assert!(
-                plain.contains('\u{f057}'),
-                "Removed task icon should appear"
+                text.contains("\x1b[9mTask 2"),
+                "Removed task content should be strikethrough, got: {text:?}"
             );
         } else {
             panic!("Expected ToolOutput content");
@@ -739,16 +740,42 @@ mod tests {
     //   dim  cyan   → \x1b[36m\x1b[2m
     //   bold green  → \x1b[32m\x1b[1m
     //   dim  green  → \x1b[32m\x1b[2m
-    //   yellow      → \x1b[33m
+    //   magenta     → \x1b[35m
     const BOLD_WHITE: &str = "\x1b[37m\x1b[1m";
     const DIM_WHITE: &str = "\x1b[37m\x1b[2m";
     const BOLD_CYAN: &str = "\x1b[36m\x1b[1m";
     const DIM_CYAN: &str = "\x1b[36m\x1b[2m";
     const BOLD_GREEN: &str = "\x1b[32m\x1b[1m";
     const DIM_GREEN: &str = "\x1b[32m\x1b[2m";
-    const YELLOW: &str = "\x1b[33m";
+    const MAGENTA: &str = "\x1b[35m";
+    static COLOR_TEST_MUTEX: Mutex<()> = Mutex::new(());
+
+    struct ColorOverride {
+        prev_stdout: bool,
+        prev_stderr: bool,
+    }
+
+    impl ColorOverride {
+        fn enable() -> Self {
+            let prev_stdout = console::colors_enabled();
+            let prev_stderr = console::colors_enabled_stderr();
+            console::set_colors_enabled(true);
+            console::set_colors_enabled_stderr(true);
+            Self { prev_stdout, prev_stderr }
+        }
+    }
+
+    impl Drop for ColorOverride {
+        fn drop(&mut self) {
+            console::set_colors_enabled(self.prev_stdout);
+            console::set_colors_enabled_stderr(self.prev_stderr);
+        }
+    }
 
     fn extract_output(op: ToolOperation) -> String {
+        let _lock = COLOR_TEST_MUTEX.lock().unwrap();
+        let _color_override = ColorOverride::enable();
+
         let env = fixture_environment();
         match op.to_content(&env) {
             Some(ChatResponseContent::ToolOutput(text)) => text,
@@ -864,17 +891,17 @@ mod tests {
         );
     }
 
-    /// Removed task should be yellow with strikethrough.
+    /// Removed task should be magenta with strikethrough.
     #[test]
-    fn test_todo_lifecycle_removed_yellow() {
+    fn test_todo_lifecycle_removed_magenta() {
         use forge_domain::{Todo, TodoStatus};
 
         let before = vec![Todo::new("Buy milk").id("1").status(TodoStatus::Pending)];
         let actual = extract_output(ToolOperation::TodoWrite { before, after: vec![] });
 
         assert!(
-            actual.contains(YELLOW),
-            "Removed task should be yellow, got: {actual:?}"
+            actual.contains(MAGENTA),
+            "Removed task should be magenta, got: {actual:?}"
         );
         // Strikethrough escape: \x1b[9m
         assert!(
