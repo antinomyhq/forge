@@ -732,8 +732,6 @@ mod tests {
         }
     }
 
-
-
     #[test]
     fn test_todo_write_realistic() {
         use forge_domain::{Todo, TodoStatus};
