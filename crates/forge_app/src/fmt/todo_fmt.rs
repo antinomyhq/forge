@@ -42,7 +42,8 @@ fn format_todo_line(todo: &Todo, line_style: TodoLineStyle) -> String {
     format!("{styled}\n")
 }
 
-/// Formats a todo diff showing all todos in `after` plus removed todos from `before`.
+/// Formats a todo diff showing all todos in `after` plus removed todos from
+/// `before`.
 ///
 /// # Arguments
 ///
@@ -53,7 +54,8 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
 
     let before_map: std::collections::HashMap<&str, &Todo> =
         before.iter().map(|todo| (todo.id.as_str(), todo)).collect();
-    let after_ids: std::collections::HashSet<&str> = after.iter().map(|todo| todo.id.as_str()).collect();
+    let after_ids: std::collections::HashSet<&str> =
+        after.iter().map(|todo| todo.id.as_str()).collect();
 
     let mut result = "\n".to_string();
 
