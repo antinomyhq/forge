@@ -101,7 +101,7 @@ fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]
         before.iter().map(|t| (t.id.as_str(), t)).collect();
     let after_ids: std::collections::HashSet<&str> = after.iter().map(|t| t.id.as_str()).collect();
 
-    let mut result = String::new();
+    let mut result = "\n".to_string();
 
     // All todos in the new list — highlight changes, dim unchanged
     for todo in after {
@@ -118,14 +118,12 @@ fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]
         };
         result.push_str(&format_todo_line(todo, line_style));
     }
-    // Removed todos (show as cancelled with strikethrough + magenta)
+
+    // Removed todos
     for todo in before {
         if !after_ids.contains(todo.id.as_str()) {
             let content = style(todo.content.as_str()).strikethrough().to_string();
-            result.push_str(&format!(
-                "{}\n",
-                style(format!("󱋭 {content}")).strikethrough().magenta()
-            ));
+            result.push_str(&format!("  {}\n", style(format!("󰄱 {content}")).red()));
         }
     }
 
@@ -137,7 +135,7 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
         return String::new();
     }
 
-    let mut result = String::new();
+    let mut result = "\n".to_string();
 
     for todo in todos {
         result.push_str(&format_todo_line(todo, TodoLineStyle::Dim));
@@ -724,8 +722,8 @@ mod tests {
             assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
             assert!(plain.contains("Task 2"), "Removed Task 2 should appear");
             assert!(
-                text.contains("\x1b[9mTask 2"),
-                "Removed task content should be strikethrough, got: {text:?}"
+                text.contains("\x1b[9mTask 2") || text.contains("󱋭 Task 2"),
+                "Removed task should be visually marked (strikethrough or removed icon), got: {text:?}"
             );
         } else {
             panic!("Expected ToolOutput content");
