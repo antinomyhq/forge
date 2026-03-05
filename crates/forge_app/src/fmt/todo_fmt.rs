@@ -106,7 +106,7 @@ pub(crate) fn format_todos(todos: &[Todo]) -> String {
 mod tests {
     use console::strip_ansi_codes;
     use forge_domain::{ChatResponseContent, Environment, Todo, TodoStatus};
-    use pretty_assertions::assert_eq;
+    use insta::assert_snapshot;
 
     use crate::fmt::content::FormatContent;
     use crate::operation::ToolOperation;
@@ -132,110 +132,31 @@ mod tests {
         Todo::new(content).id(id).status(status)
     }
 
-    #[test]
-    fn test_todo_write_empty() {
-        let fixture = ToolOperation::TodoWrite { before: vec![], after: vec![] };
-        let actual = fixture.to_content(&fixture_environment());
-        let expected = Some(ChatResponseContent::ToolOutput("\n".to_string()));
+    fn fixture_todo_write_output(before: Vec<Todo>, after: Vec<Todo>) -> String {
+        let setup = ToolOperation::TodoWrite { before, after };
+        let actual = setup.to_content(&fixture_environment());
 
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_todo_write_all_new_todos() {
-        let fixture = ToolOperation::TodoWrite {
-            before: vec![],
-            after: vec![
-                fixture_todo("Task 1", "1", TodoStatus::Pending),
-                fixture_todo("Task 2", "2", TodoStatus::InProgress),
-                fixture_todo("Task 3", "3", TodoStatus::Completed),
-            ],
-        };
-
-        let actual = fixture.to_content(&fixture_environment());
-
-        assert!(actual.is_some());
         if let Some(ChatResponseContent::ToolOutput(output)) = actual {
-            let plain = strip_ansi_codes(output.as_str());
-            assert!(plain.contains("Task 1"));
-            assert!(plain.contains("Task 2"));
-            assert!(plain.contains("Task 3"));
+            strip_ansi_codes(output.as_str()).to_string()
         } else {
-            panic!("Expected ToolOutput content");
+            panic!("Expected ToolOutput content")
         }
     }
 
     #[test]
-    fn test_todo_write_unchanged_todos_shown() {
-        let fixture = ToolOperation::TodoWrite {
-            before: vec![
-                fixture_todo("Task 1", "1", TodoStatus::Pending),
-                fixture_todo("Task 2", "2", TodoStatus::Pending),
-            ],
-            after: vec![
-                fixture_todo("Task 1", "1", TodoStatus::Pending),
-                fixture_todo("Task 2", "2", TodoStatus::Completed),
-            ],
-        };
-
-        let actual = fixture.to_content(&fixture_environment());
-
-        assert!(actual.is_some());
-        if let Some(ChatResponseContent::ToolOutput(output)) = actual {
-            let plain = strip_ansi_codes(output.as_str());
-            assert!(plain.contains("Task 1"));
-            assert!(plain.contains("Task 2"));
-        } else {
-            panic!("Expected ToolOutput content");
-        }
-    }
-
-    #[test]
-    fn test_todo_write_removed_todo_shown() {
-        let fixture = ToolOperation::TodoWrite {
-            before: vec![
+    fn test_todo_write_mixed_changes_snapshot() {
+        let setup = (
+            vec![
                 fixture_todo("Task 1", "1", TodoStatus::Pending),
                 fixture_todo("Task 2", "2", TodoStatus::InProgress),
             ],
-            after: vec![fixture_todo("Task 1", "1", TodoStatus::Pending)],
-        };
-
-        let actual = fixture.to_content(&fixture_environment());
-
-        assert!(actual.is_some());
-        if let Some(ChatResponseContent::ToolOutput(output)) = actual {
-            let plain = strip_ansi_codes(output.as_str());
-            assert!(plain.contains("Task 1"));
-            assert!(plain.contains("Task 2"));
-            assert!(output.contains("\x1b[9mTask 2"));
-        } else {
-            panic!("Expected ToolOutput content");
-        }
-    }
-
-    #[test]
-    fn test_todo_write_realistic() {
-        let fixture = ToolOperation::TodoWrite {
-            before: vec![fixture_todo(
-                "Implement user authentication",
-                "1",
-                TodoStatus::InProgress,
-            )],
-            after: vec![
-                fixture_todo("Implement user authentication", "1", TodoStatus::Completed),
-                fixture_todo("Walk the dog", "2", TodoStatus::Pending),
+            vec![
+                fixture_todo("Task 1", "1", TodoStatus::Completed),
+                fixture_todo("Task 3", "3", TodoStatus::Pending),
             ],
-        };
+        );
 
-        let actual = fixture.to_content(&fixture_environment());
-
-        assert!(actual.is_some());
-        if let Some(ChatResponseContent::ToolOutput(output)) = actual {
-            let plain = strip_ansi_codes(output.as_str());
-            assert!(plain.contains("Implement user authentication"));
-            assert!(plain.contains("Walk the dog"));
-        } else {
-            panic!("Expected ToolOutput content");
-        }
+        let actual = fixture_todo_write_output(setup.0, setup.1);
+        assert_snapshot!(actual);
     }
 }
