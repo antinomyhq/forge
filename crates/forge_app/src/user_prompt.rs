@@ -91,12 +91,12 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
         for todo in todos {
             let checkbox = match todo.status {
-                TodoStatus::Completed => "[x]",
-                TodoStatus::InProgress => "[~]",
-                TodoStatus::Pending => "[ ]",
+                TodoStatus::Completed => "[DONE]",
+                TodoStatus::InProgress => "[IN_PROGRESS]",
+                TodoStatus::Pending => "[PENDING]",
             };
 
-            writeln!(content, "{} {}", checkbox, todo.content)
+            writeln!(content, "- {} {}", checkbox, todo.content)
                 .expect("Writing to String should not fail");
         }
 

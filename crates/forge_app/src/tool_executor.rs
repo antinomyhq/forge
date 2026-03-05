@@ -306,13 +306,12 @@ impl<
                 ToolOperation::Skill { output: skill }
             }
             ToolCatalog::TodoWrite(input) => {
-                let before = context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
-                let after = context
-                    .try_with_metrics(|metrics| metrics.update_todos(input.todos.clone()))?;
+                let before = context.get_todos()?;
+                let after = context.update_todos(input.todos.clone())?;
                 ToolOperation::TodoWrite { before, after }
             }
             ToolCatalog::TodoRead(_input) => {
-                let todos = context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
+                let todos = context.get_todos()?;
                 ToolOperation::TodoRead { output: todos }
             }
         })
