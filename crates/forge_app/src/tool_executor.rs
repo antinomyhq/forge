@@ -151,7 +151,7 @@ impl<
     async fn call_internal(
         &self,
         input: ToolCatalog,
-        _context: &ToolCallContext,
+        context: &ToolCallContext,
     ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             ToolCatalog::Read(input) => {
@@ -306,13 +306,13 @@ impl<
                 ToolOperation::Skill { output: skill }
             }
             ToolCatalog::TodoWrite(input) => {
-                let before = _context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
-                let after = _context
+                let before = context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
+                let after = context
                     .try_with_metrics(|metrics| metrics.update_todos(input.todos.clone()))?;
                 ToolOperation::TodoWrite { before, after }
             }
             ToolCatalog::TodoRead(_input) => {
-                let todos = _context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
+                let todos = context.with_metrics(|metrics| metrics.get_todos().to_vec())?;
                 ToolOperation::TodoRead { output: todos }
             }
         })
