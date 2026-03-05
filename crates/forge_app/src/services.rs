@@ -562,6 +562,9 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
+/// Core app trait providing access to services and repositories.
+/// This trait follows clean architecture principles for dependency management
+/// and service/repository composition.
 pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
