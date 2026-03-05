@@ -26,6 +26,8 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
     /// duplicate notifications.
     pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
+        // FIXME: FileChangeDetector::detect currently reads tracked files with unbounded
+        // parallelism and may hit EMFILE ("too many open files") on large sessions.
         let changes = FileChangeDetector::new(self.services.clone())
             .detect(&conversation.metrics)
             .await;
