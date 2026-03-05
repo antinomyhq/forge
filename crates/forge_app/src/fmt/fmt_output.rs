@@ -50,48 +50,58 @@ impl FormatContent for ToolOperation {
 }
 
 /// Renders a single todo as an indented line with icon and ANSI styling.
-fn format_todo_line(todo: &forge_domain::Todo) -> String {
+/// Controls the color applied to a rendered todo line.
+enum TodoLineStyle {
+    /// Dim — used for unchanged todos.
+    Dim,
+    /// Default terminal color — used for newly created todos.
+    Default,
+    /// Yellow — used for updated or removed todos.
+    Yellow,
+}
+
+/// Renders a single todo as an indented line with icon and ANSI styling.
+fn format_todo_line(todo: &forge_domain::Todo, line_style: TodoLineStyle) -> String {
+    use console::style;
     use forge_domain::TodoStatus;
 
-    let dim_start = "\x1b[2m";
-    let dim_end = "\x1b[0m";
-    let strikethrough_start = "\x1b[9m";
-    let strikethrough_end = "\x1b[29m";
-
     let checkbox = match todo.status {
-        TodoStatus::Completed => "",
+        TodoStatus::Completed => "󰄵",
         TodoStatus::InProgress => "󱨈",
-        TodoStatus::Pending => "",
+        TodoStatus::Pending => "󰄱",
     };
 
     let content = match todo.status {
-        TodoStatus::Completed => format!(
-            "{}{}{}",
-            strikethrough_start, todo.content, strikethrough_end
-        ),
+        TodoStatus::Completed => style(todo.content.as_str()).strikethrough().to_string(),
         _ => todo.content.clone(),
     };
 
-    format!(
-        "             {}{} {}{}\n",
-        dim_start, checkbox, content, dim_end
-    )
+    let line = format!("  {checkbox} {content}");
+    let status_colored_line = match todo.status {
+        TodoStatus::Completed => style(line.as_str()).green().to_string(),
+        TodoStatus::Pending => style(line.as_str()).cyan().to_string(),
+        TodoStatus::InProgress => line.clone(),
+    };
+
+    let styled = match line_style {
+        TodoLineStyle::Dim => style(status_colored_line).dim().to_string(),
+        TodoLineStyle::Default => status_colored_line,
+        TodoLineStyle::Yellow => style(line).yellow().to_string(),
+    };
+    format!("{styled}\n")
 }
 
 /// Formats a todo diff showing only what changed between before and after
 fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]) -> String {
+    use console::style;
+
     let before_map: std::collections::HashMap<&str, &forge_domain::Todo> =
         before.iter().map(|t| (t.id.as_str(), t)).collect();
     let after_ids: std::collections::HashSet<&str> = after.iter().map(|t| t.id.as_str()).collect();
 
-    let dim_start = "\x1b[2m";
-    let dim_end = "\x1b[0m";
-    let strikethrough_start = "\x1b[9m";
-    let strikethrough_end = "\x1b[29m";
-
     let mut result = String::new();
 
-    // Added or updated todos
+    // All todos in the new list — highlight changes, dim unchanged
     for todo in after {
         let prev = before_map.get(todo.id.as_str()).copied();
         let is_new = prev.is_none();
@@ -99,29 +109,28 @@ fn format_todos_diff(before: &[forge_domain::Todo], after: &[forge_domain::Todo]
             .map(|p| p.status != todo.status || p.content != todo.content)
             .unwrap_or(false);
 
-        if !is_new && !is_changed {
-            continue;
-        }
-
-        result.push_str(&format_todo_line(todo));
+        let line_style = if is_new {
+            TodoLineStyle::Default
+        } else if is_changed {
+            TodoLineStyle::Yellow
+        } else {
+            TodoLineStyle::Dim
+        };
+        result.push_str(&format_todo_line(todo, line_style));
     }
-    // Removed todos (show as cancelled with strikethrough)
+    // Removed todos (show as cancelled with strikethrough + yellow)
     for todo in before {
         if !after_ids.contains(todo.id.as_str()) {
-            let content = format!(
-                "{}{}{}",
-                strikethrough_start, todo.content, strikethrough_end
-            );
+            let content = style(todo.content.as_str()).strikethrough().to_string();
             result.push_str(&format!(
-                "             {}\u{f057} {}{}\n",
-                dim_start, content, dim_end
+                "  {}\n",
+                style(format!("\u{f057} {content}")).yellow()
             ));
         }
     }
 
     result
 }
-
 /// Formats todos as markdown-style checkboxes
 fn format_todos(todos: &[forge_domain::Todo]) -> String {
     if todos.is_empty() {
@@ -131,7 +140,7 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
     let mut result = String::new();
 
     for todo in todos {
-        result.push_str(&format_todo_line(todo));
+        result.push_str(&format_todo_line(todo, TodoLineStyle::Dim));
     }
     result
 }
@@ -657,15 +666,12 @@ mod tests {
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
         if let Some(ChatResponseContent::ToolOutput(text)) = actual {
-            assert!(text.contains("Task 1"));
-            assert!(text.contains("Task 2"));
-            assert!(text.contains("\x1b[9mTask 3\x1b[29m"));
-            for line in text.lines() {
-                assert!(
-                    line.starts_with("             "),
-                    "Line should start with 13 spaces: {:?}",
-                    line
-                );
+            let plain = strip_ansi_codes(text.as_str());
+            assert!(plain.contains("Task 1"));
+            assert!(plain.contains("Task 2"));
+            assert!(plain.contains("Task 3"));
+            for line in plain.lines() {
+                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
             }
         } else {
             panic!("Expected ToolOutput content");
@@ -673,10 +679,10 @@ mod tests {
     }
 
     #[test]
-    fn test_todo_write_unchanged_todos_not_shown() {
+    fn test_todo_write_unchanged_todos_shown() {
         use forge_domain::{Todo, TodoStatus};
 
-        // Task 1 unchanged, Task 2 status changes: only Task 2 shown
+        // Task 1 unchanged, Task 2 status changes: both should be shown
         let before = vec![
             Todo::new("Task 1").id("1").status(TodoStatus::Pending),
             Todo::new("Task 2").id("2").status(TodoStatus::Pending),
@@ -692,14 +698,12 @@ mod tests {
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
         if let Some(ChatResponseContent::ToolOutput(text)) = actual {
-            assert!(
-                !text.contains("Task 1"),
-                "Unchanged Task 1 should not appear"
-            );
-            assert!(
-                text.contains("\x1b[9mTask 2\x1b[29m"),
-                "Changed Task 2 should appear struck-through"
-            );
+            let plain = strip_ansi_codes(text.as_str());
+            assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
+            assert!(plain.contains("Task 2"), "Changed Task 2 should appear");
+            for line in plain.lines() {
+                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
+            }
         } else {
             panic!("Expected ToolOutput content");
         }
@@ -722,14 +726,13 @@ mod tests {
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
         if let Some(ChatResponseContent::ToolOutput(text)) = actual {
-            assert!(
-                !text.contains("Task 1"),
-                "Unchanged Task 1 should not appear"
-            );
-            assert!(
-                text.contains("\x1b[9mTask 2\x1b[29m"),
-                "Removed Task 2 should appear struck-through"
-            );
+            let plain = strip_ansi_codes(text.as_str());
+            assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
+            assert!(plain.contains("Task 2"), "Removed Task 2 should appear");
+            assert!(plain.contains('\u{f057}'), "Removed task icon should appear");
+            for line in plain.lines() {
+                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
+            }
         } else {
             panic!("Expected ToolOutput content");
         }
@@ -760,14 +763,11 @@ mod tests {
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
         if let Some(ChatResponseContent::ToolOutput(text)) = actual {
-            assert!(text.contains("\x1b[9mImplement user authentication\x1b[29m"));
-            assert!(text.contains("Walk the dog"));
-            for line in text.lines() {
-                assert!(
-                    line.starts_with("             "),
-                    "Line should start with 13 spaces: {:?}",
-                    line
-                );
+            let plain = strip_ansi_codes(text.as_str());
+            assert!(plain.contains("Implement user authentication"));
+            assert!(plain.contains("Walk the dog"));
+            for line in plain.lines() {
+                assert!(line.starts_with("  "), "Line should start with 2 spaces: {:?}", line);
             }
         } else {
             panic!("Expected ToolOutput content");
