@@ -524,15 +524,15 @@ mod tests {
             "Should contain task list header"
         );
         assert!(
-            todo_content.contains("[x] Task 1"),
+            todo_content.contains("[DONE] Task 1"),
             "Should contain completed task"
         );
         assert!(
-            todo_content.contains("[~] Task 2"),
+            todo_content.contains("[IN_PROGRESS] Task 2"),
             "Should contain in-progress task"
         );
         assert!(
-            todo_content.contains("[ ] Task 3"),
+            todo_content.contains("[PENDING] Task 3"),
             "Should contain pending task"
         );
     }

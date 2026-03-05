@@ -641,7 +641,7 @@ mod tests {
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
         if let Some(ChatResponseContent::ToolOutput(text)) = actual {
-            assert_eq!(text, "");
+            assert_eq!(text, "\n");
         } else {
             panic!("Expected ToolOutput content");
         }
@@ -722,8 +722,8 @@ mod tests {
             assert!(plain.contains("Task 1"), "Unchanged Task 1 should appear");
             assert!(plain.contains("Task 2"), "Removed Task 2 should appear");
             assert!(
-                text.contains("\x1b[9mTask 2") || text.contains("󱋭 Task 2"),
-                "Removed task should be visually marked (strikethrough or removed icon), got: {text:?}"
+                text.contains("\x1b[9mTask 2"),
+                "Removed task should be visually marked (strikethrough on content), got: {text:?}"
             );
         } else {
             panic!("Expected ToolOutput content");
