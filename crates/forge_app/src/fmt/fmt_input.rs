@@ -119,6 +119,12 @@ impl FormatContent for ToolCatalog {
                     .sub_title(input.name.to_lowercase())
                     .into(),
             ),
+            ToolCatalog::TodoWrite(input) => Some(
+                TitleFormat::debug("Update Todos")
+                    .sub_title(format!("{} item(s)", input.todos.len()))
+                    .into(),
+            ),
+            ToolCatalog::TodoRead(_) => Some(TitleFormat::debug("Read Todos").into()),
         }
     }
 }
