@@ -48,7 +48,10 @@ impl<F: FsReadService> FileChangeDetector<F> {
             .file_operations
             .iter()
             .map(|(path, file_metrics)| {
-                (std::path::PathBuf::from(path), file_metrics.content_hash.clone())
+                (
+                    std::path::PathBuf::from(path),
+                    file_metrics.content_hash.clone(),
+                )
             })
             .collect();
 
@@ -92,7 +95,6 @@ impl<F: FsReadService> FileChangeDetector<F> {
 
         changes
     }
-
 }
 
 #[cfg(test)]
