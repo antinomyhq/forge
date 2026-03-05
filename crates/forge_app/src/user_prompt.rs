@@ -59,9 +59,8 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
     fn add_todos_on_resume(&self, mut conversation: Conversation) -> anyhow::Result<Conversation> {
         let mut context = conversation.context.take().unwrap_or_default();
 
-        // Load existing todos from the conversation itself (no separate repository
-        // call)
-        let todos = conversation.todos.clone();
+        // Load existing todos from session metrics
+        let todos = conversation.metrics.todos.clone();
 
         if !todos.is_empty() {
             // Format todos as markdown checklist
@@ -477,18 +476,18 @@ mod tests {
         let event = Event::new("Continue working");
 
         // Create a conversation with existing context (simulating resume) and todos
-        // stored on the conversation
+        // stored in metrics
         let conversation = Conversation::new(ConversationId::generate())
             .context(
                 Context::default()
                     .add_message(ContextMessage::system("System message"))
                     .add_message(ContextMessage::user("Previous task", None)),
             )
-            .todos(vec![
+            .metrics(Metrics::default().todos(vec![
                 Todo::new("Task 1").status(TodoStatus::Completed),
                 Todo::new("Task 2").status(TodoStatus::InProgress),
                 Todo::new("Task 3").status(TodoStatus::Pending),
-            ]);
+            ]));
 
         let generator = UserPromptGenerator::new(
             Arc::new(MockServiceWithTodos),
