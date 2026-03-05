@@ -87,9 +87,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
             return Ok(vec![]);
         }
 
-        // FIXME: read_directory_files reads matched files in parallel without a concurrency cap;
-        // large agent directories can trigger EMFILE ("too many open files").
-        // Use DirectoryReaderInfra to read all .md files in parallel
+        // Use DirectoryReaderInfra to read all .md files in parallel (bounded by 64)
         let files = self
             .infra
             .read_directory_files(dir, Some("*.md"))

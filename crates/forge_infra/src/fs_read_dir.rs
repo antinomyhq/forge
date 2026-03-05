@@ -4,13 +4,24 @@ use anyhow::Result;
 use forge_app::DirectoryReaderInfra;
 use forge_fs::ForgeFS;
 use forge_walker::Walker;
-use futures::future::join_all;
+use futures::StreamExt;
 use glob::Pattern;
 
 /// Service for reading multiple files from a directory asynchronously
-pub struct ForgeDirectoryReaderService;
+pub struct ForgeDirectoryReaderService {
+    parallel_file_reads: usize,
+}
 
 impl ForgeDirectoryReaderService {
+    /// Creates a new service with the given concurrency cap for parallel reads.
+    ///
+    /// # Arguments
+    ///
+    /// * `parallel_file_reads` - Maximum number of files to read concurrently
+    pub fn new(parallel_file_reads: usize) -> Self {
+        Self { parallel_file_reads }
+    }
+
     /// Lists all entries in a directory without reading file contents
     /// Returns a vector of tuples containing (entry_path, is_directory)
     /// Much more efficient than read_directory_files for directory listings
@@ -92,21 +103,19 @@ impl ForgeDirectoryReaderService {
             }
         }
 
-        // Read all files in parallel
-        let read_tasks = file_paths.into_iter().map(|path| {
-            let path_clone = path.clone();
-            async move {
+        // Read files in parallel with a concurrency cap to avoid EMFILE errors
+        let files = futures::stream::iter(file_paths)
+            .map(|path| async move {
+                let path_clone = path.clone();
                 match ForgeFS::read_to_string(&path).await {
                     Ok(content) => Some((path_clone, content)),
                     Err(_) => None, // Skip files that can't be read
                 }
-            }
-        });
-
-        let results = join_all(read_tasks).await;
-
-        // Collect successful reads
-        let files = results.into_iter().flatten().collect();
+            })
+            .buffer_unordered(self.parallel_file_reads)
+            .filter_map(|x| async move { x })
+            .collect::<Vec<_>>()
+            .await;
 
         Ok(files)
     }
@@ -147,7 +156,7 @@ mod tests {
         write_file(&fixture.path().join("test.txt"), "Text content");
         write_file(&fixture.path().join("test.rs"), "fn main() {}");
 
-        let actual = ForgeDirectoryReaderService
+        let actual = ForgeDirectoryReaderService::new(64)
             .read_directory_files(fixture.path(), Some("*.md"))
             .await
             .unwrap();
@@ -165,7 +174,7 @@ mod tests {
         write_file(&fixture.path().join("file1.txt"), "Content 1");
         write_file(&fixture.path().join("file2.md"), "Content 2");
 
-        let mut actual = ForgeDirectoryReaderService
+        let mut actual = ForgeDirectoryReaderService::new(64)
             .read_directory_files(fixture.path(), None)
             .await
             .unwrap();
@@ -180,7 +189,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_directory_files_nonexistent_directory() {
-        let actual = ForgeDirectoryReaderService
+        let actual = ForgeDirectoryReaderService::new(64)
             .read_directory_files(Path::new("/nonexistent"), None)
             .await
             .unwrap();
@@ -198,7 +207,7 @@ mod tests {
         fs::create_dir(&subdir).unwrap();
         write_file(&subdir.join("subfile.txt"), "Sub content");
 
-        let actual = ForgeDirectoryReaderService
+        let actual = ForgeDirectoryReaderService::new(64)
             .read_directory_files(fixture.path(), None)
             .await
             .unwrap();
@@ -216,7 +225,7 @@ mod tests {
         let subdir = fixture.path().join("subdir");
         fs::create_dir(&subdir).unwrap();
 
-        let mut actual = ForgeDirectoryReaderService
+        let mut actual = ForgeDirectoryReaderService::new(64)
             .list_directory_entries(fixture.path())
             .await
             .unwrap();
@@ -232,7 +241,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_directory_entries_nonexistent() {
-        let actual = ForgeDirectoryReaderService
+        let actual = ForgeDirectoryReaderService::new(64)
             .list_directory_entries(Path::new("/nonexistent"))
             .await
             .unwrap();
@@ -255,7 +264,7 @@ mod tests {
 
         write_file(&fixture.path().join(".gitignore"), "*.log\nnode_modules/\n");
 
-        let actual = ForgeDirectoryReaderService
+        let actual = ForgeDirectoryReaderService::new(64)
             .list_directory_entries(fixture.path())
             .await
             .unwrap();
