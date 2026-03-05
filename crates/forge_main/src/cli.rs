@@ -168,6 +168,13 @@ pub enum TopLevelCommand {
 
     /// Update forge to the latest version.
     Update(UpdateArgs),
+
+    /// Setup zsh integration by updating .zshrc with plugin and theme (alias
+    /// for `zsh setup`).
+    Setup,
+
+    /// Run diagnostics on shell environment (alias for `zsh doctor`).
+    Doctor,
 }
 
 /// Command group for custom command management.
@@ -1716,6 +1723,20 @@ mod tests {
             }
             _ => false,
         };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_setup_alias() {
+        let fixture = Cli::parse_from(["forge", "setup"]);
+        let actual = matches!(fixture.subcommands, Some(TopLevelCommand::Setup));
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_doctor_alias() {
+        let fixture = Cli::parse_from(["forge", "doctor"]);
+        let actual = matches!(fixture.subcommands, Some(TopLevelCommand::Doctor));
         assert_eq!(actual, true);
     }
 
