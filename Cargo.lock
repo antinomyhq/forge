@@ -1970,7 +1970,6 @@ dependencies = [
  "indexmap 2.13.0",
  "insta",
  "lazy_static",
- "libc",
  "merge",
  "nu-ansi-term",
  "nucleo",

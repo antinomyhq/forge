@@ -441,35 +441,27 @@ pub async fn detect_sudo(platform: Platform) -> SudoCapability {
     match platform {
         Platform::Windows | Platform::Android => SudoCapability::NoneNeeded,
         Platform::MacOS | Platform::Linux => {
-            // Check if already root
-            #[cfg(unix)]
-            {
-                if unsafe { libc::getuid() } == 0 {
-                    return SudoCapability::Root;
-                }
-            }
-            #[cfg(not(unix))]
-            {
-                return SudoCapability::NoneNeeded;
+            // Check if already root via `id -u`
+            let is_root = Command::new("id")
+                .arg("-u")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .output()
+                .await
+                .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "0")
+                .unwrap_or(false);
+
+            if is_root {
+                return SudoCapability::Root;
             }
 
             // Check if sudo is available
-            #[cfg(unix)]
-            {
-                let has_sudo = Command::new("which")
-                    .arg("sudo")
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .status()
-                    .await
-                    .map(|s| s.success())
-                    .unwrap_or(false);
+            let has_sudo = command_exists("sudo").await;
 
-                if has_sudo {
-                    SudoCapability::SudoAvailable
-                } else {
-                    SudoCapability::NoneAvailable
-                }
+            if has_sudo {
+                SudoCapability::SudoAvailable
+            } else {
+                SudoCapability::NoneAvailable
             }
         }
     }
