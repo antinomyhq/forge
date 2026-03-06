@@ -1109,11 +1109,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
 
         let mut info = Info::new();
-        for pm in &all_provider_models {
+        let mut model_clone = None;
+        for pm in &mut all_provider_models {
             let provider_id: &str = &pm.provider_id;
             let provider_display = pm.provider_id.to_string();
+            if let Some(model) = model_clone.clone() {
+                pm.models.push(model);
+            }
+
             for model in &pm.models {
                 let id = model.id.to_string();
+                if model_clone.is_none() {
+                    model_clone = Some(model.clone());
+                }
 
                 info = info
                     .add_title(&id)
