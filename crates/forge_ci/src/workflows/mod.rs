@@ -3,6 +3,7 @@
 mod autofix;
 mod ci;
 mod labels;
+mod pull_request_create;
 mod release_drafter;
 mod release_publish;
 mod stale;
@@ -10,6 +11,7 @@ mod stale;
 pub use autofix::*;
 pub use ci::*;
 pub use labels::*;
+pub use pull_request_create::*;
 pub use release_drafter::*;
 pub use release_publish::*;
 pub use stale::*;
