@@ -88,9 +88,7 @@ where
                 // Check if provider supports Google ADC and if it's the Google ADC marker
                 let is_vertex_provider = provider_id == forge_domain::ProviderId::VERTEX_AI
                     || provider_id == forge_domain::ProviderId::VERTEX_AI_ANTHROPIC;
-                if is_vertex_provider
-                    && response.response.api_key.as_ref() == "google_adc_marker"
-                {
+                if is_vertex_provider && response.response.api_key.as_ref() == "google_adc_marker" {
                     // Vertex AI uses Google ADC
                     forge_domain::AuthMethod::google_adc()
                 } else {
