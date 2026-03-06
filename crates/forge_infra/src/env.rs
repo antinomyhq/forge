@@ -97,7 +97,12 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             max_extensions: parse_env::<usize>("FORGE_MAX_EXTENSIONS").unwrap_or(15),
             auto_dump: parse_env::<AutoDumpFormat>("FORGE_AUTO_DUMP"),
-            parallel_file_reads: parse_env::<usize>("FORGE_PARALLEL_FILE_READS").unwrap_or(127),
+            parallel_file_reads: parse_env::<usize>("FORGE_PARALLEL_FILE_READS")
+                .unwrap_or_else(|| {
+                    std::thread::available_parallelism()
+                        .map(|n| n.get() * 2)
+                        .unwrap_or(32)
+                }),
         }
     }
 
