@@ -1,15 +1,19 @@
-<operating_system>{{env.os}}</operating_system>
-<current_working_directory>{{env.cwd}}</current_working_directory>
-<default_shell>{{env.shell}}</default_shell>
-<home_directory>{{env.home}}</home_directory>
+**Operating System**: `{{env.os}}`
+**Active Shell**: `{{env.shell}}`
+**Home Directory**: `{{env.home}}`
+**Current Working Directory**: `{{env.cwd}}`
 {{#if files}}
-<file_list>
 {{#each files}} - {{path}}{{#if is_dir}}/{{/if}}
-{{/each}}</file_list>
+{{/each}}
+_NOTE:_ Paths ending with a `/` represent a directory.
 {{/if}}
 {{#if extensions}}
-<workspace_extensions command="git ls-files" files="{{extensions.git_tracked_files}}" extensions="{{extensions.total_extensions}}">
+**File Distribution by Extension in `{{env.cwd}}`**
+Total Files: {{extensions.git_tracked_files}}
+Total Extensions: {{extensions.total_extensions}}
+
 {{#each extensions.extension_stats}} - .{{extension}}: {{count}} files ({{percentage}}%)
 {{/each}}{{#if (gt extensions.total_extensions extensions.max_extensions)}}(showing top {{extensions.max_extensions}} of {{extensions.total_extensions}} extensions; other extensions account for {{extensions.remaining_percentage}}% of files)
-{{/if}}</workspace_extensions>
+{{/if}}
+_NOTE:_ This is a recursive analysis of the current working directory.
 {{/if}}
