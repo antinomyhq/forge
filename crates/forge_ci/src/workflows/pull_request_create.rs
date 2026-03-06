@@ -41,11 +41,7 @@ forge --version"#,
                         .add_env(("GH_TOKEN", "${{ secrets.GITHUB_TOKEN }}")),
                 )
                 .add_step(Step::new("Pipe Issue Content To Forge").run(
-                    r#"{
-  cat .github/forge-issue.md
-  echo ""
-  echo "Implement the issue above in this repository by applying the required code changes."
-} | forge"#,
+                    r#"cat .github/forge-issue.md| forge"#,
                 ))
                 .add_step(Step::new("Commit Changes").run(
                     r#"git config user.name "github-actions[bot]"

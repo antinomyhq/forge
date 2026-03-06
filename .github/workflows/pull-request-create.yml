@@ -50,12 +50,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     - name: Pipe Issue Content To Forge
-      run: |-
-        {
-          cat .github/forge-issue.md
-          echo ""
-          echo "Implement the issue above in this repository by applying the required code changes."
-        } | forge
+      run: cat .github/forge-issue.md | forge
     - name: Commit Changes
       run: |-
         git config user.name "github-actions[bot]"
