@@ -27,8 +27,8 @@ function cyan() { echo "${_CYAN}${1}${RESET}"; }
 
 # Simple ASCII symbols
 local PASS="[OK]"
-local FAIL="[!!]"
-local WARN="[--]"
+local FAIL="[ERROR]"
+local WARN="[WARN]"
 
 # Counters
 local passed=0
@@ -54,22 +54,22 @@ function print_result() {
             ;;
         fail)
             echo "  $(red "${FAIL}") ${message}"
-            [[ -n "$detail" ]] && echo "       $(dim "${detail}")"
+            [[ -n "$detail" ]] && echo "  $(dim "· ${detail}")"
             ((failed++))
             ;;
         warn)
             echo "  $(yellow "${WARN}") ${message}"
-            [[ -n "$detail" ]] && echo "       $(dim "${detail}")"
+            [[ -n "$detail" ]] && echo "  $(dim "· ${detail}")"
             ((warnings++))
             ;;
         info)
-            echo "       $(dim "${message}")"
+            echo "  $(dim "· ${message}")"
             ;;
         code)
-            echo "       $(dim "${message}")"
+            echo "  $(dim "· ${message}")"
             ;;
         instruction)
-            echo "       $(dim "${message}")"
+            echo "  $(dim "· ${message}")"
             ;;
     esac
 }
@@ -567,7 +567,6 @@ fi
 
 # Summary
 echo ""
-echo "$(dim "────────────────────────────────────────")"
 
 if [[ $failed -eq 0 && $warnings -eq 0 ]]; then
     echo "$(green "${PASS}") $(bold "All checks passed") $(dim "(${passed})")"
