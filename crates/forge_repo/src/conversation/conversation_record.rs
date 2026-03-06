@@ -915,6 +915,7 @@ impl From<MetricsRecord> for forge_domain::Metrics {
             started_at: record.started_at,
             file_operations,
             files_accessed,
+            todos: Vec::new(),
         }
     }
 }
