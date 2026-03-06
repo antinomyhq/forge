@@ -107,8 +107,9 @@ function _forge_action_model() {
             return 0
         fi
 
-        local current_model
+        local current_model current_provider
         current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+        current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
 
         local fzf_args=(
             --delimiter="$_FORGE_DELIMITER"
@@ -121,7 +122,9 @@ function _forge_action_model() {
         fi
 
         if [[ -n "$current_model" ]]; then
-            local index=$(_forge_find_index "$output" "$current_model" 1)
+            # Match on model_id (col 1) and provider display name (col 3)
+            # to handle the same model appearing under multiple providers
+            local index=$(_forge_find_index "$output" "$current_model" 1 3 "$current_provider")
             fzf_args+=(--bind="start:pos($index)")
         fi
 
@@ -141,9 +144,6 @@ function _forge_action_model() {
             provider_display=${provider_display//[[:space:]]/}
 
             # Switch provider first if it differs from the current one
-            # config get provider returns the display name, so compare against that
-            local current_provider
-            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
                 _forge_exec config set provider "$provider_id"
             fi
