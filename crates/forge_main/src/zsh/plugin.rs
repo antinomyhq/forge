@@ -115,10 +115,14 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .context(format!("Failed to wait for zsh {} script", script_name))?;
 
     if !status.success() {
+        let exit_code = status
+            .code()
+            .map_or_else(|| "unknown".to_string(), |code| code.to_string());
+
         anyhow::bail!(
-            "ZSH {} script failed with exit code: {:?}",
+            "ZSH {} script failed with exit code: {}",
             script_name,
-            status.code()
+            exit_code
         );
     }
 

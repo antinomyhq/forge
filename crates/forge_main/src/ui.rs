@@ -1686,7 +1686,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
-        self.on_zsh_doctor().await
+        let doctor_result = self.on_zsh_doctor().await;
+
+        if doctor_result.is_ok() {
+            self.writeln_title(TitleFormat::warning(
+                "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
+            ))?;
+            self.writeln_title(TitleFormat::warning(
+                "run `: Hi` after restarting your shell to confirm everything works",
+            ))?;
+        }
+
+        doctor_result
     }
 
     /// Handle the cmd command - generates shell command from natural language
