@@ -1,8 +1,43 @@
 use std::io::{self, stdout};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use crossterm::cursor::Show;
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::{Command, execute};
+
+static SIGNAL_HANDLER_INSTALLED: AtomicBool = AtomicBool::new(false);
+
+/// Restore cursor visibility using raw ANSI escape code
+///
+/// This is more reliable than crossterm when the program is exiting
+fn restore_cursor() {
+    use std::io::Write;
+    let _ = std::io::stdout().write_all(b"\x1b[?25h");
+    let _ = std::io::stdout().flush();
+}
+
+/// Install global signal handler to restore cursor on Ctrl+C
+///
+/// This ensures cursor visibility is restored even if dialoguer is interrupted.
+/// Only installs the handler once, subsequent calls are no-ops.
+///
+/// # Errors
+///
+/// Returns an error if the signal handler cannot be installed
+pub fn install_signal_handler() -> io::Result<()> {
+    // Only install once using atomic compare-and-swap
+    if SIGNAL_HANDLER_INSTALLED
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_ok()
+    {
+        ctrlc::set_handler(move || {
+            restore_cursor();
+            std::process::exit(130); // 128 + SIGINT(2) = 130
+        })
+        .map_err(io::Error::other)?;
+    }
+    Ok(())
+}
 
 /// Terminal control utilities for managing terminal modes
 pub struct TerminalControl;
