@@ -335,21 +335,21 @@ impl Theme {
             code: Style::new().fg(Color::Red),
             strikethrough: Style::new().strikethrough().dimmed(),
             link: Style::new().fg(Color::Blue).underline(),
-            link_url: Style::new().fg(Color::Cyan).dimmed(),
+            link_url: Style::new().fg(Color::BrightBlack).dimmed(),
 
             // Headings
-            heading1: Style::new().fg(Color::Magenta).bold(),
+            heading1: Style::new().fg(Color::BrightMagenta).bold(),
             heading2: Style::new().fg(Color::Blue).bold(),
-            heading3: Style::new().fg(Color::Cyan).bold(),
+            heading3: Style::new().fg(Color::BrightBlue).bold(),
             heading4: Style::new().fg(Color::Green).bold(),
-            heading5: Style::new().fg(Color::Yellow).bold(),
+            heading5: Style::new().fg(Color::Red).bold(),
             heading6: Style::new().fg(Color::Black).bold(),
 
             // Lists
             bullet_dash: Style::new().fg(Color::Blue),
             bullet_asterisk: Style::new().fg(Color::Green),
-            bullet_plus: Style::new().fg(Color::Magenta),
-            bullet_plus_expand: Style::new().fg(Color::Cyan),
+            bullet_plus: Style::new().fg(Color::BrightMagenta),
+            bullet_plus_expand: Style::new().fg(Color::BrightBlue),
             list_number: Style::new().fg(Color::Blue),
             checkbox_checked: Style::new().fg(Color::Green),
             checkbox_unchecked: Style::new().fg(Color::Red),

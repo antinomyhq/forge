@@ -16,6 +16,8 @@ pub struct ZshColor(u8);
 impl ZshColor {
     /// White (color 15)
     pub const WHITE: Self = Self(15);
+    /// Black (color 0)
+    pub const BLACK: Self = Self(0);
     /// Cyan (color 134)
     pub const CYAN: Self = Self(134);
     /// Green (color 2)

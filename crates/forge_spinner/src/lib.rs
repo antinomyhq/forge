@@ -96,14 +96,30 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 
         self.message = Some(word.clone());
 
+        // Detect terminal theme for appropriate colors
+        let is_light_mode = matches!(
+            terminal_colorsaurus::theme_mode(terminal_colorsaurus::QueryOptions::default()),
+            Ok(terminal_colorsaurus::ThemeMode::Light)
+        );
+
         // Create the spinner with accumulated elapsed time
         // Use custom elapsed formatter for "01s", "1:01m", "1:01h" format
+        // Colors: elapsed time and prefix use black in light mode, white in dark mode
+        let (elapsed_color, prefix_color) = if is_light_mode {
+            ("black", "black")
+        } else {
+            ("white", "white")
+        };
+
         let pb = ProgressBar::new_spinner()
             .with_elapsed(self.accumulated_elapsed)
             .with_style(
                 ProgressStyle::default_spinner()
                     .tick_strings(TICKS)
-                    .template("{spinner:.green} {msg} {elapsed_custom:.white} {prefix:.white.dim}")
+                    .template(&format!(
+                        "{{spinner:.green}} {{msg}} {{elapsed_custom:.{}}} {{prefix:.{}.dim}}",
+                        elapsed_color, prefix_color
+                    ))
                     .unwrap()
                     .with_key(
                         "elapsed_custom",
