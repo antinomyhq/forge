@@ -26,7 +26,8 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
     /// duplicate notifications.
     pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
-        let changes = FileChangeDetector::new(self.services.clone())
+        let parallel_file_reads = self.services.get_environment().parallel_file_reads;
+        let changes = FileChangeDetector::new(self.services.clone(), parallel_file_reads)
             .detect(&conversation.metrics)
             .await;
 
