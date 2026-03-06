@@ -365,7 +365,7 @@ if [[ "$platform" == "Darwin" ]]; then
                 print_result pass "VS Code: Option key configured as Meta"
                 meta_key_ok=true
             else
-                print_result fail "VS Code: Option key NOT configured as Meta"
+                print_result warn "VS Code: Option key NOT configured as Meta"
                 print_result instruction "Option+F and Option+B shortcuts won't work for word navigation"
                 print_result instruction "Add to VS Code settings.json:"
                 print_result code '"terminal.integrated.macOptionIsMeta": true'
@@ -386,7 +386,7 @@ if [[ "$platform" == "Darwin" ]]; then
                 print_result pass "iTerm2: Option key configured as Esc+"
                 meta_key_ok=true
             else
-                print_result fail "iTerm2: Option key NOT configured as Esc+"
+                print_result warn "iTerm2: Option key NOT configured as Esc+"
                 print_result instruction "Option+F and Option+B shortcuts won't work for word navigation"
                 print_result instruction "Configure in iTerm2:"
                 print_result info "Preferences → Profiles → Keys → Left/Right Option Key → Esc+"
@@ -405,7 +405,7 @@ if [[ "$platform" == "Darwin" ]]; then
                 print_result pass "Terminal.app: Option key configured as Meta"
                 meta_key_ok=true
             else
-                print_result fail "Terminal.app: Option key NOT configured as Meta"
+                print_result warn "Terminal.app: Option key NOT configured as Meta"
                 print_result instruction "Option+F and Option+B shortcuts won't work for word navigation"
                 print_result instruction "Configure in Terminal.app:"
                 print_result info "Preferences → Profiles → Keyboard → ✓ Use Option as Meta key"
@@ -439,7 +439,7 @@ elif [[ "$platform" == "Linux" ]]; then
                 print_result pass "VS Code: Alt key configured as Meta"
                 meta_key_ok=true
             else
-                print_result fail "VS Code: Alt key NOT configured as Meta"
+                print_result warn "VS Code: Alt key NOT configured as Meta"
                 print_result instruction "Alt+F and Alt+B shortcuts won't work for word navigation"
                 print_result instruction "Add to VS Code settings.json:"
                 print_result code '"terminal.integrated.sendAltAsMetaKey": true'
