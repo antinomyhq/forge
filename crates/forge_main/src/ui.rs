@@ -143,10 +143,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    /// Helper to get model for an optional agent, defaulting to the current
-    /// active agent's model
+    /// Helper to get model for an optional agent.
+    /// Priority: given agent_id > active agent > global default model.
     async fn get_agent_model(&self, agent_id: Option<AgentId>) -> Option<ModelId> {
-        match agent_id {
+        let resolved = agent_id.or(self.api.get_active_agent().await);
+        match resolved {
             Some(agent_id) => self.api.get_agent_model(agent_id).await,
             None => self.api.get_default_model().await,
         }
@@ -383,6 +384,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 match agent_group.command {
                     crate::cli::AgentCommand::List => {
                         self.on_show_agents(agent_group.porcelain, false).await?;
+                    }
+                    crate::cli::AgentCommand::GetModel(args) => {
+                        self.handle_agent_get_model(args, agent_group.porcelain)
+                            .await?;
+                    }
+                    crate::cli::AgentCommand::SetModel(args) => {
+                        self.handle_agent_set_model(args).await?;
                     }
                 }
                 return Ok(());
@@ -1210,14 +1218,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
-        for agent in agents {
+        for agent in &agents {
             let title = agent
                 .title
+                .as_ref()
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
                 .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
+        }
+
+        // Dynamically generate config-<agent>-model commands for every loaded agent
+        for agent in &agents {
+            let agent_id = agent.id.as_str();
+            let command_name = format!("config-{agent_id}-model");
+            let description = format!("Set the model for the {agent_id} agent");
+            info = info
+                .add_title(command_name)
+                .add_key_value("type", CommandType::Command)
+                .add_key_value("description", description);
         }
 
         let custom_commands = self.api.get_commands().await?;
@@ -3190,6 +3210,59 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    /// Gets the provider and model for a specific agent.
+    async fn handle_agent_get_model(
+        &mut self,
+        args: crate::cli::AgentGetModelArgs,
+        porcelain: bool,
+    ) -> Result<()> {
+        let agents = self.api.get_agents().await?;
+        let agent = agents
+            .iter()
+            .find(|a| a.id == args.agent_id)
+            .ok_or_else(|| anyhow::anyhow!("Agent not found: {}", args.agent_id))?;
+
+        let provider = self.get_provider(Some(agent.id.clone())).await?;
+
+        let info = Info::new()
+            .add_title(args.agent_id.as_str().to_case(Case::UpperSnake))
+            .add_key_value("provider", provider.id.to_string())
+            .add_key_value("model", agent.model.as_str());
+
+        if porcelain {
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(0)
+                    .uppercase_headers(),
+            )?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Sets the provider and model for a specific agent, persisting the
+    /// override to app config.
+    async fn handle_agent_set_model(&mut self, args: crate::cli::AgentSetModelArgs) -> Result<()> {
+        self.api
+            .set_agent_model(
+                args.agent_id.clone(),
+                args.provider_id.clone(),
+                args.model_id.clone(),
+            )
+            .await?;
+        self.writeln_title(
+            TitleFormat::action(format!("{}/{}", args.provider_id, args.model_id.as_str()))
+                .sub_title(format!(
+                    "is now the model for agent {}",
+                    args.agent_id.as_str()
+                )),
+        )?;
+        Ok(())
+    }
+
     /// Handle prompt command - returns model and conversation stats for shell
     /// integration
     async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
@@ -3198,14 +3271,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .filter(|text| !text.trim().is_empty())
             .and_then(|str| ConversationId::from_str(str.as_str()).ok());
 
-        // Make IO calls in parallel
-        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
-            if let Some(cid) = cid {
-                self.api.conversation(&cid).await.ok().flatten()
-            } else {
-                None
-            }
-        });
+        // Resolve the active agent from the shell environment variable,
+        // falling back to the default agent so the prompt always shows the
+        // agent-specific model rather than the bare global default.
+        let active_agent = std::env::var("_FORGE_ACTIVE_AGENT")
+            .ok()
+            .filter(|text| !text.trim().is_empty())
+            .map(AgentId::new)
+            .or_else(|| Some(AgentId::default()));
+
+        // Make IO calls in parallel; use agent model if active, else global default
+        let (model_id, conversation) =
+            tokio::join!(self.get_agent_model(active_agent.clone()), async {
+                if let Some(cid) = cid {
+                    self.api.conversation(&cid).await.ok().flatten()
+                } else {
+                    None
+                }
+            });
 
         // Calculate total cost including related conversations
         let cost = if let Some(ref conv) = conversation {
@@ -3236,12 +3319,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or(1.0);
 
         let rprompt = ZshRPrompt::default()
-            .agent(
-                std::env::var("_FORGE_ACTIVE_AGENT")
-                    .ok()
-                    .filter(|text| !text.trim().is_empty())
-                    .map(AgentId::new),
-            )
+            .agent(active_agent)
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)

@@ -225,6 +225,37 @@ pub enum AgentCommand {
     /// List available agents.
     #[command(alias = "ls")]
     List,
+
+    /// Get the provider and model for a specific agent.
+    #[command(name = "get-model")]
+    GetModel(AgentGetModelArgs),
+
+    /// Set the provider and model for a specific agent.
+    ///
+    /// Provider and model are always configured together since a model ID is
+    /// scoped to a specific provider's namespace.
+    #[command(name = "set-model")]
+    SetModel(AgentSetModelArgs),
+}
+
+/// Arguments for `forge agent get-model`.
+#[derive(Parser, Debug, Clone)]
+pub struct AgentGetModelArgs {
+    /// Agent ID to get the model for (e.g. `sage`, `forge`, `muse`).
+    pub agent_id: AgentId,
+}
+
+/// Arguments for `forge agent set-model`.
+#[derive(Parser, Debug, Clone)]
+pub struct AgentSetModelArgs {
+    /// Agent ID to configure (e.g. `sage`, `forge`, `muse`).
+    pub agent_id: AgentId,
+
+    /// Provider ID the model belongs to (e.g. `anthropic`, `openai`).
+    pub provider_id: ProviderId,
+
+    /// Model ID within the provider's namespace (e.g. `claude-sonnet-4`).
+    pub model_id: ModelId,
 }
 
 /// Command group for workspace management.
@@ -1750,6 +1781,33 @@ mod tests {
             _ => true,
         };
         let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_agent_set_model() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "agent",
+            "set-model",
+            "sage",
+            "anthropic",
+            "claude-sonnet-4",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Agent(agent)) => match agent.command {
+                AgentCommand::SetModel(args) => {
+                    Some((args.agent_id, args.provider_id, args.model_id))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some((
+            AgentId::new("sage"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-sonnet-4"),
+        ));
         assert_eq!(actual, expected);
     }
 
