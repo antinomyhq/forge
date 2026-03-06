@@ -151,7 +151,8 @@ where
                     match auth_method {
                         AuthMethod::OAuthDevice(_)
                         | AuthMethod::OAuthCode(_)
-                        | AuthMethod::CodexDevice(_) => {
+                        | AuthMethod::CodexDevice(_)
+                        | AuthMethod::GoogleAdc => {
                             // Get existing credential
                             let existing_credential =
                                 self.infra.get_credential(&provider.id).await?.ok_or_else(
