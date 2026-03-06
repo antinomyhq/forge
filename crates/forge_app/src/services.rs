@@ -146,6 +146,13 @@ pub struct FsUndoOutput {
     pub after_undo: Option<String>,
 }
 
+/// Output from todo_write tool execution
+#[derive(Debug)]
+pub struct TodoWriteOutput {
+    /// List of todos that were saved
+    pub todos: Vec<forge_domain::Todo>,
+}
+
 #[derive(Debug)]
 pub struct PolicyDecision {
     pub allowed: bool,

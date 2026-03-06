@@ -61,6 +61,7 @@ indexmap.workspace = true
 async-recursion.workspace = true
 
 forge_markdown_stream.workspace = true
+strip-ansi-escapes.workspace = true
 terminal_size = "0.4"
 rustls.workspace = true
 
@@ -72,7 +73,6 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
-serial_test = "3.3"
+serial_test = "3.4"
 fake = { version = "4.4.0", features = ["derive"] }
 forge_domain = { path = "../forge_domain" }
-strip-ansi-escapes = "0.2"
