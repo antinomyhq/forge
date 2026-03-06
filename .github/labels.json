@@ -243,5 +243,11 @@
     "color": "F9D0C4",
     "description": "Build release binaries for all target platforms in CI",
     "aliases": ["ci:build-all-targets", "build-all-targets"]
+  },
+  {
+    "name": "forge: pull-request-create",
+    "color": "F9D0C4",
+    "description": "Trigger Forge automation to create a pull request from an issue",
+    "aliases": ["forge:pull-request-create", "pull-request-create"]
   }
 ]
