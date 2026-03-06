@@ -132,6 +132,8 @@ function forge-accept-line() {
     #     crates/forge_main/src/built_in_commands.json
     #     Add a new entry: {"command": "name", "description": "Description [alias: x]"}
     #
+    # Naming convention: shell commands should follow Object-Action (e.g., provider-login).
+    #
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
@@ -203,7 +205,7 @@ function forge-accept-line() {
         sync-info)
             _forge_action_sync_info
         ;;
-        login)
+        provider-login|login)
             _forge_action_login "$input_text"
         ;;
         logout)

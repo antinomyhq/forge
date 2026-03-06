@@ -80,6 +80,16 @@ Commands within the same session maintain context:
 
 The plugin automatically manages conversation IDs to maintain context across related commands.
 
+### Command Naming
+
+Shell commands should follow the **Object-Action** format.
+
+Examples:
+- `:provider-login`
+- `:sync-status`
+
+For backward compatibility, `:login` remains available as an alias for `:provider-login`.
+
 ### Session Management
 
 #### Starting New Sessions
