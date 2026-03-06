@@ -1161,7 +1161,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).uppercase_headers())?;
+            self.writeln(Porcelain::from(&info).truncate(0, 40).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
