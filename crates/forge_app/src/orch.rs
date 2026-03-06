@@ -287,7 +287,7 @@ impl<S: AgentService> Orchestrator<S> {
                     });
                     let text = TemplateEngine::default()
                         .render("forge-tool-retry-message.md", &context)?;
-                    let message = Element::new("retry").text(text);
+                    let message = Element::new("retry").cdata(text);
 
                     result.output.combine_mut(ToolOutput::text(message));
                 }

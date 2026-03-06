@@ -116,7 +116,7 @@ impl ContextMessage {
                 let mut message_element = Element::new("message").attr("role", message.role);
 
                 message_element =
-                    message_element.append(Element::new("content").text(&message.content));
+                    message_element.append(Element::new("content").cdata(&message.content));
 
                 if let Some(tool_calls) = &message.tool_calls {
                     for call in tool_calls {
@@ -130,19 +130,19 @@ impl ContextMessage {
 
                 if let Some(thought_signature) = &message.thought_signature {
                     message_element = message_element
-                        .append(Element::new("thought_signature").text(thought_signature));
+                        .append(Element::new("thought_signature").cdata(thought_signature));
                 }
 
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
-                            message_element =
-                                message_element.append(Element::new("reasoning_detail").text(text));
+                            message_element = message_element
+                                .append(Element::new("reasoning_detail").cdata(text));
                         }
                     }
                 }
 
-                message_element.render()
+                message_element.render_as_markdown()
             }
             ContextMessage::Tool(result) => {
                 let filtered_output = filter_base64_images_from_tool_output(&result.output);
@@ -153,9 +153,11 @@ impl ContextMessage {
                             .attr("name", &result.name)
                             .cdata(serde_json::to_string(&filtered_output).unwrap()),
                     )
-                    .render()
+                    .render_as_markdown()
             }
-            ContextMessage::Image(_) => Element::new("image").attr("path", "[base64 URL]").render(),
+            ContextMessage::Image(_) => Element::new("image")
+                .attr("path", "[base64 URL]")
+                .render_as_markdown(),
         }
     }
 
@@ -470,7 +472,8 @@ impl Context {
                         .attr("total_lines", total_lines)
                         .cdata(content);
 
-                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+                    let mut message =
+                        TextMessage::new(Role::User, elm.render_as_markdown()).droppable(true);
 
                     if let Some(model) = model_id.clone() {
                         message = message.model(model);
@@ -483,10 +486,11 @@ impl Context {
                         .attr("path", attachment.path)
                         .append(entries.into_iter().map(|entry| {
                             let tag_name = if entry.is_dir { "dir" } else { "file" };
-                            Element::new(tag_name).text(entry.path)
+                            Element::new(tag_name).cdata(entry.path)
                         }));
 
-                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+                    let mut message =
+                        TextMessage::new(Role::User, elm.render_as_markdown()).droppable(true);
 
                     if let Some(model) = model_id.clone() {
                         message = message.model(model);
@@ -1237,12 +1241,12 @@ mod tests {
         );
 
         let text = message.to_text();
-        // The XML is encoded within the message content
-        assert!(text.contains("&lt;directory_listing"));
-        // Check that files use <file> tag
-        assert!(text.contains("&lt;file&gt;"));
-        // Check that directories use <dir> tag
-        assert!(text.contains("&lt;dir&gt;"));
+        // The directory listing is now rendered as markdown
+        assert!(text.contains("# Directory Listing"));
+        // Check that file entries are rendered as content in the listing
+        assert!(text.contains("/test/mydir/file1.txt"));
+        assert!(text.contains("/test/mydir/file2.rs"));
+        assert!(text.contains("/test/mydir/subdir"));
     }
 
     #[test]
@@ -1322,32 +1326,42 @@ mod tests {
         }];
 
         let actual = Context::default().add_attachments(fixture_attachments, None);
-        let text = actual.messages.first().unwrap().to_text();
+        // The message content is now rendered as markdown
+        let content = actual
+            .messages
+            .first()
+            .unwrap()
+            .content()
+            .unwrap()
+            .to_string();
 
-        // Extract the order of entries from the XML
-        let dir_entries: Vec<&str> = text
-            .split("&lt;")
-            .filter(|s| s.starts_with("dir&gt;") || s.starts_with("file&gt;"))
+        // Extract entry names from markdown format - they're inside code blocks under
+        // Dir/File headings Format: ```\nentry_name\n```
+        let dir_entries: Vec<&str> = content
+            .split("```")
+            .skip(1) // Skip content before first code block
+            .step_by(2) // Take every other segment (code block content)
+            .map(|block| block.trim())
+            .filter(|s| !s.is_empty())
             .collect();
 
         // Verify directories come first, then files, all sorted alphabetically
         let expected_order = [
-            "dir&gt;apple_dir",
-            "dir&gt;berry_dir",
-            "dir&gt;zoo_dir",
-            "file&gt;banana.txt",
-            "file&gt;cherry.txt",
-            "file&gt;zebra.txt",
+            "apple_dir",
+            "berry_dir",
+            "zoo_dir",
+            "banana.txt",
+            "cherry.txt",
+            "zebra.txt",
         ];
 
+        assert_eq!(
+            dir_entries.len(),
+            expected_order.len(),
+            "Entry count mismatch"
+        );
         for (i, expected) in expected_order.iter().enumerate() {
-            assert!(
-                dir_entries[i].starts_with(expected),
-                "Expected entry {} to start with '{}', but got '{}'",
-                i,
-                expected,
-                dir_entries[i]
-            );
+            assert_eq!(dir_entries[i], *expected, "Entry {} mismatch", i);
         }
     }
 
