@@ -1114,7 +1114,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let provider_display = pm.provider_id.to_string();
             for model in &pm.models {
                 let id = model.id.to_string();
-                let leng = model.name.as_ref().unwrap_or(&id).len();
                 info = info
                     .add_title(&id)
                     .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
