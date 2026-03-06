@@ -186,8 +186,8 @@ if [[ -f "$zshrc_file" ]] && [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
     fi
 fi
 
-# 4. Check ZSH theme
-print_section "ZSH Theme"
+# 4. Check ZSH theme RPROMPT
+print_section "ZSH Theme RPROMPT"
 
 # Check if forge theme is loaded by checking environment variable
 if [[ -n "$_FORGE_THEME_LOADED" ]]; then
