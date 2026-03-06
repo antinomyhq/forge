@@ -484,6 +484,26 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.4-2026-03-05",
+        "name": "GPT 5.4 2026-03-05",
+        "description": "GPT 5.4 frontier model for complex professional work",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.4-pro-2026-03-05",
+        "name": "GPT 5.4 Pro 2026-03-05",
+        "description": "GPT 5.4 Pro frontier model for complex professional work",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       }
     ],
     "auth_methods": ["api_key"]
@@ -1783,6 +1803,26 @@
     "response_type": "OpenAI",
     "url": "https://chatgpt.com/backend-api/codex/responses",
     "models": [
+      {
+        "id": "gpt-5.4-2026-03-05",
+        "name": "GPT 5.4 2026-03-05",
+        "description": "GPT 5.4 frontier model for complex professional work",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.4-pro-2026-03-05",
+        "name": "GPT 5.4 Pro 2026-03-05",
+        "description": "GPT 5.4 Pro frontier model for complex professional work",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
       {
         "id": "gpt-5.3-codex",
         "name": "GPT-5.3 Codex",

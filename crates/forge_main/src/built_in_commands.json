@@ -60,8 +60,8 @@
     "description": "Generate shell commands without executing them [alias: s]"
   },
   {
-    "command": "login",
-    "description": "Login to a provider"
+    "command": "provider-login",
+    "description": "Login to a provider [alias: login]"
   },
   {
     "command": "logout",

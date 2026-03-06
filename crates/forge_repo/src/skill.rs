@@ -53,8 +53,8 @@ impl<I> ForgeSkillRepository<I> {
                 include_str!("skills/execute-plan/SKILL.md"),
             ),
             (
-                "forge://skills/pr-description/SKILL.md",
-                include_str!("skills/pr-description/SKILL.md"),
+                "forge://skills/github-pr-description/SKILL.md",
+                include_str!("skills/github-pr-description/SKILL.md"),
             ),
         ];
 
@@ -366,14 +366,16 @@ mod tests {
         );
         assert!(execute_plan.command.contains("Execute Plan"));
 
-        // Check pr-description
+        // Check github-pr-description
         let pr_description = actual
             .iter()
-            .find(|s| s.name == "create-pr-description")
+            .find(|s| s.name == "github-pr-description")
             .unwrap();
         assert_eq!(
             pr_description.path,
-            Some(std::path::Path::new("forge://skills/pr-description/SKILL.md").to_path_buf())
+            Some(
+                std::path::Path::new("forge://skills/github-pr-description/SKILL.md").to_path_buf()
+            )
         );
         assert!(!pr_description.description.is_empty());
         assert!(pr_description.command.contains("Create PR Description"));
