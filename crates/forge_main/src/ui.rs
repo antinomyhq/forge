@@ -1689,10 +1689,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         println!();
         let doctor_result = self.on_zsh_doctor().await;
 
-        self.writeln_title(TitleFormat::info(
-            "run `exec zsh` or start a new terminal window to load the updated shell config",
+        self.writeln_title(TitleFormat::warning(
+            "IMPORTANT: run `exec zsh` now (or open a new terminal window) to load the updated shell config",
         ))?;
-        self.writeln_title(TitleFormat::info("try `: Hi` to test your setup"))?;
+        self.writeln_title(TitleFormat::warning(
+            "IMPORTANT: run `: Hi` after restarting your shell to confirm everything works",
+        ))?;
 
         doctor_result
     }
