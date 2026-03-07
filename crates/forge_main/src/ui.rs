@@ -1852,10 +1852,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::info(result.message))?;
 
-        // Step I: Run doctor
+        // Step I: Run doctor (don't bail on failure — still show summary)
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
-        self.on_zsh_doctor().await?;
+        if let Err(e) = self.on_zsh_doctor().await {
+            self.writeln_title(TitleFormat::error(format!(
+                "forge zsh doctor failed: {e}"
+            )))?;
+        }
 
         // Step J: Summary
         println!();
