@@ -1613,6 +1613,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// * `non_interactive` - When true, skips Nerd Font and editor prompts,
     ///   using defaults (nerd fonts enabled, no editor override).
     async fn on_zsh_setup(&mut self, non_interactive: bool) -> anyhow::Result<()> {
+        // Track whether setup completed without any errors
+        let mut setup_fully_successful = true;
+
         // Step A: Prerequisite check
         self.spinner.start(Some("Checking prerequisites"))?;
         let git_ok = crate::zsh::detect_git().await;
@@ -1799,6 +1802,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ))?;
                 }
                 Err(e) => {
+                    setup_fully_successful = false;
                     self.spinner.stop(None)?;
                     self.writeln_title(TitleFormat::error(format!(
                         "Failed to configure bashrc: {}",
@@ -1916,28 +1920,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 ))?;
             }
             Err(e) => {
+                setup_fully_successful = false;
                 self.writeln_title(TitleFormat::error(format!("forge zsh doctor failed: {e}")))?;
             }
         }
 
         // Step J: Summary
         println!();
-        if platform == Platform::Windows {
-            self.writeln_title(TitleFormat::info(
-                "Setup complete! Open a new Git Bash window or run: source ~/.bashrc",
-            ))?;
-        } else {
-            // Check if zsh is the current shell
-            let current_shell = std::env::var("SHELL").unwrap_or_default();
-            if !current_shell.contains("zsh") {
-                println!(
-                    "   {} To make zsh your default shell, run:",
-                    "Tip:".yellow().bold()
-                );
-                println!("   {}", "chsh -s $(which zsh)".dimmed());
-                println!();
+        if setup_fully_successful {
+            if platform == Platform::Windows {
+                self.writeln_title(TitleFormat::info(
+                    "Setup complete! Open a new Git Bash window or run: source ~/.bashrc",
+                ))?;
+            } else {
+                // Check if zsh is the current shell
+                let current_shell = std::env::var("SHELL").unwrap_or_default();
+                if !current_shell.contains("zsh") {
+                    println!(
+                        "   {} To make zsh your default shell, run:",
+                        "Tip:".yellow().bold()
+                    );
+                    println!("   {}", "chsh -s $(which zsh)".dimmed());
+                    println!();
+                }
+                self.writeln_title(TitleFormat::info("Setup complete!"))?;
             }
-            self.writeln_title(TitleFormat::info("Setup complete!"))?;
+        } else {
+            self.writeln_title(TitleFormat::warning(
+                "Setup completed with some errors. Please review the messages above.",
+            ))?;
         }
 
         // fzf recommendation
