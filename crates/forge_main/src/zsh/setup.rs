@@ -1863,7 +1863,7 @@ pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
     let zsh_path = resolve_zsh_path().await;
 
     let autostart_block =
-        include_str!("fixtures/bashrc_autostart_block.sh").replace("{{zsh}}", &zsh_path);
+        include_str!("bashrc_autostart_block.sh").replace("{{zsh}}", &zsh_path);
 
     content.push_str(&autostart_block);
 
