@@ -157,6 +157,7 @@ EXCLUDE_PATTERN=""
 NO_CLEANUP=false
 SKIP_BUILD=false
 TARGET_FILTER=""  # empty = all, "musl" or "gnu" to filter
+NATIVE_BUILD=false  # if true, use cargo instead of cross
 
 # Shared temp paths
 RESULTS_DIR=""
@@ -186,6 +187,7 @@ Options:
   --exclude <pattern>  Skip images whose label matches <pattern> (grep -iE)
   --skip-build         Skip binary build, use existing binaries
   --targets <filter>   Only test matching targets: "musl", "gnu", or "all" (default: all)
+  --native-build       Use cargo instead of cross for building (for CI runners)
   --no-cleanup         Keep Docker images and results dir after tests
   --list               List all test images and exit
   --help               Show this help message
@@ -221,6 +223,10 @@ parse_args() {
       --targets)
         TARGET_FILTER="${2:?--targets requires a value (musl, gnu, or all)}"
         shift 2
+        ;;
+      --native-build)
+        NATIVE_BUILD=true
+        shift
         ;;
       --no-cleanup)
         NO_CLEANUP=true
@@ -277,6 +283,7 @@ list_images() {
 
 # Build a binary for a given target, matching CI release.yml logic.
 # Uses cross for cross-compiled targets, cargo for native targets.
+# If NATIVE_BUILD is true, always uses cargo regardless of use_cross flag.
 build_binary() {
   local target="$1"
   local use_cross="$2"
@@ -285,6 +292,11 @@ build_binary() {
   if [ "$SKIP_BUILD" = true ] && [ -f "$binary_path" ]; then
     log_info "Skipping build for ${target} (binary exists)"
     return 0
+  fi
+
+  # Override use_cross if --native-build flag is set
+  if [ "$NATIVE_BUILD" = true ]; then
+    use_cross="false"
   fi
 
   if [ "$use_cross" = "true" ]; then

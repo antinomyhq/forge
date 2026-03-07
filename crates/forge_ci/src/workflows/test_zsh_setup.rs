@@ -10,7 +10,7 @@ pub fn generate_test_zsh_setup_workflow() {
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
             Step::new("Run ZSH setup test suite")
-                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --jobs 8"),
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8"),
         );
 
     // Job for arm64 runner - excludes Arch Linux (no arm64 image available)
@@ -20,7 +20,7 @@ pub fn generate_test_zsh_setup_workflow() {
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
             Step::new("Run ZSH setup test suite (exclude Arch)")
-                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --exclude "Arch Linux" --jobs 8"#),
+                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8"#),
         );
 
     // Event triggers:
