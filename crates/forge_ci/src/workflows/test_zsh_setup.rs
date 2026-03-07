@@ -11,21 +11,38 @@ pub fn generate_test_zsh_setup_workflow() {
         .runs_on("ubuntu-latest")
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
-            Step::new("Cache Rust toolchain and dependencies")
+            Step::new("Cache Cargo registry and git")
                 .uses("actions", "cache", "v4")
                 .with(Input::from(indexmap! {
-                    "path".to_string() => json!("~/.cargo\n~/.rustup\ntarget"),
-                    "key".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
-                    "restore-keys".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-\nrust-${{ runner.os }}-"),
+                    "path".to_string() => json!("~/.cargo/registry\n~/.cargo/git"),
+                    "key".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
+                    "restore-keys".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-\ncargo-registry-${{ runner.os }}-"),
                 })),
         )
         .add_step(
-            Step::new("Install cross")
-                .run("cargo install cross --git https://github.com/cross-rs/cross || true"),
+            Step::new("Cache Rust toolchains")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.rustup"),
+                    "key".to_string() => json!("rustup-${{ runner.os }}-${{ runner.arch }}"),
+                })),
+        )
+        .add_step(
+            Step::new("Cache build artifacts")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("target"),
+                    "key".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}"),
+                    "restore-keys".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-\nbuild-${{ runner.os }}-${{ runner.arch }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Install musl target")
+                .run("rustup target add x86_64-unknown-linux-musl"),
         )
         .add_step(
             Step::new("Run ZSH setup test suite")
-                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --jobs 8"),
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8"),
         );
 
     // Job for arm64 runner - excludes Arch Linux (no arm64 image available)
@@ -34,21 +51,38 @@ pub fn generate_test_zsh_setup_workflow() {
         .runs_on("ubuntu-24.04-arm")
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
-            Step::new("Cache Rust toolchain and dependencies")
+            Step::new("Cache Cargo registry and git")
                 .uses("actions", "cache", "v4")
                 .with(Input::from(indexmap! {
-                    "path".to_string() => json!("~/.cargo\n~/.rustup\ntarget"),
-                    "key".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
-                    "restore-keys".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-\nrust-${{ runner.os }}-"),
+                    "path".to_string() => json!("~/.cargo/registry\n~/.cargo/git"),
+                    "key".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
+                    "restore-keys".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-\ncargo-registry-${{ runner.os }}-"),
                 })),
         )
         .add_step(
-            Step::new("Install cross")
-                .run("cargo install cross --git https://github.com/cross-rs/cross || true"),
+            Step::new("Cache Rust toolchains")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.rustup"),
+                    "key".to_string() => json!("rustup-${{ runner.os }}-${{ runner.arch }}"),
+                })),
+        )
+        .add_step(
+            Step::new("Cache build artifacts")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("target"),
+                    "key".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}"),
+                    "restore-keys".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-\nbuild-${{ runner.os }}-${{ runner.arch }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Install musl target")
+                .run("rustup target add aarch64-unknown-linux-musl"),
         )
         .add_step(
             Step::new("Run ZSH setup test suite (exclude Arch)")
-                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --exclude "Arch Linux" --jobs 8"#),
+                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8"#),
         );
 
     // Event triggers:

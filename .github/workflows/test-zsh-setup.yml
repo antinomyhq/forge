@@ -40,21 +40,33 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
-    - name: Cache Rust toolchain and dependencies
+    - name: Cache Cargo registry and git
       uses: actions/cache@v4
       with:
         path: |-
-          ~/.cargo
-          ~/.rustup
-          target
-        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |-
-          rust-${{ runner.os }}-${{ runner.arch }}-
-          rust-${{ runner.os }}-
-    - name: Install cross
-      run: cargo install cross --git https://github.com/cross-rs/cross || true
+          cargo-registry-${{ runner.os }}-${{ runner.arch }}-
+          cargo-registry-${{ runner.os }}-
+    - name: Cache Rust toolchains
+      uses: actions/cache@v4
+      with:
+        path: ~/.rustup
+        key: rustup-${{ runner.os }}-${{ runner.arch }}
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
+        restore-keys: |-
+          build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
+          build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Install musl target
+      run: rustup target add x86_64-unknown-linux-musl
     - name: Run ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8
   test_zsh_setup_arm64:
     name: Test ZSH Setup (arm64)
     runs-on: ubuntu-24.04-arm
@@ -63,21 +75,33 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
-    - name: Cache Rust toolchain and dependencies
+    - name: Cache Cargo registry and git
       uses: actions/cache@v4
       with:
         path: |-
-          ~/.cargo
-          ~/.rustup
-          target
-        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |-
-          rust-${{ runner.os }}-${{ runner.arch }}-
-          rust-${{ runner.os }}-
-    - name: Install cross
-      run: cargo install cross --git https://github.com/cross-rs/cross || true
+          cargo-registry-${{ runner.os }}-${{ runner.arch }}-
+          cargo-registry-${{ runner.os }}-
+    - name: Cache Rust toolchains
+      uses: actions/cache@v4
+      with:
+        path: ~/.rustup
+        key: rustup-${{ runner.os }}-${{ runner.arch }}
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
+        restore-keys: |-
+          build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
+          build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Install musl target
+      run: rustup target add aarch64-unknown-linux-musl
     - name: Run ZSH setup test suite (exclude Arch)
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --exclude "Arch Linux" --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true
