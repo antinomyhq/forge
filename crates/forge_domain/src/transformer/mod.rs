@@ -80,7 +80,7 @@ mod set_model;
 mod sort_tools;
 mod transform_tool_calls;
 
-pub use drop_reasoning_details::DropReasoningDetails;
+pub use drop_reasoning_details::{DropReasoningDetails, DropReasoningDetailsFromOtherModels};
 pub use image_handling::ImageHandling;
 pub use reasoning_normalizer::ReasoningNormalizer;
 pub use set_model::SetModel;
