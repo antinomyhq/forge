@@ -2109,15 +2109,16 @@ async fn install_via_package_manager_linux(tool: &str, sudo: &SudoCapability) ->
             };
 
             if let Some(available_version) = mgr.query_available_version(package_name).await
-                && !version_gte(&available_version, min_version) {
-                    bail!(
-                        "Package manager has {} {} but {} or higher required",
-                        tool,
-                        available_version,
-                        min_version
-                    );
-                }
-                // Version is good, proceed with installation
+                && !version_gte(&available_version, min_version)
+            {
+                bail!(
+                    "Package manager has {} {} but {} or higher required",
+                    tool,
+                    available_version,
+                    min_version
+                );
+            }
+            // Version is good, proceed with installation
 
             let args = mgr.install_args(&[package_name]);
             return run_maybe_sudo(
