@@ -308,6 +308,11 @@ build_binary() {
     if ! cross build --target "$target" 2>"$RESULTS_DIR/build-${target}.log"; then
       log_fail "Build failed for ${target}"
       log_info "Build log: $RESULTS_DIR/build-${target}.log"
+      echo ""
+      echo "===== Full build log ====="
+      cat "$RESULTS_DIR/build-${target}.log" 2>/dev/null || echo "Log file not found"
+      echo "=========================="
+      echo ""
       return 1
     fi
   else
@@ -320,6 +325,11 @@ build_binary() {
     if ! cargo build --target "$target" 2>"$RESULTS_DIR/build-${target}.log"; then
       log_fail "Build failed for ${target}"
       log_info "Build log: $RESULTS_DIR/build-${target}.log"
+      echo ""
+      echo "===== Full build log ====="
+      cat "$RESULTS_DIR/build-${target}.log" 2>/dev/null || echo "Log file not found"
+      echo "=========================="
+      echo ""
       return 1
     fi
   fi
