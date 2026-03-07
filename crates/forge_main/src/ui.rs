@@ -1761,20 +1761,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                 );
 
+                let mut plugins_ok = true;
                 if let Err(e) = auto_result {
+                    plugins_ok = false;
                     self.writeln_title(TitleFormat::error(format!(
                         "Failed to install zsh-autosuggestions: {}",
                         e
                     )))?;
                 }
                 if let Err(e) = syntax_result {
+                    plugins_ok = false;
                     self.writeln_title(TitleFormat::error(format!(
                         "Failed to install zsh-syntax-highlighting: {}",
                         e
                     )))?;
                 }
 
-                self.writeln_title(TitleFormat::info("Plugins installed"))?;
+                if plugins_ok {
+                    self.writeln_title(TitleFormat::info("Plugins installed"))?;
+                }
             }
 
             println!();
