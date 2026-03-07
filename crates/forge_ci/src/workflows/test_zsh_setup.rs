@@ -105,6 +105,100 @@ pub fn generate_test_zsh_setup_workflow() {
                 .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8"#),
         );
 
+    // macOS Apple Silicon (arm64) job - runs natively on macos-latest
+    let test_macos_arm64 = Job::new("Test ZSH Setup (macOS arm64)")
+        .permissions(Permissions::default().contents(Level::Read))
+        .runs_on("macos-latest")
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(
+            Step::new("Cache Cargo registry and git")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.cargo/registry\n~/.cargo/git"),
+                    "key".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
+                    "restore-keys".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-\ncargo-registry-${{ runner.os }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Cache Rust toolchains")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.rustup"),
+                    "key".to_string() => json!("rustup-${{ runner.os }}-${{ runner.arch }}"),
+                })),
+        )
+        .add_step(
+            Step::new("Cache build artifacts")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("target"),
+                    "key".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}"),
+                    "restore-keys".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-\nbuild-${{ runner.os }}-${{ runner.arch }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(Input::from(indexmap! {
+                    "repo-token".to_string() => json!("${{ secrets.GITHUB_TOKEN }}"),
+                })),
+        )
+        .add_step(
+            Step::new("Install shellcheck")
+                .run("brew install shellcheck"),
+        )
+        .add_step(
+            Step::new("Run macOS ZSH setup test suite")
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh"),
+        );
+
+    // macOS Intel (x86_64) job - runs on macos-13 (last Intel runner)
+    let test_macos_x64 = Job::new("Test ZSH Setup (macOS x64)")
+        .permissions(Permissions::default().contents(Level::Read))
+        .runs_on("macos-13")
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(
+            Step::new("Cache Cargo registry and git")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.cargo/registry\n~/.cargo/git"),
+                    "key".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
+                    "restore-keys".to_string() => json!("cargo-registry-${{ runner.os }}-${{ runner.arch }}-\ncargo-registry-${{ runner.os }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Cache Rust toolchains")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.rustup"),
+                    "key".to_string() => json!("rustup-${{ runner.os }}-${{ runner.arch }}"),
+                })),
+        )
+        .add_step(
+            Step::new("Cache build artifacts")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("target"),
+                    "key".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}"),
+                    "restore-keys".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-\nbuild-${{ runner.os }}-${{ runner.arch }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(Input::from(indexmap! {
+                    "repo-token".to_string() => json!("${{ secrets.GITHUB_TOKEN }}"),
+                })),
+        )
+        .add_step(
+            Step::new("Install shellcheck")
+                .run("brew install shellcheck"),
+        )
+        .add_step(
+            Step::new("Run macOS ZSH setup test suite")
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh"),
+        );
+
     // Event triggers:
     // 1. Push to main
     // 2. PR with path changes to zsh files, ui.rs, test script, or workflow
@@ -120,6 +214,7 @@ pub fn generate_test_zsh_setup_workflow() {
                 .add_path("crates/forge_main/src/zsh/**")
                 .add_path("crates/forge_main/src/ui.rs")
                 .add_path("crates/forge_ci/tests/scripts/test-zsh-setup.sh")
+                .add_path("crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh")
                 .add_path(".github/workflows/test-zsh-setup.yml"),
         )
         .workflow_dispatch(WorkflowDispatch::default());
@@ -133,7 +228,9 @@ pub fn generate_test_zsh_setup_workflow() {
                 .cancel_in_progress(true),
         )
         .add_job("test_zsh_setup_amd64", test_amd64)
-        .add_job("test_zsh_setup_arm64", test_arm64);
+        .add_job("test_zsh_setup_arm64", test_arm64)
+        .add_job("test_zsh_setup_macos_arm64", test_macos_arm64)
+        .add_job("test_zsh_setup_macos_x64", test_macos_x64);
 
     Generate::new(workflow)
         .name("test-zsh-setup.yml")

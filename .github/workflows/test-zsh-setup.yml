@@ -26,6 +26,7 @@ name: Test ZSH Setup
     - crates/forge_main/src/zsh/**
     - crates/forge_main/src/ui.rs
     - crates/forge_ci/tests/scripts/test-zsh-setup.sh
+    - crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh
     - '.github/workflows/test-zsh-setup.yml'
   push:
     branches:
@@ -114,6 +115,84 @@ jobs:
         target: aarch64-unknown-linux-musl
     - name: Run ZSH setup test suite (exclude Arch)
       run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8
+  test_zsh_setup_macos_arm64:
+    name: Test ZSH Setup (macOS arm64)
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+    - name: Cache Cargo registry and git
+      uses: actions/cache@v4
+      with:
+        path: |-
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |-
+          cargo-registry-${{ runner.os }}-${{ runner.arch }}-
+          cargo-registry-${{ runner.os }}-
+    - name: Cache Rust toolchains
+      uses: actions/cache@v4
+      with:
+        path: ~/.rustup
+        key: rustup-${{ runner.os }}-${{ runner.arch }}
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
+        restore-keys: |-
+          build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
+          build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install shellcheck
+      run: brew install shellcheck
+    - name: Run macOS ZSH setup test suite
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh
+  test_zsh_setup_macos_x64:
+    name: Test ZSH Setup (macOS x64)
+    runs-on: macos-13
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+    - name: Cache Cargo registry and git
+      uses: actions/cache@v4
+      with:
+        path: |-
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |-
+          cargo-registry-${{ runner.os }}-${{ runner.arch }}-
+          cargo-registry-${{ runner.os }}-
+    - name: Cache Rust toolchains
+      uses: actions/cache@v4
+      with:
+        path: ~/.rustup
+        key: rustup-${{ runner.os }}-${{ runner.arch }}
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
+        restore-keys: |-
+          build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
+          build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Install shellcheck
+      run: brew install shellcheck
+    - name: Run macOS ZSH setup test suite
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true
