@@ -146,7 +146,10 @@ impl std::fmt::Display for LibcType {
 pub async fn detect_libc_type() -> Result<LibcType> {
     let platform = detect_platform();
     if platform != Platform::Linux {
-        bail!("detect_libc_type() called on non-Linux platform: {}", platform);
+        bail!(
+            "detect_libc_type() called on non-Linux platform: {}",
+            platform
+        );
     }
 
     // Method 1: Check for musl library files
@@ -162,14 +165,13 @@ pub async fn detect_libc_type() -> Result<LibcType> {
     }
 
     // Method 2: Check ldd output for "musl"
-    if let Ok(output) = Command::new("ldd").arg("/bin/ls").output().await {
-        if output.status.success() {
+    if let Ok(output) = Command::new("ldd").arg("/bin/ls").output().await
+        && output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             if stdout.to_lowercase().contains("musl") {
                 return Ok(LibcType::Musl);
             }
         }
-    }
 
     // Method 3: Check glibc version
     let glibc_version = extract_glibc_version().await;
@@ -192,24 +194,25 @@ pub async fn detect_libc_type() -> Result<LibcType> {
 /// Returns `Some((major, minor))` if version found, `None` otherwise.
 async fn extract_glibc_version() -> Option<(u32, u32)> {
     // Try ldd --version first
-    if let Ok(output) = Command::new("ldd").arg("--version").output().await {
-        if output.status.success() {
+    if let Ok(output) = Command::new("ldd").arg("--version").output().await
+        && output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             if let Some(version) = parse_version_from_text(&stdout) {
                 return Some(version);
             }
         }
-    }
 
     // Fall back to getconf
-    if let Ok(output) = Command::new("getconf").arg("GNU_LIBC_VERSION").output().await {
-        if output.status.success() {
+    if let Ok(output) = Command::new("getconf")
+        .arg("GNU_LIBC_VERSION")
+        .output()
+        .await
+        && output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             if let Some(version) = parse_version_from_text(&stdout) {
                 return Some(version);
             }
         }
-    }
 
     None
 }
@@ -270,12 +273,11 @@ fn check_gnu_runtime_deps() -> bool {
 ///
 /// Returns `true` if library found, `false` otherwise.
 fn check_lib_with_ldconfig(lib_name: &str) -> bool {
-    if let Ok(output) = std::process::Command::new("ldconfig").arg("-p").output() {
-        if output.status.success() {
+    if let Ok(output) = std::process::Command::new("ldconfig").arg("-p").output()
+        && output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             return stdout.contains(lib_name);
         }
-    }
     false
 }
 
@@ -632,25 +634,21 @@ pub async fn detect_fzf() -> FzfStatus {
 
     let meets_minimum = version_gte(&version, FZF_MIN_VERSION);
 
-    FzfStatus::Found {
-        version,
-        meets_minimum,
-    }
+    FzfStatus::Found { version, meets_minimum }
 }
 
 /// Detects bat installation (checks both "bat" and "batcat" on Debian/Ubuntu).
 pub async fn detect_bat() -> BatStatus {
     // Try "bat" first, then "batcat" (Debian/Ubuntu naming)
     for cmd in &["bat", "batcat"] {
-        if command_exists(cmd).await {
-            if let Ok(output) = Command::new(cmd)
+        if command_exists(cmd).await
+            && let Ok(output) = Command::new(cmd)
                 .arg("--version")
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())
                 .output()
                 .await
-            {
-                if output.status.success() {
+                && output.status.success() {
                     let out = String::from_utf8_lossy(&output.stdout);
                     // bat --version outputs "bat 0.24.0" or similar
                     let version = out
@@ -661,8 +659,6 @@ pub async fn detect_bat() -> BatStatus {
                     let meets_minimum = version_gte(&version, BAT_MIN_VERSION);
                     return BatStatus::Installed { version, meets_minimum };
                 }
-            }
-        }
     }
     BatStatus::NotFound
 }
@@ -671,15 +667,14 @@ pub async fn detect_bat() -> BatStatus {
 pub async fn detect_fd() -> FdStatus {
     // Try "fd" first, then "fdfind" (Debian/Ubuntu naming)
     for cmd in &["fd", "fdfind"] {
-        if command_exists(cmd).await {
-            if let Ok(output) = Command::new(cmd)
+        if command_exists(cmd).await
+            && let Ok(output) = Command::new(cmd)
                 .arg("--version")
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::null())
                 .output()
                 .await
-            {
-                if output.status.success() {
+                && output.status.success() {
                     let out = String::from_utf8_lossy(&output.stdout);
                     // fd --version outputs "fd 10.2.0" or similar
                     let version = out
@@ -690,8 +685,6 @@ pub async fn detect_fd() -> FdStatus {
                     let meets_minimum = version_gte(&version, FD_MIN_VERSION);
                     return FdStatus::Installed { version, meets_minimum };
                 }
-            }
-        }
     }
     FdStatus::NotFound
 }
@@ -965,7 +958,8 @@ impl LinuxPackageManager {
 
     /// Returns the package name for fd.
     ///
-    /// On Debian/Ubuntu, the package is named "fd-find" due to naming conflicts.
+    /// On Debian/Ubuntu, the package is named "fd-find" due to naming
+    /// conflicts.
     fn fd_package_name(&self) -> &'static str {
         match self {
             Self::AptGet => "fd-find",
@@ -975,10 +969,11 @@ impl LinuxPackageManager {
 
     /// Queries the available version of a package from the package manager.
     ///
-    /// Returns None if the package is not available or version cannot be determined.
+    /// Returns None if the package is not available or version cannot be
+    /// determined.
     async fn query_available_version(&self, package: &str) -> Option<String> {
         let binary = self.to_string();
-        
+
         let output = match self {
             Self::AptGet => {
                 // apt-cache policy <package> shows available versions
@@ -1047,7 +1042,7 @@ impl LinuxPackageManager {
         }
 
         let out = String::from_utf8_lossy(&output.stdout);
-        
+
         // Parse version from output based on package manager
         match self {
             Self::AptGet => {
@@ -1091,7 +1086,8 @@ impl LinuxPackageManager {
                     let parts: Vec<&str> = first_line.split('-').collect();
                     if parts.len() >= 2 {
                         // Get version (skip package name, take version parts before -r0)
-                        let version_parts: Vec<&str> = parts[1..].iter()
+                        let version_parts: Vec<&str> = parts[1..]
+                            .iter()
                             .take_while(|p| !p.starts_with('r'))
                             .copied()
                             .collect();
@@ -1844,14 +1840,16 @@ fi
 /// Installs fzf (fuzzy finder) using package manager or GitHub releases.
 ///
 /// Tries package manager first for faster installation and system integration.
-/// Falls back to downloading from GitHub releases if package manager unavailable.
+/// Falls back to downloading from GitHub releases if package manager
+/// unavailable.
 ///
 /// # Errors
 ///
 /// Installs fzf (fuzzy finder) using package manager or GitHub releases.
 ///
-/// Tries package manager first (which checks version requirements before installing).
-/// Falls back to GitHub releases if package manager unavailable or version too old.
+/// Tries package manager first (which checks version requirements before
+/// installing). Falls back to GitHub releases if package manager unavailable or
+/// version too old.
 pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
     let pkg_mgr_result = match platform {
@@ -1905,10 +1903,15 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
         // Package manager installed old version or tool not found, fall back to GitHub
         match status {
             FzfStatus::Found { version, meets_minimum: false } => {
-                eprintln!("Package manager installed fzf {}, but {} or higher required. Installing from GitHub...", version, FZF_MIN_VERSION);
+                eprintln!(
+                    "Package manager installed fzf {}, but {} or higher required. Installing from GitHub...",
+                    version, FZF_MIN_VERSION
+                );
             }
             FzfStatus::NotFound => {
-                eprintln!("fzf not detected after package manager installation. Installing from GitHub...");
+                eprintln!(
+                    "fzf not detected after package manager installation. Installing from GitHub..."
+                );
             }
             FzfStatus::Found { meets_minimum: true, .. } => {
                 // Already handled above, this branch is unreachable
@@ -1922,8 +1925,9 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
 }
 /// Installs bat (file viewer) using package manager or GitHub releases.
 ///
-/// Tries package manager first (which checks version requirements before installing).
-/// Falls back to GitHub releases if package manager unavailable or version too old.
+/// Tries package manager first (which checks version requirements before
+/// installing). Falls back to GitHub releases if package manager unavailable or
+/// version too old.
 pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
     let pkg_mgr_result = match platform {
@@ -1977,10 +1981,15 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
         // Package manager installed old version or tool not found, fall back to GitHub
         match status {
             BatStatus::Installed { version, meets_minimum: false } => {
-                eprintln!("Package manager installed bat {}, but {} or higher required. Installing from GitHub...", version, BAT_MIN_VERSION);
+                eprintln!(
+                    "Package manager installed bat {}, but {} or higher required. Installing from GitHub...",
+                    version, BAT_MIN_VERSION
+                );
             }
             BatStatus::NotFound => {
-                eprintln!("bat not detected after package manager installation. Installing from GitHub...");
+                eprintln!(
+                    "bat not detected after package manager installation. Installing from GitHub..."
+                );
             }
             BatStatus::Installed { meets_minimum: true, .. } => {
                 // Already handled above, this branch is unreachable
@@ -1995,8 +2004,9 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
 
 /// Installs fd (file finder) using package manager or GitHub releases.
 ///
-/// Tries package manager first (which checks version requirements before installing).
-/// Falls back to GitHub releases if package manager unavailable or version too old.
+/// Tries package manager first (which checks version requirements before
+/// installing). Falls back to GitHub releases if package manager unavailable or
+/// version too old.
 pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
     let pkg_mgr_result = match platform {
@@ -2050,10 +2060,15 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
         // Package manager installed old version or tool not found, fall back to GitHub
         match status {
             FdStatus::Installed { version, meets_minimum: false } => {
-                eprintln!("Package manager installed fd {}, but {} or higher required. Installing from GitHub...", version, FD_MIN_VERSION);
+                eprintln!(
+                    "Package manager installed fd {}, but {} or higher required. Installing from GitHub...",
+                    version, FD_MIN_VERSION
+                );
             }
             FdStatus::NotFound => {
-                eprintln!("fd not detected after package manager installation. Installing from GitHub...");
+                eprintln!(
+                    "fd not detected after package manager installation. Installing from GitHub..."
+                );
             }
             _ => {}
         }
@@ -2104,7 +2119,10 @@ async fn install_via_package_manager_linux(tool: &str, sudo: &SudoCapability) ->
                 // Version is good, proceed with installation
             } else {
                 // Could not determine version, try installing anyway
-                eprintln!("Warning: Could not determine available version for {}, attempting installation anyway", tool);
+                eprintln!(
+                    "Warning: Could not determine available version for {}, attempting installation anyway",
+                    tool
+                );
             }
 
             let args = mgr.install_args(&[package_name]);
@@ -2193,31 +2211,23 @@ async fn install_fd_from_github(platform: Platform) -> Result<()> {
 async fn get_latest_github_release(repo: &str) -> Option<String> {
     // Method 1: Follow redirect from /releases/latest
     let redirect_url = format!("https://github.com/{}/releases/latest", repo);
-    if let Ok(response) = reqwest::Client::new()
-        .get(&redirect_url)
-        .send()
-        .await
-    {
-        if let Some(final_url) = response.url().path_segments() {
-            if let Some(tag) = final_url.last() {
+    if let Ok(response) = reqwest::Client::new().get(&redirect_url).send().await
+        && let Some(mut final_url) = response.url().path_segments()
+            && let Some(tag) = final_url.next_back() {
                 let version = tag.trim_start_matches('v').to_string();
                 if !version.is_empty() {
                     return Some(version);
                 }
             }
-        }
-    }
 
     // Method 2: GitHub API (has rate limits)
     let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
-    if let Ok(response) = reqwest::get(&api_url).await {
-        if let Ok(json) = response.json::<serde_json::Value>().await {
-            if let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str()) {
+    if let Ok(response) = reqwest::get(&api_url).await
+        && let Ok(json) = response.json::<serde_json::Value>().await
+            && let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str()) {
                 let version = tag_name.trim_start_matches('v').to_string();
                 return Some(version);
             }
-        }
-    }
 
     None
 }
@@ -2242,9 +2252,7 @@ async fn download_and_extract_tool(
     tokio::fs::create_dir_all(&temp_dir).await?;
 
     // Download archive
-    let response = reqwest::get(url)
-        .await
-        .context("Failed to download tool")?;
+    let response = reqwest::get(url).await.context("Failed to download tool")?;
     let bytes = response.bytes().await?;
 
     let archive_ext = match archive_type {
@@ -2667,7 +2675,12 @@ mod tests {
         assert!(!fixture.all_installed());
 
         let actual = fixture.missing_items();
-        let expected = vec![("zsh", "shell"), ("fzf", "fuzzy finder"), ("bat", "file viewer"), ("fd", "file finder")];
+        let expected = vec![
+            ("zsh", "shell"),
+            ("fzf", "fuzzy finder"),
+            ("bat", "file viewer"),
+            ("fd", "file finder"),
+        ];
         assert_eq!(actual, expected);
     }
 
@@ -2711,7 +2724,11 @@ mod tests {
         };
 
         let actual = fixture.missing_items();
-        let expected = vec![("zsh-autosuggestions", "plugin"), ("fzf", "fuzzy finder"), ("fd", "file finder")];
+        let expected = vec![
+            ("zsh-autosuggestions", "plugin"),
+            ("fzf", "fuzzy finder"),
+            ("fd", "file finder"),
+        ];
         assert_eq!(actual, expected);
     }
 

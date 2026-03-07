@@ -1811,7 +1811,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
 
-            // Phase D4: Install tools (fzf, bat, fd) - sequential to avoid package manager locks
+            // Phase D4: Install tools (fzf, bat, fd) - sequential to avoid package manager
+            // locks
             if deps.needs_tools() {
                 self.spinner.start(Some("Installing tools"))?;
 
@@ -1853,10 +1854,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 if let Err(e) = fd_result {
                     tools_ok = false;
-                    self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install fd: {}",
-                        e
-                    )))?;
+                    self.writeln_title(TitleFormat::error(format!("Failed to install fd: {}", e)))?;
                 }
 
                 if tools_ok {
