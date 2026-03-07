@@ -2152,7 +2152,7 @@ async fn install_fzf_from_github(platform: Platform) -> Result<()> {
         Platform::Windows => "windows",
         Platform::Android => "linux", // fzf doesn't have android-specific builds
     };
-    
+
     let version = get_latest_release_with_binary("junegunn/fzf", asset_pattern, "0.56.3").await;
 
     let url = construct_fzf_url(&version, platform)?;
@@ -2171,7 +2171,7 @@ async fn install_fzf_from_github(platform: Platform) -> Result<()> {
 /// Installs bat from GitHub releases.
 async fn install_bat_from_github(platform: Platform) -> Result<()> {
     let target = construct_rust_target(platform).await?;
-    
+
     // Find the latest release that has this specific binary
     let version = get_latest_release_with_binary("sharkdp/bat", &target, "0.24.0").await;
     let url = format!(
@@ -2194,7 +2194,7 @@ async fn install_bat_from_github(platform: Platform) -> Result<()> {
 /// Installs fd from GitHub releases.
 async fn install_fd_from_github(platform: Platform) -> Result<()> {
     let target = construct_rust_target(platform).await?;
-    
+
     // Find the latest release that has this specific binary
     let version = get_latest_release_with_binary("sharkdp/fd", &target, "10.1.0").await;
     let url = format!(
@@ -2235,7 +2235,8 @@ struct GitHubAsset {
 ///
 /// # Arguments
 /// * `repo` - Repository in format "owner/name"
-/// * `asset_pattern` - Pattern to match in asset names (e.g., "x86_64-unknown-linux-musl")
+/// * `asset_pattern` - Pattern to match in asset names (e.g.,
+///   "x86_64-unknown-linux-musl")
 ///
 /// Returns the version string (without 'v' prefix) or fallback if all fail.
 async fn get_latest_release_with_binary(repo: &str, asset_pattern: &str, fallback: &str) -> String {
@@ -2267,7 +2268,11 @@ async fn get_latest_release_with_binary(repo: &str, asset_pattern: &str, fallbac
 
         if has_binary {
             // Strip 'v' prefix if present
-            let version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name).to_string();
+            let version = release
+                .tag_name
+                .strip_prefix('v')
+                .unwrap_or(&release.tag_name)
+                .to_string();
             return version;
         }
     }
@@ -2327,7 +2332,7 @@ async fn download_and_extract_tool(
 
     // Download archive
     let response = reqwest::get(url).await.context("Failed to download tool")?;
-    
+
     // Check if download was successful
     if !response.status().is_success() {
         bail!(
@@ -2337,7 +2342,7 @@ async fn download_and_extract_tool(
             response.text().await.unwrap_or_default()
         );
     }
-    
+
     let bytes = response.bytes().await?;
 
     let archive_ext = match archive_type {
