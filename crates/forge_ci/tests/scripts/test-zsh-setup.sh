@@ -806,8 +806,8 @@ case "$TEST_TYPE" in
   rerun)
     # Run forge zsh setup a second time inside zsh
     # This simulates what happens when a user runs "exec zsh" after the first install
-    # zsh will automatically source ~/.zshrc which adds ~/.local/bin to PATH
-    rerun_output=$(zsh -c 'forge zsh setup --non-interactive' 2>&1)
+    # Force zsh to source ~/.zshrc even in non-interactive mode
+    rerun_output=$(zsh -c 'source ~/.zshrc 2>/dev/null; forge zsh setup --non-interactive' 2>&1)
     rerun_exit=$?
     if [ "$rerun_exit" -eq 0 ]; then
       echo "CHECK_EDGE_RERUN_EXIT=PASS"
