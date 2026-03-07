@@ -888,6 +888,19 @@ CHECK_EDGE_RERUN_EXIT=FAIL (exit=${rerun_exit})"
     if echo "$rerun_output" | grep -qi "All dependencies already installed"; then
       verify_output="${verify_output}
 CHECK_EDGE_RERUN_SKIP=PASS"
+    elif [ "$brew_mode" = "no_brew" ]; then
+      # Without brew, fzf/bat/fd can't install, so forge will still try to
+      # install them on re-run. Verify the core components (OMZ + plugins) are
+      # detected as already present — that's the idempotency we care about.
+      if echo "$rerun_output" | grep -qi "Oh My Zsh installed" && \
+         echo "$rerun_output" | grep -qi "zsh-autosuggestions installed" && \
+         echo "$rerun_output" | grep -qi "zsh-syntax-highlighting installed"; then
+        verify_output="${verify_output}
+CHECK_EDGE_RERUN_SKIP=PASS (core deps detected; tools skipped due to no brew)"
+      else
+        verify_output="${verify_output}
+CHECK_EDGE_RERUN_SKIP=FAIL (core deps not detected on re-run without brew)"
+      fi
     else
       verify_output="${verify_output}
 CHECK_EDGE_RERUN_SKIP=FAIL (second run should skip installs)"
