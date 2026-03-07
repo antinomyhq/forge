@@ -2040,12 +2040,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                         if let Ok(output) = zsh_path_output {
                             if output.status.success() {
-                                let zsh_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                                
+                                let zsh_path =
+                                    String::from_utf8_lossy(&output.stdout).trim().to_string();
+
                                 // Try to run chsh
                                 self.spinner.start(Some("Setting zsh as default shell"))?;
                                 let chsh_result = tokio::process::Command::new("chsh")
-                                    .args(&["-s", &zsh_path])
+                                    .args(["-s", &zsh_path])
                                     .status()
                                     .await;
                                 self.spinner.stop(None)?;
