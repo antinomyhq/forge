@@ -2145,9 +2145,15 @@ async fn install_via_package_manager_linux(tool: &str, sudo: &SudoCapability) ->
 
 /// Installs fzf from GitHub releases.
 async fn install_fzf_from_github(platform: Platform) -> Result<()> {
-    let version = get_latest_github_release("junegunn/fzf")
-        .await
-        .unwrap_or_else(|| "0.56.3".to_string());
+    // Determine the asset pattern based on platform
+    let asset_pattern = match platform {
+        Platform::Linux => "linux",
+        Platform::MacOS => "darwin",
+        Platform::Windows => "windows",
+        Platform::Android => "linux", // fzf doesn't have android-specific builds
+    };
+    
+    let version = get_latest_release_with_binary("junegunn/fzf", asset_pattern, "0.56.3").await;
 
     let url = construct_fzf_url(&version, platform)?;
     let archive_type = if platform == Platform::Windows {
@@ -2164,11 +2170,10 @@ async fn install_fzf_from_github(platform: Platform) -> Result<()> {
 
 /// Installs bat from GitHub releases.
 async fn install_bat_from_github(platform: Platform) -> Result<()> {
-    let version = get_latest_github_release("sharkdp/bat")
-        .await
-        .unwrap_or_else(|| "0.24.0".to_string());
-
     let target = construct_rust_target(platform).await?;
+    
+    // Find the latest release that has this specific binary
+    let version = get_latest_release_with_binary("sharkdp/bat", &target, "0.24.0").await;
     let url = format!(
         "https://github.com/sharkdp/bat/releases/download/v{}/bat-v{}-{}.tar.gz",
         version, version, target
@@ -2188,11 +2193,10 @@ async fn install_bat_from_github(platform: Platform) -> Result<()> {
 
 /// Installs fd from GitHub releases.
 async fn install_fd_from_github(platform: Platform) -> Result<()> {
-    let version = get_latest_github_release("sharkdp/fd")
-        .await
-        .unwrap_or_else(|| "10.2.0".to_string());
-
     let target = construct_rust_target(platform).await?;
+    
+    // Find the latest release that has this specific binary
+    let version = get_latest_release_with_binary("sharkdp/fd", &target, "10.1.0").await;
     let url = format!(
         "https://github.com/sharkdp/fd/releases/download/v{}/fd-v{}-{}.tar.gz",
         version, version, target
@@ -2208,6 +2212,68 @@ async fn install_fd_from_github(platform: Platform) -> Result<()> {
     install_binary_to_local_bin(&binary_path, "fd").await?;
 
     Ok(())
+}
+
+/// Minimal struct for parsing GitHub release API response
+#[derive(serde::Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    assets: Vec<GitHubAsset>,
+}
+
+/// Minimal struct for parsing GitHub asset info
+#[derive(serde::Deserialize)]
+struct GitHubAsset {
+    name: String,
+}
+
+/// Finds the latest GitHub release that has the required binary asset.
+///
+/// Checks recent releases (up to 10) and returns the first one that has
+/// a binary matching the pattern. This handles cases where the latest release
+/// exists but binaries haven't been built yet (CI delays).
+///
+/// # Arguments
+/// * `repo` - Repository in format "owner/name"
+/// * `asset_pattern` - Pattern to match in asset names (e.g., "x86_64-unknown-linux-musl")
+///
+/// Returns the version string (without 'v' prefix) or fallback if all fail.
+async fn get_latest_release_with_binary(repo: &str, asset_pattern: &str, fallback: &str) -> String {
+    // Try to get list of recent releases
+    let releases_url = format!("https://api.github.com/repos/{}/releases?per_page=10", repo);
+    let response = match reqwest::Client::new()
+        .get(&releases_url)
+        .header("User-Agent", "forge-cli")
+        .send()
+        .await
+    {
+        Ok(resp) if resp.status().is_success() => resp,
+        _ => return fallback.to_string(),
+    };
+
+    // Parse releases
+    let releases: Vec<GitHubRelease> = match response.json().await {
+        Ok(r) => r,
+        Err(_) => return fallback.to_string(),
+    };
+
+    // Find the first release that has the required binary
+    for release in releases {
+        // Check if this release has a binary matching our pattern
+        let has_binary = release
+            .assets
+            .iter()
+            .any(|asset| asset.name.contains(asset_pattern));
+
+        if has_binary {
+            // Strip 'v' prefix if present
+            let version = release.tag_name.strip_prefix('v').unwrap_or(&release.tag_name).to_string();
+            return version;
+        }
+    }
+
+    // No release with binaries found, use fallback
+    fallback.to_string()
 }
 
 /// Gets the latest release version from a GitHub repository.
@@ -2261,6 +2327,17 @@ async fn download_and_extract_tool(
 
     // Download archive
     let response = reqwest::get(url).await.context("Failed to download tool")?;
+    
+    // Check if download was successful
+    if !response.status().is_success() {
+        bail!(
+            "Failed to download {}: HTTP {} - {}",
+            tool_name,
+            response.status(),
+            response.text().await.unwrap_or_default()
+        );
+    }
+    
     let bytes = response.bytes().await?;
 
     let archive_ext = match archive_type {

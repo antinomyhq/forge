@@ -804,10 +804,12 @@ case "$TEST_TYPE" in
     fi
     ;;
   rerun)
-    # Run forge zsh setup a second time inside zsh
-    # This simulates what happens when a user runs "exec zsh" after the first install
-    # Force zsh to source ~/.zshrc even in non-interactive mode
-    rerun_output=$(zsh -c 'source ~/.zshrc 2>/dev/null; forge zsh setup --non-interactive' 2>&1)
+    # Run forge zsh setup a second time
+    # Update PATH to include ~/.local/bin (where GitHub-installed tools are located)
+    # This simulates the PATH that would be set after sourcing ~/.zshrc
+    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+    hash -r  # Clear bash's command cache
+    rerun_output=$(forge zsh setup --non-interactive 2>&1)
     rerun_exit=$?
     if [ "$rerun_exit" -eq 0 ]; then
       echo "CHECK_EDGE_RERUN_EXIT=PASS"
@@ -857,6 +859,13 @@ esac
 # --- Emit raw output for debugging ---
 echo "OUTPUT_BEGIN"
 echo "$setup_output"
+# If this is a re-run test, also show the second run output
+if [ -n "$rerun_output" ]; then
+  echo ""
+  echo "===== SECOND RUN (idempotency check) ====="
+  echo "$rerun_output"
+  echo "=========================================="
+fi
 echo "OUTPUT_END"
 VERIFY_SCRIPT_BODY
 }
