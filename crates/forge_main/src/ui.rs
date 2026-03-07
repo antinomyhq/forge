@@ -1874,8 +1874,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if platform == Platform::Windows {
             self.spinner.start(Some("Configuring Git Bash"))?;
             match zsh::configure_bashrc_autostart().await {
-                Ok(()) => {
+                Ok(bashrc_result) => {
                     self.spinner.stop(None)?;
+                    if let Some(warning) = bashrc_result.warning {
+                        self.writeln_title(TitleFormat::warning(warning))?;
+                    }
                     self.writeln_title(TitleFormat::info(
                         "Configured ~/.bashrc to auto-start zsh",
                     ))?;

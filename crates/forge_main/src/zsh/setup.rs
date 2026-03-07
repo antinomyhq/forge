@@ -1771,15 +1771,32 @@ pub async fn install_syntax_highlighting() -> Result<()> {
     Ok(())
 }
 
+/// Result of configuring `~/.bashrc` auto-start.
+///
+/// Contains an optional warning message for cases where the existing
+/// `.bashrc` content required recovery (e.g., an incomplete block was
+/// removed). The caller should surface this warning to the user.
+#[derive(Debug, Default)]
+pub struct BashrcConfigResult {
+    /// A warning message to display to the user, if any non-fatal issue was
+    /// encountered and automatically recovered (e.g., a corrupt auto-start
+    /// block was removed).
+    pub warning: Option<String>,
+}
+
 /// Configures `~/.bashrc` to auto-start zsh on Windows (Git Bash).
 ///
 /// Creates necessary startup files if they don't exist, removes any previous
 /// auto-start block, and appends a new one.
 ///
+/// Returns a `BashrcConfigResult` which may contain a warning if an incomplete
+/// block was found and removed.
+///
 /// # Errors
 ///
 /// Returns error if HOME is not set or file operations fail.
-pub async fn configure_bashrc_autostart() -> Result<()> {
+pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
+    let mut result = BashrcConfigResult::default();
     let home = std::env::var("HOME").context("HOME not set")?;
     let home_path = PathBuf::from(&home);
 
@@ -1827,9 +1844,10 @@ pub async fn configure_bashrc_autostart() -> Result<()> {
                 } else {
                     // Incomplete block: marker found but no closing "fi"
                     // Remove from marker to end of file to prevent corruption
-                    eprintln!(
-                        "Warning: Found incomplete auto-start block (marker without closing 'fi'). \
+                    result.warning = Some(
+                        "Found incomplete auto-start block (marker without closing 'fi'). \
                          Removing incomplete block to prevent bashrc corruption."
+                            .to_string(),
                     );
                     content.truncate(actual_start);
                 }
@@ -1844,16 +1862,8 @@ pub async fn configure_bashrc_autostart() -> Result<()> {
     // Resolve zsh path
     let zsh_path = resolve_zsh_path().await;
 
-    let autostart_block = format!(
-        r#"
-# Added by forge zsh setup
-if [ -t 0 ] && [ -x "{zsh}" ]; then
-  export SHELL="{zsh}"
-  exec "{zsh}"
-fi
-"#,
-        zsh = zsh_path
-    );
+    let autostart_block =
+        include_str!("fixtures/bashrc_autostart_block.sh").replace("{{zsh}}", &zsh_path);
 
     content.push_str(&autostart_block);
 
@@ -1861,7 +1871,7 @@ fi
         .await
         .context("Failed to write ~/.bashrc")?;
 
-    Ok(())
+    Ok(result)
 }
 
 // =============================================================================
@@ -1931,24 +1941,6 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
         if matches!(status, FzfStatus::Found { meets_minimum: true, .. }) {
             return Ok(());
         }
-        // Package manager installed old version or tool not found, fall back to GitHub
-        match status {
-            FzfStatus::Found { version, meets_minimum: false } => {
-                eprintln!(
-                    "Package manager installed fzf {}, but {} or higher required. Installing from GitHub...",
-                    version, FZF_MIN_VERSION
-                );
-            }
-            FzfStatus::NotFound => {
-                eprintln!(
-                    "fzf not detected after package manager installation. Installing from GitHub..."
-                );
-            }
-            FzfStatus::Found { meets_minimum: true, .. } => {
-                // Already handled above, this branch is unreachable
-                unreachable!("fzf with correct version should have returned early");
-            }
-        }
     }
 
     // Fall back to GitHub releases (pkg mgr unavailable or version too old)
@@ -2011,20 +2003,12 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
         }
         // Package manager installed old version or tool not found, fall back to GitHub
         match status {
-            BatStatus::Installed { version, meets_minimum: false } => {
-                eprintln!(
-                    "Package manager installed bat {}, but {} or higher required. Installing from GitHub...",
-                    version, BAT_MIN_VERSION
-                );
-            }
-            BatStatus::NotFound => {
-                eprintln!(
-                    "bat not detected after package manager installation. Installing from GitHub..."
-                );
-            }
             BatStatus::Installed { meets_minimum: true, .. } => {
                 // Already handled above, this branch is unreachable
                 unreachable!("bat with correct version should have returned early");
+            }
+            _ => {
+                // Old version or not detected — fall through to GitHub install
             }
         }
     }
@@ -2088,21 +2072,7 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
         if matches!(status, FdStatus::Installed { meets_minimum: true, .. }) {
             return Ok(());
         }
-        // Package manager installed old version or tool not found, fall back to GitHub
-        match status {
-            FdStatus::Installed { version, meets_minimum: false } => {
-                eprintln!(
-                    "Package manager installed fd {}, but {} or higher required. Installing from GitHub...",
-                    version, FD_MIN_VERSION
-                );
-            }
-            FdStatus::NotFound => {
-                eprintln!(
-                    "fd not detected after package manager installation. Installing from GitHub..."
-                );
-            }
-            _ => {}
-        }
+        // Package manager installed old version or not detected — fall through to GitHub install
     }
 
     // Fall back to GitHub releases (pkg mgr unavailable or version too old)
@@ -2150,10 +2120,6 @@ async fn install_via_package_manager_linux(tool: &str, sudo: &SudoCapability) ->
                 // Version is good, proceed with installation
             } else {
                 // Could not determine version, try installing anyway
-                eprintln!(
-                    "Warning: Could not determine available version for {}, attempting installation anyway",
-                    tool
-                );
             }
 
             let args = mgr.install_args(&[package_name]);
