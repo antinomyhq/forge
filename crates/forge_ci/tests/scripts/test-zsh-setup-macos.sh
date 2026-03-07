@@ -863,7 +863,7 @@ EOF
   # Run forge zsh setup
   local setup_output=""
   local setup_exit=0
-  setup_output=$(PATH="$test_path" HOME="$temp_home" forge zsh setup --non-interactive 2>&1) || setup_exit=$?
+  setup_output=$(PATH="$test_path" HOME="$temp_home" NO_COLOR=1 forge zsh setup --non-interactive 2>&1) || setup_exit=$?
 
   # Run verification
   local verify_output
@@ -875,7 +875,7 @@ EOF
     local rerun_path="${temp_home}/.local/bin:${test_path}"
     local rerun_output=""
     local rerun_exit=0
-    rerun_output=$(PATH="$rerun_path" HOME="$temp_home" forge zsh setup --non-interactive 2>&1) || rerun_exit=$?
+    rerun_output=$(PATH="$rerun_path" HOME="$temp_home" NO_COLOR=1 forge zsh setup --non-interactive 2>&1) || rerun_exit=$?
 
     if [ "$rerun_exit" -eq 0 ]; then
       verify_output="${verify_output}

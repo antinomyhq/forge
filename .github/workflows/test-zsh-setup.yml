@@ -178,53 +178,6 @@ jobs:
         path: test-results-macos/
         retention-days: 7
         if-no-files-found: ignore
-  test_zsh_setup_macos_x64:
-    name: Test ZSH Setup (macOS x64)
-    runs-on: macos-13
-    permissions:
-      contents: read
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-    - name: Cache Cargo registry and git
-      uses: actions/cache@v4
-      with:
-        path: |-
-          ~/.cargo/registry
-          ~/.cargo/git
-        key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |-
-          cargo-registry-${{ runner.os }}-${{ runner.arch }}-
-          cargo-registry-${{ runner.os }}-
-    - name: Cache Rust toolchains
-      uses: actions/cache@v4
-      with:
-        path: ~/.rustup
-        key: rustup-${{ runner.os }}-${{ runner.arch }}
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: target
-        key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
-        restore-keys: |-
-          build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
-          build-${{ runner.os }}-${{ runner.arch }}-
-    - name: Setup Protobuf Compiler
-      uses: arduino/setup-protoc@v3
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Install shellcheck
-      run: brew install shellcheck
-    - name: Run macOS ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh --no-cleanup
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: zsh-setup-results-macos-x64
-        path: test-results-macos/
-        retention-days: 7
-        if-no-files-found: ignore
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true

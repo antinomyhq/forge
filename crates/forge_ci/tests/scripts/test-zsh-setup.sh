@@ -499,6 +499,7 @@ WORKDIR /home/testuser"
 FROM ${image}
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TERM=dumb
+ENV NO_COLOR=1
 RUN ${install_cmd}
 COPY ${bin_rel} /usr/local/bin/forge
 RUN chmod +x /usr/local/bin/forge
