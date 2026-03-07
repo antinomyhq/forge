@@ -2118,8 +2118,6 @@ async fn install_via_package_manager_linux(tool: &str, sudo: &SudoCapability) ->
                     );
                 }
                 // Version is good, proceed with installation
-            } else {
-                // Could not determine version, try installing anyway
             }
 
             let args = mgr.install_args(&[package_name]);
