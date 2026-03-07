@@ -444,8 +444,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         }
                         return Ok(());
                     }
-                    crate::cli::ZshCommandGroup::Setup => {
-                        self.on_zsh_setup().await?;
+                    crate::cli::ZshCommandGroup::Setup { non_interactive } => {
+                        self.on_zsh_setup(non_interactive).await?;
                     }
                     crate::cli::ZshCommandGroup::Keyboard => {
                         self.on_zsh_keyboard().await?;
@@ -676,7 +676,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Setup => {
-                self.on_zsh_setup().await?;
+                self.on_zsh_setup(false).await?;
                 return Ok(());
             }
             TopLevelCommand::Doctor => {
@@ -1603,10 +1603,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// 2. Parallel dependency detection (zsh, Oh My Zsh, plugins, fzf)
     /// 3. Installation of missing dependencies (respecting dependency order)
     /// 4. Windows bashrc auto-start configuration
-    /// 5. Nerd Font check and editor selection (interactive)
+    /// 5. Nerd Font check and editor selection (interactive, skipped if
+    ///    `non_interactive`)
     /// 6. `.zshrc` configuration via `setup_zsh_integration()`
     /// 7. Doctor verification and summary
-    async fn on_zsh_setup(&mut self) -> anyhow::Result<()> {
+    ///
+    /// # Arguments
+    ///
+    /// * `non_interactive` - When true, skips Nerd Font and editor prompts,
+    ///   using defaults (nerd fonts enabled, no editor override).
+    async fn on_zsh_setup(&mut self, non_interactive: bool) -> anyhow::Result<()> {
         // Step A: Prerequisite check
         self.spinner.start(Some("Checking prerequisites"))?;
         let git_ok = crate::zsh::detect_git().await;
@@ -1796,77 +1802,85 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Step F: Nerd Font check
-        println!();
-        println!(
-            "{} {} {}",
-            "󱙺".bold(),
-            "FORGE 33.0k".bold(),
-            " tonic-1.0".cyan()
-        );
+        // Step F & G: Nerd Font check and Editor selection
+        let (disable_nerd_font, forge_editor) = if non_interactive {
+            // Non-interactive mode: use safe defaults
+            (false, None)
+        } else {
+            // Step F: Nerd Font check
+            println!();
+            println!(
+                "{} {} {}",
+                "󱙺".bold(),
+                "FORGE 33.0k".bold(),
+                " tonic-1.0".cyan()
+            );
 
-        let can_see_nerd_fonts =
-            ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
-                .with_default(true)
-                .prompt()?;
+            let can_see_nerd_fonts =
+                ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
+                    .with_default(true)
+                    .prompt()?;
 
-        let disable_nerd_font = match can_see_nerd_fonts {
-            Some(true) => {
-                println!();
-                false
-            }
-            Some(false) => {
-                println!();
-                println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
-                println!();
-                println!("   You can enable them later by:");
-                println!(
-                    "   1. Installing a Nerd Font from: {}",
-                    "https://www.nerdfonts.com/".dimmed()
-                );
-                println!("   2. Configuring your terminal to use a Nerd Font");
-                println!(
-                    "   3. Removing {} from your ~/.zshrc",
-                    "NERD_FONT=0".dimmed()
-                );
-                println!();
-                true
-            }
-            None => {
-                // User interrupted, default to not disabling
-                println!();
-                false
-            }
-        };
+            let disable_nerd_font = match can_see_nerd_fonts {
+                Some(true) => {
+                    println!();
+                    false
+                }
+                Some(false) => {
+                    println!();
+                    println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
+                    println!();
+                    println!("   You can enable them later by:");
+                    println!(
+                        "   1. Installing a Nerd Font from: {}",
+                        "https://www.nerdfonts.com/".dimmed()
+                    );
+                    println!("   2. Configuring your terminal to use a Nerd Font");
+                    println!(
+                        "   3. Removing {} from your ~/.zshrc",
+                        "NERD_FONT=0".dimmed()
+                    );
+                    println!();
+                    true
+                }
+                None => {
+                    // User interrupted, default to not disabling
+                    println!();
+                    false
+                }
+            };
 
-        // Step G: Editor selection
-        let editor_options = vec![
-            "Use system default ($EDITOR)",
-            "VS Code (code --wait)",
-            "Vim",
-            "Neovim (nvim)",
-            "Nano",
-            "Emacs",
-            "Sublime Text (subl --wait)",
-            "Skip - I'll configure it later",
-        ];
+            // Step G: Editor selection
+            let editor_options = vec![
+                "Use system default ($EDITOR)",
+                "VS Code (code --wait)",
+                "Vim",
+                "Neovim (nvim)",
+                "Nano",
+                "Emacs",
+                "Sublime Text (subl --wait)",
+                "Skip - I'll configure it later",
+            ];
 
-        let selected_editor = ForgeSelect::select(
-            "Which editor would you like to use for editing prompts?",
-            editor_options,
-        )
-        .prompt()?;
+            let selected_editor = ForgeSelect::select(
+                "Which editor would you like to use for editing prompts?",
+                editor_options,
+            )
+            .prompt()?;
 
-        let forge_editor = match selected_editor {
-            Some("Use system default ($EDITOR)") => None,
-            Some("VS Code (code --wait)") => Some("code --wait"),
-            Some("Vim") => Some("vim"),
-            Some("Neovim (nvim)") => Some("nvim"),
-            Some("Nano") => Some("nano"),
-            Some("Emacs") => Some("emacs"),
-            Some("Sublime Text (subl --wait)") => Some("subl --wait"),
-            Some("Skip - I'll configure it later") => None,
-            _ => None,
+            let forge_editor = match selected_editor {
+                Some("Use system default ($EDITOR)") => None,
+                Some("VS Code (code --wait)") => Some("code --wait"),
+                Some("Vim") => Some("vim"),
+                Some("Neovim (nvim)") => Some("nvim"),
+                Some("Nano") => Some("nano"),
+                Some("Emacs") => Some("emacs"),
+                Some("Sublime Text (subl --wait)") => Some("subl --wait"),
+                Some("Skip - I'll configure it later") => None,
+                _ => None,
+            };
+
+            (disable_nerd_font, forge_editor)
         };
 
         // Step H: Configure .zshrc via setup_zsh_integration() (always runs)
