@@ -1816,7 +1816,7 @@ pub async fn configure_bashrc_autostart() -> Result<()> {
                 } else {
                     start
                 };
-                
+
                 // Find the closing "fi" line
                 if let Some(fi_offset) = content[start..].find("\nfi\n") {
                     let end = start + fi_offset + 4; // +4 for "\nfi\n"
@@ -3070,7 +3070,11 @@ mod tests {
 
         // Should have exactly one fi
         let fi_count = content.matches("\nfi\n").count();
-        assert_eq!(fi_count, 1, "Should have exactly one fi, found {}", fi_count);
+        assert_eq!(
+            fi_count, 1,
+            "Should have exactly one fi, found {}",
+            fi_count
+        );
     }
 
     #[tokio::test]
