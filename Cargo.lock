@@ -1977,6 +1977,8 @@ dependencies = [
  "open",
  "pretty_assertions",
  "reedline",
+ "regex",
+ "reqwest 0.12.28",
  "rustls 0.23.36",
  "serde",
  "serde_json",

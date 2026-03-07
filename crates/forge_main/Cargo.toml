@@ -64,6 +64,8 @@ forge_markdown_stream.workspace = true
 strip-ansi-escapes.workspace = true
 terminal_size = "0.4"
 rustls.workspace = true
+reqwest.workspace = true
+regex.workspace = true
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = "3.4"
