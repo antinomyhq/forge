@@ -804,11 +804,10 @@ case "$TEST_TYPE" in
     fi
     ;;
   rerun)
-    # Run forge zsh setup a second time
-    # Update PATH to include ~/.local/bin for tool detection
-    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
-    hash -r  # Clear bash's command cache
-    rerun_output=$(forge zsh setup --non-interactive 2>&1)
+    # Run forge zsh setup a second time inside zsh
+    # This simulates what happens when a user runs "exec zsh" after the first install
+    # zsh will automatically source ~/.zshrc which adds ~/.local/bin to PATH
+    rerun_output=$(zsh -c 'forge zsh setup --non-interactive' 2>&1)
     rerun_exit=$?
     if [ "$rerun_exit" -eq 0 ]; then
       echo "CHECK_EDGE_RERUN_EXIT=PASS"
@@ -971,11 +970,11 @@ EOF
   local raw_output
   raw_output=$(run_container "$tag" "bash" "$test_type" 2>&1) || true
 
-  # Parse exit code (first line)
+  # Parse exit code (first line) and output (rest) without broken pipe
   local container_exit
-  container_exit=$(echo "$raw_output" | head -1)
   local container_output
-  container_output=$(echo "$raw_output" | tail -n +2)
+  container_exit=$(head -1 <<< "$raw_output")
+  container_output=$(tail -n +2 <<< "$raw_output")
 
   # Parse SETUP_EXIT
   local setup_exit
