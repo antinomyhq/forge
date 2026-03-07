@@ -66,6 +66,7 @@ impl ProviderId {
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
+    pub const MINIMAX: ProviderId = ProviderId(Cow::Borrowed("minimax"));
 
     /// Returns all built-in provider IDs
     ///
@@ -93,6 +94,7 @@ impl ProviderId {
             ProviderId::IO_INTELLIGENCE,
             ProviderId::BEDROCK,
             ProviderId::CODEX,
+            ProviderId::MINIMAX,
         ]
     }
 
@@ -114,6 +116,7 @@ impl ProviderId {
             "openai_compatible" => "OpenAICompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
             "codex" => "Codex".to_string(),
+            "minimax" => "MiniMax".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -154,6 +157,7 @@ impl std::str::FromStr for ProviderId {
             "forge_services" => ProviderId::FORGE_SERVICES,
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
             "codex" => ProviderId::CODEX,
+            "minimax" => ProviderId::MINIMAX,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
