@@ -978,15 +978,15 @@ EOF
 
   # Parse SETUP_EXIT
   local setup_exit
-  setup_exit=$(echo "$container_output" | grep '^SETUP_EXIT=' | head -1 | cut -d= -f2)
+  setup_exit=$(grep '^SETUP_EXIT=' <<< "$container_output" | head -1 | cut -d= -f2)
 
   # Evaluate CHECK lines
   local eval_result
   eval_result=$(parse_check_lines "$container_output" "$label ($variant) [$target_short]")
   local status
-  status=$(echo "$eval_result" | head -1)
   local details
-  details=$(echo "$eval_result" | tail -n +2)
+  status=$(head -1 <<< "$eval_result")
+  details=$(tail -n +2 <<< "$eval_result")
 
   # Check setup exit code (should be 0)
   if [ -n "$setup_exit" ] && [ "$setup_exit" != "0" ] && [ "$test_type" != "no_git" ]; then
@@ -1103,19 +1103,19 @@ EOF
   raw_output=$(run_container "$tag" "bash" "$test_type" 2>&1) || true
 
   local container_exit
-  container_exit=$(echo "$raw_output" | head -1)
   local container_output
-  container_output=$(echo "$raw_output" | tail -n +2)
+  container_exit=$(head -1 <<< "$raw_output")
+  container_output=$(tail -n +2 <<< "$raw_output")
 
   local setup_exit
-  setup_exit=$(echo "$container_output" | grep '^SETUP_EXIT=' | head -1 | cut -d= -f2)
+  setup_exit=$(grep '^SETUP_EXIT=' <<< "$container_output" | head -1 | cut -d= -f2)
 
   local eval_result
   eval_result=$(parse_check_lines "$container_output" "$label [$target_short]")
   local status
-  status=$(echo "$eval_result" | head -1)
   local details
-  details=$(echo "$eval_result" | tail -n +2)
+  status=$(head -1 <<< "$eval_result")
+  details=$(tail -n +2 <<< "$eval_result")
 
   # For no_git test, exit code 0 is expected even though things "fail"
   if [ "$edge_type" != "NO_GIT" ] && [ -n "$setup_exit" ] && [ "$setup_exit" != "0" ]; then
