@@ -343,11 +343,9 @@ build_binary() {
   fi
 }
 
-# Build all selected targets. Returns 0 if at least one target succeeded.
+# Build all selected targets. Exits immediately if any build fails.
 build_all_targets() {
   log_header "Phase 2: Build Binaries"
-
-  local any_built=false
 
   for entry in "${BUILD_TARGETS[@]}"; do
     IFS='|' read -r target use_cross label <<< "$entry"
@@ -360,15 +358,12 @@ build_all_targets() {
       fi
     fi
 
-    if build_binary "$target" "$use_cross"; then
-      any_built=true
+    # Build and exit immediately on failure
+    if ! build_binary "$target" "$use_cross"; then
+      echo "Error: Build failed for ${target}. Cannot continue without binaries." >&2
+      exit 1
     fi
   done
-
-  if [ "$any_built" = false ]; then
-    echo "Error: No binaries were built successfully." >&2
-    exit 1
-  fi
 }
 
 # Return the relative path (from PROJECT_ROOT) to the binary for a target.

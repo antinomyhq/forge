@@ -37,8 +37,11 @@ pub fn generate_test_zsh_setup_workflow() {
                 })),
         )
         .add_step(
-            Step::new("Install musl target")
-                .run("rustup target add x86_64-unknown-linux-musl"),
+            Step::new("Setup Cross Toolchain")
+                .uses("taiki-e", "setup-cross-toolchain-action", "v1")
+                .with(Input::from(indexmap! {
+                    "target".to_string() => json!("x86_64-unknown-linux-musl"),
+                })),
         )
         .add_step(
             Step::new("Run ZSH setup test suite")
@@ -77,8 +80,11 @@ pub fn generate_test_zsh_setup_workflow() {
                 })),
         )
         .add_step(
-            Step::new("Install musl target")
-                .run("rustup target add aarch64-unknown-linux-musl"),
+            Step::new("Setup Cross Toolchain")
+                .uses("taiki-e", "setup-cross-toolchain-action", "v1")
+                .with(Input::from(indexmap! {
+                    "target".to_string() => json!("aarch64-unknown-linux-musl"),
+                })),
         )
         .add_step(
             Step::new("Run ZSH setup test suite (exclude Arch)")
