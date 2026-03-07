@@ -1050,8 +1050,8 @@ EOF
       ;;
     PREINSTALLED_ALL)
       install_cmd=$(pkg_install_cmd "$image" "")
-      # Install zsh, then OMZ, then plugins
-      extra_setup='apt-get install -y -qq zsh && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && git clone https://github.com/zsh-users/zsh-autosuggestions.git $HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting'
+      # Install zsh, OMZ, plugins, and tools (fzf, bat, fd)
+      extra_setup='apt-get install -y -qq zsh fzf bat fd-find && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && git clone https://github.com/zsh-users/zsh-autosuggestions.git $HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting'
       test_type="preinstalled_all"
       ;;
     NO_GIT)
