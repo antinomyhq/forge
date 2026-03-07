@@ -62,15 +62,33 @@ readonly SHELLCHECK_EXCLUSIONS="SC2155,SC2086,SC1090,SC2034,SC2181,SC2016,SC2162
 readonly DOCKER_TAG_PREFIX="forge-zsh-test"
 readonly DEFAULT_MAX_JOBS=8
 
-# Build targets — matches CI release.yml for Linux x86_64
+# Detect host architecture
+HOST_ARCH="$(uname -m)"
+readonly HOST_ARCH
+
+# Build targets — matches CI release.yml for Linux
+# Only include targets that match the host architecture
 # Format: "target|cross_flag|label"
 #   target     - Rust target triple
 #   cross_flag - "true" to build with cross, "false" for cargo
 #   label      - human-readable name
-readonly BUILD_TARGETS=(
-  "x86_64-unknown-linux-musl|true|musl (static)"
-  "x86_64-unknown-linux-gnu|false|gnu (dynamic)"
-)
+if [ "$HOST_ARCH" = "aarch64" ] || [ "$HOST_ARCH" = "arm64" ]; then
+  # ARM64 runner: only build arm64 targets
+  readonly BUILD_TARGETS=(
+    "aarch64-unknown-linux-musl|true|musl (static)"
+    "aarch64-unknown-linux-gnu|false|gnu (dynamic)"
+  )
+elif [ "$HOST_ARCH" = "x86_64" ] || [ "$HOST_ARCH" = "amd64" ]; then
+  # x86_64 runner: only build x86_64 targets
+  readonly BUILD_TARGETS=(
+    "x86_64-unknown-linux-musl|true|musl (static)"
+    "x86_64-unknown-linux-gnu|false|gnu (dynamic)"
+  )
+else
+  echo "Error: Unsupported host architecture: $HOST_ARCH" >&2
+  echo "Supported: x86_64, amd64, aarch64, arm64" >&2
+  exit 1
+fi
 
 # Docker images — one entry per supported Linux variant
 #
