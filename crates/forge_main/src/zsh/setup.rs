@@ -89,11 +89,10 @@ pub fn detect_platform() -> Platform {
 /// Checks if running on Android (Termux or similar).
 fn is_android() -> bool {
     // Check Termux PREFIX
-    if let Ok(prefix) = std::env::var("PREFIX") {
-        if prefix.contains("com.termux") {
+    if let Ok(prefix) = std::env::var("PREFIX")
+        && prefix.contains("com.termux") {
             return true;
         }
-    }
     // Check Android-specific env vars
     if std::env::var("ANDROID_ROOT").is_ok() || std::env::var("ANDROID_DATA").is_ok() {
         return true;
@@ -304,9 +303,7 @@ pub async fn detect_zsh() -> ZshStatus {
         .unwrap_or(false);
 
     if !modules_ok {
-        return ZshStatus::Broken {
-            path: path.lines().next().unwrap_or(&path).to_string(),
-        };
+        return ZshStatus::Broken { path: path.lines().next().unwrap_or(&path).to_string() };
     }
 
     // Get version
@@ -404,10 +401,7 @@ pub async fn detect_fzf() -> FzfStatus {
 
     let meets_minimum = version_gte(&version, FZF_MIN_VERSION);
 
-    FzfStatus::Found {
-        version,
-        meets_minimum,
-    }
+    FzfStatus::Found { version, meets_minimum }
 }
 
 /// Runs all dependency detection functions in parallel and returns aggregated
@@ -484,11 +478,7 @@ pub async fn detect_sudo(platform: Platform) -> SudoCapability {
 /// Returns error if:
 /// - Sudo is needed but not available
 /// - The command fails to spawn or exits with non-zero status
-async fn run_maybe_sudo(
-    program: &str,
-    args: &[&str],
-    sudo: &SudoCapability,
-) -> Result<()> {
+async fn run_maybe_sudo(program: &str, args: &[&str], sudo: &SudoCapability) -> Result<()> {
     let mut cmd = match sudo {
         SudoCapability::Root | SudoCapability::NoneNeeded => {
             let mut c = Command::new(program);
@@ -502,9 +492,7 @@ async fn run_maybe_sudo(
             c
         }
         SudoCapability::NoneAvailable => {
-            bail!(
-                "Root privileges required to install zsh. Either run as root or install sudo."
-            );
+            bail!("Root privileges required to install zsh. Either run as root or install sudo.");
         }
     };
 
@@ -528,7 +516,8 @@ async fn run_maybe_sudo(
 ///
 /// # Errors
 ///
-/// Returns error if no supported package manager is found or installation fails.
+/// Returns error if no supported package manager is found or installation
+/// fails.
 pub async fn install_zsh(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     match platform {
         Platform::MacOS => install_zsh_macos(sudo).await,
@@ -878,7 +867,9 @@ async fn detect_extract_method(temp_dir: &Path) -> Result<ExtractMethod> {
         }
     }
 
-    bail!("No extraction tool found (need zstd+tar, 7-Zip, or PowerShell). Install 7-Zip from https://www.7-zip.org/ and re-run.")
+    bail!(
+        "No extraction tool found (need zstd+tar, 7-Zip, or PowerShell). Install 7-Zip from https://www.7-zip.org/ and re-run."
+    )
 }
 
 /// Extracts all downloaded MSYS2 packages in the temp directory.
@@ -889,7 +880,18 @@ async fn extract_all_packages(temp_dir: &Path, method: &ExtractMethod) -> Result
 
         match method {
             ExtractMethod::ZstdTar => {
-                run_cmd("zstd", &["-d", &path_str(&zst_file), "-o", &path_str(&tar_file), "--quiet"], temp_dir).await?;
+                run_cmd(
+                    "zstd",
+                    &[
+                        "-d",
+                        &path_str(&zst_file),
+                        "-o",
+                        &path_str(&tar_file),
+                        "--quiet",
+                    ],
+                    temp_dir,
+                )
+                .await?;
                 run_cmd("tar", &["-xf", &path_str(&tar_file)], temp_dir).await?;
                 let _ = tokio::fs::remove_file(&tar_file).await;
             }
@@ -907,10 +909,7 @@ async fn extract_all_packages(temp_dir: &Path, method: &ExtractMethod) -> Result
                 let zst_win = to_win_path(&zst_file);
                 let tar_win = to_win_path(&tar_file);
                 let zstd_win = to_win_path(zstd_exe);
-                let ps_cmd = format!(
-                    "& '{}' -d '{}' -o '{}' --quiet",
-                    zstd_win, zst_win, tar_win
-                );
+                let ps_cmd = format!("& '{}' -d '{}' -o '{}' --quiet", zstd_win, zst_win, tar_win);
                 let status = Command::new("powershell.exe")
                     .args(["-NoProfile", "-Command", &ps_cmd])
                     .stdout(std::process::Stdio::null())
@@ -1006,7 +1005,9 @@ Write-Host "ZSH_INSTALL_OK""#,
     }
 
     if !Path::new("/usr/bin/zsh.exe").exists() {
-        bail!("zsh.exe not found in /usr/bin after installation. Try re-running from an Administrator Git Bash.");
+        bail!(
+            "zsh.exe not found in /usr/bin after installation. Try re-running from an Administrator Git Bash."
+        );
     }
 
     Ok(())
@@ -1030,15 +1031,14 @@ async fn configure_zshenv() -> Result<()> {
     if let (Some(start), Some(end)) = (
         content.find("# --- zsh installer fpath"),
         content.find("# --- end zsh installer fpath ---"),
-    ) {
-        if start < end {
+    )
+        && start < end {
             let end_of_line = content[end..]
                 .find('\n')
                 .map(|i| end + i + 1)
                 .unwrap_or(content.len());
             content.replace_range(start..end_of_line, "");
         }
-    }
 
     let fpath_block = r#"
 # --- zsh installer fpath (added by forge zsh setup) ---
@@ -1147,8 +1147,7 @@ async fn configure_omz_defaults() -> Result<()> {
         .to_string();
 
     // Set plugins
-    let plugins_re =
-        regex::Regex::new(r#"(?m)^plugins=\(.*\)$"#).unwrap();
+    let plugins_re = regex::Regex::new(r#"(?m)^plugins=\(.*\)$"#).unwrap();
     new_content = plugins_re
         .replace(
             &new_content,
@@ -1372,11 +1371,10 @@ async fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBuf> {
         if path.is_file() && path.file_name().map(|n| n == name).unwrap_or(false) {
             return Some(path);
         }
-        if path.is_dir() {
-            if let Some(found) = Box::pin(find_file_recursive(&path, name)).await {
+        if path.is_dir()
+            && let Some(found) = Box::pin(find_file_recursive(&path, name)).await {
                 return Some(found);
             }
-        }
     }
 
     None
@@ -1513,19 +1511,11 @@ mod tests {
     #[test]
     fn test_all_installed_when_everything_present() {
         let fixture = DependencyStatus {
-            zsh: ZshStatus::Functional {
-                version: "5.9".into(),
-                path: "/usr/bin/zsh".into(),
-            },
-            oh_my_zsh: OmzStatus::Installed {
-                path: PathBuf::from("/home/user/.oh-my-zsh"),
-            },
+            zsh: ZshStatus::Functional { version: "5.9".into(), path: "/usr/bin/zsh".into() },
+            oh_my_zsh: OmzStatus::Installed { path: PathBuf::from("/home/user/.oh-my-zsh") },
             autosuggestions: PluginStatus::Installed,
             syntax_highlighting: PluginStatus::Installed,
-            fzf: FzfStatus::Found {
-                version: "0.54.0".into(),
-                meets_minimum: true,
-            },
+            fzf: FzfStatus::Found { version: "0.54.0".into(), meets_minimum: true },
             git: true,
         };
 
@@ -1537,9 +1527,7 @@ mod tests {
     fn test_all_installed_false_when_zsh_missing() {
         let fixture = DependencyStatus {
             zsh: ZshStatus::NotFound,
-            oh_my_zsh: OmzStatus::Installed {
-                path: PathBuf::from("/home/user/.oh-my-zsh"),
-            },
+            oh_my_zsh: OmzStatus::Installed { path: PathBuf::from("/home/user/.oh-my-zsh") },
             autosuggestions: PluginStatus::Installed,
             syntax_highlighting: PluginStatus::Installed,
             fzf: FzfStatus::NotFound,
@@ -1577,13 +1565,8 @@ mod tests {
     #[test]
     fn test_missing_items_partial() {
         let fixture = DependencyStatus {
-            zsh: ZshStatus::Functional {
-                version: "5.9".into(),
-                path: "/usr/bin/zsh".into(),
-            },
-            oh_my_zsh: OmzStatus::Installed {
-                path: PathBuf::from("/home/user/.oh-my-zsh"),
-            },
+            zsh: ZshStatus::Functional { version: "5.9".into(), path: "/usr/bin/zsh".into() },
+            oh_my_zsh: OmzStatus::Installed { path: PathBuf::from("/home/user/.oh-my-zsh") },
             autosuggestions: PluginStatus::NotInstalled,
             syntax_highlighting: PluginStatus::Installed,
             fzf: FzfStatus::NotFound,
@@ -1598,9 +1581,7 @@ mod tests {
     #[test]
     fn test_needs_zsh_when_broken() {
         let fixture = DependencyStatus {
-            zsh: ZshStatus::Broken {
-                path: "/usr/bin/zsh".into(),
-            },
+            zsh: ZshStatus::Broken { path: "/usr/bin/zsh".into() },
             oh_my_zsh: OmzStatus::NotInstalled,
             autosuggestions: PluginStatus::NotInstalled,
             syntax_highlighting: PluginStatus::NotInstalled,
@@ -1711,10 +1692,7 @@ mod tests {
     #[tokio::test]
     async fn test_detect_autosuggestions_installed() {
         let temp = tempfile::TempDir::new().unwrap();
-        let plugin_dir = temp
-            .path()
-            .join("plugins")
-            .join("zsh-autosuggestions");
+        let plugin_dir = temp.path().join("plugins").join("zsh-autosuggestions");
         std::fs::create_dir_all(&plugin_dir).unwrap();
 
         let original_custom = std::env::var("ZSH_CUSTOM").ok();

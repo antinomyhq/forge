@@ -1896,9 +1896,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 ))?;
             }
             Err(e) => {
-                self.writeln_title(TitleFormat::error(format!(
-                    "forge zsh doctor failed: {e}"
-                )))?;
+                self.writeln_title(TitleFormat::error(format!("forge zsh doctor failed: {e}")))?;
             }
         }
 
