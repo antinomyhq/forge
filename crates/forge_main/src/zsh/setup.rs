@@ -166,12 +166,13 @@ pub async fn detect_libc_type() -> Result<LibcType> {
 
     // Method 2: Check ldd output for "musl"
     if let Ok(output) = Command::new("ldd").arg("/bin/ls").output().await
-        && output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            if stdout.to_lowercase().contains("musl") {
-                return Ok(LibcType::Musl);
-            }
+        && output.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if stdout.to_lowercase().contains("musl") {
+            return Ok(LibcType::Musl);
         }
+    }
 
     // Method 3: Check glibc version
     let glibc_version = extract_glibc_version().await;
@@ -195,24 +196,26 @@ pub async fn detect_libc_type() -> Result<LibcType> {
 async fn extract_glibc_version() -> Option<(u32, u32)> {
     // Try ldd --version first
     if let Ok(output) = Command::new("ldd").arg("--version").output().await
-        && output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            if let Some(version) = parse_version_from_text(&stdout) {
-                return Some(version);
-            }
+        && output.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if let Some(version) = parse_version_from_text(&stdout) {
+            return Some(version);
         }
+    }
 
     // Fall back to getconf
     if let Ok(output) = Command::new("getconf")
         .arg("GNU_LIBC_VERSION")
         .output()
         .await
-        && output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            if let Some(version) = parse_version_from_text(&stdout) {
-                return Some(version);
-            }
+        && output.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        if let Some(version) = parse_version_from_text(&stdout) {
+            return Some(version);
         }
+    }
 
     None
 }
@@ -274,10 +277,11 @@ fn check_gnu_runtime_deps() -> bool {
 /// Returns `true` if library found, `false` otherwise.
 fn check_lib_with_ldconfig(lib_name: &str) -> bool {
     if let Ok(output) = std::process::Command::new("ldconfig").arg("-p").output()
-        && output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            return stdout.contains(lib_name);
-        }
+        && output.status.success()
+    {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        return stdout.contains(lib_name);
+    }
     false
 }
 
@@ -648,17 +652,18 @@ pub async fn detect_bat() -> BatStatus {
                 .stderr(std::process::Stdio::null())
                 .output()
                 .await
-                && output.status.success() {
-                    let out = String::from_utf8_lossy(&output.stdout);
-                    // bat --version outputs "bat 0.24.0" or similar
-                    let version = out
-                        .split_whitespace()
-                        .nth(1)
-                        .unwrap_or("unknown")
-                        .to_string();
-                    let meets_minimum = version_gte(&version, BAT_MIN_VERSION);
-                    return BatStatus::Installed { version, meets_minimum };
-                }
+            && output.status.success()
+        {
+            let out = String::from_utf8_lossy(&output.stdout);
+            // bat --version outputs "bat 0.24.0" or similar
+            let version = out
+                .split_whitespace()
+                .nth(1)
+                .unwrap_or("unknown")
+                .to_string();
+            let meets_minimum = version_gte(&version, BAT_MIN_VERSION);
+            return BatStatus::Installed { version, meets_minimum };
+        }
     }
     BatStatus::NotFound
 }
@@ -674,17 +679,18 @@ pub async fn detect_fd() -> FdStatus {
                 .stderr(std::process::Stdio::null())
                 .output()
                 .await
-                && output.status.success() {
-                    let out = String::from_utf8_lossy(&output.stdout);
-                    // fd --version outputs "fd 10.2.0" or similar
-                    let version = out
-                        .split_whitespace()
-                        .nth(1)
-                        .unwrap_or("unknown")
-                        .to_string();
-                    let meets_minimum = version_gte(&version, FD_MIN_VERSION);
-                    return FdStatus::Installed { version, meets_minimum };
-                }
+            && output.status.success()
+        {
+            let out = String::from_utf8_lossy(&output.stdout);
+            // fd --version outputs "fd 10.2.0" or similar
+            let version = out
+                .split_whitespace()
+                .nth(1)
+                .unwrap_or("unknown")
+                .to_string();
+            let meets_minimum = version_gte(&version, FD_MIN_VERSION);
+            return FdStatus::Installed { version, meets_minimum };
+        }
     }
     FdStatus::NotFound
 }
@@ -2213,21 +2219,23 @@ async fn get_latest_github_release(repo: &str) -> Option<String> {
     let redirect_url = format!("https://github.com/{}/releases/latest", repo);
     if let Ok(response) = reqwest::Client::new().get(&redirect_url).send().await
         && let Some(mut final_url) = response.url().path_segments()
-            && let Some(tag) = final_url.next_back() {
-                let version = tag.trim_start_matches('v').to_string();
-                if !version.is_empty() {
-                    return Some(version);
-                }
-            }
+        && let Some(tag) = final_url.next_back()
+    {
+        let version = tag.trim_start_matches('v').to_string();
+        if !version.is_empty() {
+            return Some(version);
+        }
+    }
 
     // Method 2: GitHub API (has rate limits)
     let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
     if let Ok(response) = reqwest::get(&api_url).await
         && let Ok(json) = response.json::<serde_json::Value>().await
-            && let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str()) {
-                let version = tag_name.trim_start_matches('v').to_string();
-                return Some(version);
-            }
+        && let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str())
+    {
+        let version = tag_name.trim_start_matches('v').to_string();
+        return Some(version);
+    }
 
     None
 }
