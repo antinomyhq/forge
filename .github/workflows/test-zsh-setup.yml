@@ -40,8 +40,21 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
+    - name: Cache Rust toolchain and dependencies
+      uses: actions/cache@v4
+      with:
+        path: |-
+          ~/.cargo
+          ~/.rustup
+          target
+        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |-
+          rust-${{ runner.os }}-${{ runner.arch }}-
+          rust-${{ runner.os }}-
+    - name: Install cross
+      run: cargo install cross --git https://github.com/cross-rs/cross || true
     - name: Run ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --jobs 8
   test_zsh_setup_arm64:
     name: Test ZSH Setup (arm64)
     runs-on: ubuntu-24.04-arm
@@ -50,8 +63,21 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
+    - name: Cache Rust toolchain and dependencies
+      uses: actions/cache@v4
+      with:
+        path: |-
+          ~/.cargo
+          ~/.rustup
+          target
+        key: rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |-
+          rust-${{ runner.os }}-${{ runner.arch }}-
+          rust-${{ runner.os }}-
+    - name: Install cross
+      run: cargo install cross --git https://github.com/cross-rs/cross || true
     - name: Run ZSH setup test suite (exclude Arch)
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --exclude "Arch Linux" --jobs 8
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true

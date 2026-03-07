@@ -1,17 +1,32 @@
 use gh_workflow::generate::Generate;
 use gh_workflow::*;
+use indexmap::indexmap;
+use serde_json::json;
 
 /// Generate the ZSH setup E2E test workflow
 pub fn generate_test_zsh_setup_workflow() {
     // Job for amd64 runner - tests all distros including Arch Linux
-    let test_amd64 =
-        Job::new("Test ZSH Setup (amd64)")
-            .permissions(Permissions::default().contents(Level::Read))
-            .runs_on("ubuntu-latest")
-            .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
-            .add_step(Step::new("Run ZSH setup test suite").run(
-                "bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8",
-            ));
+    let test_amd64 = Job::new("Test ZSH Setup (amd64)")
+        .permissions(Permissions::default().contents(Level::Read))
+        .runs_on("ubuntu-latest")
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(
+            Step::new("Cache Rust toolchain and dependencies")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.cargo\n~/.rustup\ntarget"),
+                    "key".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
+                    "restore-keys".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-\nrust-${{ runner.os }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Install cross")
+                .run("cargo install cross --git https://github.com/cross-rs/cross || true"),
+        )
+        .add_step(
+            Step::new("Run ZSH setup test suite")
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --jobs 8"),
+        );
 
     // Job for arm64 runner - excludes Arch Linux (no arm64 image available)
     let test_arm64 = Job::new("Test ZSH Setup (arm64)")
@@ -19,8 +34,21 @@ pub fn generate_test_zsh_setup_workflow() {
         .runs_on("ubuntu-24.04-arm")
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
+            Step::new("Cache Rust toolchain and dependencies")
+                .uses("actions", "cache", "v4")
+                .with(Input::from(indexmap! {
+                    "path".to_string() => json!("~/.cargo\n~/.rustup\ntarget"),
+                    "key".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}"),
+                    "restore-keys".to_string() => json!("rust-${{ runner.os }}-${{ runner.arch }}-\nrust-${{ runner.os }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Install cross")
+                .run("cargo install cross --git https://github.com/cross-rs/cross || true"),
+        )
+        .add_step(
             Step::new("Run ZSH setup test suite (exclude Arch)")
-                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8"#),
+                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --exclude "Arch Linux" --jobs 8"#),
         );
 
     // Event triggers:
