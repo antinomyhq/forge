@@ -2012,8 +2012,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let current_shell = std::env::var("SHELL").unwrap_or_default();
             if !current_shell.contains("zsh") {
                 // Check if chsh is available (use POSIX command -v, not which)
-                let chsh_available =
-                    zsh::resolve_command_path("chsh").await.is_some();
+                let chsh_available = zsh::resolve_command_path("chsh").await.is_some();
 
                 if chsh_available {
                     let should_change_shell = if non_interactive {
