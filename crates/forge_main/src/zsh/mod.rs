@@ -22,5 +22,5 @@ pub use setup::{
     BatStatus, FdStatus, FzfStatus, OmzStatus, Platform, PluginStatus, ZshStatus,
     configure_bashrc_autostart, detect_all_dependencies, detect_git, detect_platform, detect_sudo,
     install_autosuggestions, install_bat, install_fd, install_fzf, install_oh_my_zsh,
-    install_syntax_highlighting, install_zsh,
+    install_syntax_highlighting, install_zsh, resolve_command_path,
 };

@@ -369,6 +369,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_setup_zsh_integration_without_nerd_font_config() {
         use tempfile::TempDir;
 
@@ -426,6 +427,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_setup_zsh_integration_with_nerd_font_disabled() {
         use tempfile::TempDir;
 
@@ -485,6 +487,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_setup_zsh_integration_with_editor() {
         use tempfile::TempDir;
 
@@ -550,6 +553,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_setup_zsh_integration_with_both_configs() {
         use tempfile::TempDir;
 
@@ -607,6 +611,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_setup_zsh_integration_updates_existing_markers() {
         use tempfile::TempDir;
 

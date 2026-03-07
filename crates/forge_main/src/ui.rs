@@ -1745,7 +1745,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             "Failed to install zsh: {}",
                             e
                         )))?;
-                        return Ok(());
+                        setup_fully_successful = false;
                     }
                 }
             }
@@ -1763,7 +1763,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             "Failed to install Oh My Zsh: {}",
                             e
                         )))?;
-                        return Ok(());
+                        setup_fully_successful = false;
                     }
                 }
             }
@@ -2011,15 +2011,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if platform != Platform::Windows {
             let current_shell = std::env::var("SHELL").unwrap_or_default();
             if !current_shell.contains("zsh") {
-                // Check if chsh is available
-                let chsh_available = tokio::process::Command::new("which")
-                    .arg("chsh")
-                    .stdout(std::process::Stdio::null())
-                    .stderr(std::process::Stdio::null())
-                    .status()
-                    .await
-                    .map(|s| s.success())
-                    .unwrap_or(false);
+                // Check if chsh is available (use POSIX command -v, not which)
+                let chsh_available =
+                    zsh::resolve_command_path("chsh").await.is_some();
 
                 if chsh_available {
                     let should_change_shell = if non_interactive {
@@ -2035,68 +2029,58 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     };
 
                     if should_change_shell {
-                        // Find zsh path
-                        let zsh_path_output = tokio::process::Command::new("which")
-                            .arg("zsh")
-                            .output()
-                            .await;
+                        // Find zsh path using POSIX command -v
+                        if let Some(zsh_path) = zsh::resolve_command_path("zsh").await {
+                            // Check if we're running as root (chsh won't need password)
+                            let is_root = std::env::var("USER").unwrap_or_default() == "root"
+                                || std::env::var("EUID").unwrap_or_default() == "0";
 
-                        if let Ok(output) = zsh_path_output {
-                            if output.status.success() {
-                                let zsh_path =
-                                    String::from_utf8_lossy(&output.stdout).trim().to_string();
+                            // Only try chsh if we're root or in an interactive terminal
+                            // (non-root users need password which requires TTY)
+                            let can_run_chsh = is_root || !non_interactive;
 
-                                // Check if we're running as root (chsh won't need password)
-                                let is_root = std::env::var("USER").unwrap_or_default() == "root"
-                                    || std::env::var("EUID").unwrap_or_default() == "0";
+                            if can_run_chsh {
+                                // Try to run chsh
+                                self.spinner.start(Some("Setting zsh as default shell"))?;
+                                let chsh_result = tokio::process::Command::new("chsh")
+                                    .args(["-s", &zsh_path])
+                                    .status()
+                                    .await;
+                                self.spinner.stop(None)?;
 
-                                // Only try chsh if we're root or in an interactive terminal
-                                // (non-root users need password which requires TTY)
-                                let can_run_chsh = is_root || !non_interactive;
-
-                                if can_run_chsh {
-                                    // Try to run chsh
-                                    self.spinner.start(Some("Setting zsh as default shell"))?;
-                                    let chsh_result = tokio::process::Command::new("chsh")
-                                        .args(["-s", &zsh_path])
-                                        .status()
-                                        .await;
-                                    self.spinner.stop(None)?;
-
-                                    match chsh_result {
-                                        Ok(status) if status.success() => {
-                                            self.writeln_title(TitleFormat::info(
-                                                "zsh is now your default shell",
-                                            ))?;
-                                        }
-                                        Ok(_) => {
-                                            setup_fully_successful = false;
-                                            self.writeln_title(TitleFormat::warning(
-                                                "Failed to set default shell. You may need to run: chsh -s $(which zsh)",
-                                            ))?;
-                                        }
-                                        Err(e) => {
-                                            setup_fully_successful = false;
-                                            self.writeln_title(TitleFormat::warning(format!(
-                                                "Failed to set default shell: {}",
-                                                e
-                                            )))?;
-                                            self.writeln_title(TitleFormat::info(
-                                                "Run manually: chsh -s $(which zsh)",
-                                            ))?;
-                                        }
+                                match chsh_result {
+                                    Ok(status) if status.success() => {
+                                        self.writeln_title(TitleFormat::info(
+                                            "zsh is now your default shell",
+                                        ))?;
                                     }
-                                } else {
-                                    // Skip chsh in non-interactive mode for non-root users
-                                    self.writeln_title(TitleFormat::info(
-                                        "To make zsh your default shell, run: chsh -s $(which zsh)",
-                                    ))?;
+                                    Ok(_) => {
+                                        setup_fully_successful = false;
+                                        self.writeln_title(TitleFormat::warning(
+                                            "Failed to set default shell. You may need to run: chsh -s $(command -v zsh)",
+                                        ))?;
+                                    }
+                                    Err(e) => {
+                                        setup_fully_successful = false;
+                                        self.writeln_title(TitleFormat::warning(format!(
+                                            "Failed to set default shell: {}",
+                                            e
+                                        )))?;
+                                        self.writeln_title(TitleFormat::info(
+                                            "Run manually: chsh -s $(command -v zsh)",
+                                        ))?;
+                                    }
                                 }
                             } else {
-                                self.writeln_title(TitleFormat::warning(
-                                    "Could not find zsh path. Run manually: chsh -s $(which zsh)",
+                                // Skip chsh in non-interactive mode for non-root users
+                                self.writeln_title(TitleFormat::info(
+                                    "To make zsh your default shell, run: chsh -s $(command -v zsh)",
                                 ))?;
                             }
+                        } else {
+                            self.writeln_title(TitleFormat::warning(
+                                "Could not find zsh path. Run manually: chsh -s $(command -v zsh)",
+                            ))?;
                         }
                     }
                 }

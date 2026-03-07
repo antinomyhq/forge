@@ -2478,29 +2478,37 @@ async fn construct_rust_target(platform: Platform) -> Result<String> {
 
 /// Checks if a command exists on the system using POSIX-compliant
 /// `command -v` (available on all Unix shells) or `where` on Windows.
-async fn command_exists(cmd: &str) -> bool {
-    if cfg!(target_os = "windows") {
+///
+/// Returns the resolved path if the command is found, `None` otherwise.
+pub async fn resolve_command_path(cmd: &str) -> Option<String> {
+    let output = if cfg!(target_os = "windows") {
         Command::new("where")
             .arg(cmd)
-            .stdout(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .status()
+            .output()
             .await
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .ok()?
     } else {
-        // Use `sh -c "command -v <cmd>"` which is POSIX-compliant and
-        // available on all systems, unlike `which` which is an external
-        // utility not present on minimal containers (Arch, Fedora, etc.)
         Command::new("sh")
             .args(["-c", &format!("command -v {cmd}")])
-            .stdout(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
-            .status()
+            .output()
             .await
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .ok()?
+    };
+
+    if output.status.success() {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if path.is_empty() { None } else { Some(path) }
+    } else {
+        None
     }
+}
+
+async fn command_exists(cmd: &str) -> bool {
+    resolve_command_path(cmd).await.is_some()
 }
 
 /// Runs a command in a given working directory, inheriting stdout/stderr.
