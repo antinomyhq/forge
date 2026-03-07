@@ -114,10 +114,7 @@ pub fn generate_test_zsh_setup_workflow() {
     }
 
     test_macos_arm64 = test_macos_arm64
-        .add_step(
-            Step::new("Install shellcheck")
-                .run("brew install shellcheck"),
-        )
+        .add_step(Step::new("Install shellcheck").run("brew install shellcheck"))
         .add_step(
             Step::new("Run macOS ZSH setup test suite")
                 .run("bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh --no-cleanup"),
@@ -138,10 +135,7 @@ pub fn generate_test_zsh_setup_workflow() {
     }
 
     test_macos_x64 = test_macos_x64
-        .add_step(
-            Step::new("Install shellcheck")
-                .run("brew install shellcheck"),
-        )
+        .add_step(Step::new("Install shellcheck").run("brew install shellcheck"))
         .add_step(
             Step::new("Run macOS ZSH setup test suite")
                 .run("bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh --no-cleanup"),
