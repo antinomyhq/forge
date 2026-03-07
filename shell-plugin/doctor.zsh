@@ -295,6 +295,17 @@ if command -v bat &> /dev/null; then
     else
         print_result pass "bat: installed"
     fi
+elif command -v batcat &> /dev/null; then
+    local bat_version=$(batcat --version 2>&1 | awk '{print $2}')
+    if [[ -n "$bat_version" ]]; then
+        if version_gte "$bat_version" "0.20.0"; then
+            print_result pass "batcat: ${bat_version}"
+        else
+            print_result fail "batcat: ${bat_version}" "Version 0.20.0 or higher required. Update: https://github.com/sharkdp/bat#installation"
+        fi
+    else
+        print_result pass "batcat: installed"
+    fi
 else
     print_result warn "bat not found" "Enhanced preview. See installation: https://github.com/sharkdp/bat#installation"
 fi

@@ -1687,16 +1687,42 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             FzfStatus::NotFound => {
-                self.writeln_title(TitleFormat::info(
-                    "fzf not found (recommended for interactive features)",
-                ))?;
+                self.writeln_title(TitleFormat::info("fzf not found"))?;
+            }
+        }
+
+        match &deps.bat {
+            crate::zsh::BatStatus::Installed { version, meets_minimum } => {
+                let status_msg = if *meets_minimum {
+                    format!("bat {} found", version)
+                } else {
+                    format!("bat {} found (outdated, will upgrade)", version)
+                };
+                self.writeln_title(TitleFormat::info(status_msg))?;
+            }
+            crate::zsh::BatStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("bat not found"))?;
+            }
+        }
+
+        match &deps.fd {
+            crate::zsh::FdStatus::Installed { version, meets_minimum } => {
+                let status_msg = if *meets_minimum {
+                    format!("fd {} found", version)
+                } else {
+                    format!("fd {} found (outdated, will upgrade)", version)
+                };
+                self.writeln_title(TitleFormat::info(status_msg))?;
+            }
+            crate::zsh::FdStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("fd not found"))?;
             }
         }
 
         println!();
 
         // Step C & D: Install missing dependencies if needed
-        if !deps.all_installed() {
+        if !deps.all_installed() || deps.needs_tools() {
             let missing = deps.missing_items();
             self.writeln_title(TitleFormat::info("The following will be installed:"))?;
             for (name, kind) in &missing {
@@ -1782,6 +1808,61 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 if plugins_ok {
                     self.writeln_title(TitleFormat::info("Plugins installed"))?;
+                }
+            }
+
+            // Phase D4: Install tools (fzf, bat, fd) - sequential to avoid package manager locks
+            if deps.needs_tools() {
+                self.spinner.start(Some("Installing tools"))?;
+
+                // Install tools sequentially to avoid package manager lock conflicts
+                // Package managers like apt-get maintain exclusive locks, so parallel
+                // installation causes "Could not get lock" errors
+                let mut fzf_result = Ok(());
+                let mut bat_result = Ok(());
+                let mut fd_result = Ok(());
+
+                if matches!(deps.fzf, FzfStatus::NotFound) {
+                    fzf_result = zsh::install_fzf(platform, &sudo).await;
+                }
+
+                if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
+                    bat_result = zsh::install_bat(platform, &sudo).await;
+                }
+
+                if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
+                    fd_result = zsh::install_fd(platform, &sudo).await;
+                }
+
+                self.spinner.stop(None)?;
+
+                let mut tools_ok = true;
+                if let Err(e) = fzf_result {
+                    tools_ok = false;
+                    self.writeln_title(TitleFormat::error(format!(
+                        "Failed to install fzf: {}",
+                        e
+                    )))?;
+                }
+                if let Err(e) = bat_result {
+                    tools_ok = false;
+                    self.writeln_title(TitleFormat::error(format!(
+                        "Failed to install bat: {}",
+                        e
+                    )))?;
+                }
+                if let Err(e) = fd_result {
+                    tools_ok = false;
+                    self.writeln_title(TitleFormat::error(format!(
+                        "Failed to install fd: {}",
+                        e
+                    )))?;
+                }
+
+                if tools_ok {
+                    self.writeln_title(TitleFormat::info("Tools installed (fzf, bat, fd)"))?;
+                } else {
+                    setup_fully_successful = false;
                 }
             }
 
