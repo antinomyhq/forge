@@ -805,6 +805,9 @@ case "$TEST_TYPE" in
     ;;
   rerun)
     # Run forge zsh setup a second time
+    # Update PATH to include ~/.local/bin for tool detection
+    export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
+    hash -r  # Clear bash's command cache
     rerun_output=$(forge zsh setup --non-interactive 2>&1)
     rerun_exit=$?
     if [ "$rerun_exit" -eq 0 ]; then

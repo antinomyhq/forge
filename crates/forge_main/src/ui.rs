@@ -2004,7 +2004,87 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Step J: Summary
+        // Step J: Change default shell (if not already zsh)
+        if platform != Platform::Windows {
+            let current_shell = std::env::var("SHELL").unwrap_or_default();
+            if !current_shell.contains("zsh") {
+                // Check if chsh is available
+                let chsh_available = tokio::process::Command::new("which")
+                    .arg("chsh")
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .await
+                    .map(|s| s.success())
+                    .unwrap_or(false);
+
+                if chsh_available {
+                    let should_change_shell = if non_interactive {
+                        // In non-interactive mode, default to yes
+                        true
+                    } else {
+                        // Interactive prompt
+                        println!();
+                        ForgeSelect::confirm("Would you like to make zsh your default shell?")
+                            .with_default(true)
+                            .prompt()?
+                            .unwrap_or(false)
+                    };
+
+                    if should_change_shell {
+                        // Find zsh path
+                        let zsh_path_output = tokio::process::Command::new("which")
+                            .arg("zsh")
+                            .output()
+                            .await;
+
+                        if let Ok(output) = zsh_path_output {
+                            if output.status.success() {
+                                let zsh_path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                                
+                                // Try to run chsh
+                                self.spinner.start(Some("Setting zsh as default shell"))?;
+                                let chsh_result = tokio::process::Command::new("chsh")
+                                    .args(&["-s", &zsh_path])
+                                    .status()
+                                    .await;
+                                self.spinner.stop(None)?;
+
+                                match chsh_result {
+                                    Ok(status) if status.success() => {
+                                        self.writeln_title(TitleFormat::info(
+                                            "zsh is now your default shell",
+                                        ))?;
+                                    }
+                                    Ok(_) => {
+                                        setup_fully_successful = false;
+                                        self.writeln_title(TitleFormat::warning(
+                                            "Failed to set default shell. You may need to run: chsh -s $(which zsh)",
+                                        ))?;
+                                    }
+                                    Err(e) => {
+                                        setup_fully_successful = false;
+                                        self.writeln_title(TitleFormat::warning(format!(
+                                            "Failed to set default shell: {}",
+                                            e
+                                        )))?;
+                                        self.writeln_title(TitleFormat::info(
+                                            "Run manually: chsh -s $(which zsh)",
+                                        ))?;
+                                    }
+                                }
+                            } else {
+                                self.writeln_title(TitleFormat::warning(
+                                    "Could not find zsh path. Run manually: chsh -s $(which zsh)",
+                                ))?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Step K: Summary
         println!();
         if setup_fully_successful {
             if platform == Platform::Windows {
@@ -2012,16 +2092,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     "Setup complete! Open a new Git Bash window or run: source ~/.bashrc",
                 ))?;
             } else {
-                // Check if zsh is the current shell
-                let current_shell = std::env::var("SHELL").unwrap_or_default();
-                if !current_shell.contains("zsh") {
-                    println!(
-                        "   {} To make zsh your default shell, run:",
-                        "Tip:".yellow().bold()
-                    );
-                    println!("   {}", "chsh -s $(which zsh)".dimmed());
-                    println!();
-                }
                 self.writeln_title(TitleFormat::info("Setup complete!"))?;
             }
         } else {
