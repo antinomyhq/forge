@@ -41,7 +41,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v6
     - name: Run ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8
   test_zsh_setup_arm64:
     name: Test ZSH Setup (arm64)
     runs-on: ubuntu-24.04-arm
@@ -51,7 +51,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v6
     - name: Run ZSH setup test suite (exclude Arch)
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --exclude "Arch Linux" --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true
