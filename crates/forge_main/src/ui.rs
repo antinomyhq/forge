@@ -2043,36 +2043,51 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                                 let zsh_path =
                                     String::from_utf8_lossy(&output.stdout).trim().to_string();
 
-                                // Try to run chsh
-                                self.spinner.start(Some("Setting zsh as default shell"))?;
-                                let chsh_result = tokio::process::Command::new("chsh")
-                                    .args(["-s", &zsh_path])
-                                    .status()
-                                    .await;
-                                self.spinner.stop(None)?;
+                                // Check if we're running as root (chsh won't need password)
+                                let is_root = std::env::var("USER").unwrap_or_default() == "root"
+                                    || std::env::var("EUID").unwrap_or_default() == "0";
 
-                                match chsh_result {
-                                    Ok(status) if status.success() => {
-                                        self.writeln_title(TitleFormat::info(
-                                            "zsh is now your default shell",
-                                        ))?;
+                                // Only try chsh if we're root or in an interactive terminal
+                                // (non-root users need password which requires TTY)
+                                let can_run_chsh = is_root || !non_interactive;
+
+                                if can_run_chsh {
+                                    // Try to run chsh
+                                    self.spinner.start(Some("Setting zsh as default shell"))?;
+                                    let chsh_result = tokio::process::Command::new("chsh")
+                                        .args(["-s", &zsh_path])
+                                        .status()
+                                        .await;
+                                    self.spinner.stop(None)?;
+
+                                    match chsh_result {
+                                        Ok(status) if status.success() => {
+                                            self.writeln_title(TitleFormat::info(
+                                                "zsh is now your default shell",
+                                            ))?;
+                                        }
+                                        Ok(_) => {
+                                            setup_fully_successful = false;
+                                            self.writeln_title(TitleFormat::warning(
+                                                "Failed to set default shell. You may need to run: chsh -s $(which zsh)",
+                                            ))?;
+                                        }
+                                        Err(e) => {
+                                            setup_fully_successful = false;
+                                            self.writeln_title(TitleFormat::warning(format!(
+                                                "Failed to set default shell: {}",
+                                                e
+                                            )))?;
+                                            self.writeln_title(TitleFormat::info(
+                                                "Run manually: chsh -s $(which zsh)",
+                                            ))?;
+                                        }
                                     }
-                                    Ok(_) => {
-                                        setup_fully_successful = false;
-                                        self.writeln_title(TitleFormat::warning(
-                                            "Failed to set default shell. You may need to run: chsh -s $(which zsh)",
-                                        ))?;
-                                    }
-                                    Err(e) => {
-                                        setup_fully_successful = false;
-                                        self.writeln_title(TitleFormat::warning(format!(
-                                            "Failed to set default shell: {}",
-                                            e
-                                        )))?;
-                                        self.writeln_title(TitleFormat::info(
-                                            "Run manually: chsh -s $(which zsh)",
-                                        ))?;
-                                    }
+                                } else {
+                                    // Skip chsh in non-interactive mode for non-root users
+                                    self.writeln_title(TitleFormat::info(
+                                        "To make zsh your default shell, run: chsh -s $(which zsh)",
+                                    ))?;
                                 }
                             } else {
                                 self.writeln_title(TitleFormat::warning(
