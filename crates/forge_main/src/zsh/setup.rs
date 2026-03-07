@@ -1862,8 +1862,7 @@ pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
     // Resolve zsh path
     let zsh_path = resolve_zsh_path().await;
 
-    let autostart_block =
-        include_str!("bashrc_autostart_block.sh").replace("{{zsh}}", &zsh_path);
+    let autostart_block = include_str!("bashrc_autostart_block.sh").replace("{{zsh}}", &zsh_path);
 
     content.push_str(&autostart_block);
 
@@ -2072,7 +2071,8 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
         if matches!(status, FdStatus::Installed { meets_minimum: true, .. }) {
             return Ok(());
         }
-        // Package manager installed old version or not detected — fall through to GitHub install
+        // Package manager installed old version or not detected — fall through
+        // to GitHub install
     }
 
     // Fall back to GitHub releases (pkg mgr unavailable or version too old)
