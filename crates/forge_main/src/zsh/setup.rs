@@ -515,17 +515,14 @@ async fn run_maybe_sudo(program: &str, args: &[&str], sudo: &SudoCapability) -> 
 
 /// Installs zsh using the appropriate method for the detected platform.
 ///
-/// When `reinstall` is true, forces a reinstallation (e.g., for broken modules).
+/// When `reinstall` is true, forces a reinstallation (e.g., for broken
+/// modules).
 ///
 /// # Errors
 ///
 /// Returns error if no supported package manager is found or installation
 /// fails.
-pub async fn install_zsh(
-    platform: Platform,
-    sudo: &SudoCapability,
-    reinstall: bool,
-) -> Result<()> {
+pub async fn install_zsh(platform: Platform, sudo: &SudoCapability, reinstall: bool) -> Result<()> {
     match platform {
         Platform::MacOS => install_zsh_macos(sudo).await,
         Platform::Linux => install_zsh_linux(sudo, reinstall).await,
@@ -617,11 +614,28 @@ impl LinuxPackageManager {
     /// deleted files (e.g., broken zsh module `.so` files).
     fn reinstall_args<S: AsRef<str>>(&self, packages: &[S]) -> Vec<String> {
         let mut args = match self {
-            Self::AptGet => vec!["install".to_string(), "-y".to_string(), "--reinstall".to_string()],
+            Self::AptGet => vec![
+                "install".to_string(),
+                "-y".to_string(),
+                "--reinstall".to_string(),
+            ],
             Self::Dnf | Self::Yum => vec!["reinstall".to_string(), "-y".to_string()],
-            Self::Pacman => vec!["-S".to_string(), "--noconfirm".to_string(), "--overwrite".to_string(), "*".to_string()],
-            Self::Apk => vec!["add".to_string(), "--no-cache".to_string(), "--force-overwrite".to_string()],
-            Self::Zypper => vec!["install".to_string(), "-y".to_string(), "--force".to_string()],
+            Self::Pacman => vec![
+                "-S".to_string(),
+                "--noconfirm".to_string(),
+                "--overwrite".to_string(),
+                "*".to_string(),
+            ],
+            Self::Apk => vec![
+                "add".to_string(),
+                "--no-cache".to_string(),
+                "--force-overwrite".to_string(),
+            ],
+            Self::Zypper => vec![
+                "install".to_string(),
+                "-y".to_string(),
+                "--force".to_string(),
+            ],
             Self::XbpsInstall => vec!["-Sfy".to_string()],
         };
         args.extend(packages.iter().map(|p| p.as_ref().to_string()));
@@ -660,7 +674,12 @@ async fn install_zsh_linux(sudo: &SudoCapability, reinstall: bool) -> Result<()>
             } else {
                 mgr.install_args(&["zsh"])
             };
-            return run_maybe_sudo(&binary, &args.iter().map(String::as_str).collect::<Vec<_>>(), sudo).await;
+            return run_maybe_sudo(
+                &binary,
+                &args.iter().map(String::as_str).collect::<Vec<_>>(),
+                sudo,
+            )
+            .await;
         }
     }
 
