@@ -1703,8 +1703,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
             // Phase 1: Install zsh (must be first)
             if deps.needs_zsh() {
+                let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
                 self.spinner.start(Some("Installing zsh"))?;
-                match zsh::install_zsh(platform, &sudo).await {
+                match zsh::install_zsh(platform, &sudo, reinstall).await {
                     Ok(()) => {
                         self.spinner.stop(None)?;
                         self.writeln_title(TitleFormat::info("zsh installed successfully"))?;

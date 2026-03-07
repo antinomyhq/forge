@@ -515,14 +515,20 @@ async fn run_maybe_sudo(program: &str, args: &[&str], sudo: &SudoCapability) -> 
 
 /// Installs zsh using the appropriate method for the detected platform.
 ///
+/// When `reinstall` is true, forces a reinstallation (e.g., for broken modules).
+///
 /// # Errors
 ///
 /// Returns error if no supported package manager is found or installation
 /// fails.
-pub async fn install_zsh(platform: Platform, sudo: &SudoCapability) -> Result<()> {
+pub async fn install_zsh(
+    platform: Platform,
+    sudo: &SudoCapability,
+    reinstall: bool,
+) -> Result<()> {
     match platform {
         Platform::MacOS => install_zsh_macos(sudo).await,
-        Platform::Linux => install_zsh_linux(sudo).await,
+        Platform::Linux => install_zsh_linux(sudo, reinstall).await,
         Platform::Android => install_zsh_android().await,
         Platform::Windows => install_zsh_windows().await,
     }
@@ -530,17 +536,7 @@ pub async fn install_zsh(platform: Platform, sudo: &SudoCapability) -> Result<()
 
 /// Installs zsh on macOS via Homebrew.
 async fn install_zsh_macos(sudo: &SudoCapability) -> Result<()> {
-    // Check if brew is available
-    let has_brew = Command::new("which")
-        .arg("brew")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map(|s| s.success())
-        .unwrap_or(false);
-
-    if !has_brew {
+    if !command_exists("brew").await {
         bail!("Homebrew not found. Install from https://brew.sh then re-run forge zsh setup");
     }
 
@@ -580,35 +576,91 @@ async fn install_zsh_macos(sudo: &SudoCapability) -> Result<()> {
     Ok(())
 }
 
+/// A Linux package manager with knowledge of how to install and reinstall
+/// packages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::Display)]
+#[strum(serialize_all = "kebab-case")]
+enum LinuxPackageManager {
+    /// Debian / Ubuntu family.
+    AptGet,
+    /// Fedora / RHEL 8+ family.
+    Dnf,
+    /// RHEL 7 / CentOS 7 family (legacy).
+    Yum,
+    /// Arch Linux family.
+    Pacman,
+    /// Alpine Linux.
+    Apk,
+    /// openSUSE family.
+    Zypper,
+    /// Void Linux.
+    #[strum(serialize = "xbps-install")]
+    XbpsInstall,
+}
+
+impl LinuxPackageManager {
+    /// Returns the argument list for a standard package installation.
+    fn install_args<S: AsRef<str>>(&self, packages: &[S]) -> Vec<String> {
+        let mut args = match self {
+            Self::AptGet => vec!["install".to_string(), "-y".to_string()],
+            Self::Dnf | Self::Yum => vec!["install".to_string(), "-y".to_string()],
+            Self::Pacman => vec!["-S".to_string(), "--noconfirm".to_string()],
+            Self::Apk => vec!["add".to_string(), "--no-cache".to_string()],
+            Self::Zypper => vec!["install".to_string(), "-y".to_string()],
+            Self::XbpsInstall => vec!["-Sy".to_string()],
+        };
+        args.extend(packages.iter().map(|p| p.as_ref().to_string()));
+        args
+    }
+
+    /// Returns the argument list that forces a full reinstall, restoring any
+    /// deleted files (e.g., broken zsh module `.so` files).
+    fn reinstall_args<S: AsRef<str>>(&self, packages: &[S]) -> Vec<String> {
+        let mut args = match self {
+            Self::AptGet => vec!["install".to_string(), "-y".to_string(), "--reinstall".to_string()],
+            Self::Dnf | Self::Yum => vec!["reinstall".to_string(), "-y".to_string()],
+            Self::Pacman => vec!["-S".to_string(), "--noconfirm".to_string(), "--overwrite".to_string(), "*".to_string()],
+            Self::Apk => vec!["add".to_string(), "--no-cache".to_string(), "--force-overwrite".to_string()],
+            Self::Zypper => vec!["install".to_string(), "-y".to_string(), "--force".to_string()],
+            Self::XbpsInstall => vec!["-Sfy".to_string()],
+        };
+        args.extend(packages.iter().map(|p| p.as_ref().to_string()));
+        args
+    }
+
+    /// Returns all supported package managers in detection-priority order.
+    fn all() -> &'static [Self] {
+        &[
+            Self::AptGet,
+            Self::Dnf,
+            Self::Yum,
+            Self::Pacman,
+            Self::Apk,
+            Self::Zypper,
+            Self::XbpsInstall,
+        ]
+    }
+}
+
 /// Installs zsh on Linux using the first available package manager.
-async fn install_zsh_linux(sudo: &SudoCapability) -> Result<()> {
-    // Try package managers in order of popularity
-    let pkg_managers: &[(&str, &[&str])] = &[
-        ("apt-get", &["install", "-y", "zsh"]),
-        ("dnf", &["install", "-y", "zsh"]),
-        ("yum", &["install", "-y", "zsh"]),
-        ("pacman", &["-S", "--noconfirm", "zsh"]),
-        ("apk", &["add", "--no-cache", "zsh"]),
-        ("zypper", &["install", "-y", "zsh"]),
-        ("xbps-install", &["-Sy", "zsh"]),
-    ];
-
-    for (manager, args) in pkg_managers {
-        let has_manager = Command::new("which")
-            .arg(manager)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .await
-            .map(|s| s.success())
-            .unwrap_or(false);
-
-        if has_manager {
-            // For apt-get, run update first
-            if *manager == "apt-get" {
-                let _ = run_maybe_sudo("apt-get", &["update", "-qq"], sudo).await;
+///
+/// When `reinstall` is true, uses reinstall flags to force re-extraction
+/// of package files (e.g., when modules are broken but the package is
+/// "already the newest version").
+async fn install_zsh_linux(sudo: &SudoCapability, reinstall: bool) -> Result<()> {
+    for mgr in LinuxPackageManager::all() {
+        let binary = mgr.to_string();
+        if command_exists(&binary).await {
+            // apt-get requires a prior index refresh to avoid stale metadata
+            if *mgr == LinuxPackageManager::AptGet {
+                let _ = run_maybe_sudo(&binary, &["update", "-qq"], sudo).await;
             }
-            return run_maybe_sudo(manager, args, sudo).await;
+            let args = if reinstall {
+                mgr.reinstall_args(&["zsh"])
+            } else {
+                mgr.install_args(&["zsh"])
+            };
+            return run_maybe_sudo(&binary, &args.iter().map(String::as_str).collect::<Vec<_>>(), sudo).await;
         }
     }
 
@@ -619,16 +671,7 @@ async fn install_zsh_linux(sudo: &SudoCapability) -> Result<()> {
 
 /// Installs zsh on Android via pkg.
 async fn install_zsh_android() -> Result<()> {
-    let has_pkg = Command::new("which")
-        .arg("pkg")
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map(|s| s.success())
-        .unwrap_or(false);
-
-    if !has_pkg {
+    if !command_exists("pkg").await {
         bail!("pkg not found on Android. Install Termux's package manager first.");
     }
 
@@ -1305,21 +1348,31 @@ fi
 // Utility Functions
 // =============================================================================
 
-/// Checks if a command exists on the system.
+/// Checks if a command exists on the system using POSIX-compliant
+/// `command -v` (available on all Unix shells) or `where` on Windows.
 async fn command_exists(cmd: &str) -> bool {
-    let which = if cfg!(target_os = "windows") {
-        "where"
+    if cfg!(target_os = "windows") {
+        Command::new("where")
+            .arg(cmd)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await
+            .map(|s| s.success())
+            .unwrap_or(false)
     } else {
-        "which"
-    };
-    Command::new(which)
-        .arg(cmd)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status()
-        .await
-        .map(|s| s.success())
-        .unwrap_or(false)
+        // Use `sh -c "command -v <cmd>"` which is POSIX-compliant and
+        // available on all systems, unlike `which` which is an external
+        // utility not present on minimal containers (Arch, Fedora, etc.)
+        Command::new("sh")
+            .args(["-c", &format!("command -v {cmd}")])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .await
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
 }
 
 /// Runs a command in a given working directory, inheriting stdout/stderr.
