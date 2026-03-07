@@ -63,6 +63,10 @@ jobs:
         restore-keys: |-
           build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
           build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Cross Toolchain
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:
@@ -100,6 +104,10 @@ jobs:
         restore-keys: |-
           build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
           build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Cross Toolchain
       uses: taiki-e/setup-cross-toolchain-action@v1
       with:

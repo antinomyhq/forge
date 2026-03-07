@@ -37,6 +37,13 @@ pub fn generate_test_zsh_setup_workflow() {
                 })),
         )
         .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(Input::from(indexmap! {
+                    "repo-token".to_string() => json!("${{ secrets.GITHUB_TOKEN }}"),
+                })),
+        )
+        .add_step(
             Step::new("Setup Cross Toolchain")
                 .uses("taiki-e", "setup-cross-toolchain-action", "v1")
                 .with(Input::from(indexmap! {
@@ -77,6 +84,13 @@ pub fn generate_test_zsh_setup_workflow() {
                     "path".to_string() => json!("target"),
                     "key".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}"),
                     "restore-keys".to_string() => json!("build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-\nbuild-${{ runner.os }}-${{ runner.arch }}-"),
+                })),
+        )
+        .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(Input::from(indexmap! {
+                    "repo-token".to_string() => json!("${{ secrets.GITHUB_TOKEN }}"),
                 })),
         )
         .add_step(
