@@ -535,8 +535,10 @@ VERIFY_SCRIPT_HEADER
   cat <<'VERIFY_SCRIPT_BODY'
 
 # --- Run forge zsh setup and capture output ---
-setup_output=$(forge zsh setup --non-interactive 2>&1)
+setup_output_raw=$(forge zsh setup --non-interactive 2>&1)
 setup_exit=$?
+# Strip ANSI escape codes so grep matching works reliably
+setup_output=$(printf '%s' "$setup_output_raw" | sed 's/\x1b\[[0-9;]*m//g')
 echo "SETUP_EXIT=${setup_exit}"
 
 # --- Verify zsh binary ---
@@ -809,8 +811,9 @@ case "$TEST_TYPE" in
     # This simulates the PATH that would be set after sourcing ~/.zshrc
     export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
     hash -r  # Clear bash's command cache
-    rerun_output=$(forge zsh setup --non-interactive 2>&1)
+    rerun_output_raw=$(forge zsh setup --non-interactive 2>&1)
     rerun_exit=$?
+    rerun_output=$(printf '%s' "$rerun_output_raw" | sed 's/\x1b\[[0-9;]*m//g')
     if [ "$rerun_exit" -eq 0 ]; then
       echo "CHECK_EDGE_RERUN_EXIT=PASS"
     else
@@ -858,12 +861,12 @@ esac
 
 # --- Emit raw output for debugging ---
 echo "OUTPUT_BEGIN"
-echo "$setup_output"
+echo "$setup_output_raw"
 # If this is a re-run test, also show the second run output
-if [ -n "$rerun_output" ]; then
+if [ -n "$rerun_output_raw" ]; then
   echo ""
   echo "===== SECOND RUN (idempotency check) ====="
-  echo "$rerun_output"
+  echo "$rerun_output_raw"
   echo "=========================================="
 fi
 echo "OUTPUT_END"
