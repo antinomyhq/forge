@@ -90,9 +90,10 @@ pub fn detect_platform() -> Platform {
 fn is_android() -> bool {
     // Check Termux PREFIX
     if let Ok(prefix) = std::env::var("PREFIX")
-        && prefix.contains("com.termux") {
-            return true;
-        }
+        && prefix.contains("com.termux")
+    {
+        return true;
+    }
     // Check Android-specific env vars
     if std::env::var("ANDROID_ROOT").is_ok() || std::env::var("ANDROID_DATA").is_ok() {
         return true;
@@ -1031,14 +1032,14 @@ async fn configure_zshenv() -> Result<()> {
     if let (Some(start), Some(end)) = (
         content.find("# --- zsh installer fpath"),
         content.find("# --- end zsh installer fpath ---"),
-    )
-        && start < end {
-            let end_of_line = content[end..]
-                .find('\n')
-                .map(|i| end + i + 1)
-                .unwrap_or(content.len());
-            content.replace_range(start..end_of_line, "");
-        }
+    ) && start < end
+    {
+        let end_of_line = content[end..]
+            .find('\n')
+            .map(|i| end + i + 1)
+            .unwrap_or(content.len());
+        content.replace_range(start..end_of_line, "");
+    }
 
     let fpath_block = r#"
 # --- zsh installer fpath (added by forge zsh setup) ---
@@ -1372,9 +1373,10 @@ async fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBuf> {
             return Some(path);
         }
         if path.is_dir()
-            && let Some(found) = Box::pin(find_file_recursive(&path, name)).await {
-                return Some(found);
-            }
+            && let Some(found) = Box::pin(find_file_recursive(&path, name)).await
+        {
+            return Some(found);
+        }
     }
 
     None
