@@ -2281,36 +2281,6 @@ async fn get_latest_release_with_binary(repo: &str, asset_pattern: &str, fallbac
     fallback.to_string()
 }
 
-/// Gets the latest release version from a GitHub repository.
-///
-/// Uses redirect method first (no API quota), falls back to API if needed.
-/// Returns `None` if both methods fail (rate limit, offline, etc.).
-async fn get_latest_github_release(repo: &str) -> Option<String> {
-    // Method 1: Follow redirect from /releases/latest
-    let redirect_url = format!("https://github.com/{}/releases/latest", repo);
-    if let Ok(response) = reqwest::Client::new().get(&redirect_url).send().await
-        && let Some(mut final_url) = response.url().path_segments()
-        && let Some(tag) = final_url.next_back()
-    {
-        let version = tag.trim_start_matches('v').to_string();
-        if !version.is_empty() {
-            return Some(version);
-        }
-    }
-
-    // Method 2: GitHub API (has rate limits)
-    let api_url = format!("https://api.github.com/repos/{}/releases/latest", repo);
-    if let Ok(response) = reqwest::get(&api_url).await
-        && let Ok(json) = response.json::<serde_json::Value>().await
-        && let Some(tag_name) = json.get("tag_name").and_then(|v| v.as_str())
-    {
-        let version = tag_name.trim_start_matches('v').to_string();
-        return Some(version);
-    }
-
-    None
-}
-
 /// Archive type for tool downloads.
 #[derive(Debug, Clone, Copy)]
 enum ArchiveType {
