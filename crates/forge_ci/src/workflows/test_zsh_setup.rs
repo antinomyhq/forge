@@ -4,14 +4,14 @@ use gh_workflow::*;
 /// Generate the ZSH setup E2E test workflow
 pub fn generate_test_zsh_setup_workflow() {
     // Job for amd64 runner - tests all distros including Arch Linux
-    let test_amd64 = Job::new("Test ZSH Setup (amd64)")
-        .permissions(Permissions::default().contents(Level::Read))
-        .runs_on("ubuntu-latest")
-        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
-        .add_step(
-            Step::new("Run ZSH setup test suite")
-                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8"),
-        );
+    let test_amd64 =
+        Job::new("Test ZSH Setup (amd64)")
+            .permissions(Permissions::default().contents(Level::Read))
+            .runs_on("ubuntu-latest")
+            .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+            .add_step(Step::new("Run ZSH setup test suite").run(
+                "bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8",
+            ));
 
     // Job for arm64 runner - excludes Arch Linux (no arm64 image available)
     let test_arm64 = Job::new("Test ZSH Setup (arm64)")
