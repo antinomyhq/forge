@@ -73,7 +73,15 @@ jobs:
       with:
         target: x86_64-unknown-linux-musl
     - name: Run ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --jobs 8
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zsh-setup-results-linux-amd64
+        path: test-results-linux/
+        retention-days: 7
+        if-no-files-found: ignore
   test_zsh_setup_arm64:
     name: Test ZSH Setup (arm64)
     runs-on: ubuntu-24.04-arm
@@ -114,7 +122,15 @@ jobs:
       with:
         target: aarch64-unknown-linux-musl
     - name: Run ZSH setup test suite (exclude Arch)
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --exclude "Arch Linux" --jobs 8
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --exclude "Arch Linux" --jobs 8
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zsh-setup-results-linux-arm64
+        path: test-results-linux/
+        retention-days: 7
+        if-no-files-found: ignore
   test_zsh_setup_macos_arm64:
     name: Test ZSH Setup (macOS arm64)
     runs-on: macos-latest
@@ -153,7 +169,15 @@ jobs:
     - name: Install shellcheck
       run: brew install shellcheck
     - name: Run macOS ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh --no-cleanup
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zsh-setup-results-macos-arm64
+        path: test-results-macos/
+        retention-days: 7
+        if-no-files-found: ignore
   test_zsh_setup_macos_x64:
     name: Test ZSH Setup (macOS x64)
     runs-on: macos-13
@@ -192,7 +216,15 @@ jobs:
     - name: Install shellcheck
       run: brew install shellcheck
     - name: Run macOS ZSH setup test suite
-      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh --no-cleanup
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zsh-setup-results-macos-x64
+        path: test-results-macos/
+        retention-days: 7
+        if-no-files-found: ignore
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true

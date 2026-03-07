@@ -954,7 +954,20 @@ EOF
   if [ "$NO_CLEANUP" = false ]; then
     rm -rf "$temp_home"
   else
-    log_info "Preserved temp HOME: ${temp_home}"
+    # Copy diagnostic files into RESULTS_DIR for artifact upload
+    local diag_dir="$RESULTS_DIR/${safe_label}-home"
+    mkdir -p "$diag_dir"
+    # Copy key files that help debug failures
+    cp "$temp_home/.zshrc" "$diag_dir/zshrc" 2>/dev/null || true
+    cp -r "$temp_home/.oh-my-zsh/custom/plugins" "$diag_dir/omz-plugins" 2>/dev/null || true
+    ls -la "$temp_home/" > "$diag_dir/home-listing.txt" 2>/dev/null || true
+    ls -la "$temp_home/.oh-my-zsh/" > "$diag_dir/omz-listing.txt" 2>/dev/null || true
+    ls -la "$temp_home/.local/bin/" > "$diag_dir/local-bin-listing.txt" 2>/dev/null || true
+    # Save the PATH that was used
+    echo "$test_path" > "$diag_dir/test-path.txt" 2>/dev/null || true
+    log_info "Diagnostics saved to: ${diag_dir}"
+    # Still remove the temp HOME itself (diagnostics are in RESULTS_DIR now)
+    rm -rf "$temp_home"
   fi
 }
 
@@ -1043,8 +1056,14 @@ print_report() {
 # =============================================================================
 
 run_tests() {
-  # Create results directory
-  RESULTS_DIR=$(mktemp -d)
+  # Create results directory — use a known path for CI artifact upload
+  if [ "$NO_CLEANUP" = true ]; then
+    RESULTS_DIR="$PROJECT_ROOT/test-results-macos"
+    rm -rf "$RESULTS_DIR"
+    mkdir -p "$RESULTS_DIR"
+  else
+    RESULTS_DIR=$(mktemp -d)
+  fi
 
   # Build binary
   log_header "Phase 2: Build Binary"

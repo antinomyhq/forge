@@ -1413,7 +1413,14 @@ run_docker_tests() {
   fi
 
   # Create results directory (needed by build phase for logs)
-  RESULTS_DIR=$(mktemp -d)
+  # Use a known path for CI artifact upload when --no-cleanup
+  if [ "$NO_CLEANUP" = true ]; then
+    RESULTS_DIR="$PROJECT_ROOT/test-results-linux"
+    rm -rf "$RESULTS_DIR"
+    mkdir -p "$RESULTS_DIR"
+  else
+    RESULTS_DIR=$(mktemp -d)
+  fi
 
   # Build binaries
   build_all_targets
