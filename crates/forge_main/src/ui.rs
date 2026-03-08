@@ -77,6 +77,58 @@ fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
     }
 }
 
+fn official_endpoint_baseline(
+    provider_id: &ProviderId,
+) -> Option<&'static [(&'static str, &'static str)]> {
+    if provider_id == &ProviderId::CODEX {
+        Some(&[("CODEX_BASE_URL", "https://chatgpt.com/backend-api/codex")])
+    } else if provider_id == &ProviderId::CLAUDE_CODE {
+        Some(&[("CLAUDE_CODE_BASE_URL", "https://api.anthropic.com/v1")])
+    } else {
+        None
+    }
+}
+
+fn normalize_endpoint_for_comparison(value: &str) -> String {
+    let trimmed = value.trim();
+
+    match Url::parse(trimmed) {
+        Ok(mut url) => {
+            if matches!(
+                (url.scheme(), url.port()),
+                ("http", Some(80)) | ("https", Some(443))
+            ) {
+                let _ = url.set_port(None);
+            }
+
+            let normalized_path = match url.path() {
+                "/" => "/".to_string(),
+                path => path.trim_end_matches('/').to_string(),
+            };
+            if normalized_path != url.path() {
+                url.set_path(&normalized_path);
+            }
+
+            url.set_fragment(None);
+            url.as_str().trim_end_matches('/').to_string()
+        }
+        Err(_) => trimmed.trim_end_matches('/').to_string(),
+    }
+}
+
+fn uses_custom_endpoint(provider_id: &ProviderId, url_params: &HashMap<String, String>) -> bool {
+    let Some(official_baseline) = official_endpoint_baseline(provider_id) else {
+        return false;
+    };
+
+    official_baseline.iter().any(|(param, official_value)| {
+        url_params.get(*param).is_some_and(|current_value| {
+            normalize_endpoint_for_comparison(current_value)
+                != normalize_endpoint_for_comparison(official_value)
+        })
+    })
+}
+
 /// Formats HTTP headers for display, redacting values.
 /// Returns None if there are no headers.
 fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> {
@@ -2077,28 +2129,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    fn uses_custom_endpoint(
-        &self,
-        provider_id: &ProviderId,
-        url_params: &HashMap<String, String>,
-        default_params: Option<&URLParameters>,
-    ) -> bool {
-        if provider_id != &ProviderId::CODEX && provider_id != &ProviderId::CLAUDE_CODE {
-            return false;
-        }
-
-        let Some(default_params) = default_params else {
-            return false;
-        };
-
-        url_params.iter().any(|(key, value)| {
-            let key = forge_domain::URLParam::from(key.clone());
-            default_params
-                .get(&key)
-                .is_none_or(|default_value| default_value.as_str() != value)
-        })
-    }
-
     async fn complete_api_key_auth(
         &mut self,
         provider_id: ProviderId,
@@ -2438,11 +2468,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     request.existing_params.as_ref(),
                 )?;
 
-                if self.uses_custom_endpoint(
-                    &provider_id,
-                    &url_params,
-                    request.default_params.as_ref(),
-                ) {
+                if uses_custom_endpoint(&provider_id, &url_params) {
                     self.spinner.stop(None)?;
                     self.writeln(format!(
                         "{}",
@@ -2469,11 +2495,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     request.existing_params.as_ref(),
                 )?;
 
-                if self.uses_custom_endpoint(
-                    &provider_id,
-                    &url_params,
-                    request.default_params.as_ref(),
-                ) {
+                if uses_custom_endpoint(&provider_id, &url_params) {
                     self.spinner.stop(None)?;
                     self.writeln(format!(
                         "{}",
@@ -3842,6 +3864,43 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use forge_domain::ProviderId;
+    use pretty_assertions::assert_eq;
+
+    use super::{normalize_endpoint_for_comparison, uses_custom_endpoint};
+
+    #[test]
+    fn test_normalize_endpoint_for_comparison_treats_equivalent_urls_as_equal() {
+        let fixture = "https://CHATGPT.com:443/backend-api/codex/";
+        let actual = normalize_endpoint_for_comparison(fixture);
+        let expected = normalize_endpoint_for_comparison("https://chatgpt.com/backend-api/codex");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_uses_custom_endpoint_treats_equivalent_official_codex_url_as_default() {
+        let fixture = HashMap::from([(
+            "CODEX_BASE_URL".to_string(),
+            "https://chatgpt.com:443/backend-api/codex/".to_string(),
+        )]);
+        let actual = uses_custom_endpoint(&ProviderId::CODEX, &fixture);
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_uses_custom_endpoint_compares_claude_code_against_official_baseline() {
+        let fixture = HashMap::from([(
+            "CLAUDE_CODE_BASE_URL".to_string(),
+            "https://gateway.example.com/v1".to_string(),
+        )]);
+        let actual = uses_custom_endpoint(&ProviderId::CLAUDE_CODE, &fixture);
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
     // Note: Tests for confirm_delete_conversation are disabled because
     // ForgeSelect::confirm is not easily mockable in the current
     // architecture. The functionality is tested through integration tests
