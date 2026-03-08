@@ -606,8 +606,7 @@ run_verify_checks() {
 
   # --- Run forge zsh doctor ---
   local doctor_output
-  doctor_output=$(forge zsh doctor 2>&1) || true
-  local doctor_exit=$?
+  doctor_output=$(forge zsh doctor 2>&1) && local doctor_exit=0 || local doctor_exit=$?
   if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
     echo "CHECK_DOCTOR_EXIT=PASS (skipped for ${test_type} test)"
   else

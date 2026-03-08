@@ -701,8 +701,7 @@ else
 fi
 
 # --- Run forge zsh doctor ---
-doctor_output=$(forge zsh doctor 2>&1) || true
-doctor_exit=$?
+doctor_output=$(forge zsh doctor 2>&1) && doctor_exit=0 || doctor_exit=$?
 if [ "$TEST_TYPE" = "no_git" ]; then
   # Doctor may fail or not run at all in no-git scenario
   echo "CHECK_DOCTOR_EXIT=PASS (skipped for no-git test)"
