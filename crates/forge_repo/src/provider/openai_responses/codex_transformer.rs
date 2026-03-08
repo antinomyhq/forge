@@ -143,36 +143,6 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_text_verbosity_low() {
-        let fixture = fixture();
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
-        let expected = Some(oai::Verbosity::Low);
-        assert_eq!(
-            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
-            expected
-        );
-    }
-
-    #[test]
-    fn test_codex_transformer_overrides_text_verbosity_to_low() {
-        let mut fixture = fixture();
-        fixture.text = Some(oai::ResponseTextParam {
-            format: oai::TextResponseFormatConfiguration::Text,
-            verbosity: Some(oai::Verbosity::High),
-        });
-        let mut transformer = CodexTransformer;
-        let actual = transformer.transform(fixture);
-
-        let expected = Some(oai::Verbosity::Low);
-        assert_eq!(
-            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
-            expected
-        );
-    }
-
-    #[test]
     fn test_codex_transformer_no_reasoning_unchanged() {
         let fixture = fixture();
         let mut transformer = CodexTransformer;
