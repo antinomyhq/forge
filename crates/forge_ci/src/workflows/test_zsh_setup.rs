@@ -144,6 +144,26 @@ pub fn generate_test_zsh_setup_workflow() {
             "test-results-windows/",
         ));
 
+    // Windows ARM64 job - runs natively in Git Bash on windows-11-arm
+    let mut test_windows_arm64 = Job::new("Test ZSH Setup (Windows arm64)")
+        .permissions(Permissions::default().contents(Level::Read))
+        .runs_on("windows-11-arm")
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"));
+
+    for step in common_setup_steps() {
+        test_windows_arm64 = test_windows_arm64.add_step(step);
+    }
+
+    test_windows_arm64 = test_windows_arm64
+        .add_step(
+            Step::new("Run Windows ARM64 ZSH setup test suite")
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup-windows.sh --no-cleanup"),
+        )
+        .add_step(upload_results_step(
+            "zsh-setup-results-windows-arm64",
+            "test-results-windows/",
+        ));
+
     // Event triggers:
     // 1. Push to main
     // 2. PR with path changes to zsh files, ui.rs, test script, or workflow
@@ -176,7 +196,8 @@ pub fn generate_test_zsh_setup_workflow() {
         .add_job("test_zsh_setup_amd64", test_amd64)
         .add_job("test_zsh_setup_arm64", test_arm64)
         .add_job("test_zsh_setup_macos_arm64", test_macos_arm64)
-        .add_job("test_zsh_setup_windows", test_windows);
+        .add_job("test_zsh_setup_windows", test_windows)
+        .add_job("test_zsh_setup_windows_arm64", test_windows_arm64);
 
     Generate::new(workflow)
         .name("test-zsh-setup.yml")

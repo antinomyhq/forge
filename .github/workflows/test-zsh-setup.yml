@@ -224,6 +224,51 @@ jobs:
         path: test-results-windows/
         retention-days: 7
         if-no-files-found: ignore
+  test_zsh_setup_windows_arm64:
+    name: Test ZSH Setup (Windows arm64)
+    runs-on: windows-11-arm
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+    - name: Cache Cargo registry and git
+      uses: actions/cache@v4
+      with:
+        path: |-
+          ~/.cargo/registry
+          ~/.cargo/git
+        key: cargo-registry-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |-
+          cargo-registry-${{ runner.os }}-${{ runner.arch }}-
+          cargo-registry-${{ runner.os }}-
+    - name: Cache Rust toolchains
+      uses: actions/cache@v4
+      with:
+        path: ~/.rustup
+        key: rustup-${{ runner.os }}-${{ runner.arch }}
+    - name: Cache build artifacts
+      uses: actions/cache@v4
+      with:
+        path: target
+        key: build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-${{ hashFiles('**/*.rs') }}
+        restore-keys: |-
+          build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/Cargo.lock') }}-
+          build-${{ runner.os }}-${{ runner.arch }}-
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Run Windows ARM64 ZSH setup test suite
+      run: bash crates/forge_ci/tests/scripts/test-zsh-setup-windows.sh --no-cleanup
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zsh-setup-results-windows-arm64
+        path: test-results-windows/
+        retention-days: 7
+        if-no-files-found: ignore
 concurrency:
   group: test-zsh-setup-${{ github.ref }}
   cancel-in-progress: true

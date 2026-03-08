@@ -13,9 +13,9 @@
 # this script runs directly on Windows inside Git Bash with HOME directory
 # isolation. Each test scenario gets a fresh temp HOME to prevent state leakage.
 #
-# Build targets (from CI):
-#   - x86_64-pc-windows-msvc (native cargo build)
-#   - aarch64-pc-windows-msvc (future: when ARM64 runners are available)
+# Build targets (auto-detected from architecture):
+#   - x86_64-pc-windows-msvc  (x86_64 runners)
+#   - aarch64-pc-windows-msvc (ARM64 runners)
 #
 # Prerequisites:
 #   - Windows with Git Bash (Git for Windows)
@@ -75,9 +75,20 @@ readonly NC='\033[0m'
 
 readonly SHELLCHECK_EXCLUSIONS="SC2155,SC2086,SC1090,SC2034,SC2181,SC2016,SC2162"
 
-# Build target — x86_64 native Windows MSVC
-# Future: add aarch64-pc-windows-msvc when ARM64 Windows runners are available
-readonly BUILD_TARGET="x86_64-pc-windows-msvc"
+# Detect architecture and select build target
+case "$(uname -m)" in
+  x86_64|AMD64)
+    BUILD_TARGET="x86_64-pc-windows-msvc"
+    ;;
+  aarch64|arm64|ARM64)
+    BUILD_TARGET="aarch64-pc-windows-msvc"
+    ;;
+  *)
+    echo "Error: Unsupported architecture: $(uname -m)" >&2
+    exit 1
+    ;;
+esac
+readonly BUILD_TARGET
 
 # =============================================================================
 # Test scenarios
@@ -210,7 +221,7 @@ parse_args() {
 
 list_scenarios() {
   echo -e "${BOLD}Build Target:${NC}"
-  printf "  %-55s %s\n" "$BUILD_TARGET" "x86_64"
+  printf "  %-55s %s\n" "$BUILD_TARGET" "$(uname -m)"
 
   echo -e "\n${BOLD}Test Scenarios:${NC}"
   local idx=0
