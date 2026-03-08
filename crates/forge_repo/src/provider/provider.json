@@ -6,31 +6,44 @@
     "response_type": "OpenAI",
     "url": "https://antinomy.ai/api/v1/chat/completions",
     "models": "https://antinomy.ai/api/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "deepseek",
     "api_key_vars": "DEEPSEEK_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "DEEPSEEK_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.deepseek.com/chat/completions",
-    "models": "https://api.deepseek.com/models",
-    "auth_methods": ["api_key"]
+    "url": "{{DEEPSEEK_BASE_URL}}/chat/completions",
+    "models": "{{DEEPSEEK_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "DEEPSEEK_BASE_URL": "https://api.deepseek.com"
+    }
   },
   {
     "id": "github_copilot",
     "api_key_vars": "GITHUB_COPILOT_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "GITHUB_COPILOT_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.githubcopilot.com/chat/completions",
-    "models": "https://api.githubcopilot.com/models",
+    "url": "{{GITHUB_COPILOT_BASE_URL}}/chat/completions",
+    "models": "{{GITHUB_COPILOT_BASE_URL}}/models",
     "auth_methods": [
       {
         "oauth_device": {
           "auth_url": "https://github.com/login/device/code",
           "token_url": "https://github.com/login/oauth/access_token",
           "client_id": "Iv1.b507a08c87ecfe98",
-          "scopes": ["read:user"],
+          "scopes": [
+            "read:user"
+          ],
           "use_pkce": false,
           "token_refresh_url": "https://api.github.com/copilot_internal/v2/token",
           "custom_headers": {
@@ -41,41 +54,67 @@
           }
         }
       }
-    ]
+    ],
+    "url_param_defaults": {
+      "GITHUB_COPILOT_BASE_URL": "https://api.githubcopilot.com"
+    }
   },
   {
     "id": "open_router",
     "api_key_vars": "OPENROUTER_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "OPEN_ROUTER_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://openrouter.ai/api/v1/chat/completions",
-    "models": "https://openrouter.ai/api/v1/models",
-    "auth_methods": ["api_key"]
+    "url": "{{OPEN_ROUTER_BASE_URL}}/chat/completions",
+    "models": "{{OPEN_ROUTER_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "OPEN_ROUTER_BASE_URL": "https://openrouter.ai/api/v1"
+    }
   },
   {
     "id": "requesty",
     "api_key_vars": "REQUESTY_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "REQUESTY_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://router.requesty.ai/v1/chat/completions",
-    "models": "https://router.requesty.ai/v1/models",
-    "auth_methods": ["api_key"]
+    "url": "{{REQUESTY_BASE_URL}}/chat/completions",
+    "models": "{{REQUESTY_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "REQUESTY_BASE_URL": "https://router.requesty.ai/v1"
+    }
   },
   {
     "id": "xai",
     "api_key_vars": "XAI_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "XAI_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.x.ai/v1/chat/completions",
-    "models": "https://api.x.ai/v1/models",
-    "auth_methods": ["api_key"]
+    "url": "{{XAI_BASE_URL}}/chat/completions",
+    "models": "{{XAI_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "XAI_BASE_URL": "https://api.x.ai/v1"
+    }
   },
   {
     "id": "openai",
     "api_key_vars": "OPENAI_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "OPENAI_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.openai.com/v1/chat/completions",
+    "url": "{{OPENAI_BASE_URL}}/chat/completions",
     "models": [
       {
         "id": "o1",
@@ -85,7 +124,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o1-2024-12-17",
@@ -95,7 +136,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o3",
@@ -105,7 +148,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o3-2025-04-16",
@@ -115,7 +160,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o3-mini",
@@ -125,7 +172,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o3-mini-2025-01-31",
@@ -135,7 +184,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o4-mini",
@@ -145,7 +196,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "o4-mini-2025-04-16",
@@ -155,7 +208,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-4.1",
@@ -164,7 +219,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4.1-2025-04-14",
@@ -173,7 +231,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4.1-mini",
@@ -182,7 +243,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4.1-mini-2025-04-14",
@@ -191,7 +255,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4.1-nano",
@@ -200,7 +267,9 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-4.1-nano-2025-04-14",
@@ -209,7 +278,9 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-4o",
@@ -218,7 +289,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4o-2024-11-20",
@@ -227,7 +301,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4o-2024-08-06",
@@ -236,7 +313,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4o-2024-05-13",
@@ -245,7 +325,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4o-mini",
@@ -254,7 +337,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4o-mini-2024-07-18",
@@ -263,7 +349,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4-turbo",
@@ -272,7 +361,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4-turbo-2024-04-09",
@@ -281,7 +373,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4",
@@ -290,7 +385,9 @@
         "context_length": 8192,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-4-0613",
@@ -299,7 +396,9 @@
         "context_length": 8192,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-4.5-preview",
@@ -308,7 +407,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-4.5-preview-2025-02-27",
@@ -317,7 +419,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-3.5-turbo",
@@ -326,7 +431,9 @@
         "context_length": 16385,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-3.5-turbo-0125",
@@ -335,7 +442,9 @@
         "context_length": 16385,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-3.5-turbo-1106",
@@ -344,7 +453,9 @@
         "context_length": 16385,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "chatgpt-4o-latest",
@@ -353,7 +464,10 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5",
@@ -363,7 +477,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5-2025-08-07",
@@ -373,7 +490,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5-mini",
@@ -383,7 +503,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5-mini-2025-08-07",
@@ -393,7 +516,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5-nano",
@@ -403,7 +529,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-5-nano-2025-08-07",
@@ -413,7 +541,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "gpt-5-chat-latest",
@@ -423,7 +553,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.1",
@@ -433,7 +566,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.1-chat-latest",
@@ -443,7 +579,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.2",
@@ -453,7 +592,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.2-chat-latest",
@@ -463,7 +605,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.2-pro",
@@ -473,7 +618,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.3-codex",
@@ -483,7 +631,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.4-2026-03-05",
@@ -493,7 +644,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.4-pro-2026-03-05",
@@ -503,35 +657,56 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       }
     ],
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "OPENAI_BASE_URL": "https://api.openai.com/v1"
+    }
   },
   {
     "id": "openai_compatible",
     "api_key_vars": "OPENAI_API_KEY",
-    "url_param_vars": ["OPENAI_URL"],
+    "url_param_vars": [
+      "OPENAI_URL"
+    ],
     "response_type": "OpenAI",
     "url": "{{OPENAI_URL}}/chat/completions",
     "models": "{{OPENAI_URL}}/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "ANTHROPIC_BASE_URL"
+    ],
     "response_type": "Anthropic",
-    "url": "https://api.anthropic.com/v1/messages",
-    "models": "https://api.anthropic.com/v1/models",
-    "auth_methods": ["api_key"]
+    "url": "{{ANTHROPIC_BASE_URL}}/messages",
+    "models": "{{ANTHROPIC_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "ANTHROPIC_BASE_URL": "https://api.anthropic.com/v1"
+    }
   },
   {
     "id": "claude_code",
     "api_key_vars": "CLAUDE_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "CLAUDE_CODE_BASE_URL"
+    ],
     "response_type": "Anthropic",
-    "url": "https://api.anthropic.com/v1/messages",
+    "url": "{{CLAUDE_CODE_BASE_URL}}/messages",
     "models": [
       {
         "id": "claude-sonnet-4-6",
@@ -541,7 +716,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4-6",
@@ -551,7 +729,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4-5-20251101",
@@ -561,7 +742,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-haiku-4-5-20251001",
@@ -570,7 +754,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-sonnet-4-5-20250929",
@@ -580,7 +767,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4-1-20250805",
@@ -590,7 +780,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4-20250514",
@@ -600,7 +793,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-sonnet-4-20250514",
@@ -610,7 +806,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-7-sonnet-20250219",
@@ -619,7 +818,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-5-haiku-20241022",
@@ -628,7 +830,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-haiku-20240307",
@@ -637,7 +842,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       }
     ],
     "auth_methods": [
@@ -659,32 +867,48 @@
           }
         }
       }
-    ]
+    ],
+    "url_param_defaults": {
+      "CLAUDE_CODE_BASE_URL": "https://api.anthropic.com/v1"
+    }
   },
   {
     "id": "anthropic_compatible",
     "api_key_vars": "ANTHROPIC_API_KEY",
-    "url_param_vars": ["ANTHROPIC_URL"],
+    "url_param_vars": [
+      "ANTHROPIC_URL"
+    ],
     "response_type": "Anthropic",
     "url": "{{ANTHROPIC_URL}}/messages",
     "models": "{{ANTHROPIC_URL}}/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "cerebras",
     "api_key_vars": "CEREBRAS_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "CEREBRAS_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.cerebras.ai/v1/chat/completions",
-    "models": "https://api.cerebras.ai/v1/models",
-    "auth_methods": ["api_key"]
+    "url": "{{CEREBRAS_BASE_URL}}/chat/completions",
+    "models": "{{CEREBRAS_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "CEREBRAS_BASE_URL": "https://api.cerebras.ai/v1"
+    }
   },
   {
     "id": "zai",
     "api_key_vars": "ZAI_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "ZAI_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.z.ai/api/paas/v4/chat/completions",
+    "url": "{{ZAI_BASE_URL}}/chat/completions",
     "models": [
       {
         "id": "glm-5",
@@ -694,7 +918,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.7",
@@ -704,7 +930,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.7-flash",
@@ -714,7 +942,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.7-flashx",
@@ -724,7 +954,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.6",
@@ -734,7 +966,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5",
@@ -744,7 +978,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-air",
@@ -754,7 +990,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-x",
@@ -764,7 +1002,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-airx",
@@ -774,7 +1014,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-flash",
@@ -784,7 +1026,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4-32b-0414-128k",
@@ -794,17 +1038,26 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       }
     ],
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "ZAI_BASE_URL": "https://api.z.ai/api/paas/v4"
+    }
   },
   {
     "id": "zai_coding",
     "api_key_vars": "ZAI_CODING_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "ZAI_CODING_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
+    "url": "{{ZAI_CODING_BASE_URL}}/chat/completions",
     "models": [
       {
         "id": "glm-5",
@@ -814,7 +1067,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.7",
@@ -824,7 +1079,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.7-flash",
@@ -834,7 +1091,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.7-flashx",
@@ -844,7 +1103,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.6",
@@ -854,7 +1115,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5",
@@ -864,7 +1127,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-air",
@@ -874,7 +1139,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-x",
@@ -884,7 +1151,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-airx",
@@ -894,7 +1163,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4.5-flash",
@@ -904,7 +1175,9 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "glm-4-32b-0414-128k",
@@ -914,24 +1187,41 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       }
     ],
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "ZAI_CODING_BASE_URL": "https://api.z.ai/api/coding/paas/v4"
+    }
   },
   {
     "id": "big_model",
     "api_key_vars": "BIG_MODEL_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "BIG_MODEL_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
-    "models": "https://open.bigmodel.cn/api/paas/v4/models",
-    "auth_methods": ["api_key"]
+    "url": "{{BIG_MODEL_BASE_URL}}/chat/completions",
+    "models": "{{BIG_MODEL_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "BIG_MODEL_BASE_URL": "https://open.bigmodel.cn/api/paas/v4"
+    }
   },
   {
     "id": "vertex_ai",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
-    "url_param_vars": ["PROJECT_ID", "LOCATION"],
+    "url_param_vars": [
+      "PROJECT_ID",
+      "LOCATION"
+    ],
     "response_type": "Google",
     "url": "https://{{#if (eq LOCATION \"global\")}}aiplatform.googleapis.com{{else}}{{LOCATION}}-aiplatform.googleapis.com{{/if}}/v1beta1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/google",
     "models": [
@@ -943,8 +1233,12 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
-      },{
+        "input_modalities": [
+          "text",
+          "image"
+        ]
+      },
+      {
         "id": "gemini-3-flash-preview",
         "name": "Gemini 3 Flash Preview",
         "description": "Google's fast and capable model with thinking support",
@@ -952,7 +1246,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-3-pro-preview",
@@ -962,7 +1259,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-2.5-pro",
@@ -972,7 +1272,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-2.5-flash",
@@ -982,7 +1285,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-2.0-flash",
@@ -992,7 +1298,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-1.5-pro",
@@ -1001,7 +1310,10 @@
         "context_length": 1000000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-1.5-flash",
@@ -1010,7 +1322,10 @@
         "context_length": 1000000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gemini-1.5-flash-8b",
@@ -1019,10 +1334,16 @@
         "context_length": 1000000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       }
     ],
-    "auth_methods": ["api_key", "google_adc"]
+    "auth_methods": [
+      "api_key",
+      "google_adc"
+    ]
   },
   {
     "id": "azure",
@@ -1035,72 +1356,112 @@
     "response_type": "OpenAI",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "models": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "llama_cpp",
     "api_key_vars": "LLAMA_CPP_API_KEY",
-    "url_param_vars": ["LLAMA_CPP_URL", "LLAMA_CPP_PORT"],
+    "url_param_vars": [
+      "LLAMA_CPP_URL",
+      "LLAMA_CPP_PORT"
+    ],
     "response_type": "OpenAI",
     "url": "{{LLAMA_CPP_URL}}:{{LLAMA_CPP_PORT}}/v1/chat/completions",
     "models": "{{LLAMA_CPP_URL}}:{{LLAMA_CPP_PORT}}/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "vllm",
     "api_key_vars": "VLLM_API_KEY",
-    "url_param_vars": ["VLLM_URL", "VLLM_PORT"],
+    "url_param_vars": [
+      "VLLM_URL",
+      "VLLM_PORT"
+    ],
     "response_type": "OpenAI",
     "url": "{{VLLM_URL}}:{{VLLM_PORT}}/v1/chat/completions",
     "models": "{{VLLM_URL}}:{{VLLM_PORT}}/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "jan_ai",
     "api_key_vars": "JAN_AI_API_KEY",
-    "url_param_vars": ["JAN_AI_URL", "JAN_AI_PORT"],
+    "url_param_vars": [
+      "JAN_AI_URL",
+      "JAN_AI_PORT"
+    ],
     "response_type": "OpenAI",
     "url": "{{JAN_AI_URL}}:{{JAN_AI_PORT}}/v1/chat/completions",
     "models": "{{JAN_AI_URL}}:{{JAN_AI_PORT}}/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "ollama",
     "api_key_vars": "OLLAMA_API_KEY",
-    "url_param_vars": ["OLLAMA_URL", "OLLAMA_PORT"],
+    "url_param_vars": [
+      "OLLAMA_URL",
+      "OLLAMA_PORT"
+    ],
     "response_type": "OpenAI",
     "url": "{{OLLAMA_URL}}:{{OLLAMA_PORT}}/v1/chat/completions",
     "models": "{{OLLAMA_URL}}:{{OLLAMA_PORT}}/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "lm_studio",
     "api_key_vars": "LM_STUDIO_API_KEY",
-    "url_param_vars": ["LM_STUDIO_URL", "LM_STUDIO_PORT"],
+    "url_param_vars": [
+      "LM_STUDIO_URL",
+      "LM_STUDIO_PORT"
+    ],
     "response_type": "OpenAI",
     "url": "{{LM_STUDIO_URL}}:{{LM_STUDIO_PORT}}/v1/chat/completions",
     "models": "{{LM_STUDIO_URL}}:{{LM_STUDIO_PORT}}/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "forge_services",
     "provider_type": "context_engine",
-    "url_param_vars": ["FORGE_WORKSPACE_SERVER_URL"],
+    "url_param_vars": [
+      "FORGE_WORKSPACE_SERVER_URL"
+    ],
     "url": "{{FORGE_WORKSPACE_SERVER_URL}}",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "io_intelligence",
     "api_key_vars": "IO_INTELLIGENCE_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "IO_INTELLIGENCE_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://api.intelligence.io.solutions/api/v1/chat/completions",
-    "models": "https://api.intelligence.io.solutions/api/v1/models",
-    "auth_methods": ["api_key"]
+    "url": "{{IO_INTELLIGENCE_BASE_URL}}/chat/completions",
+    "models": "{{IO_INTELLIGENCE_BASE_URL}}/models",
+    "auth_methods": [
+      "api_key"
+    ],
+    "url_param_defaults": {
+      "IO_INTELLIGENCE_BASE_URL": "https://api.intelligence.io.solutions/api/v1"
+    }
   },
   {
     "id": "bedrock",
-    "url_param_vars": ["AWS_REGION"],
+    "url_param_vars": [
+      "AWS_REGION"
+    ],
     "response_type": "Bedrock",
     "url": "https://bedrock-runtime.{{AWS_REGION}}.amazonaws.com",
     "models": [
@@ -1110,7 +1471,9 @@
         "description": "Amazon's Titan large text generation model",
         "context_length": 8000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "amazon.titan-text-express-v1",
@@ -1118,7 +1481,9 @@
         "description": "Amazon's Titan text express model",
         "context_length": 8000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "amazon.titan-text-lite-v1",
@@ -1126,7 +1491,9 @@
         "description": "Amazon's Titan lite text model for cost-effective tasks",
         "context_length": 4000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "anthropic.claude-v2",
@@ -1134,7 +1501,9 @@
         "description": "Anthropic's Claude v2 model",
         "context_length": 100000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "anthropic.claude-v2:1",
@@ -1142,7 +1511,9 @@
         "description": "Anthropic's Claude v2.1 model with improved capabilities",
         "context_length": 200000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "anthropic.claude-instant-v1",
@@ -1150,7 +1521,9 @@
         "description": "Anthropic's fast Claude Instant model",
         "context_length": 100000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -1160,7 +1533,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-sonnet-4-20250514-v1:0",
@@ -1170,7 +1546,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -1180,7 +1559,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-opus-4-6-v1:0",
@@ -1190,7 +1572,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-opus-4-20250514-v1:0",
@@ -1200,7 +1585,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-opus-4-1-20250805-v1:0",
@@ -1210,7 +1598,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -1220,7 +1611,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -1230,7 +1624,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -1240,7 +1637,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -1249,7 +1649,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-sonnet-20240229-v1:0",
@@ -1258,7 +1661,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-haiku-20240307-v1:0",
@@ -1267,7 +1673,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "anthropic.claude-3-opus-20240229-v1:0",
@@ -1276,7 +1685,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "cohere.command-text-v14",
@@ -1284,7 +1696,9 @@
         "description": "Cohere's Command text generation model",
         "context_length": 4096,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "cohere.command-light-text-v14",
@@ -1292,7 +1706,9 @@
         "description": "Cohere's lightweight Command model",
         "context_length": 4096,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "cohere.command-r-v1:0",
@@ -1300,7 +1716,9 @@
         "description": "Cohere's Command R model for retrieval-augmented generation",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "cohere.command-r-plus-v1:0",
@@ -1308,7 +1726,9 @@
         "description": "Cohere's enhanced Command R Plus model",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-70b-instruct-v1:0",
@@ -1316,7 +1736,9 @@
         "description": "Meta's Llama 3 70B instruction-tuned model",
         "context_length": 8192,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-8b-instruct-v1:0",
@@ -1324,7 +1746,9 @@
         "description": "Meta's Llama 3 8B instruction-tuned model",
         "context_length": 8192,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-1-405b-instruct-v1:0",
@@ -1332,7 +1756,9 @@
         "description": "Meta's largest and most capable open model",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-1-70b-instruct-v1:0",
@@ -1340,7 +1766,9 @@
         "description": "Meta's Llama 3.1 70B with extended context",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-1-8b-instruct-v1:0",
@@ -1348,7 +1776,9 @@
         "description": "Meta's Llama 3.1 8B with extended context",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-2-11b-instruct-v1:0",
@@ -1356,7 +1786,10 @@
         "description": "Meta's Llama 3.2 11B multimodal model",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "meta.llama3-2-1b-instruct-v1:0",
@@ -1364,7 +1797,9 @@
         "description": "Meta's compact Llama 3.2 1B model",
         "context_length": 128000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-2-3b-instruct-v1:0",
@@ -1372,7 +1807,9 @@
         "description": "Meta's efficient Llama 3.2 3B model",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "meta.llama3-2-90b-instruct-v1:0",
@@ -1380,7 +1817,10 @@
         "description": "Meta's powerful Llama 3.2 90B multimodal model",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "mistral.mistral-7b-instruct-v0:2",
@@ -1388,7 +1828,9 @@
         "description": "Mistral AI's 7B instruction-tuned model",
         "context_length": 32000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "mistral.mixtral-8x7b-instruct-v0:1",
@@ -1396,7 +1838,9 @@
         "description": "Mistral AI's mixture-of-experts model",
         "context_length": 32000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "mistral.mistral-large-2402-v1:0",
@@ -1404,7 +1848,9 @@
         "description": "Mistral AI's large flagship model",
         "context_length": 32000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "mistral.mistral-small-2402-v1:0",
@@ -1412,7 +1858,9 @@
         "description": "Mistral AI's efficient small model",
         "context_length": 32000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.amazon.nova-premier-v1:0",
@@ -1421,7 +1869,10 @@
         "context_length": 300000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.amazon.nova-pro-v1:0",
@@ -1430,7 +1881,10 @@
         "context_length": 300000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.amazon.nova-lite-v1:0",
@@ -1438,7 +1892,10 @@
         "description": "Amazon's fast and cost-effective model - US region",
         "context_length": 300000,
         "tools_supported": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.amazon.nova-micro-v1:0",
@@ -1446,7 +1903,9 @@
         "description": "Amazon's ultra-fast text-only model - US region",
         "context_length": 128000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-sonnet-20240229-v1:0",
@@ -1455,7 +1914,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-opus-20240229-v1:0",
@@ -1464,7 +1926,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-haiku-20240307-v1:0",
@@ -1473,7 +1938,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -1483,7 +1951,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -1492,7 +1963,10 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -1502,7 +1976,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -1512,7 +1989,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -1522,7 +2002,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -1532,7 +2015,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-opus-4-20250514-v1:0",
@@ -1542,7 +2028,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.anthropic.claude-opus-4-1-20250805-v1:0",
@@ -1552,7 +2041,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.meta.llama3-2-11b-instruct-v1:0",
@@ -1560,7 +2052,10 @@
         "description": "US regional variant of Llama 3.2 11B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.meta.llama3-2-3b-instruct-v1:0",
@@ -1568,7 +2063,9 @@
         "description": "US regional variant of Llama 3.2 3B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.meta.llama3-2-90b-instruct-v1:0",
@@ -1576,7 +2073,10 @@
         "description": "US regional variant of Llama 3.2 90B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.meta.llama3-2-1b-instruct-v1:0",
@@ -1584,7 +2084,9 @@
         "description": "US regional variant of Llama 3.2 1B",
         "context_length": 128000,
         "tools_supported": false,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.meta.llama3-1-8b-instruct-v1:0",
@@ -1592,7 +2094,9 @@
         "description": "US regional variant of Llama 3.1 8B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.meta.llama3-1-70b-instruct-v1:0",
@@ -1600,7 +2104,9 @@
         "description": "US regional variant of Llama 3.1 70B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.meta.llama3-3-70b-instruct-v1:0",
@@ -1608,7 +2114,9 @@
         "description": "US regional variant of Llama 3.3 70B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.deepseek.r1-v1:0",
@@ -1617,7 +2125,9 @@
         "context_length": 64000,
         "tools_supported": false,
         "supports_reasoning": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.mistral.pixtral-large-2502-v1:0",
@@ -1625,7 +2135,10 @@
         "description": "US regional variant of Mistral's Pixtral Large multimodal model",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "us.meta.llama4-scout-17b-instruct-v1:0",
@@ -1633,7 +2146,9 @@
         "description": "US regional variant of Llama 4 Scout 17B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       },
       {
         "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
@@ -1641,19 +2156,25 @@
         "description": "US regional variant of Llama 4 Maverick 17B",
         "context_length": 128000,
         "tools_supported": true,
-        "input_modalities": ["text"]
+        "input_modalities": [
+          "text"
+        ]
       }
     ],
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key"
+    ]
   },
   {
     "id": "vertex_ai_anthropic",
     "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
-    "url_param_vars": ["PROJECT_ID", "LOCATION"],
+    "url_param_vars": [
+      "PROJECT_ID",
+      "LOCATION"
+    ],
     "response_type": "Anthropic",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{/if}}",
     "models": [
-
       {
         "id": "claude-sonnet-4-6",
         "name": "Claude Sonnet 4.6",
@@ -1662,8 +2183,12 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
-      },{
+        "input_modalities": [
+          "text",
+          "image"
+        ]
+      },
+      {
         "id": "claude-opus-4-6",
         "name": "Claude Opus 4.6",
         "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
@@ -1671,7 +2196,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4-5@20251101",
@@ -1681,7 +2209,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-sonnet-4-5@20250929",
@@ -1691,7 +2222,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4-1@20250805",
@@ -1701,7 +2235,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-opus-4@20250514",
@@ -1711,7 +2248,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-sonnet-4@20250514",
@@ -1721,7 +2261,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-7-sonnet@20250219",
@@ -1731,7 +2274,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-5-sonnet-v2@20241022",
@@ -1741,7 +2287,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-5-haiku@20241022",
@@ -1751,7 +2300,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-5-sonnet@20240620",
@@ -1761,7 +2313,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-haiku@20240307",
@@ -1771,7 +2326,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-sonnet@20240229",
@@ -1781,7 +2339,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "claude-3-opus@20240229",
@@ -1791,17 +2352,24 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       }
     ],
-    "auth_methods": ["google_adc"]
+    "auth_methods": [
+      "google_adc"
+    ]
   },
   {
     "id": "codex",
     "api_key_vars": "CODEX_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      "CODEX_BASE_URL"
+    ],
     "response_type": "OpenAI",
-    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "url": "{{CODEX_BASE_URL}}/responses",
     "models": [
       {
         "id": "gpt-5.4-2026-03-05",
@@ -1811,7 +2379,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.4-pro-2026-03-05",
@@ -1821,7 +2392,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.3-codex",
@@ -1831,7 +2405,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.2-codex",
@@ -1841,7 +2418,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.2",
@@ -1851,7 +2431,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.1-codex",
@@ -1861,7 +2444,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.1-codex-max",
@@ -1871,7 +2457,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       },
       {
         "id": "gpt-5.1-codex-mini",
@@ -1881,7 +2470,10 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": [
+          "text",
+          "image"
+        ]
       }
     ],
     "auth_methods": [
@@ -1890,13 +2482,21 @@
           "auth_url": "https://auth.openai.com/api/accounts/deviceauth/usercode",
           "token_url": "https://auth.openai.com/oauth/token",
           "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
-          "scopes": ["openid", "profile", "email", "offline_access"],
+          "scopes": [
+            "openid",
+            "profile",
+            "email",
+            "offline_access"
+          ],
           "use_pkce": false,
           "custom_headers": {
             "originator": "forge"
           }
         }
       }
-    ]
+    ],
+    "url_param_defaults": {
+      "CODEX_BASE_URL": "https://chatgpt.com/backend-api/codex"
+    }
   }
 ]

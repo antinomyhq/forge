@@ -17,7 +17,8 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
+    ApiKey, AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat,
+    URLParameters, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -857,10 +858,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // For login, always configure (even if already configured) to allow
         // re-authentication
-        let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
-            .await?
-        {
+        let provider = match self.configure_provider(any_provider.clone()).await? {
             Some(provider) => provider,
             None => return Ok(()),
         };
@@ -2037,78 +2035,142 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    async fn handle_api_key_input(
+    fn collect_url_params(
         &mut self,
-        provider_id: ProviderId,
-        request: &ApiKeyRequest,
-    ) -> anyhow::Result<()> {
+        required_params: &[forge_domain::URLParam],
+        default_params: Option<&URLParameters>,
+        existing_params: Option<&URLParameters>,
+    ) -> anyhow::Result<HashMap<String, String>> {
         use anyhow::Context;
-        self.spinner.stop(None)?;
 
-        // Extract existing API key and URL params for prefilling
-        let existing_url_params = request.existing_params.as_ref();
-
-        // Collect URL parameters if required
-        let url_params = request
-            .required_params
+        required_params
             .iter()
             .map(|param| {
                 let mut input = ForgeSelect::input(format!("Enter {param}:"));
 
-                // Add default value if it exists in the credential
-                if let Some(params) = existing_url_params
+                if let Some(params) = existing_params
+                    && let Some(existing_value) = params.get(param)
+                {
+                    input = input.with_default(existing_value.as_str());
+                } else if let Some(params) = default_params
                     && let Some(default_value) = params.get(param)
                 {
                     input = input.with_default(default_value.as_str());
                 }
 
                 let param_value = input.prompt()?.context("Parameter input cancelled")?;
+                let param_value = param_value.trim();
+                anyhow::ensure!(!param_value.is_empty(), "{param} cannot be empty");
 
-                anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
-
-                Ok((param.to_string(), param_value))
+                Ok((param.to_string(), param_value.to_string()))
             })
-            .collect::<anyhow::Result<HashMap<_, _>>>()?;
+            .collect()
+    }
 
-        // Check if API key is already provided
-        // For Google ADC, we use a marker to skip prompting
-        // For other providers, we use the existing key as a default value (autofill)
-        let api_key_str = if let Some(default_key) = &request.api_key {
-            let key_str = default_key.as_ref();
+    fn provider_existing_api_key(provider: &AnyProvider) -> Option<ApiKey> {
+        match provider {
+            AnyProvider::Url(provider) => provider
+                .credential
+                .as_ref()
+                .and_then(|credential| credential.auth_details.api_key().cloned()),
+            AnyProvider::Template(_) => None,
+        }
+    }
 
-            // Skip prompting only for Google ADC marker
-            if key_str == "google_adc_marker" {
-                key_str.to_string()
-            } else {
-                // For other providers, show the existing key as default (autofill)
-                let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
-                    .with_default(key_str);
-                let api_key = input.prompt()?.context("API key input cancelled")?;
-                let api_key_str = api_key.trim();
-                anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
-                api_key_str.to_string()
-            }
-        } else {
-            // Prompt for API key input (no existing key)
-            let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"));
-            let api_key = input.prompt()?.context("API key input cancelled")?;
-            let api_key_str = api_key.trim();
-            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
-            api_key_str.to_string()
+    fn uses_custom_endpoint(
+        &self,
+        provider_id: &ProviderId,
+        url_params: &HashMap<String, String>,
+        default_params: Option<&URLParameters>,
+    ) -> bool {
+        if provider_id != &ProviderId::CODEX && provider_id != &ProviderId::CLAUDE_CODE {
+            return false;
+        }
+
+        let Some(default_params) = default_params else {
+            return false;
         };
 
-        // Update the context with collected data
-        let response = AuthContextResponse::api_key(request.clone(), &api_key_str, url_params);
+        url_params.iter().any(|(key, value)| {
+            let key = forge_domain::URLParam::from(key.clone());
+            default_params
+                .get(&key)
+                .is_none_or(|default_value| default_value.as_str() != value)
+        })
+    }
+
+    async fn complete_api_key_auth(
+        &mut self,
+        provider_id: ProviderId,
+        api_key_str: &str,
+        url_params: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        let response = AuthContextResponse::api_key(
+            ApiKeyRequest {
+                required_params: vec![],
+                default_params: None,
+                existing_params: None,
+                api_key: None,
+            },
+            api_key_str,
+            url_params,
+        );
 
         self.api
-            .complete_provider_auth(
-                provider_id,
-                response,
-                Duration::from_secs(0), // No timeout needed since we have the data
-            )
+            .complete_provider_auth(provider_id, response, Duration::from_secs(0))
             .await?;
 
         Ok(())
+    }
+
+    async fn prompt_api_key(
+        &mut self,
+        provider_id: &ProviderId,
+        default_key: Option<&ApiKey>,
+    ) -> anyhow::Result<String> {
+        use anyhow::Context;
+
+        if let Some(default_key) = default_key {
+            let key_str = default_key.as_ref();
+            if key_str == "google_adc_marker" {
+                return Ok(key_str.to_string());
+            }
+
+            let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                .with_default(key_str)
+                .prompt()?
+                .context("API key input cancelled")?;
+            let api_key_str = api_key.trim();
+            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+            Ok(api_key_str.to_string())
+        } else {
+            let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                .prompt()?
+                .context("API key input cancelled")?;
+            let api_key_str = api_key.trim();
+            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+            Ok(api_key_str.to_string())
+        }
+    }
+
+    async fn handle_api_key_input(
+        &mut self,
+        provider_id: ProviderId,
+        request: &ApiKeyRequest,
+    ) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+
+        let url_params = self.collect_url_params(
+            &request.required_params,
+            request.default_params.as_ref(),
+            request.existing_params.as_ref(),
+        )?;
+        let api_key_str = self
+            .prompt_api_key(&provider_id, request.api_key.as_ref())
+            .await?;
+
+        self.complete_api_key_auth(provider_id, &api_key_str, url_params)
+            .await
     }
 
     fn display_oauth_device_info_new(
@@ -2165,6 +2227,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &DeviceCodeRequest,
+        url_params: HashMap<String, String>,
     ) -> Result<()> {
         use std::time::Duration;
 
@@ -2183,7 +2246,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Step 2: Complete authentication (polls if needed for OAuth flows)
         self.spinner.start(Some("Completing authentication..."))?;
 
-        let response = AuthContextResponse::device_code(request.clone());
+        let response = AuthContextResponse::device_code(request.clone(), url_params);
 
         self.api
             .complete_provider_auth(provider_id, response, Duration::from_secs(600))
@@ -2216,6 +2279,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &CodeRequest,
+        url_params: HashMap<String, String>,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
@@ -2252,7 +2316,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
-        let response = AuthContextResponse::code(request.clone(), &code);
+        let response = AuthContextResponse::code(request.clone(), &code, url_params);
 
         self.api
             .complete_provider_auth(
@@ -2333,9 +2397,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
-        provider_id: ProviderId,
-        auth_methods: Vec<AuthMethod>,
+        any_provider: AnyProvider,
     ) -> Result<Option<Provider<Url>>> {
+        let provider_id = any_provider.id();
+        let auth_methods = any_provider.auth_methods().to_vec();
+        let existing_api_key = Self::provider_existing_api_key(&any_provider);
+
         if provider_id == ProviderId::FORGE_SERVICES {
             self.init_forge_services().await?;
             return Ok(None);
@@ -2364,11 +2431,66 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id.clone(), &request)
-                    .await?;
+                self.spinner.stop(None)?;
+                let url_params = self.collect_url_params(
+                    &request.required_params,
+                    request.default_params.as_ref(),
+                    request.existing_params.as_ref(),
+                )?;
+
+                if self.uses_custom_endpoint(
+                    &provider_id,
+                    &url_params,
+                    request.default_params.as_ref(),
+                ) {
+                    self.spinner.stop(None)?;
+                    self.writeln(format!(
+                        "{}",
+                        format!(
+                            "Using API key authentication because {provider_id} is configured with a custom endpoint"
+                        )
+                        .dimmed()
+                    ))?;
+                    let api_key = self
+                        .prompt_api_key(&provider_id, existing_api_key.as_ref())
+                        .await?;
+                    self.complete_api_key_auth(provider_id.clone(), &api_key, url_params)
+                        .await?;
+                } else {
+                    self.handle_device_flow(provider_id.clone(), &request, url_params)
+                        .await?;
+                }
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id.clone(), &request).await?;
+                self.spinner.stop(None)?;
+                let url_params = self.collect_url_params(
+                    &request.required_params,
+                    request.default_params.as_ref(),
+                    request.existing_params.as_ref(),
+                )?;
+
+                if self.uses_custom_endpoint(
+                    &provider_id,
+                    &url_params,
+                    request.default_params.as_ref(),
+                ) {
+                    self.spinner.stop(None)?;
+                    self.writeln(format!(
+                        "{}",
+                        format!(
+                            "Using API key authentication because {provider_id} is configured with a custom endpoint"
+                        )
+                        .dimmed()
+                    ))?;
+                    let api_key = self
+                        .prompt_api_key(&provider_id, existing_api_key.as_ref())
+                        .await?;
+                    self.complete_api_key_auth(provider_id.clone(), &api_key, url_params)
+                        .await?;
+                } else {
+                    self.handle_code_flow(provider_id.clone(), &request, url_params)
+                        .await?;
+                }
             }
         }
 
@@ -2466,10 +2588,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
-            match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
-                .await?
-            {
+            match self.configure_provider(any_provider.clone()).await? {
                 Some(provider) => provider,
                 None => return Ok(()),
             }

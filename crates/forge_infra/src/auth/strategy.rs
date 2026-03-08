@@ -32,6 +32,7 @@ impl AuthStrategy for ApiKeyStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
             required_params: self.required_params.clone(),
+            default_params: None,
             existing_params: None,
             api_key: None,
         }))
@@ -84,6 +85,9 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
             state: auth_params.state.into(),
             pkce_verifier: auth_params.code_verifier.map(Into::into),
             oauth_config: self.config.clone(),
+            required_params: vec![],
+            default_params: None,
+            existing_params: None,
         }))
     }
 
@@ -188,6 +192,9 @@ impl AuthStrategy for OAuthDeviceStrategy {
             expires_in: device_auth_response.expires_in().as_secs(),
             interval: device_auth_response.interval().as_secs(),
             oauth_config: self.config.clone(),
+            required_params: vec![],
+            default_params: None,
+            existing_params: None,
         }))
     }
 
@@ -290,6 +297,9 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
             expires_in: device_auth_response.expires_in().as_secs(),
             interval: device_auth_response.interval().as_secs(),
             oauth_config: self.oauth_config.clone(),
+            required_params: vec![],
+            default_params: None,
+            existing_params: None,
         }))
     }
 
@@ -368,6 +378,7 @@ impl AuthStrategy for GoogleAdcStrategy {
         // However, we still need to collect URL params like PROJECT_ID and LOCATION
         Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
             required_params: self.required_params.clone(),
+            default_params: None,
             existing_params: None,
             api_key: Some("google_adc_marker".to_string().into()), // Marker to indicate ADC usage
         }))
@@ -558,6 +569,9 @@ impl AuthStrategy for CodexDeviceStrategy {
             expires_in: 300, // 5 minute timeout
             interval,
             oauth_config: self.config.clone(),
+            required_params: vec![],
+            default_params: None,
+            existing_params: None,
         }))
     }
 

@@ -182,6 +182,17 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
         self.provider_repository.get_provider(id).await
     }
 
+    async fn get_provider_url_param_defaults(
+        &self,
+        id: &ProviderId,
+    ) -> anyhow::Result<
+        std::collections::HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
+    > {
+        self.provider_repository
+            .get_provider_url_param_defaults(id)
+            .await
+    }
+
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
         // All providers now use file-based credentials
         self.provider_repository.upsert_credential(credential).await

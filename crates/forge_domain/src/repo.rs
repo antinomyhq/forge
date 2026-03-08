@@ -6,7 +6,8 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, Skill, Snapshot, URLParam, URLParamValue, WorkspaceAuth,
+    WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -110,6 +111,10 @@ pub trait ChatRepository: Send + Sync {
 pub trait ProviderRepository: Send + Sync {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<ProviderTemplate>;
+    async fn get_provider_url_param_defaults(
+        &self,
+        id: &ProviderId,
+    ) -> anyhow::Result<std::collections::HashMap<URLParam, URLParamValue>>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;

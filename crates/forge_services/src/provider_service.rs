@@ -186,6 +186,14 @@ mod tests {
             Ok(test_template_provider())
         }
 
+        async fn get_provider_url_param_defaults(
+            &self,
+            _id: &ProviderId,
+        ) -> Result<std::collections::HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>
+        {
+            Ok(std::collections::HashMap::new())
+        }
+
         async fn get_credential(&self, _id: &ProviderId) -> Result<Option<AuthCredential>> {
             Ok(None)
         }
