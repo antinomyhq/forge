@@ -97,7 +97,15 @@ readonly BUILD_TARGET
 # Format: "scenario_id|label|test_type"
 #   scenario_id - unique identifier
 #   label       - human-readable name
-#   test_type   - "standard", "preinstalled_all", "rerun", "partial", "no_git"
+#   test_type   - "standard", "preinstalled_all", "rerun", "partial"
+#
+# NOTE: Unlike the Linux/macOS test suites, there is NO "no_git" scenario here.
+# On Windows, forge.exe is a native MSVC binary that resolves git through Windows
+# PATH resolution (CreateProcessW, where.exe, etc.), not bash PATH. Hiding git
+# by filtering the bash PATH or renaming binaries is fundamentally unreliable
+# because Git for Windows installs in multiple locations (/usr/bin, /mingw64/bin,
+# C:\Program Files\Git\cmd, etc.) and Windows system PATH entries bypass bash.
+# The no-git early-exit logic is platform-independent and tested on Linux/macOS.
 readonly SCENARIOS=(
   # Standard fresh install — the primary happy path
   "FRESH|Fresh install (Git Bash)|standard"
@@ -110,9 +118,6 @@ readonly SCENARIOS=(
 
   # Partial install — only plugins missing
   "PARTIAL|Partial install (only plugins missing)|partial"
-
-  # No git — verify graceful failure
-  "NO_GIT|No git (graceful failure)|no_git"
 )
 
 # =============================================================================
@@ -296,114 +301,12 @@ run_static_checks() {
 }
 
 # =============================================================================
-# PATH filtering helpers
-# =============================================================================
-
-# Build a PATH that hides git by excluding directories containing git.exe.
-# On Windows/Git Bash, git lives in /usr/bin/git and /mingw64/bin/git.
-# We create a temp directory with copies/symlinks to everything except git.
-#
-# IMPORTANT: On Windows, bash PATH filtering alone is NOT sufficient because
-# forge.exe is a native Windows binary that uses Windows PATH resolution.
-# We must also temporarily rename git.exe binaries to truly hide them.
-# The renamed files are tracked in RENAMED_GIT_FILES for restoration.
-RENAMED_GIT_FILES=()
-
-filter_path_no_git() {
-  local temp_bin="$1"
-  local no_git_dir="$2"
-
-  mkdir -p "$no_git_dir"
-
-  # Symlink/copy everything from /usr/bin except git and git-related binaries
-  if [ -d "/usr/bin" ]; then
-    for f in /usr/bin/*; do
-      local base
-      base=$(basename "$f")
-      case "$base" in
-        git|git.exe|git-*) continue ;;
-      esac
-      # On Windows, symlinks may not work reliably; use cp for .exe files
-      if [ -f "$f" ]; then
-        cp "$f" "$no_git_dir/$base" 2>/dev/null || true
-      fi
-    done
-  fi
-
-  # Temporarily rename git executables so the native Windows forge.exe
-  # cannot find them via Windows PATH resolution (where.exe, CreateProcess, etc.)
-  local git_locations=(
-    "/usr/bin/git.exe"
-    "/usr/bin/git"
-    "/mingw64/bin/git.exe"
-    "/mingw64/bin/git"
-    "/mingw64/libexec/git-core/git.exe"
-  )
-  # Also check Windows-native Git cmd path
-  if [ -n "${PROGRAMFILES:-}" ]; then
-    local pf_git
-    pf_git=$(cygpath -u "$PROGRAMFILES/Git/cmd/git.exe" 2>/dev/null || echo "")
-    if [ -n "$pf_git" ] && [ -f "$pf_git" ]; then
-      git_locations+=("$pf_git")
-    fi
-  fi
-
-  RENAMED_GIT_FILES=()
-  for gpath in "${git_locations[@]}"; do
-    if [ -f "$gpath" ]; then
-      mv "$gpath" "${gpath}.no_git_test_bak" 2>/dev/null && \
-        RENAMED_GIT_FILES+=("$gpath") || true
-    fi
-  done
-
-  # Build new PATH replacing /usr/bin and /mingw64/bin with filtered dir
-  # Also remove any other directories that contain git
-  local filtered=""
-  local IFS=':'
-  for dir in $PATH; do
-    case "$dir" in
-      /usr/bin)
-        dir="$no_git_dir"
-        ;;
-      /mingw64/bin)
-        # mingw64/bin also contains git; skip it entirely for no-git test
-        continue
-        ;;
-      */Git/cmd|*/Git/bin|*/Git/mingw64/bin)
-        # Windows-style Git paths; skip them
-        continue
-        ;;
-    esac
-    if [ -n "$filtered" ]; then
-      filtered="${filtered}:${dir}"
-    else
-      filtered="${dir}"
-    fi
-  done
-
-  echo "${temp_bin}:${filtered}"
-}
-
-# Restore git executables that were renamed by filter_path_no_git
-restore_git_files() {
-  for gpath in "${RENAMED_GIT_FILES[@]}"; do
-    if [ -f "${gpath}.no_git_test_bak" ]; then
-      mv "${gpath}.no_git_test_bak" "$gpath" 2>/dev/null || true
-    fi
-  done
-  RENAMED_GIT_FILES=()
-}
-
-# Ensure renamed git files are always restored on exit
-trap 'restore_git_files 2>/dev/null || true' EXIT
-
-# =============================================================================
 # Verification function
 # =============================================================================
 
 # Run verification checks against the current HOME and emit CHECK_* lines.
 # Arguments:
-#   $1 - test_type: "standard" | "no_git" | "preinstalled_all" | "rerun" | "partial"
+#   $1 - test_type: "standard" | "preinstalled_all" | "rerun" | "partial"
 #   $2 - setup_output: the captured output from forge zsh setup
 #   $3 - setup_exit: the exit code from forge zsh setup
 run_verify_checks() {
@@ -423,22 +326,14 @@ run_verify_checks() {
       echo "CHECK_ZSH=FAIL ${zsh_ver} (modules broken)"
     fi
   else
-    if [ "$test_type" = "no_git" ]; then
-      echo "CHECK_ZSH=PASS (expected: zsh not needed in no_git test)"
-    else
-      echo "CHECK_ZSH=FAIL zsh not found in PATH or /usr/bin/zsh.exe"
-    fi
+    echo "CHECK_ZSH=FAIL zsh not found in PATH or /usr/bin/zsh.exe"
   fi
 
   # --- Verify zsh.exe is in /usr/bin (Windows-specific) ---
-  if [ "$test_type" != "no_git" ]; then
-    if [ -f "/usr/bin/zsh.exe" ]; then
-      echo "CHECK_ZSH_EXE_LOCATION=PASS"
-    else
-      echo "CHECK_ZSH_EXE_LOCATION=FAIL (/usr/bin/zsh.exe not found)"
-    fi
+  if [ -f "/usr/bin/zsh.exe" ]; then
+    echo "CHECK_ZSH_EXE_LOCATION=PASS"
   else
-    echo "CHECK_ZSH_EXE_LOCATION=PASS (skipped for no_git test)"
+    echo "CHECK_ZSH_EXE_LOCATION=FAIL (/usr/bin/zsh.exe not found)"
   fi
 
   # --- Verify Oh My Zsh ---
@@ -457,11 +352,7 @@ run_verify_checks() {
       echo "CHECK_OMZ_DIR=FAIL ${omz_detail}"
     fi
   else
-    if [ "$test_type" = "no_git" ]; then
-      echo "CHECK_OMZ_DIR=PASS (expected: no OMZ in no_git test)"
-    else
-      echo "CHECK_OMZ_DIR=FAIL ~/.oh-my-zsh not found"
-    fi
+    echo "CHECK_OMZ_DIR=FAIL ~/.oh-my-zsh not found"
   fi
 
   # --- Verify Oh My Zsh defaults in .zshrc ---
@@ -486,11 +377,7 @@ run_verify_checks() {
       echo "CHECK_OMZ_DEFAULTS=FAIL ${omz_defaults_detail}"
     fi
   else
-    if [ "$test_type" = "no_git" ]; then
-      echo "CHECK_OMZ_DEFAULTS=PASS (expected: no .zshrc in no_git test)"
-    else
-      echo "CHECK_OMZ_DEFAULTS=FAIL ~/.zshrc not found"
-    fi
+    echo "CHECK_OMZ_DEFAULTS=FAIL ~/.zshrc not found"
   fi
 
   # --- Verify plugins ---
@@ -502,11 +389,7 @@ run_verify_checks() {
       echo "CHECK_AUTOSUGGESTIONS=FAIL (dir exists but no .zsh files)"
     fi
   else
-    if [ "$test_type" = "no_git" ]; then
-      echo "CHECK_AUTOSUGGESTIONS=PASS (expected: no plugins in no_git test)"
-    else
-      echo "CHECK_AUTOSUGGESTIONS=FAIL not installed"
-    fi
+    echo "CHECK_AUTOSUGGESTIONS=FAIL not installed"
   fi
 
   if [ -d "$zsh_custom/plugins/zsh-syntax-highlighting" ]; then
@@ -516,11 +399,7 @@ run_verify_checks() {
       echo "CHECK_SYNTAX_HIGHLIGHTING=FAIL (dir exists but no .zsh files)"
     fi
   else
-    if [ "$test_type" = "no_git" ]; then
-      echo "CHECK_SYNTAX_HIGHLIGHTING=PASS (expected: no plugins in no_git test)"
-    else
-      echo "CHECK_SYNTAX_HIGHLIGHTING=FAIL not installed"
-    fi
+    echo "CHECK_SYNTAX_HIGHLIGHTING=FAIL not installed"
   fi
 
   # --- Verify .zshrc forge markers and content ---
@@ -567,113 +446,64 @@ run_verify_checks() {
       echo "CHECK_MARKER_UNIQUE=FAIL (start=${start_count}, end=${end_count})"
     fi
   else
-    if [ "$test_type" = "no_git" ]; then
-      echo "CHECK_ZSHRC_MARKERS=PASS (expected: no .zshrc in no_git test)"
-      echo "CHECK_ZSHRC_PLUGIN=PASS (expected: no .zshrc in no_git test)"
-      echo "CHECK_ZSHRC_THEME=PASS (expected: no .zshrc in no_git test)"
-      echo "CHECK_NO_NERD_FONT_DISABLE=PASS (expected: no .zshrc in no_git test)"
-      echo "CHECK_NO_FORGE_EDITOR=PASS (expected: no .zshrc in no_git test)"
-      echo "CHECK_MARKER_UNIQUE=PASS (expected: no .zshrc in no_git test)"
-    else
-      echo "CHECK_ZSHRC_MARKERS=FAIL no .zshrc"
-      echo "CHECK_ZSHRC_PLUGIN=FAIL no .zshrc"
-      echo "CHECK_ZSHRC_THEME=FAIL no .zshrc"
-      echo "CHECK_NO_NERD_FONT_DISABLE=FAIL no .zshrc"
-      echo "CHECK_NO_FORGE_EDITOR=FAIL no .zshrc"
-      echo "CHECK_MARKER_UNIQUE=FAIL no .zshrc"
-    fi
+    echo "CHECK_ZSHRC_MARKERS=FAIL no .zshrc"
+    echo "CHECK_ZSHRC_PLUGIN=FAIL no .zshrc"
+    echo "CHECK_ZSHRC_THEME=FAIL no .zshrc"
+    echo "CHECK_NO_NERD_FONT_DISABLE=FAIL no .zshrc"
+    echo "CHECK_NO_FORGE_EDITOR=FAIL no .zshrc"
+    echo "CHECK_MARKER_UNIQUE=FAIL no .zshrc"
   fi
 
   # --- Windows-specific: Verify .bashrc auto-start configuration ---
-  if [ "$test_type" != "no_git" ]; then
-    if [ -f "$HOME/.bashrc" ]; then
-      if grep -q '# Added by forge zsh setup' "$HOME/.bashrc" && \
-         grep -q 'exec.*zsh' "$HOME/.bashrc"; then
-        echo "CHECK_BASHRC_AUTOSTART=PASS"
-      else
-        echo "CHECK_BASHRC_AUTOSTART=FAIL (auto-start block not found in .bashrc)"
-      fi
-
-      # Check uniqueness of auto-start block
-      local autostart_count
-      autostart_count=$(grep -c '# Added by forge zsh setup' "$HOME/.bashrc" 2>/dev/null || echo "0")
-      if [ "$autostart_count" -eq 1 ]; then
-        echo "CHECK_BASHRC_MARKER_UNIQUE=PASS"
-      else
-        echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (found ${autostart_count} auto-start blocks)"
-      fi
+  if [ -f "$HOME/.bashrc" ]; then
+    if grep -q '# Added by forge zsh setup' "$HOME/.bashrc" && \
+       grep -q 'exec.*zsh' "$HOME/.bashrc"; then
+      echo "CHECK_BASHRC_AUTOSTART=PASS"
     else
-      echo "CHECK_BASHRC_AUTOSTART=FAIL (.bashrc not found)"
-      echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (.bashrc not found)"
+      echo "CHECK_BASHRC_AUTOSTART=FAIL (auto-start block not found in .bashrc)"
     fi
 
-    # Check suppression files created by forge
-    if [ -f "$HOME/.bash_profile" ]; then
-      echo "CHECK_BASH_PROFILE_EXISTS=PASS"
+    # Check uniqueness of auto-start block
+    local autostart_count
+    autostart_count=$(grep -c '# Added by forge zsh setup' "$HOME/.bashrc" 2>/dev/null || echo "0")
+    if [ "$autostart_count" -eq 1 ]; then
+      echo "CHECK_BASHRC_MARKER_UNIQUE=PASS"
     else
-      echo "CHECK_BASH_PROFILE_EXISTS=FAIL"
-    fi
-
-    if [ -f "$HOME/.bash_login" ]; then
-      echo "CHECK_BASH_LOGIN_EXISTS=PASS"
-    else
-      echo "CHECK_BASH_LOGIN_EXISTS=FAIL"
-    fi
-
-    if [ -f "$HOME/.profile" ]; then
-      echo "CHECK_PROFILE_EXISTS=PASS"
-    else
-      echo "CHECK_PROFILE_EXISTS=FAIL"
+      echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (found ${autostart_count} auto-start blocks)"
     fi
   else
-    echo "CHECK_BASHRC_AUTOSTART=PASS (skipped for no_git test)"
-    echo "CHECK_BASHRC_MARKER_UNIQUE=PASS (skipped for no_git test)"
-    echo "CHECK_BASH_PROFILE_EXISTS=PASS (skipped for no_git test)"
-    echo "CHECK_BASH_LOGIN_EXISTS=PASS (skipped for no_git test)"
-    echo "CHECK_PROFILE_EXISTS=PASS (skipped for no_git test)"
+    echo "CHECK_BASHRC_AUTOSTART=FAIL (.bashrc not found)"
+    echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (.bashrc not found)"
   fi
 
-  # --- Windows-specific: Verify .zshenv fpath configuration ---
-  # NOTE: .zshenv is only created by configure_zshenv() which runs as the LAST
-  # step of install_zsh_windows(). If the zsh installation reports an error
-  # (e.g., "/usr/bin/zsh.exe not found" due to path check issues on native
-  # Windows binaries), configure_zshenv() is never reached. Since zsh may still
-  # be functionally installed (just the path check failed), we treat .zshenv
-  # as optional and check whether the install error occurred.
-  if [ "$test_type" != "no_git" ]; then
-    if [ -f "$HOME/.zshenv" ]; then
-      if grep -q 'zsh installer fpath' "$HOME/.zshenv" && \
-         grep -q '/usr/share/zsh/functions' "$HOME/.zshenv"; then
-        echo "CHECK_ZSHENV_FPATH=PASS"
-      else
-        echo "CHECK_ZSHENV_FPATH=FAIL (fpath block not found in .zshenv)"
-      fi
-    else
-      # .zshenv is not created when install_zsh_windows() errors before reaching
-      # configure_zshenv(). This is a known limitation — if zsh install reported
-      # an error but zsh is still functional, treat as a soft pass.
-      if echo "$setup_output" | grep -qi "Failed to install zsh"; then
-        echo "CHECK_ZSHENV_FPATH=PASS (skipped: zsh install reported error, configure_zshenv not reached)"
-      else
-        echo "CHECK_ZSHENV_FPATH=FAIL (.zshenv not found)"
-      fi
-    fi
+  # Check suppression files created by forge
+  if [ -f "$HOME/.bash_profile" ]; then
+    echo "CHECK_BASH_PROFILE_EXISTS=PASS"
   else
-    echo "CHECK_ZSHENV_FPATH=PASS (skipped for no_git test)"
+    echo "CHECK_BASH_PROFILE_EXISTS=FAIL"
   fi
+
+  if [ -f "$HOME/.bash_login" ]; then
+    echo "CHECK_BASH_LOGIN_EXISTS=PASS"
+  else
+    echo "CHECK_BASH_LOGIN_EXISTS=FAIL"
+  fi
+
+  if [ -f "$HOME/.profile" ]; then
+    echo "CHECK_PROFILE_EXISTS=PASS"
+  else
+    echo "CHECK_PROFILE_EXISTS=FAIL"
+  fi
+
 
   # --- Run forge zsh doctor ---
   local doctor_output
   doctor_output=$(forge zsh doctor 2>&1) || true
   local doctor_exit=$?
-  if [ "$test_type" = "no_git" ]; then
-    echo "CHECK_DOCTOR_EXIT=PASS (skipped for no_git test)"
+  if [ $doctor_exit -le 1 ]; then
+    echo "CHECK_DOCTOR_EXIT=PASS (exit=${doctor_exit})"
   else
-    if [ $doctor_exit -le 1 ]; then
-      echo "CHECK_DOCTOR_EXIT=PASS (exit=${doctor_exit})"
-    else
-      echo "CHECK_DOCTOR_EXIT=FAIL (exit=${doctor_exit})"
-    fi
+    echo "CHECK_DOCTOR_EXIT=FAIL (exit=${doctor_exit})"
   fi
 
   # --- Verify output format ---
@@ -687,54 +517,40 @@ run_verify_checks() {
     output_detail="detect=MISSING"
   fi
 
-  if [ "$test_type" = "no_git" ]; then
-    if echo "$setup_output" | grep -qi "git is required"; then
-      output_detail="${output_detail}, git_error=OK"
-    else
-      output_ok=false
-      output_detail="${output_detail}, git_error=MISSING"
-    fi
-    if [ "$output_ok" = true ]; then
-      echo "CHECK_OUTPUT_FORMAT=PASS ${output_detail}"
-    else
-      echo "CHECK_OUTPUT_FORMAT=FAIL ${output_detail}"
-    fi
+  if echo "$setup_output" | grep -qi "Setup complete\|complete"; then
+    output_detail="${output_detail}, complete=OK"
   else
-    if echo "$setup_output" | grep -qi "Setup complete\|complete"; then
-      output_detail="${output_detail}, complete=OK"
-    else
-      output_ok=false
-      output_detail="${output_detail}, complete=MISSING"
-    fi
+    output_ok=false
+    output_detail="${output_detail}, complete=MISSING"
+  fi
 
-    if echo "$setup_output" | grep -qi "Configuring\|configured\|forge plugins"; then
-      output_detail="${output_detail}, configure=OK"
-    else
-      output_ok=false
-      output_detail="${output_detail}, configure=MISSING"
-    fi
+  if echo "$setup_output" | grep -qi "Configuring\|configured\|forge plugins"; then
+    output_detail="${output_detail}, configure=OK"
+  else
+    output_ok=false
+    output_detail="${output_detail}, configure=MISSING"
+  fi
 
-    # Windows-specific: check for Git Bash summary message.
-    # When setup_fully_successful is true, the output contains "Git Bash" and
-    # "source ~/.bashrc". When tools (fzf/bat/fd) fail to install (common on
-    # Windows CI — "No package manager on Windows"), the warning message
-    # "Setup completed with some errors" is shown instead. Accept either.
-    if echo "$setup_output" | grep -qi "Git Bash\|source.*bashrc"; then
-      output_detail="${output_detail}, gitbash_summary=OK"
-      echo "CHECK_SUMMARY_GITBASH=PASS"
-    elif echo "$setup_output" | grep -qi "Setup completed with some errors\|completed with some errors"; then
-      output_detail="${output_detail}, gitbash_summary=OK(warning)"
-      echo "CHECK_SUMMARY_GITBASH=PASS (warning path: tools install failed but setup completed)"
-    else
-      output_detail="${output_detail}, gitbash_summary=MISSING"
-      echo "CHECK_SUMMARY_GITBASH=FAIL (expected Git Bash summary or warning message)"
-    fi
+  # Windows-specific: check for Git Bash summary message.
+  # When setup_fully_successful is true, the output contains "Git Bash" and
+  # "source ~/.bashrc". When tools (fzf/bat/fd) fail to install (common on
+  # Windows CI — "No package manager on Windows"), the warning message
+  # "Setup completed with some errors" is shown instead. Accept either.
+  if echo "$setup_output" | grep -qi "Git Bash\|source.*bashrc"; then
+    output_detail="${output_detail}, gitbash_summary=OK"
+    echo "CHECK_SUMMARY_GITBASH=PASS"
+  elif echo "$setup_output" | grep -qi "Setup completed with some errors\|completed with some errors"; then
+    output_detail="${output_detail}, gitbash_summary=OK(warning)"
+    echo "CHECK_SUMMARY_GITBASH=PASS (warning path: tools install failed but setup completed)"
+  else
+    output_detail="${output_detail}, gitbash_summary=MISSING"
+    echo "CHECK_SUMMARY_GITBASH=FAIL (expected Git Bash summary or warning message)"
+  fi
 
-    if [ "$output_ok" = true ]; then
-      echo "CHECK_OUTPUT_FORMAT=PASS ${output_detail}"
-    else
-      echo "CHECK_OUTPUT_FORMAT=FAIL ${output_detail}"
-    fi
+  if [ "$output_ok" = true ]; then
+    echo "CHECK_OUTPUT_FORMAT=PASS ${output_detail}"
+  else
+    echo "CHECK_OUTPUT_FORMAT=FAIL ${output_detail}"
   fi
 
   # --- Edge-case-specific checks ---
@@ -773,18 +589,6 @@ run_verify_checks() {
         fi
       else
         echo "CHECK_EDGE_NO_INSTALL=PASS (correctly skipped installation)"
-      fi
-      ;;
-    no_git)
-      if echo "$setup_output" | grep -qi "git is required"; then
-        echo "CHECK_EDGE_NO_GIT=PASS"
-      else
-        echo "CHECK_EDGE_NO_GIT=FAIL (should show git required error)"
-      fi
-      if [ "$setup_exit" -eq 0 ]; then
-        echo "CHECK_EDGE_NO_GIT_EXIT=PASS (exit=0, graceful)"
-      else
-        echo "CHECK_EDGE_NO_GIT_EXIT=FAIL (exit=${setup_exit}, should be 0)"
       fi
       ;;
     partial)
@@ -879,18 +683,8 @@ EOF
   cp "$binary_path" "$temp_bin/forge.exe"
   chmod +x "$temp_bin/forge.exe"
 
-  # Build the appropriate PATH
-  local test_path="$PATH"
-  local no_git_dir="${temp_home}/.no-git-bin"
-
-  case "$test_type" in
-    no_git)
-      test_path=$(filter_path_no_git "$temp_bin" "$no_git_dir")
-      ;;
-    *)
-      test_path="${temp_bin}:${PATH}"
-      ;;
-  esac
+  # Build the PATH with forge binary prepended
+  local test_path="${temp_bin}:${PATH}"
 
   # Pre-setup for edge cases
   local saved_home="$HOME"
@@ -1009,11 +803,6 @@ OUTPUT_END"
   # Restore HOME
   export HOME="$saved_home"
 
-  # Restore git executables if they were renamed for no_git test
-  if [ "$test_type" = "no_git" ]; then
-    restore_git_files
-  fi
-
   # Parse SETUP_EXIT
   local parsed_setup_exit
   parsed_setup_exit=$(grep '^SETUP_EXIT=' <<< "$verify_output" | head -1 | cut -d= -f2)
@@ -1027,8 +816,7 @@ OUTPUT_END"
   details=$(tail -n +2 <<< "$eval_result")
 
   # Check setup exit code
-  if [ -n "$parsed_setup_exit" ] && [ "$parsed_setup_exit" != "0" ] && \
-     [ "$test_type" != "no_git" ]; then
+  if [ -n "$parsed_setup_exit" ] && [ "$parsed_setup_exit" != "0" ]; then
     status="FAIL"
     details="${details}    SETUP_EXIT=${parsed_setup_exit} (expected 0)\n"
   fi

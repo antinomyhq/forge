@@ -1928,9 +1928,7 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
                 bail!("pkg not found")
             }
         }
-        Platform::Windows => {
-            bail!("No package manager on Windows")
-        }
+        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
     };
 
     // If package manager succeeded, verify installation and version
@@ -1988,9 +1986,7 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
                 bail!("pkg not found")
             }
         }
-        Platform::Windows => {
-            bail!("No package manager on Windows")
-        }
+        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
     };
 
     // If package manager succeeded, verify installation and version
@@ -2059,9 +2055,7 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
                 bail!("pkg not found")
             }
         }
-        Platform::Windows => {
-            bail!("No package manager on Windows")
-        }
+        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
     };
 
     // If package manager succeeded, verify installation and version
@@ -2163,16 +2157,15 @@ async fn install_bat_from_github(platform: Platform) -> Result<()> {
 
     // Find the latest release that has this specific binary
     let version = get_latest_release_with_binary("sharkdp/bat", &target, "0.24.0").await;
-    let url = format!(
-        "https://github.com/sharkdp/bat/releases/download/v{}/bat-v{}-{}.tar.gz",
-        version, version, target
-    );
-
-    let archive_type = if platform == Platform::Windows {
-        ArchiveType::Zip
+    let (archive_type, ext) = if platform == Platform::Windows {
+        (ArchiveType::Zip, "zip")
     } else {
-        ArchiveType::TarGz
+        (ArchiveType::TarGz, "tar.gz")
     };
+    let url = format!(
+        "https://github.com/sharkdp/bat/releases/download/v{}/bat-v{}-{}.{}",
+        version, version, target, ext
+    );
 
     let binary_path = download_and_extract_tool(&url, "bat", archive_type, true).await?;
     install_binary_to_local_bin(&binary_path, "bat").await?;
@@ -2186,16 +2179,15 @@ async fn install_fd_from_github(platform: Platform) -> Result<()> {
 
     // Find the latest release that has this specific binary
     let version = get_latest_release_with_binary("sharkdp/fd", &target, "10.1.0").await;
-    let url = format!(
-        "https://github.com/sharkdp/fd/releases/download/v{}/fd-v{}-{}.tar.gz",
-        version, version, target
-    );
-
-    let archive_type = if platform == Platform::Windows {
-        ArchiveType::Zip
+    let (archive_type, ext) = if platform == Platform::Windows {
+        (ArchiveType::Zip, "zip")
     } else {
-        ArchiveType::TarGz
+        (ArchiveType::TarGz, "tar.gz")
     };
+    let url = format!(
+        "https://github.com/sharkdp/fd/releases/download/v{}/fd-v{}-{}.{}",
+        version, version, target, ext
+    );
 
     let binary_path = download_and_extract_tool(&url, "fd", archive_type, true).await?;
     install_binary_to_local_bin(&binary_path, "fd").await?;
@@ -2391,7 +2383,12 @@ async fn install_binary_to_local_bin(binary_path: &Path, name: &str) -> Result<(
     let local_bin = PathBuf::from(home).join(".local").join("bin");
     tokio::fs::create_dir_all(&local_bin).await?;
 
-    let dest = local_bin.join(name);
+    let dest_name = if cfg!(target_os = "windows") {
+        format!("{}.exe", name)
+    } else {
+        name.to_string()
+    };
+    let dest = local_bin.join(dest_name);
     tokio::fs::copy(binary_path, &dest).await?;
 
     #[cfg(not(target_os = "windows"))]
@@ -2467,7 +2464,14 @@ async fn construct_rust_target(platform: Platform) -> Result<String> {
             };
             Ok(format!("{}-apple-darwin", arch_prefix))
         }
-        Platform::Windows => Ok("x86_64-pc-windows-msvc".to_string()),
+        Platform::Windows => {
+            let arch_prefix = match arch {
+                "x86_64" => "x86_64",
+                "aarch64" => "aarch64",
+                _ => bail!("Unsupported architecture: {}", arch),
+            };
+            Ok(format!("{}-pc-windows-msvc", arch_prefix))
+        }
         Platform::Android => Ok("aarch64-unknown-linux-musl".to_string()),
     }
 }
