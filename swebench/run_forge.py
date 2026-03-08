@@ -474,6 +474,19 @@ def run_instance(
             container, SWEBENCH_AGENTS_MD, f"{CONTAINER_APP_DIR}/AGENTS.md"
         )
 
+        # --- Run codebase sync ---
+        print(f"[{instance_id}] Syncing codebase")
+        sync_cmd = f"{CONTAINER_FORGE_BIN} codebase sync"
+        sync_exit, sync_output = exec_in_container(
+            container,
+            sync_cmd,
+            workdir=CONTAINER_APP_DIR,
+            environment=forge_env,
+        )
+        if sync_exit != 0:
+            print(f"[{instance_id}] Warning: codebase sync returned {sync_exit}")
+        (instance_dir / "sync.log").write_text(sync_output)
+
         # --- Build and run Forge command ---
         prompt_text = create_problem_statement(row)
         escaped_prompt = shlex.quote(prompt_text)
@@ -513,6 +526,21 @@ def run_instance(
                 )
                 if dump_json.strip():
                     (instance_dir / "conversation.json").write_text(dump_json)
+                    
+            # Also get HTML dump
+            dump_html_cmd = (
+                f"{CONTAINER_FORGE_BIN} conversation dump {conversation_id} --html"
+            )
+            dump_html_exit, dump_html_output = exec_in_container(
+                container, dump_html_cmd, workdir=CONTAINER_APP_DIR, environment=forge_env
+            )
+            if dump_html_exit == 0:
+                _, dump_html = exec_in_container(
+                    container, "cat *-dump.html 2>/dev/null || true",
+                    workdir=CONTAINER_APP_DIR,
+                )
+                if dump_html.strip():
+                    (instance_dir / "conversation.html").write_text(dump_html)
         except Exception as dump_err:
             print(f"[{instance_id}] Conversation dump failed: {dump_err}")
 
