@@ -498,9 +498,10 @@ run_verify_checks() {
 
   # --- Run forge zsh doctor ---
   local doctor_output
-  doctor_output=$(forge zsh doctor 2>&1) && local doctor_exit=0 || local doctor_exit=$?
-  if [ $doctor_exit -le 1 ]; then
-    echo "CHECK_DOCTOR_EXIT=PASS (exit=${doctor_exit})"
+  local doctor_exit=0
+  doctor_output=$(forge zsh doctor 2>&1) || doctor_exit=$?
+  if [ $doctor_exit -eq 0 ]; then
+    echo "CHECK_DOCTOR_EXIT=PASS (exit=0)"
   else
     echo "CHECK_DOCTOR_EXIT=FAIL (exit=${doctor_exit})"
   fi
