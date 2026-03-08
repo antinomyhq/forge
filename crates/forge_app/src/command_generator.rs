@@ -92,8 +92,8 @@ where
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content, FinishReason,
-        ModelSource, ProviderId, ProviderResponse, ResultStream,
+        AgentId, AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content,
+        FinishReason, ModelSource, ProviderId, ProviderResponse, ResultStream,
     };
     use tokio::sync::Mutex;
     use url::Url;
@@ -239,6 +239,22 @@ mod tests {
         }
 
         async fn set_default_model(&self, _model: ModelId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_agent_model(
+            &self,
+            _agent_id: &AgentId,
+        ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+            Ok(None)
+        }
+
+        async fn set_agent_model(
+            &self,
+            _agent_id: AgentId,
+            _provider: ProviderId,
+            _model: ModelId,
+        ) -> anyhow::Result<()> {
             Ok(())
         }
     }

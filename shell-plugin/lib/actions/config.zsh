@@ -1,5 +1,48 @@
 #!/usr/bin/env zsh
 
+
+# Helper: Open an fzf model picker and print the raw selected line.
+#
+# Model list columns (from `forge list models --porcelain`):
+#   1:model_id  2:model_name  3:provider(display)  4:provider_id(raw)  5:context  6:tools  7:image
+# The picker hides model_id (field 1) and provider_id (field 4) via --with-nth.
+#
+# Arguments:
+#   $1  prompt_text     - fzf prompt label (e.g. "Model ❯ ")
+#   $2  current_model   - model_id to pre-position the cursor on (may be empty)
+#   $3  input_text      - optional pre-fill query for fzf
+#
+# Outputs the raw selected line to stdout, or nothing if cancelled.
+function _forge_pick_model() {
+    local prompt_text="$1"
+    local current_model="$2"
+    local input_text="$3"
+
+    local output
+    output=$($_FORGE_BIN list models --porcelain 2>/dev/null)
+
+    if [[ -z "$output" ]]; then
+        return 1
+    fi
+
+    local fzf_args=(
+        --delimiter="$_FORGE_DELIMITER"
+        --prompt="$prompt_text"
+        --with-nth="2,3,5.."
+    )
+
+    if [[ -n "$input_text" ]]; then
+        fzf_args+=(--query="$input_text")
+    fi
+
+    if [[ -n "$current_model" ]]; then
+        local index=$(_forge_find_index "$output" "$current_model" 1)
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    echo "$output" | _forge_fzf --header-lines=1 "${fzf_args[@]}"
+}
+
 # Configuration action handlers (agent, provider, model, tools, skill)
 
 # Action handler: Select agent
@@ -90,58 +133,29 @@ function _forge_action_provider() {
     fi
 }
 
-# Action handler: Select model (across all configured providers)
+# Action handler: Select model (across all configured providers).
 #
-# Uses `forge list models --porcelain` which outputs columns (after swap):
-#   1:model_id  2:model_name  3:provider(display)  4:provider_id(raw)  5:context  6:tools  7:image
-# Shows the picker hiding model_id (field 1) and provider_id (field 4).
 # When the selected model belongs to a different provider, switches it first.
 function _forge_action_model() {
     local input_text="$1"
     (
         echo
-        local output
-        output=$($_FORGE_BIN list models --porcelain 2>/dev/null)
-
-        if [[ -z "$output" ]]; then
-            return 0
-        fi
-
         local current_model
         current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
 
-        local fzf_args=(
-            --delimiter="$_FORGE_DELIMITER"
-            --prompt="Model ❯ "
-            --with-nth="2,3,5.."
-        )
-
-        if [[ -n "$input_text" ]]; then
-            fzf_args+=(--query="$input_text")
-        fi
-
-        if [[ -n "$current_model" ]]; then
-            local index=$(_forge_find_index "$output" "$current_model" 1)
-            fzf_args+=(--bind="start:pos($index)")
-        fi
-
         local selected
-        selected=$(echo "$output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+        selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text")
 
         if [[ -n "$selected" ]]; then
-            # Field 1 = model_id (raw), field 3 = provider display name,
-            # field 4 = provider_id (raw, for config set)
-            # Extract all fields in a single awk call for efficiency
-            local model_id provider_id provider_display
+            # Field 1 = model_id, field 3 = provider display name, field 4 = provider_id
+            local model_id provider_display provider_id
             read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
 
-            # Trim whitespace
             model_id=${model_id//[[:space:]]/}
             provider_id=${provider_id//[[:space:]]/}
             provider_display=${provider_display//[[:space:]]/}
 
             # Switch provider first if it differs from the current one
-            # config get provider returns the display name, so compare against that
             local current_provider
             current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
@@ -149,6 +163,35 @@ function _forge_action_model() {
             fi
 
             _forge_exec config set model "$model_id"
+        fi
+    )
+}
+
+# Action handler: Select and set model for a specific agent.
+#
+# On selection calls `forge agent set-model <agent_id> <provider_id> <model_id>`.
+function _forge_action_agent_model() {
+    local agent_id="$1"
+    local input_text="$2"
+    (
+        echo
+        # Get the current model for this agent via the dedicated command.
+        # Porcelain output: header "FIELD  VALUE", then lowercase data rows (e.g. "model  claude-sonnet-4").
+        local current_model
+        current_model=$($_FORGE_BIN agent get-model "$agent_id" --porcelain 2>/dev/null | awk 'NR>1 && $1=="model" {print $2}')
+
+        local selected
+        selected=$(_forge_pick_model "Model (${agent_id}) ❯ " "$current_model" "$input_text")
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id, field 4 = provider_id
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec agent set-model "$agent_id" "$provider_id" "$model_id"
         fi
     )
 }

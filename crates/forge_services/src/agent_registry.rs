@@ -90,8 +90,14 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
 
         // Convert definitions to runtime agents and populate map
         for def in agent_defs {
-            let agent =
+            let mut agent =
                 Agent::from_agent_def(def, default_provider.id.clone(), default_model.clone());
+            // Apply runtime per-agent override (highest priority):
+            // AppConfig.agent_model > AgentDefinition.model > global default
+            if let Some(override_cfg) = app_config.agent_model.get(&agent.id) {
+                agent.provider = override_cfg.provider.clone();
+                agent.model = override_cfg.model.clone();
+            }
             agents_map.insert(agent.id.as_str().to_string(), agent);
         }
 
