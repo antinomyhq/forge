@@ -34,11 +34,11 @@ fn common_setup_steps() -> Vec<Step<Use>> {
     ]
 }
 
-/// Creates an upload-artifact step that only runs on failure.
+/// Creates an upload-artifact step that always runs.
 fn upload_results_step(artifact_name: &str, results_path: &str) -> Step<Use> {
     Step::new("Upload test results")
         .uses("actions", "upload-artifact", "v4")
-        .if_condition(Expression::new("failure()"))
+        .if_condition(Expression::new("always()"))
         .with(Input::from(indexmap! {
             "name".to_string() => json!(artifact_name),
             "path".to_string() => json!(results_path),

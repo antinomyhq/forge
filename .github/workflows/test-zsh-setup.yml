@@ -76,7 +76,7 @@ jobs:
     - name: Run ZSH setup test suite
       run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --jobs 8
     - name: Upload test results
-      if: failure()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: zsh-setup-results-linux-amd64
@@ -125,7 +125,7 @@ jobs:
     - name: Run ZSH setup test suite (exclude Arch)
       run: bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --exclude "Arch Linux" --jobs 8
     - name: Upload test results
-      if: failure()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: zsh-setup-results-linux-arm64
@@ -172,7 +172,7 @@ jobs:
     - name: Run macOS ZSH setup test suite
       run: bash crates/forge_ci/tests/scripts/test-zsh-setup-macos.sh --no-cleanup
     - name: Upload test results
-      if: failure()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: zsh-setup-results-macos-arm64
@@ -217,7 +217,7 @@ jobs:
     - name: Run Windows ZSH setup test suite
       run: bash crates/forge_ci/tests/scripts/test-zsh-setup-windows.sh --no-cleanup
     - name: Upload test results
-      if: failure()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: zsh-setup-results-windows
@@ -262,7 +262,7 @@ jobs:
     - name: Run Windows ARM64 ZSH setup test suite
       run: bash crates/forge_ci/tests/scripts/test-zsh-setup-windows.sh --no-cleanup
     - name: Upload test results
-      if: failure()
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: zsh-setup-results-windows-arm64
