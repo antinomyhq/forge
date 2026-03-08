@@ -299,7 +299,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             }
         }
 
-        // Merge built-in URL param defaults so older credentials still render correctly.
+        // Merge built-in URL param defaults so older credentials still render
+        // correctly.
         for (key, value) in url_param_defaults(config) {
             credential.url_params.entry(key).or_insert(value);
         }
