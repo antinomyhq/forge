@@ -28,13 +28,6 @@ impl Transformer for CodexTransformer {
             includes.push(oai::IncludeEnum::ReasoningEncryptedContent);
         }
 
-        // Force text verbosity to Low for concise codex output
-        let text = request.text.get_or_insert(oai::ResponseTextParam {
-            format: oai::TextResponseFormatConfiguration::Text,
-            verbosity: None,
-        });
-        text.verbosity = Some(oai::Verbosity::Low);
-
         if let Some(reasoning) = request.reasoning.as_mut() {
             reasoning.effort = Some(oai::ReasoningEffort::High);
             reasoning.summary = Some(oai::ReasoningSummary::Auto);
