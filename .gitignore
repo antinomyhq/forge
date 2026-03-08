@@ -49,3 +49,4 @@ node_modules/
 jobs/
 bench/__pycache__
 payload/*
+**/.venv
