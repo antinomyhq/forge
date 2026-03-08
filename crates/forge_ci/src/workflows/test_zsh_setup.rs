@@ -69,7 +69,7 @@ pub fn generate_test_zsh_setup_workflow() {
         )
         .add_step(
             Step::new("Run ZSH setup test suite")
-                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --jobs 8"),
+                .run("bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --jobs 4"),
         )
         .add_step(upload_results_step(
             "zsh-setup-results-linux-amd64",
@@ -96,7 +96,7 @@ pub fn generate_test_zsh_setup_workflow() {
         )
         .add_step(
             Step::new("Run ZSH setup test suite (exclude Arch)")
-                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --exclude "Arch Linux" --jobs 8"#),
+                .run(r#"bash crates/forge_ci/tests/scripts/test-zsh-setup.sh --native-build --no-cleanup --exclude "Arch Linux" --jobs 4"#),
         )
         .add_step(upload_results_step(
             "zsh-setup-results-linux-arm64",
