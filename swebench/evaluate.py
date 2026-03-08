@@ -8,7 +8,7 @@ This script:
 3. Parses and displays evaluation results
 
 Usage:
-    python swebench/evaluate.py \
+    python3 swebench/evaluate.py \
         --patches-path results/forge-sonnet/patches.json \
         --output-dir results/forge-sonnet/eval \
         --num-workers 10

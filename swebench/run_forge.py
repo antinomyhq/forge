@@ -9,7 +9,7 @@ This script orchestrates running Forge against SWE-bench Pro instances:
 4. Collects patches into the format expected by swe_bench_pro_eval.py
 
 Usage:
-    python swebench/run_forge.py \\
+    python3 swebench/run_forge.py \\
         --output-dir results/forge-sonnet \\
         --model anthropic/claude-sonnet-4 \\
         --slice 0:5 \\
