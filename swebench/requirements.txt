@@ -1,0 +1,6 @@
+# Core dependencies for SWE-bench Pro Forge runner
+datasets>=2.14.0
+docker>=6.0.0
+tqdm>=4.64.0
+huggingface_hub>=0.16.0
+pandas>=2.0.0
