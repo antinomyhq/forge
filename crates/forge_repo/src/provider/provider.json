@@ -547,6 +547,16 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "chatgpt-5.4-xhigh",
+        "name": "ChatGPT 5.4 XHigh",
+        "description": "ChatGPT 5.4 variant tuned for the highest reasoning effort",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       }
     ],
     "auth_methods": ["api_key"]

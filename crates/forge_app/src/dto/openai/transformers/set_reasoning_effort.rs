@@ -11,7 +11,7 @@ use crate::dto::openai::Request;
 /// # Transformation Rules
 ///
 /// - If `reasoning.enabled == Some(false)` → use "none" (disables reasoning)
-/// - If `reasoning.effort` is set (low/medium/high) → use that value
+/// - If `reasoning.effort` is set → use that value verbatim
 /// - If `reasoning.max_tokens` is set (thinking budget) → convert to effort:
 ///   - 0-1024 → "low"
 ///   - 1025-8192 → "medium"
@@ -141,6 +141,22 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.reasoning_effort, Some("high".to_string()));
+        assert_eq!(actual.reasoning, None);
+    }
+
+    #[test]
+    fn test_reasoning_with_effort_xhigh() {
+        let fixture = Request::default().reasoning(ReasoningConfig {
+            enabled: Some(true),
+            effort: Some(Effort::Xhigh),
+            max_tokens: None,
+            exclude: None,
+        });
+
+        let mut transformer = SetReasoningEffort;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(actual.reasoning_effort, Some("xhigh".to_string()));
         assert_eq!(actual.reasoning, None);
     }
 

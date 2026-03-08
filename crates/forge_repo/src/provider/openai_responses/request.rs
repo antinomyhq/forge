@@ -106,6 +106,7 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
         if let Some(effort) = config.effort {
             let oai_effort = match effort {
                 Effort::High => oai::ReasoningEffort::High,
+                Effort::Xhigh => oai::ReasoningEffort::Xhigh,
                 Effort::Medium => oai::ReasoningEffort::Medium,
                 Effort::Low => oai::ReasoningEffort::Low,
             };
@@ -412,6 +413,25 @@ mod tests {
 
         // When exclude=true, should use Concise summary
         assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_with_xhigh_effort() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let fixture = ReasoningConfig {
+            effort: Some(Effort::Xhigh),
+            max_tokens: None,
+            exclude: None,
+            enabled: None,
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+
+        assert_eq!(actual.effort, Some(oai::ReasoningEffort::Xhigh));
         assert!(actual.summary.is_some());
 
         Ok(())

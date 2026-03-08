@@ -218,6 +218,7 @@ pub struct ReasoningConfig {
 #[strum(serialize_all = "lowercase")]
 pub enum Effort {
     High,
+    Xhigh,
     Medium,
     Low,
 }
@@ -313,6 +314,12 @@ mod tests {
         assert_eq!(Effort::from(8193), Effort::High);
         assert_eq!(Effort::from(10000), Effort::High);
         assert_eq!(Effort::from(100000), Effort::High);
+    }
+
+    #[test]
+    fn test_effort_xhigh_serializes_as_lowercase() {
+        assert_eq!(Effort::Xhigh.to_string(), "xhigh");
+        assert_eq!(serde_json::to_value(Effort::Xhigh).unwrap(), json!("xhigh"));
     }
 
     #[test]

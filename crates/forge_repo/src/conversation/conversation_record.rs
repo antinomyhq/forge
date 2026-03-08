@@ -647,6 +647,7 @@ impl From<ToolChoiceRecord> for forge_domain::ToolChoice {
 #[serde(rename_all = "lowercase")]
 pub(super) enum EffortRecord {
     High,
+    Xhigh,
     Medium,
     Low,
 }
@@ -655,6 +656,7 @@ impl From<&forge_domain::Effort> for EffortRecord {
     fn from(effort: &forge_domain::Effort) -> Self {
         match effort {
             forge_domain::Effort::High => Self::High,
+            forge_domain::Effort::Xhigh => Self::Xhigh,
             forge_domain::Effort::Medium => Self::Medium,
             forge_domain::Effort::Low => Self::Low,
         }
@@ -665,6 +667,7 @@ impl From<EffortRecord> for forge_domain::Effort {
     fn from(record: EffortRecord) -> Self {
         match record {
             EffortRecord::High => Self::High,
+            EffortRecord::Xhigh => Self::Xhigh,
             EffortRecord::Medium => Self::Medium,
             EffortRecord::Low => Self::Low,
         }
