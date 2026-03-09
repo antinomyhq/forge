@@ -496,6 +496,15 @@ run_verify_checks() {
   fi
 
 
+  # --- Check if forge zsh setup's own doctor run failed ---
+  # forge zsh setup runs doctor internally. Even if our independent doctor call
+  # succeeds (different environment), we must detect if setup's doctor failed.
+  if echo "$setup_output" | grep -qi "forge zsh doctor failed"; then
+    echo "CHECK_SETUP_DOCTOR=FAIL (setup reported doctor failure)"
+  else
+    echo "CHECK_SETUP_DOCTOR=PASS"
+  fi
+
   # --- Run forge zsh doctor ---
   local doctor_output
   local doctor_exit=0

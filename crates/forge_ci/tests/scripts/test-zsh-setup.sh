@@ -700,6 +700,17 @@ else
   fi
 fi
 
+# --- Check if forge zsh setup's own doctor run failed ---
+# forge zsh setup runs doctor internally. Even if our independent doctor call
+# succeeds (different environment), we must detect if setup's doctor failed.
+if [ "$TEST_TYPE" != "no_git" ]; then
+  if echo "$setup_output" | grep -qi "forge zsh doctor failed"; then
+    echo "CHECK_SETUP_DOCTOR=FAIL (setup reported doctor failure)"
+  else
+    echo "CHECK_SETUP_DOCTOR=PASS"
+  fi
+fi
+
 # --- Run forge zsh doctor ---
 doctor_exit=0
 doctor_output=$(forge zsh doctor 2>&1) || doctor_exit=$?
