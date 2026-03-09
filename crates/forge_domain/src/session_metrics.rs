@@ -6,8 +6,8 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Todo, TodoStatus};
 pub use crate::file_operation::FileOperation;
+use crate::{Todo, TodoStatus};
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
@@ -259,7 +259,9 @@ mod tests {
         fixture.update_todos(setup).unwrap();
 
         let actual = fixture
-            .update_todos(vec![Todo::new("Task B").id("2").status(TodoStatus::Completed)])
+            .update_todos(vec![
+                Todo::new("Task B").id("2").status(TodoStatus::Completed),
+            ])
             .unwrap();
         let expected = Vec::<Todo>::new();
         assert_eq!(actual, expected);
@@ -272,5 +274,3 @@ mod tests {
         assert_eq!(actual, expected);
     }
 }
-
-

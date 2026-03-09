@@ -81,7 +81,6 @@ impl ToolCallContext {
     pub fn update_todos(&self, todos: Vec<Todo>) -> anyhow::Result<Vec<Todo>> {
         self.try_with_metrics(|metrics| metrics.update_todos(todos))
     }
-
 }
 
 #[cfg(test)]
