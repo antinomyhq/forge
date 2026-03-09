@@ -26,7 +26,6 @@ use forge_tracker::ToolCallPayload;
 use futures::future;
 use merge::Merge;
 use tokio_stream::StreamExt;
-use tracing::debug;
 use url::Url;
 
 use crate::cli::{
@@ -639,6 +638,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::WorkspaceCommand::Status { path, porcelain } => {
                         self.on_workspace_status(path, porcelain).await?;
                     }
+                    crate::cli::WorkspaceCommand::Init { path } => {
+                        self.on_workspace_init(path).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -666,6 +668,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.on_vscode_extension_install().await?;
                     }
                 }
+                return Ok(());
+            }
+            TopLevelCommand::Update(args) => {
+                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                on_update(self.api.clone(), Some(&update)).await;
+                return Ok(());
+            }
+            TopLevelCommand::Setup => {
+                self.on_zsh_setup().await?;
+                return Ok(());
+            }
+            TopLevelCommand::Doctor => {
+                self.on_zsh_doctor().await?;
                 return Ok(());
             }
         }
@@ -731,10 +746,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
                 // Interactive mode will be handled by the main loop
             }
-            ConversationCommand::Show { id } => {
+            ConversationCommand::Show { id, md } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
 
-                self.on_show_last_message(conversation).await?;
+                self.on_show_last_message(conversation, md).await?;
             }
             ConversationCommand::Info { id } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
@@ -1073,61 +1088,79 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let models = self.get_models().await?;
+        self.spinner.start(Some("Fetching Models"))?;
 
-        if models.is_empty() {
+        let mut all_provider_models = match self.api.get_all_provider_models().await {
+            Ok(provider_models) => provider_models,
+            Err(err) => {
+                self.spinner.stop(None)?;
+                return Err(err);
+            }
+        };
+
+        if all_provider_models.is_empty() {
             return Ok(());
         }
 
+        // Sort models and then providers
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
+
         let mut info = Info::new();
+        for pm in &all_provider_models {
+            let provider_id: &str = &pm.provider_id;
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
+                info = info
+                    .add_title(&id)
+                    .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Provider", &provider_display)
+                    .add_key_value("Provider Id", provider_id);
 
-        for model in models.iter() {
-            let id = model.id.to_string();
-
-            info = info
-                .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id);
-
-            // Add context length if available, otherwise use "unknown"
-            if let Some(limit) = model.context_length {
-                let context = if limit >= 1_000_000 {
-                    format!("{}M", limit / 1_000_000)
-                } else if limit >= 1000 {
-                    format!("{}k", limit / 1000)
+                // Add context length if available, otherwise use "unknown"
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
                 } else {
-                    format!("{limit}")
-                };
-                info = info.add_key_value("Context Window", context);
-            } else {
-                info = info.add_key_value("Context Window", markers::EMPTY)
-            }
+                    info = info.add_key_value("Context Window", markers::EMPTY)
+                }
 
-            // Add tools support indicator if explicitly supported
-            if let Some(supported) = model.tools_supported {
+                // Add tools support indicator if explicitly supported
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    )
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY)
+                }
+
+                // Add image modality support indicator
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
                 info = info.add_key_value(
-                    "Tool Supported",
-                    if supported { status::YES } else { status::NO },
-                )
-            } else {
-                info = info.add_key_value("Tools", markers::EMPTY)
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
             }
-
-            // Add image modality support indicator
-            let supports_image = model
-                .input_modalities
-                .contains(&forge_domain::InputModality::Image);
-            info = info.add_key_value(
-                "Image",
-                if supports_image {
-                    status::YES
-                } else {
-                    status::NO
-                },
-            );
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).swap_cols(0, 1).uppercase_headers())?;
+            self.writeln(Porcelain::from(&info).truncate(1, 40).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -1653,7 +1686,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
-        self.on_zsh_doctor().await
+        let doctor_result = self.on_zsh_doctor().await;
+
+        if doctor_result.is_ok() {
+            self.writeln_title(TitleFormat::warning(
+                "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
+            ))?;
+            self.writeln_title(TitleFormat::warning(
+                "run `: Hi` after restarting your shell to confirm everything works",
+            ))?;
+        }
+
+        doctor_result
     }
 
     /// Handle the cmd command - generates shell command from natural language
@@ -1693,7 +1737,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.state.conversation_id = Some(conversation_id);
 
             // Show conversation content
-            self.on_show_last_message(conversation).await?;
+            self.on_show_last_message(conversation, false).await?;
 
             // Print log about conversation switching
             self.writeln_title(TitleFormat::info(format!(
@@ -1992,6 +2036,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Ok(None),
         }
     }
+
     async fn handle_api_key_input(
         &mut self,
         provider_id: ProviderId,
@@ -2273,6 +2318,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
+    /// Creates ForgeCode Services credentials if not already authenticated and
+    /// displays the credentials file location to the user.
+    async fn init_forge_services(&mut self) -> Result<()> {
+        self.api.create_auth_credentials().await?;
+        let env = self.api.environment();
+        let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
+        self.writeln_title(
+            TitleFormat::info("ForgeCode Services enabled").sub_title(&credentials_path),
+        )?;
+        Ok(())
+    }
+
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
@@ -2280,10 +2337,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            self.init_forge_services().await?;
             return Ok(None);
         }
         // Select auth method (or use the only one available)
@@ -2796,7 +2850,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         message: ChatResponse,
         writer: &mut StreamingWriter<A>,
     ) -> Result<()> {
-        debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
             return Ok(());
         }
@@ -2811,7 +2864,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(text)?;
                 }
                 ChatResponseContent::Markdown { text, partial: _ } => {
-                    tracing::info!(message = %text, "Agent Response");
                     writer.write(&text)?;
                 }
             },
@@ -2873,6 +2925,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
+                }
+                if let Some(format) = self.api.environment().auto_dump {
+                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                    self.on_dump(html).await?;
                 }
             }
         }
@@ -3220,10 +3276,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Shows the last message from a conversation
     ///
+    /// When `md` is true, the raw markdown content is printed without
+    /// rendering. When `md` is false, the content is rendered through the
+    /// markdown renderer.
+    ///
     /// # Errors
     /// - If the conversation doesn't exist
     /// - If the conversation has no messages
-    async fn on_show_last_message(&mut self, conversation: Conversation) -> Result<()> {
+    async fn on_show_last_message(&mut self, conversation: Conversation, md: bool) -> Result<()> {
         let context = conversation
             .context
             .as_ref()
@@ -3239,7 +3299,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Format and display the message using the message_display module
         if let Some(message) = message {
-            self.writeln(self.markdown.render(message))?;
+            if md {
+                self.writeln(message)?;
+            } else {
+                self.writeln(self.markdown.render(message))?;
+            }
         }
 
         Ok(())
@@ -3255,10 +3319,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            self.init_forge_services().await?;
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
@@ -3597,6 +3658,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         } else {
             self.writeln(info)?;
         }
+
+        Ok(())
+    }
+
+    /// Initialize workspace for a directory without syncing files
+    async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Initializing workspace"))?;
+
+        let workspace_id = self.api.init_workspace(path.clone()).await?;
+
+        self.spinner.stop(None)?;
+
+        // Resolve and display the path
+        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
+
+        self.writeln_title(
+            TitleFormat::info("Workspace initialized successfully")
+                .sub_title(format!("Path: {}", canonical_path.display()))
+                .sub_title(format!("Workspace ID: {}", workspace_id)),
+        )?;
 
         Ok(())
     }

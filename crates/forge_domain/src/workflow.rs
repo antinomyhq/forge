@@ -1,5 +1,6 @@
+use std::sync::LazyLock;
+
 use derive_setters::Setters;
-use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -119,10 +120,8 @@ pub struct Workflow {
     pub compact: Option<Compact>,
 }
 
-lazy_static! {
-    static ref DEFAULT_WORKFLOW: Workflow =
-        serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap();
-}
+static DEFAULT_WORKFLOW: LazyLock<Workflow> =
+    LazyLock::new(|| serde_yml::from_str(include_str!("../../../forge.default.yaml")).unwrap());
 
 impl Default for Workflow {
     fn default() -> Self {

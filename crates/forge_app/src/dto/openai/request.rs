@@ -266,6 +266,8 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<forge_domain::ReasoningConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_completion_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<ThinkingConfig>,
@@ -394,6 +396,7 @@ impl From<Context> for Request {
             stream_options: Some(StreamOptions { include_usage: Some(true) }),
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
+            reasoning_effort: Default::default(),
             max_completion_tokens: Default::default(),
             thinking: Default::default(),
         }

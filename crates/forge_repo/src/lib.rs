@@ -9,7 +9,6 @@ mod fuzzy_search;
 mod provider;
 mod skill;
 mod validation;
-mod workspace;
 
 mod proto_generated {
     tonic::include_proto!("forge.v1");

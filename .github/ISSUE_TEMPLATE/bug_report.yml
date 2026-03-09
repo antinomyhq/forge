@@ -81,7 +81,7 @@ body:
         - Windows (Native)
         - Other
     validations:
-      required: true
+      required: false
 
   - type: input
     id: os-version
@@ -90,7 +90,7 @@ body:
       description: What version of your operating system?
       placeholder: e.g., macOS 14.1, Ubuntu 22.04
     validations:
-      required: true
+      required: false
 
   - type: dropdown
     id: provider
@@ -112,7 +112,7 @@ body:
         - OpenAI-compatible
         - Other
     validations:
-      required: true
+      required: false
 
   - type: input
     id: model
@@ -141,9 +141,3 @@ body:
       description: |
         Please share relevant parts of your `forge.yaml` configuration (remove sensitive data like API keys).
       render: yaml
-
-  - type: textarea
-    id: additional
-    attributes:
-      label: Additional Context
-      description: Add any other context about the problem here (screenshots, related issues, etc.)

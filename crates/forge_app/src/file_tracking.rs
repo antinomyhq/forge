@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use forge_domain::Metrics;
+use futures::StreamExt;
 use tracing::debug;
 
 use crate::FsReadService;
@@ -17,6 +18,7 @@ pub struct FileChange {
 #[derive(Clone)]
 pub struct FileChangeDetector<F> {
     fs_read_service: Arc<F>,
+    parallel_file_reads: usize,
 }
 
 impl<F: FsReadService> FileChangeDetector<F> {
@@ -25,8 +27,9 @@ impl<F: FsReadService> FileChangeDetector<F> {
     /// # Arguments
     ///
     /// * `fs_read_service` - The file system read service implementation
-    pub fn new(fs_read_service: Arc<F>) -> Self {
-        Self { fs_read_service }
+    /// * `parallel_file_reads` - Maximum number of files to hash concurrently
+    pub fn new(fs_read_service: Arc<F>, parallel_file_reads: usize) -> Self {
+        Self { fs_read_service, parallel_file_reads }
     }
 
     /// Detects files that have changed since the last notification
@@ -39,12 +42,22 @@ impl<F: FsReadService> FileChangeDetector<F> {
     /// * `tracked_files` - Map of file paths to their last known hashes (None
     ///   if unreadable)
     pub async fn detect(&self, metrics: &Metrics) -> Vec<FileChange> {
-        let futures: Vec<_> = metrics
+        let fs = self.fs_read_service.clone();
+        // Collect into owned data upfront so the stream futures are 'static-safe
+        let entries: Vec<(std::path::PathBuf, Option<String>)> = metrics
             .file_operations
             .iter()
             .map(|(path, file_metrics)| {
-                let file_path = std::path::PathBuf::from(path);
-                let last_hash = file_metrics.content_hash.clone();
+                (
+                    std::path::PathBuf::from(path),
+                    file_metrics.content_hash.clone(),
+                )
+            })
+            .collect();
+
+        let mut changes: Vec<FileChange> = futures::stream::iter(entries)
+            .map(|(file_path, last_hash)| {
+                let fs = fs.clone();
 
                 async move {
                     // Get current hash from the full raw file content (not the
@@ -52,7 +65,11 @@ impl<F: FsReadService> FileChangeDetector<F> {
                     // ReadOutput.content_hash is always computed from the
                     // unprocessed file, so it is directly comparable with the
                     // stored hash.
-                    let current_hash = self.read_file_hash(&file_path).await.ok();
+                    let current_hash = fs
+                        .read(file_path.to_string_lossy().to_string(), None, None)
+                        .await
+                        .ok()
+                        .map(|o| o.content_hash);
 
                     // Check if hash has changed
                     if current_hash != last_hash {
@@ -68,29 +85,15 @@ impl<F: FsReadService> FileChangeDetector<F> {
                     }
                 }
             })
-            .collect();
-
-        let mut changes: Vec<FileChange> = futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .flatten()
-            .collect();
+            .buffer_unordered(self.parallel_file_reads)
+            .filter_map(std::future::ready)
+            .collect()
+            .await;
 
         // Sort by path for deterministic ordering
         changes.sort_by(|a, b| a.path.cmp(&b.path));
 
         changes
-    }
-
-    /// Reads a file and returns its content hash computed from the full raw
-    /// content, bypassing any line truncation or range limiting.
-    async fn read_file_hash(&self, path: &std::path::Path) -> anyhow::Result<String> {
-        let output = self
-            .fs_read_service
-            .read(path.to_string_lossy().to_string(), None, None)
-            .await?;
-
-        Ok(output.content_hash)
     }
 }
 
@@ -198,7 +201,7 @@ mod tests {
         let content_hash = compute_hash(content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
@@ -219,7 +222,7 @@ mod tests {
         let new_hash = compute_hash(new_content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", new_content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
@@ -241,7 +244,7 @@ mod tests {
         let old_hash = compute_hash("old content");
 
         let fs = MockFsReadService::new().with_not_found("/test/file.txt");
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
@@ -265,7 +268,7 @@ mod tests {
         let old_hash = "old_hash".to_string();
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", new_content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         // First call: detect change
         let mut metrics = Metrics::default();
@@ -296,7 +299,7 @@ mod tests {
         let content_hash = compute_hash(content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
@@ -324,7 +327,7 @@ mod tests {
             &raw_content,
             &displayed_content,
         );
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
@@ -353,7 +356,7 @@ mod tests {
             &raw_content,
             &displayed_content,
         );
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
@@ -378,7 +381,7 @@ mod tests {
         let written_hash = compute_hash(written);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", written);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         // Step 1: Read the file (insert via Metrics::insert like production)
         let metrics = Metrics::default().insert(
@@ -409,7 +412,7 @@ mod tests {
 
         // Disk now has the externally modified content
         let fs = MockFsReadService::new().with_file("/test/file.txt", external);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         // Step 1: Read, Step 2: Write
         let metrics = Metrics::default()
@@ -441,7 +444,7 @@ mod tests {
         let content_hash = compute_hash(content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         // Step 1: Write, Step 2: Read back (overwrites Write entry)
         let metrics = Metrics::default()
@@ -481,7 +484,7 @@ mod tests {
             .with_file("/test/b.txt", b_external) // user modified B
             .with_file("/test/c.txt", c_content)
             .with_file("/test/d.txt", d_content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let metrics = Metrics::default()
             .insert(
@@ -527,7 +530,7 @@ mod tests {
         let modified = "someone changed this";
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", modified);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let metrics = Metrics::default().insert(
             "/test/file.txt".to_string(),
@@ -551,7 +554,7 @@ mod tests {
         let final_hash = compute_hash(final_content);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", final_content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let metrics = Metrics::default()
             .insert(
@@ -585,7 +588,7 @@ mod tests {
         let original_hash = compute_hash(original);
 
         let fs = MockFsReadService::new().with_file("/test/file.txt", original);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         let metrics = Metrics::default()
             .insert(
@@ -617,7 +620,7 @@ mod tests {
 
         // After write, disk has the written content
         let fs = MockFsReadService::new().with_file("/test/file.txt", written_content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
+        let detector = FileChangeDetector::new(Arc::new(fs), 64);
 
         // Read (truncated display), then Write
         let metrics = Metrics::default()

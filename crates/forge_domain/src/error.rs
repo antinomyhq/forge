@@ -4,7 +4,7 @@ use derive_more::From;
 use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
-use crate::{AgentId, ConversationId, ProviderId};
+use crate::{AgentId, ConversationId, ProviderId, WorkspaceId};
 
 // NOTE: Deriving From for error is a really bad idea. This is because you end
 // up converting errors incorrectly without much context. For eg: You don't want
@@ -96,6 +96,12 @@ pub enum Error {
     #[error("Workspace not found")]
     WorkspaceNotFound,
 
+    #[error("Workspace already initialized with id: {0}")]
+    WorkspaceAlreadyInitialized(WorkspaceId),
+
+    #[error("Failed to sync {count} file(s)")]
+    SyncFailed { count: usize },
+
     #[error("No default provider set.")]
     NoDefaultProvider,
 
@@ -145,6 +151,10 @@ impl Error {
 
     pub fn no_default_model(provider: ProviderId) -> Self {
         Self::NoDefaultModel(provider)
+    }
+
+    pub fn sync_failed(count: usize) -> Self {
+        Self::SyncFailed { count }
     }
 }
 

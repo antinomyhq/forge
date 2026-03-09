@@ -19,7 +19,7 @@ use url::Url;
 use crate::Walker;
 use crate::user::{User, UserUsage};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
@@ -144,6 +144,13 @@ pub struct PlanCreateOutput {
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
     pub after_undo: Option<String>,
+}
+
+/// Output from todo_write tool execution
+#[derive(Debug)]
+pub struct TodoWriteOutput {
+    /// List of todos that were saved
+    pub todos: Vec<forge_domain::Todo>,
 }
 
 #[derive(Debug)]
@@ -318,6 +325,9 @@ pub trait WorkspaceService: Send + Sync {
 
     /// Create new authentication credentials
     async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
+
+    /// Initialize a workspace without syncing files
+    async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId>;
 }
 
 #[async_trait::async_trait]
@@ -1120,5 +1130,9 @@ impl<I: Services> WorkspaceService for I {
 
     async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
         self.workspace_service().init_auth_credentials().await
+    }
+
+    async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId> {
+        self.workspace_service().init_workspace(path).await
     }
 }

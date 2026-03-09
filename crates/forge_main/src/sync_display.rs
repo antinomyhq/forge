@@ -16,9 +16,11 @@ impl SyncProgressDisplay for SyncProgress {
         match self {
             Self::Starting => Some("Initializing sync".to_string()),
             Self::WorkspaceCreated { workspace_id } => {
-                Some(format!("Created Workspace: {}", workspace_id))
+                Some(format!("Created workspace: {}", workspace_id))
             }
-            Self::DiscoveringFiles { path: _ } => None,
+            Self::DiscoveringFiles { path: _, workspace_id } => {
+                Some(format!("Analyzing workspace: {workspace_id}"))
+            }
             Self::FilesDiscovered { count: _ } => None,
             Self::ComparingFiles { .. } => None,
             Self::DiffComputed { added, deleted, modified } => {
@@ -77,6 +79,7 @@ fn pluralize(count: usize) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use forge_api::WorkspaceId;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -151,11 +154,17 @@ mod tests {
 
     #[test]
     fn test_discovering_files_returns_none() {
-        let fixture =
-            SyncProgress::DiscoveringFiles { path: std::path::PathBuf::from("/some/path") };
-        let actual = fixture.message();
-        let expected = None;
-        assert_eq!(actual, expected);
+        let workspace_id = WorkspaceId::generate();
+        let fixture = SyncProgress::DiscoveringFiles {
+            path: std::path::PathBuf::from("/some/path"),
+            workspace_id: workspace_id.clone(),
+        };
+        assert!(
+            fixture
+                .message()
+                .unwrap()
+                .contains(workspace_id.to_string().as_str())
+        );
     }
 
     #[test]
