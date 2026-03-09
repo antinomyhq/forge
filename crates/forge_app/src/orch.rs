@@ -159,7 +159,7 @@ impl<S: AgentService> Orchestrator<S> {
         match operation {
             forge_domain::HandleOperation::Continue => vec![],
             forge_domain::HandleOperation::AgentError(err) => {
-                vec![anyhow::anyhow!("{}", err)]
+                vec![anyhow::anyhow!(Arc::clone(&err))]
             }
             forge_domain::HandleOperation::UserMessage(msg) => {
                 if let Some(sender) = sender {
@@ -171,7 +171,7 @@ impl<S: AgentService> Orchestrator<S> {
                 if let Some(sender) = sender {
                     let _ = sender.send(Ok(user_message)).await;
                 }
-                vec![anyhow::anyhow!("{}", agent_error)]
+                vec![anyhow::anyhow!(Arc::clone(&agent_error))]
             }
             forge_domain::HandleOperation::And(first, second) => {
                 let mut errors = Self::handle_operation(sender, *first).await;
