@@ -116,9 +116,9 @@ impl Runner {
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
             .hook(Arc::new(
-            Hook::default().on_toolcall_start(DoomLoopDetector::default()),
-        ))
-        .sender(tx);
+                Hook::default().on_toolcall_start(DoomLoopDetector::default()),
+            ))
+            .sender(tx);
 
         let (mut orch, runner) = (orch, services);
 

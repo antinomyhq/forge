@@ -284,9 +284,7 @@ mod tests {
             TitleTask::InProgress(tokio::spawn(async { Some("generated".into()) })),
         );
 
-        handler
-            .handle(&event(EndPayload), &mut conversation)
-            .await;
+        handler.handle(&event(EndPayload), &mut conversation).await;
 
         assert_eq!(conversation.title, Some("generated".into()));
         assert!(matches!(
@@ -303,9 +301,7 @@ mod tests {
             TitleTask::InProgress(tokio::spawn(async { panic!("fail") })),
         );
 
-        handler
-            .handle(&event(EndPayload), &mut conversation)
-            .await;
+        handler.handle(&event(EndPayload), &mut conversation).await;
 
         assert!(conversation.title.is_none());
         assert!(!handler.title_tasks.contains_key(&conversation.id));
@@ -326,9 +322,7 @@ mod tests {
             let mut conv = conversation.clone();
             joins.push(tokio::spawn(async move {
                 barrier.wait().await;
-                handler
-                    .handle(&event(StartPayload), &mut conv)
-                    .await;
+                handler.handle(&event(StartPayload), &mut conv).await;
             }));
         }
         for j in joins {
