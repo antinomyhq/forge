@@ -216,6 +216,7 @@ pub struct ReasoningConfig {
 
 impl ReasoningConfig {
     pub fn effort(mut self, effort: Effort) -> Self {
+        // if effort is set to None, then disable reasoning directly.
         if matches!(effort, Effort::None) {
             self.enabled = Some(false);
         }
