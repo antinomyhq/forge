@@ -3130,25 +3130,54 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle config set command
     async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
-        use crate::cli::ConfigField;
+        use crate::cli::ConfigSetField;
 
-        // Set the specified field
         match args.field {
-            ConfigField::Provider => {
-                // Parse provider ID (any string is valid for custom providers)
+            ConfigSetField::Provider { provider } => {
                 let provider_id =
-                    ProviderId::from_str(&args.value).expect("from_str is infallible");
+                    ProviderId::from_str(&provider).expect("from_str is infallible");
 
-                // Get the provider
                 let provider = self.api.get_provider(&provider_id).await?;
-                // Activate the provider (will configure if needed and set as default)
                 self.activate_provider(provider).await?;
             }
-            ConfigField::Model => {
-                let model_id = self.validate_model(&args.value).await?;
+            ConfigSetField::Model { model } => {
+                let model_id = self.validate_model(&model).await?;
                 self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+                )?;
+            }
+            ConfigSetField::ModelReasoning { provider, model, effort } => {
+                let provider_id =
+                    ProviderId::from_str(&provider).expect("from_str is infallible");
+                let model_id = ModelId::new(&model);
+
+                let value_lower = effort.to_lowercase();
+                let reasoning = if value_lower == "none" || value_lower == "off" {
+                    None
+                } else {
+                    use std::str::FromStr;
+                    let effort = forge_domain::Effort::from_str(&value_lower)
+                        .map_err(|_| anyhow::anyhow!("Invalid reasoning effort '{}'. Valid values: low, medium, high, none", effort))?;
+                    Some(
+                        forge_domain::ReasoningConfig::default()
+                            .effort(effort.clone()),
+                    )
+                };
+
+                self.api
+                    .set_model_reasoning(provider_id, model_id.clone(), reasoning.clone())
+                    .await?;
+
+                let display = reasoning
+                    .as_ref()
+                    .and_then(|r| r.effort.as_ref())
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "none".to_string());
+
+                self.writeln_title(
+                    TitleFormat::action(&format!("{} reasoning", model_id.as_str()))
+                        .sub_title(&format!("set to {}", display)),
                 )?;
             }
         }
@@ -3158,11 +3187,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle config get command
     async fn handle_config_get(&mut self, args: crate::cli::ConfigGetArgs) -> Result<()> {
-        use crate::cli::ConfigField;
+        use crate::cli::ConfigGetField;
 
-        // Get specific field
         match args.field {
-            ConfigField::Model => {
+            ConfigGetField::Model => {
                 let model = self
                     .api
                     .get_default_model()
@@ -3173,17 +3201,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     None => self.writeln("Model: Not set")?,
                 }
             }
-            ConfigField::Provider => {
+            ConfigGetField::Provider => {
                 let provider = self
                     .api
                     .get_default_provider()
                     .await
                     .ok()
-                    .map(|p| p.id.to_string());
+                    .map(|p| p.id.as_ref().to_string());
                 match provider {
-                    Some(v) => self.writeln(v.to_string())?,
+                    Some(v) => self.writeln(v)?,
                     None => self.writeln("Provider: Not set")?,
                 }
+            }
+            ConfigGetField::ModelReasoning { provider, model } => {
+                let provider_id =
+                    ProviderId::from_str(&provider).expect("from_str is infallible");
+                let model_id = ModelId::new(&model);
+                let reasoning = self
+                    .api
+                    .get_model_reasoning(&provider_id, &model_id)
+                    .await?;
+                let display = reasoning
+                    .as_ref()
+                    .and_then(|r| r.effort.as_ref())
+                    .map(|e| e.to_string())
+                    .unwrap_or_else(|| "none".to_string());
+                self.writeln(display)?;
             }
         }
 

@@ -231,6 +231,59 @@ function _forge_action_tools() {
     _forge_exec list tools "$agent_id"
 }
 
+# Action handler: Set model reasoning effort for the current model/provider
+# Fetches the active provider and model, then sets reasoning for that pair
+# Usage: :model-reasoning [low|medium|high|none]
+function _forge_action_model_reasoning() {
+    local input_text="$1"
+    echo
+
+    # Resolve current provider and model
+    local current_provider
+    current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
+    if [[ -z "$current_provider" ]]; then
+        echo "No provider configured. Use :provider to set one first."
+        return 1
+    fi
+
+    local current_model
+    current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+    if [[ -z "$current_model" ]]; then
+        echo "No model configured. Use :model to set one first."
+        return 1
+    fi
+
+    # If an effort value is provided directly, apply it
+    if [[ -n "$input_text" ]]; then
+        _forge_exec config set model-reasoning "$current_provider" "$current_model" "$input_text"
+        return 0
+    fi
+
+    # Get current reasoning effort for display
+    local current_reasoning
+    current_reasoning=$($_FORGE_BIN config get model-reasoning "$current_provider" "$current_model" --porcelain 2>/dev/null)
+
+    # Build selection list with fzf
+    local options
+    options=$(printf 'EFFORT\nnone\nlow\nmedium\nhigh')
+
+    local fzf_args=(
+        --prompt="Reasoning ❯ "
+    )
+
+    if [[ -n "$current_reasoning" ]]; then
+        local index=$(_forge_find_index "$options" "$current_reasoning")
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    local selected
+    selected=$(echo "$options" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+    if [[ -n "$selected" ]]; then
+        _forge_exec config set model-reasoning "$current_provider" "$current_model" "$selected"
+    fi
+}
+
 # Action handler: Show skills
 function _forge_action_skill() {
     echo

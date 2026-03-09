@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
+use forge_domain::{
+    AppConfig, AppConfigRepository, ModelConfig, ModelId, ProviderId, ProviderRepository,
+};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -79,6 +81,55 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
             config.model.insert(provider_id, model.clone());
         })
         .await
+    }
+
+    async fn set_model_reasoning(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+        reasoning: Option<forge_domain::ReasoningConfig>,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            match reasoning {
+                Some(r) => {
+                    config
+                        .provider_config
+                        .entry(provider_id.clone())
+                        .or_default()
+                        .entry(model_id)
+                        .or_insert_with(ModelConfig::default)
+                        .reasoning = Some(r);
+                }
+                None => {
+                    // Remove reasoning config; clean up empty entries
+                    if let Some(models) = config.provider_config.get_mut(&provider_id) {
+                        if let Some(mc) = models.get_mut(&model_id) {
+                            mc.reasoning = None;
+                            if mc == &ModelConfig::default() {
+                                models.remove(&model_id);
+                            }
+                        }
+                        if models.is_empty() {
+                            config.provider_config.remove(&provider_id);
+                        }
+                    }
+                }
+            }
+        })
+        .await
+    }
+
+    async fn get_model_reasoning(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config
+            .provider_config
+            .get(provider_id)
+            .and_then(|models| models.get(model_id))
+            .and_then(|mc| mc.reasoning.clone()))
     }
 }
 

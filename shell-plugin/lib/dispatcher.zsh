@@ -166,6 +166,9 @@ function forge-accept-line() {
         model|m)
             _forge_action_model "$input_text"
         ;;
+        model-reasoning|mr)
+            _forge_action_model_reasoning "$input_text"
+        ;;
         tools|t)
             _forge_action_tools
         ;;

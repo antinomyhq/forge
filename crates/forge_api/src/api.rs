@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, InitAuth, ModelId, ProviderModels};
+use forge_domain::{AgentId, InitAuth, ModelId, ProviderId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -156,6 +156,23 @@ pub trait API: Sync + Send {
 
     /// Sets the operating model
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+
+    /// Sets reasoning configuration for a specific model under a specific
+    /// provider.
+    async fn set_model_reasoning(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+        reasoning: Option<forge_domain::ReasoningConfig>,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the reasoning configuration for a specific model under a specific
+    /// provider, if set.
+    async fn get_model_reasoning(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

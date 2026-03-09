@@ -16,6 +16,10 @@
     "description": "Switch the models [alias: m]"
   },
   {
+    "command": "model-reasoning",
+    "description": "Set reasoning effort for the current model [alias: mr]"
+  },
+  {
     "command": "new",
     "description": "Start new conversation [alias: n]"
   },

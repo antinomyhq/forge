@@ -519,28 +519,60 @@ pub enum ConfigCommand {
     List,
 }
 
+/// Arguments for `forge config set`.
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigSetArgs {
-    /// Configuration field to set.
-    pub field: ConfigField,
-
-    /// Value to set.
-    pub value: String,
+    #[command(subcommand)]
+    pub field: ConfigSetField,
 }
 
-/// Configuration fields that can be managed.
-#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfigField {
-    /// The active model.
-    Model,
-    /// The active provider.
-    Provider,
+/// Type-safe subcommands for `forge config set`.
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigSetField {
+    /// Set the active model.
+    Model {
+        /// Model ID to set as default.
+        model: String,
+    },
+    /// Set the active provider.
+    Provider {
+        /// Provider ID to set as default.
+        provider: String,
+    },
+    /// Set reasoning effort for a specific provider and model.
+    #[command(name = "model-reasoning")]
+    ModelReasoning {
+        /// Provider ID.
+        provider: String,
+        /// Model ID.
+        model: String,
+        /// Reasoning effort (low, medium, high, or "none" to clear).
+        effort: String,
+    },
 }
 
+/// Arguments for `forge config get`.
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigGetArgs {
-    /// Configuration field to get.
-    pub field: ConfigField,
+    #[command(subcommand)]
+    pub field: ConfigGetField,
+}
+
+/// Type-safe subcommands for `forge config get`.
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigGetField {
+    /// Get the active model.
+    Model,
+    /// Get the active provider.
+    Provider,
+    /// Get reasoning effort for a specific provider and model.
+    #[command(name = "model-reasoning")]
+    ModelReasoning {
+        /// Provider ID.
+        provider: String,
+        /// Model ID.
+        model: String,
+    },
 }
 
 /// Command group for conversation management.
@@ -815,9 +847,10 @@ mod tests {
         ]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) if args.field == ConfigField::Model => {
-                    Some(args.value.clone())
-                }
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Model { model } => Some(model),
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,
@@ -831,9 +864,10 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "config", "set", "provider", "OpenAI"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) if args.field == ConfigField::Provider => {
-                    Some(args.value.clone())
-                }
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Provider { provider } => Some(provider),
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,
@@ -858,12 +892,66 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "config", "get", "model"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Get(args) => args.field,
+                ConfigCommand::Get(args) => matches!(args.field, ConfigGetField::Model),
                 _ => panic!("Expected ConfigCommand::Get"),
             },
             _ => panic!("Expected TopLevelCommand::Config"),
         };
-        let expected = ConfigField::Model;
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_config_set_model_reasoning() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "set",
+            "model-reasoning",
+            "anthropic",
+            "claude-sonnet-4",
+            "high",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::ModelReasoning { provider, model, effort } => {
+                        Some((provider, model, effort))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some((
+            "anthropic".to_string(),
+            "claude-sonnet-4".to_string(),
+            "high".to_string(),
+        ));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_get_model_reasoning() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "get",
+            "model-reasoning",
+            "anthropic",
+            "claude-sonnet-4",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Get(args) => match args.field {
+                    ConfigGetField::ModelReasoning { provider, model } => Some((provider, model)),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some(("anthropic".to_string(), "claude-sonnet-4".to_string()));
         assert_eq!(actual, expected);
     }
 

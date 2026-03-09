@@ -214,6 +214,23 @@ pub trait AppConfigService: Send + Sync {
     /// # Errors
     /// Returns an error if no default provider is configured.
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
+
+    /// Sets reasoning configuration for a specific model under a specific
+    /// provider.
+    async fn set_model_reasoning(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+        reasoning: Option<forge_domain::ReasoningConfig>,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the reasoning configuration for a specific model under a specific
+    /// provider, if set.
+    async fn get_model_reasoning(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>>;
 }
 
 #[async_trait::async_trait]
@@ -976,11 +993,34 @@ impl<I: Services> AgentRegistry for I {
     }
 
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
-        self.agent_registry().get_agents().await
+        let mut agents = self.agent_registry().get_agents().await?;
+        for agent in &mut agents {
+            if let Ok(Some(reasoning)) = self
+                .config_service()
+                .get_model_reasoning(&agent.provider, &agent.model)
+                .await
+            {
+                agent.reasoning = Some(reasoning);
+            }
+        }
+        Ok(agents)
     }
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
-        self.agent_registry().get_agent(agent_id).await
+        let agent = self.agent_registry().get_agent(agent_id).await?;
+        match agent {
+            Some(mut agent) => {
+                if let Ok(Some(reasoning)) = self
+                    .config_service()
+                    .get_model_reasoning(&agent.provider, &agent.model)
+                    .await
+                {
+                    agent.reasoning = Some(reasoning);
+                }
+                Ok(Some(agent))
+            }
+            None => Ok(None),
+        }
     }
 
     async fn reload_agents(&self) -> anyhow::Result<()> {
@@ -1031,6 +1071,27 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
         self.config_service().set_default_model(model).await
+    }
+
+    async fn set_model_reasoning(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+        reasoning: Option<forge_domain::ReasoningConfig>,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .set_model_reasoning(provider_id, model_id, reasoning)
+            .await
+    }
+
+    async fn get_model_reasoning(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
+        self.config_service()
+            .get_model_reasoning(provider_id, model_id)
+            .await
     }
 }
 
