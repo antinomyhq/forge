@@ -59,8 +59,13 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
     let mut result = "\n".to_string();
 
     enum DiffLine<'a> {
-        Current { todo: &'a Todo, line_style: TodoLineStyle },
-        Removed { todo: &'a Todo },
+        Current {
+            todo: &'a Todo,
+            line_style: TodoLineStyle,
+        },
+        Removed {
+            todo: &'a Todo,
+        },
     }
 
     impl DiffLine<'_> {
@@ -106,7 +111,10 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
                 let content = style(todo.content.as_str()).strikethrough().to_string();
 
                 if todo.status == TodoStatus::Completed {
-                    result.push_str(&format!("  {}\n", style(format!("󰄵 {content}")).white().dim()));
+                    result.push_str(&format!(
+                        "  {}\n",
+                        style(format!("󰄵 {content}")).white().dim()
+                    ));
                 } else {
                     result.push_str(&format!("  {}\n", style(format!("󰄱 {content}")).red()));
                 }
@@ -227,23 +235,43 @@ mod tests {
     #[test]
     fn test_todo_write_dump_flow_in_same_order() {
         let step_1 = vec![
-            fixture_todo("Generate JSONL input file with all 59 cases", "1", TodoStatus::InProgress),
-            fixture_todo("Create JSON schema file for structured output", "2", TodoStatus::Pending),
+            fixture_todo(
+                "Generate JSONL input file with all 59 cases",
+                "1",
+                TodoStatus::InProgress,
+            ),
+            fixture_todo(
+                "Create JSON schema file for structured output",
+                "2",
+                TodoStatus::Pending,
+            ),
             fixture_todo("Create system prompt template", "3", TodoStatus::Pending),
             fixture_todo("Create user prompt template", "4", TodoStatus::Pending),
             fixture_todo("Test with 2-3 cases first", "5", TodoStatus::Pending),
             fixture_todo("Run for all cases", "6", TodoStatus::Pending),
         ];
         let step_2 = vec![
-            fixture_todo("Generate JSONL input file with all 59 cases", "1", TodoStatus::Completed),
-            fixture_todo("Create JSON schema file for structured output", "2", TodoStatus::InProgress),
+            fixture_todo(
+                "Generate JSONL input file with all 59 cases",
+                "1",
+                TodoStatus::Completed,
+            ),
+            fixture_todo(
+                "Create JSON schema file for structured output",
+                "2",
+                TodoStatus::InProgress,
+            ),
             fixture_todo("Create system prompt template", "3", TodoStatus::Pending),
             fixture_todo("Create user prompt template", "4", TodoStatus::Pending),
             fixture_todo("Test with 2-3 cases first", "5", TodoStatus::Pending),
             fixture_todo("Run for all cases", "6", TodoStatus::Pending),
         ];
         let step_3 = vec![
-            fixture_todo("Create JSON schema file for structured output", "2", TodoStatus::Completed),
+            fixture_todo(
+                "Create JSON schema file for structured output",
+                "2",
+                TodoStatus::Completed,
+            ),
             fixture_todo("Create system prompt template", "3", TodoStatus::InProgress),
             fixture_todo("Create user prompt template", "4", TodoStatus::Pending),
             fixture_todo("Test with 2-3 cases first", "5", TodoStatus::Pending),
