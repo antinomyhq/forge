@@ -1,4 +1,4 @@
-use crate::{Context, Transformer};
+use crate::{Context, ReasoningConfig, Transformer};
 
 #[derive(Default)]
 pub struct DropReasoningDetails;
@@ -12,8 +12,8 @@ impl Transformer for DropReasoningDetails {
             }
         });
 
-        // Drop reasoning configuration
-        context.reasoning = None;
+        // Since this transformer disables reasoning completely, then we should set enabled to false instead setting the base object to None.
+        context.reasoning = Some(ReasoningConfig::default().enabled(false));
 
         context
     }
