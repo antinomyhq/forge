@@ -1114,7 +1114,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let provider_display = pm.provider_id.to_string();
             for model in &pm.models {
                 let id = model.id.to_string();
-
                 info = info
                     .add_title(&id)
                     .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
@@ -1161,7 +1160,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).uppercase_headers())?;
+            self.writeln(Porcelain::from(&info).truncate(1, 40).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -1700,7 +1699,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
-        self.on_zsh_doctor().await
+        let doctor_result = self.on_zsh_doctor().await;
+
+        if doctor_result.is_ok() {
+            self.writeln_title(TitleFormat::warning(
+                "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
+            ))?;
+            self.writeln_title(TitleFormat::warning(
+                "run `: Hi` after restarting your shell to confirm everything works",
+            ))?;
+        }
+
+        doctor_result
     }
 
     /// Handle the cmd command - generates shell command from natural language

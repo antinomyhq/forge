@@ -94,6 +94,7 @@ impl Default for TestContext {
                 max_image_size: 262144,
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 max_extensions: 15,
+                parallel_file_reads: 64,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

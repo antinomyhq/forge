@@ -96,6 +96,10 @@ pub struct Environment {
     /// Set to "json" (or "true"/"1"/"yes") for JSON, "html" for HTML, or
     /// unset/other to disable.
     pub auto_dump: Option<AutoDumpFormat>,
+    /// Maximum number of files read concurrently in parallel operations.
+    /// Controlled by FORGE_PARALLEL_FILE_READS environment variable.
+    /// Caps the `buffer_unordered` concurrency to avoid EMFILE errors.
+    pub parallel_file_reads: usize,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -334,6 +338,7 @@ fn test_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         max_extensions: 15,
         auto_dump: None,
+        parallel_file_reads: 64,
     };
 
     let actual = fixture.command_path();
@@ -375,6 +380,7 @@ fn test_command_cwd_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         max_extensions: 15,
         auto_dump: None,
+        parallel_file_reads: 64,
     };
 
     let actual = fixture.command_cwd_path();
@@ -416,6 +422,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         max_extensions: 15,
         auto_dump: None,
+        parallel_file_reads: 64,
     };
 
     let command_path = fixture.command_path();
