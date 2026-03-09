@@ -12,7 +12,8 @@ impl Transformer for DropReasoningDetails {
             }
         });
 
-        // Since this transformer disables reasoning completely, then we should set enabled to false instead setting the base object to None.
+        // Since this transformer disables reasoning completely, then we should set
+        // enabled to false instead setting the base object to None.
         context.reasoning = Some(ReasoningConfig::default().enabled(false));
 
         context
