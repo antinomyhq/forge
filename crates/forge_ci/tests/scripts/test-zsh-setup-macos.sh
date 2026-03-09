@@ -384,13 +384,15 @@ filter_path_no_git() {
 }
 
 # Build a PATH that hides both brew and zsh.
-# For the NOBREW_NO_ZSH scenario: remove brew dirs AND create a filtered
-# /usr/bin that excludes zsh.
+# For the NOBREW_NO_ZSH scenario: remove brew dirs AND create filtered
+# copies of /usr/bin and /bin that exclude zsh.
 filter_path_no_brew_no_zsh() {
   local temp_bin="$1"
   local no_zsh_dir="$2"
+  local no_zsh_bin_dir="${no_zsh_dir}-bin"
 
   mkdir -p "$no_zsh_dir"
+  mkdir -p "$no_zsh_bin_dir"
 
   # Symlink everything from /usr/bin except zsh
   for f in /usr/bin/*; do
@@ -402,7 +404,17 @@ filter_path_no_brew_no_zsh() {
     ln -sf "$f" "$no_zsh_dir/$base" 2>/dev/null || true
   done
 
-  # Build new PATH: no brew dirs, /usr/bin replaced with filtered dir
+  # Symlink everything from /bin except zsh (macOS has zsh at /bin/zsh too)
+  for f in /bin/*; do
+    local base
+    base=$(basename "$f")
+    if [ "$base" = "zsh" ]; then
+      continue
+    fi
+    ln -sf "$f" "$no_zsh_bin_dir/$base" 2>/dev/null || true
+  done
+
+  # Build new PATH: no brew dirs, /usr/bin and /bin replaced with filtered dirs
   local filtered=""
   local IFS=':'
   for dir in $PATH; do
@@ -415,6 +427,9 @@ filter_path_no_brew_no_zsh() {
         ;;
       /usr/bin)
         dir="$no_zsh_dir"
+        ;;
+      /bin)
+        dir="$no_zsh_bin_dir"
         ;;
     esac
     if [ -n "$filtered" ]; then
