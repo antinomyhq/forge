@@ -411,4 +411,23 @@ mod tests {
         assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("write")));
         assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Write")));
     }
+
+    #[test]
+    fn test_capitalized_task_alias() {
+        // Test that capitalized "Task" resolves to "task"
+        let all_tool_definitions = vec![ToolDefinition::new("task").description("Task Tool")];
+
+        let _tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("task")]);
+
+        // Both lowercase and capitalized should be allowed
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("task")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Task")));
+    }
 }
