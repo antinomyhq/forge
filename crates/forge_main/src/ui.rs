@@ -3134,33 +3134,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         match args.field {
             ConfigSetField::Provider { provider } => {
-                let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
-
-                let provider = self.api.get_provider(&provider_id).await?;
+                let provider = self.api.get_provider(&provider).await?;
                 self.activate_provider(provider).await?;
             }
             ConfigSetField::Model { model } => {
-                let model_id = self.validate_model(&model).await?;
+                let model_id = self.validate_model(model.as_str()).await?;
                 self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
             }
-            ConfigSetField::ModelReasoning { provider, model, effort } => {
-                let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
-                let model_id = ModelId::new(&model);
-                let value_lower = effort.to_lowercase();
-                let effort = forge_domain::Effort::from_str(&value_lower).map_err(|_| {
-                    use strum::VariantNames;
-                    anyhow::anyhow!(
-                        "Invalid reasoning effort '{}'. Valid values: {}",
-                        effort,
-                        forge_domain::Effort::VARIANTS.join(", ")
-                    )
-                })?;
+            ConfigSetField::ModelReasoning { provider, model: model_id, effort } => {
                 let reasoning = Some(forge_domain::ReasoningConfig::default().effort(effort));
                 self.api
-                    .set_model_reasoning(provider_id, model_id.clone(), reasoning.clone())
+                    .set_model_reasoning(provider, model_id.clone(), reasoning.clone())
                     .await?;
 
                 let display = reasoning
@@ -3214,11 +3201,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ConfigGetField::ModelReasoning { provider, model } => {
-                let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
-                let model_id = ModelId::new(&model);
                 let reasoning = self
                     .api
-                    .get_model_reasoning(&provider_id, &model_id)
+                    .get_model_reasoning(&provider, &model)
                     .await?;
                 let display = reasoning
                     .as_ref()
