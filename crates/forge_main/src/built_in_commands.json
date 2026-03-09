@@ -48,6 +48,18 @@
     "description": "List all available skills"
   },
   {
+    "command": "worktree",
+    "description": "List and switch between git worktrees using fzf [alias: wt]"
+  },
+  {
+    "command": "worktree-create",
+    "description": "Create a new git worktree for a branch [alias: wtc]"
+  },
+  {
+    "command": "worktree-delete",
+    "description": "Delete a git worktree; uses fzf picker when no path given [alias: wtd]"
+  },
+  {
     "command": "commit",
     "description": "Directly commits AI generated commit message"
   },

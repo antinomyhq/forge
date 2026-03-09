@@ -190,6 +190,17 @@ function forge-accept-line() {
             # Note: suggest action intentionally modifies BUFFER and handles its own prompt reset
             return
         ;;
+        worktree|wt)
+            _forge_action_worktree
+        ;;
+        worktree-create|wtc)
+            _forge_action_worktree_create "$input_text"
+        ;;
+        worktree-delete|wtd)
+            _forge_action_worktree_delete "$input_text"
+            # Note: worktree-delete modifies BUFFER and handles its own prompt reset
+            return
+        ;;
         clone)
             _forge_action_clone "$input_text"
         ;;
