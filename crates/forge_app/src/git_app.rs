@@ -319,7 +319,7 @@ where
             Some((provider_id, commit_model)) => {
                 match self.services.get_provider(provider_id).await {
                     Ok(provider) => {
-                        (match self.services.refresh_provider_credential(provider).await {
+                        match self.services.refresh_provider_credential(provider).await {
                             Ok(provider) => (provider, commit_model),
                             Err(err) => {
                                 tracing::warn!(
@@ -332,7 +332,7 @@ where
                                 )
                                 .await?
                             }
-                        })
+                        } 
                     }
                     Err(err) => {
                         tracing::warn!(
