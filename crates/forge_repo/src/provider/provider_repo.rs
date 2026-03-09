@@ -190,7 +190,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             if config.id == ProviderId::OPENAI && has_openai_url {
                 continue;
             }
-            if config.id == ProviderId::OPENAI_COMPATIBLE && !has_openai_url {
+            if (config.id == ProviderId::OPENAI_COMPATIBLE
+                || config.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
+                && !has_openai_url
+            {
                 continue;
             }
             if config.id == ProviderId::ANTHROPIC && has_anthropic_url {
@@ -556,6 +559,24 @@ mod tests {
         assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
         assert!(&config.url.contains("{{OPENAI_URL}}"));
+    }
+
+    #[test]
+    fn test_openai_responses_compatible_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::OPENAI_RESPONSES_COMPATIBLE);
+        assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
+        assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenAIResponses));
+        assert_eq!(config.url, "{{OPENAI_URL}}/responses");
+        match config.models.as_ref().unwrap() {
+            Models::Url(model_url) => assert_eq!(model_url, "{{OPENAI_URL}}/models"),
+            Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
     }
 
     #[test]

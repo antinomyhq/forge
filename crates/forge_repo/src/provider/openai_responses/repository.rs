@@ -330,10 +330,41 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponsesResponseRepositor
         })))
     }
 
-    async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        // Codex models don't support model listing via the Responses API
-        // Return empty list or hardcoded models
-        Ok(vec![])
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        match provider.models().cloned() {
+            Some(forge_domain::ModelSource::Hardcoded(models)) => Ok(models),
+            Some(forge_domain::ModelSource::Url(url)) => {
+                let provider_client = OpenAIResponsesProvider::new(provider, self.infra.clone());
+                let headers = create_headers(provider_client.get_headers());
+                let response = self
+                    .infra
+                    .http_get(&url, Some(headers))
+                    .await
+                    .with_context(|| format_http_context(None, "GET", &url))
+                    .with_context(|| "Failed to fetch models")?;
+
+                let status = response.status();
+                let ctx_message = format_http_context(Some(status), "GET", &url);
+                let response_text = response
+                    .text()
+                    .await
+                    .with_context(|| ctx_message.clone())
+                    .with_context(|| "Failed to decode response into text")?;
+
+                if !status.is_success() {
+                    return Err(anyhow::anyhow!(response_text))
+                        .with_context(|| ctx_message)
+                        .with_context(|| "Failed to fetch models");
+                }
+
+                let data: forge_app::dto::openai::ListModelResponse =
+                    serde_json::from_str(&response_text)
+                        .with_context(|| format_http_context(None, "GET", &url))
+                        .with_context(|| "Failed to deserialize models response")?;
+                Ok(data.data.into_iter().map(Into::into).collect())
+            }
+            None => Ok(vec![]),
+        }
     }
 }
 
