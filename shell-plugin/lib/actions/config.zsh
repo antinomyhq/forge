@@ -242,14 +242,14 @@ function _forge_action_model_reasoning() {
     local current_provider
     current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
     if [[ -z "$current_provider" ]]; then
-        echo "No provider configured. Use :provider to set one first."
+        _forge_log error "No provider configured. Use :provider to set one first."
         return 1
     fi
 
     local current_model
     current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
     if [[ -z "$current_model" ]]; then
-        echo "No model configured. Use :model to set one first."
+        _forge_log error "No model configured. Use :model to set one first."
         return 1
     fi
 
