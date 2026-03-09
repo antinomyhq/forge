@@ -3152,7 +3152,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 let value_lower = effort.to_lowercase();
                 let reasoning = if value_lower == "none" || value_lower == "off" {
-                    None
+                    // Store disabled state explicitly so providers know to turn
+                    // off reasoning rather than leaving it at the model default.
+                    Some(forge_domain::ReasoningConfig::default().enabled(false))
                 } else {
                     use std::str::FromStr;
                     let effort = forge_domain::Effort::from_str(&value_lower).map_err(|_| {
@@ -3170,7 +3172,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 let display = reasoning
                     .as_ref()
-                    .and_then(|r| r.effort.as_ref())
+                    .and_then(|r| {
+                        if r.enabled == Some(false) {
+                            None
+                        } else {
+                            r.effort.as_ref()
+                        }
+                    })
                     .map(|e| e.to_string())
                     .unwrap_or_else(|| "none".to_string());
 
