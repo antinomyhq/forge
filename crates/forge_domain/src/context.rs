@@ -18,7 +18,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    Attachment, AttachmentContent, ConversationId, Effort, EventValue, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage
+    Attachment, AttachmentContent, ConversationId, Effort, EventValue, Image, ModelId,
+    ReasoningFull, ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Response format for structured output
