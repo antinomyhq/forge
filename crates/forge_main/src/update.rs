@@ -5,14 +5,13 @@ use forge_api::{API, Update};
 use forge_tracker::VERSION;
 use update_informer::{Check, Version, registry};
 
-/// Package name for forge on npm.
-const FORGE_NPM_PACKAGE: &str = "forgecode";
-
-/// Runs npm update in the background, failing silently
-async fn execute_update_command(api: Arc<impl API>) {
+/// Runs the official installation script to update Forge, failing silently.
+/// When `auto_update` is true, exits immediately after a successful update
+/// without prompting the user.
+async fn execute_update_command(api: Arc<impl API>, auto_update: bool) {
     // Spawn a new task that won't block the main application
     let output = api
-        .execute_shell_command_raw(&format!("npm update -g {FORGE_NPM_PACKAGE} --force"))
+        .execute_shell_command_raw("curl -fsSL https://forgecode.dev/cli | sh")
         .await;
 
     match output {
@@ -23,12 +22,17 @@ async fn execute_update_command(api: Arc<impl API>) {
         }
         Ok(output) => {
             if output.success() {
-                let answer = forge_select::ForgeSelect::confirm(
-                    "You need to close forge to complete update. Do you want to close it now?",
-                )
-                .with_default(true)
-                .prompt();
-                if answer.unwrap_or_default().unwrap_or_default() {
+                let should_exit = if auto_update {
+                    true
+                } else {
+                    let answer = forge_select::ForgeSelect::confirm(
+                        "You need to close forge to complete update. Do you want to close it now?",
+                    )
+                    .with_default(true)
+                    .prompt();
+                    answer.unwrap_or_default().unwrap_or_default()
+                };
+                if should_exit {
                     std::process::exit(0);
                 }
             } else {
@@ -72,13 +76,13 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
         return;
     }
 
-    let informer =
-        update_informer::new(registry::Npm, FORGE_NPM_PACKAGE, VERSION).interval(frequency.into());
+    let informer = update_informer::new(registry::GitHub, "antinomyhq/forge", VERSION)
+        .interval(frequency.into());
 
     if let Some(version) = informer.check_version().ok().flatten()
         && (auto_update || confirm_update(version).await)
     {
-        execute_update_command(api).await;
+        execute_update_command(api, auto_update).await;
     }
 }
 

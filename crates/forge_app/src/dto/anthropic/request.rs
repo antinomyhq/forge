@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct Request {
     pub max_tokens: u64,
     pub messages: Vec<Message>,
-    pub model: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<Metadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -30,6 +31,8 @@ pub struct Request {
     pub thinking: Option<Thinking>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_format: Option<OutputFormat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub anthropic_version: Option<String>,
 }
 
 #[derive(Serialize, Default)]
@@ -65,9 +68,7 @@ pub struct Thinking {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutputFormat {
     #[serde(rename = "json_schema")]
-    JsonSchema {
-        schema: schemars::schema::RootSchema,
-    },
+    JsonSchema { schema: schemars::Schema },
 }
 
 #[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]

@@ -14,7 +14,7 @@ use rmcp::transport::sse_client::SseClientConfig;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
 use rmcp::transport::{SseClientTransport, StreamableHttpClientTransport, TokioChildProcess};
 use rmcp::{RoleClient, ServiceExt};
-use schemars::schema::RootSchema;
+use schemars::Schema;
 use serde_json::Value;
 use tokio::process::Command;
 
@@ -161,7 +161,7 @@ impl ForgeMcpClient {
                     ToolDefinition::new(tool.name)
                         .description(tool.description.unwrap_or_default())
                         .input_schema(
-                            serde_json::from_value::<RootSchema>(Value::Object(
+                            serde_json::from_value::<Schema>(Value::Object(
                                 tool.input_schema.as_ref().clone(),
                             ))
                             .ok()?,

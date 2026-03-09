@@ -1,21 +1,21 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Workflow",
-  "description": "Configuration for a workflow that contains all settings required to initialize a workflow.",
+  "description": "Configuration for a workflow that contains all settings\nrequired to initialize a workflow.",
   "type": "object",
   "properties": {
     "commands": {
       "description": "Commands that can be used to interact with the workflow",
       "type": "array",
       "items": {
-        "$ref": "#/definitions/Command"
+        "$ref": "#/$defs/Command"
       }
     },
     "compact": {
-      "description": "Configuration for automatic context compaction for all agents If specified, this will be applied to all agents in the workflow If not specified, each agent's individual setting will be used",
+      "description": "Configuration for automatic context compaction for all agents\nIf specified, this will be applied to all agents in the workflow\nIf not specified, each agent's individual setting will be used",
       "anyOf": [
         {
-          "$ref": "#/definitions/Compact"
+          "$ref": "#/$defs/Compact"
         },
         {
           "type": "null"
@@ -23,7 +23,7 @@
       ]
     },
     "custom_rules": {
-      "description": "A set of custom rules that all agents should follow These rules will be applied in addition to each agent's individual rules",
+      "description": "A set of custom rules that all agents should follow\nThese rules will be applied in addition to each agent's individual rules",
       "type": [
         "string",
         "null"
@@ -36,13 +36,13 @@
         "null"
       ],
       "format": "uint",
-      "minimum": 0.0
+      "minimum": 0
     },
     "max_tokens": {
-      "description": "Maximum number of tokens the model can generate for all agents\n\nControls the maximum length of the model's response. - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 - If not specified, each agent's individual setting or the model provider's default will be used",
+      "description": "Maximum number of tokens the model can generate for all agents\n\nControls the maximum length of the model's response.\n- Lower values (e.g., 100) limit response length for concise outputs\n- Higher values (e.g., 4000) allow for longer, more detailed responses\n- Valid range is 1 to 100,000\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
       "anyOf": [
         {
-          "$ref": "#/definitions/MaxTokens"
+          "$ref": "#/$defs/MaxTokens"
         },
         {
           "type": "null"
@@ -50,19 +50,19 @@
       ]
     },
     "max_tool_failure_per_turn": {
-      "description": "Maximum number of times a tool can fail before the orchestrator forces the completion.",
+      "description": "Maximum number of times a tool can fail before the orchestrator\nforces the completion.",
       "type": [
         "integer",
         "null"
       ],
       "format": "uint",
-      "minimum": 0.0
+      "minimum": 0
     },
     "temperature": {
-      "description": "Temperature used for all agents\n\nTemperature controls the randomness in the model's output. - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0 - If not specified, each agent's individual setting or the model provider's default will be used",
+      "description": "Temperature used for all agents\n\nTemperature controls the randomness in the model's output.\n- Lower values (e.g., 0.1) make responses more focused, deterministic,\n  and coherent\n- Higher values (e.g., 0.8) make responses more creative, diverse, and\n  exploratory\n- Valid range is 0.0 to 2.0\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
       "anyOf": [
         {
-          "$ref": "#/definitions/Temperature"
+          "$ref": "#/$defs/Temperature"
         },
         {
           "type": "null"
@@ -77,17 +77,17 @@
       ]
     },
     "tool_supported": {
-      "description": "Flag to enable/disable tool support for all agents in this workflow. If not specified, each agent's individual setting will be used. Default is false (tools disabled) when not specified.",
+      "description": "Flag to enable/disable tool support for all agents in this workflow.\nIf not specified, each agent's individual setting will be used.\nDefault is false (tools disabled) when not specified.",
       "type": [
         "boolean",
         "null"
       ]
     },
     "top_k": {
-      "description": "Top-k used for all agents\n\nControls the number of highest probability vocabulary tokens to keep. - Lower values (e.g., 10) make responses more focused - Higher values (e.g., 100) make responses more diverse - Valid range is 1 to 1000 - If not specified, each agent's individual setting or the model provider's default will be used",
+      "description": "Top-k used for all agents\n\nControls the number of highest probability vocabulary tokens to keep.\n- Lower values (e.g., 10) make responses more focused\n- Higher values (e.g., 100) make responses more diverse\n- Valid range is 1 to 1000\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
       "anyOf": [
         {
-          "$ref": "#/definitions/TopK"
+          "$ref": "#/$defs/TopK"
         },
         {
           "type": "null"
@@ -95,10 +95,10 @@
       ]
     },
     "top_p": {
-      "description": "Top-p (nucleus sampling) used for all agents\n\nControls the diversity of the model's output by considering only the most probable tokens up to a cumulative probability threshold. - Lower values (e.g., 0.1) make responses more focused - Higher values (e.g., 0.9) make responses more diverse - Valid range is 0.0 to 1.0 - If not specified, each agent's individual setting or the model provider's default will be used",
+      "description": "Top-p (nucleus sampling) used for all agents\n\nControls the diversity of the model's output by considering only the\nmost probable tokens up to a cumulative probability threshold.\n- Lower values (e.g., 0.1) make responses more focused\n- Higher values (e.g., 0.9) make responses more diverse\n- Valid range is 0.0 to 1.0\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
       "anyOf": [
         {
-          "$ref": "#/definitions/TopP"
+          "$ref": "#/$defs/TopP"
         },
         {
           "type": "null"
@@ -109,7 +109,7 @@
       "description": "configurations that can be used to update forge",
       "anyOf": [
         {
-          "$ref": "#/definitions/Update"
+          "$ref": "#/$defs/Update"
         },
         {
           "type": "null"
@@ -117,13 +117,9 @@
       ]
     }
   },
-  "definitions": {
+  "$defs": {
     "Command": {
       "type": "object",
-      "required": [
-        "description",
-        "name"
-      ],
       "properties": {
         "description": {
           "type": "string"
@@ -137,17 +133,21 @@
             "null"
           ]
         }
-      }
+      },
+      "required": [
+        "name",
+        "description"
+      ]
     },
     "Compact": {
       "description": "Configuration for automatic context compaction",
       "type": "object",
       "properties": {
         "eviction_window": {
-          "description": "Maximum percentage of the context that can be summarized during compaction. Valid values are between 0.0 and 1.0, where 0.0 means no compaction and 1.0 allows summarizing all messages. Works alongside retention_window - the more conservative limit (fewer messages to compact) takes precedence.",
-          "default": 0.0,
+          "description": "Maximum percentage of the context that can be summarized during\ncompaction. Valid values are between 0.0 and 1.0, where 0.0 means no\ncompaction and 1.0 allows summarizing all messages. Works alongside\nretention_window - the more conservative limit (fewer messages to\ncompact) takes precedence.",
           "type": "number",
-          "format": "double"
+          "format": "double",
+          "default": 0.0
         },
         "max_tokens": {
           "description": "Maximum number of tokens to keep after compaction",
@@ -156,7 +156,7 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 0
         },
         "message_threshold": {
           "description": "Maximum number of messages before triggering compaction",
@@ -165,10 +165,10 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 0
         },
         "model": {
-          "description": "Model ID to use for compaction, useful when compacting with a cheaper/faster model. If not specified, the root level model will be used.",
+          "description": "Model ID to use for compaction, useful when compacting with a\ncheaper/faster model. If not specified, the root level model will be\nused.",
           "type": [
             "string",
             "null"
@@ -182,14 +182,14 @@
           ]
         },
         "retention_window": {
-          "description": "Number of most recent messages to preserve during compaction. These messages won't be considered for summarization. Works alongside eviction_window - the more conservative limit (fewer messages to compact) takes precedence.",
-          "default": 0,
+          "description": "Number of most recent messages to preserve during compaction.\nThese messages won't be considered for summarization. Works alongside\neviction_window - the more conservative limit (fewer messages to\ncompact) takes precedence.",
           "type": "integer",
           "format": "uint",
-          "minimum": 0.0
+          "default": 0,
+          "minimum": 0
         },
         "summary_tag": {
-          "description": "Optional tag name to extract content from when summarizing (e.g., \"summary\")",
+          "description": "Optional tag name to extract content from when summarizing (e.g.,\n\"summary\")",
           "type": [
             "string",
             "null"
@@ -202,7 +202,7 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 0
         },
         "turn_threshold": {
           "description": "Maximum number of conversation turns before triggering compaction",
@@ -211,29 +211,29 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 0
         }
       }
     },
     "MaxTokens": {
-      "description": "A newtype for max_tokens values with built-in validation\n\nMax tokens controls the maximum number of tokens the model can generate: - Lower values (e.g., 100) limit response length for concise outputs - Higher values (e.g., 4000) allow for longer, more detailed responses - Valid range is 1 to 100,000 (reasonable upper bound for most models) - If not specified, the model provider's default will be used",
+      "description": "A newtype for max_tokens values with built-in validation\n\nMax tokens controls the maximum number of tokens the model can generate:\n- Lower values (e.g., 100) limit response length for concise outputs\n- Higher values (e.g., 4000) allow for longer, more detailed responses\n- Valid range is 1 to 100,000 (reasonable upper bound for most models)\n- If not specified, the model provider's default will be used",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0
+      "minimum": 0
     },
     "Temperature": {
-      "description": "A newtype for temperature values with built-in validation\n\nTemperature controls the randomness in the model's output: - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0",
+      "description": "A newtype for temperature values with built-in validation\n\nTemperature controls the randomness in the model's output:\n- Lower values (e.g., 0.1) make responses more focused, deterministic, and\n  coherent\n- Higher values (e.g., 0.8) make responses more creative, diverse, and\n  exploratory\n- Valid range is 0.0 to 2.0",
       "type": "number",
       "format": "float"
     },
     "TopK": {
-      "description": "A newtype for top_k values with built-in validation\n\nTop-k controls the number of highest probability vocabulary tokens to keep: - Lower values (e.g., 10) make responses more focused by considering only the top K most likely tokens - Higher values (e.g., 100) make responses more diverse by considering more token options - Valid range is 1 to 1000 (inclusive)",
+      "description": "A newtype for top_k values with built-in validation\n\nTop-k controls the number of highest probability vocabulary tokens to keep:\n- Lower values (e.g., 10) make responses more focused by considering only\n  the top K most likely tokens\n- Higher values (e.g., 100) make responses more diverse by considering more\n  token options\n- Valid range is 1 to 1000 (inclusive)",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0
+      "minimum": 0
     },
     "TopP": {
-      "description": "A newtype for top_p values with built-in validation\n\nTop-p (nucleus sampling) controls the diversity of the model's output: - Lower values (e.g., 0.1) make responses more focused by considering only the most probable tokens - Higher values (e.g., 0.9) make responses more diverse by considering a broader range of tokens - Valid range is 0.0 to 1.0",
+      "description": "A newtype for top_p values with built-in validation\n\nTop-p (nucleus sampling) controls the diversity of the model's output:\n- Lower values (e.g., 0.1) make responses more focused by considering only\n  the most probable tokens\n- Higher values (e.g., 0.9) make responses more diverse by considering a\n  broader range of tokens\n- Valid range is 0.0 to 1.0",
       "type": "number",
       "format": "float"
     },
@@ -249,7 +249,7 @@
         "frequency": {
           "anyOf": [
             {
-              "$ref": "#/definitions/UpdateFrequency"
+              "$ref": "#/$defs/UpdateFrequency"
             },
             {
               "type": "null"

@@ -10,6 +10,11 @@ use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Install default rustls crypto provider (ring) before any TLS connections
+    // This is required for rustls 0.23+ when multiple crypto providers are
+    // available
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Set up panic hook for better error display
     panic::set_hook(Box::new(|panic_info| {
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
@@ -55,7 +60,16 @@ async fn main() -> Result<()> {
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
+    let cli_model = cli.model.clone();
+    let cli_provider = cli.provider.clone();
+    let mut ui = UI::init(cli, move || {
+        ForgeAPI::init(
+            restricted,
+            cwd.clone(),
+            cli_model.clone(),
+            cli_provider.clone(),
+        )
+    })?;
     ui.run().await;
 
     Ok(())

@@ -19,6 +19,12 @@ export type Validation =
       type: "shell";
       command: string;
       exit_code?: number;
+    }
+  | {
+      name: string;
+      type: "llm";
+      evaluator: string;
+      criteria: Record<string, any>;
     };
 
 export type Source = { csv: string } | { cmd: string } | { value: Record<string, string>[] };

@@ -64,7 +64,8 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
-        let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
+        let directory_reader_service =
+            Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
@@ -114,6 +115,14 @@ impl EnvironmentInfra for ForgeInfra {
 impl FileReaderInfra for ForgeInfra {
     async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
         self.file_read_service.read_utf8(path).await
+    }
+
+    fn read_batch_utf8(
+        &self,
+        batch_size: usize,
+        paths: Vec<PathBuf>,
+    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        self.file_read_service.read_batch_utf8(batch_size, paths)
     }
 
     async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
@@ -252,13 +261,19 @@ impl HttpInfra for ForgeInfra {
         self.http_service.http_get(url, headers).await
     }
 
-    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.http_service.http_post(url, body).await
+    async fn http_post(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Response> {
+        self.http_service.http_post(url, headers, body).await
     }
 
     async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
         self.http_service.http_delete(url).await
     }
+
     async fn http_eventsource(
         &self,
         url: &Url,

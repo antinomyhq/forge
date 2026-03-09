@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
@@ -9,7 +9,6 @@ use forge_app::domain::{
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use forge_domain::{ChatRepository, Provider};
-use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
@@ -18,6 +17,25 @@ use url::Url;
 use crate::provider::event::into_chat_completion_message;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, join_url, sanitize_headers};
+
+/// Enhances error messages with provider-specific helpful information
+fn enhance_error(error: anyhow::Error, provider_id: &ProviderId) -> anyhow::Error {
+    // GitHub Copilot specific error enhancements
+    if *provider_id == ProviderId::GITHUB_COPILOT {
+        let error_string = format!("{:#}", error);
+
+        // Check if this is a model_not_supported error
+        if error_string.contains("model_not_supported")
+            || error_string.contains("requested model is not supported")
+        {
+            return error.context(
+                "This model may not be enabled for your GitHub Copilot subscription. Visit https://github.com/settings/copilot/features to check which models are available to you."
+            );
+        }
+    }
+
+    error
+}
 
 #[derive(Clone)]
 struct OpenAIProvider<H> {
@@ -61,6 +79,13 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                     }
                 }
                 forge_domain::AuthMethod::OAuthCode(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
+                forge_domain::AuthMethod::CodexDevice(oauth_config) => {
                     if let Some(custom_headers) = &oauth_config.custom_headers {
                         custom_headers.iter().for_each(|(k, v)| {
                             headers.push((k.clone(), v.clone()));
@@ -118,7 +143,8 @@ impl<H: HttpInfra> OpenAIProvider<H> {
             .http
             .http_eventsource(&url, Some(headers), json_bytes.into())
             .await
-            .with_context(|| format_http_context(None, "POST", &url))?;
+            .with_context(|| format_http_context(None, "POST", &url))
+            .map_err(|e| enhance_error(e, &self.provider.id))?;
 
         let stream = into_chat_completion_message::<Response>(url, es);
 
@@ -192,13 +218,10 @@ impl<H: HttpInfra> OpenAIProvider<H> {
 
     /// Load Vertex AI models from static JSON file
     fn inner_vertex_models(&self) -> Vec<forge_app::domain::Model> {
-        lazy_static! {
-            static ref VERTEX_MODELS: Vec<forge_app::domain::Model> = {
-                let models =
-                    include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
-                serde_json::from_str(models).unwrap()
-            };
-        }
+        static VERTEX_MODELS: LazyLock<Vec<forge_app::domain::Model>> = LazyLock::new(|| {
+            let models = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../vertex.json"));
+            serde_json::from_str(models).unwrap()
+        });
         VERTEX_MODELS.clone()
     }
 }
@@ -330,7 +353,12 @@ mod tests {
             Ok(request.send().await?)
         }
 
-        async fn http_post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
@@ -649,6 +677,20 @@ mod tests {
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }
+
+    #[test]
+    fn test_enhance_error_github_copilot_model_not_supported() {
+        use crate::provider::openai::enhance_error;
+        // Setup - simulate the actual error from GitHub Copilot
+        let fixture = anyhow::anyhow!(
+            "400 Bad Request Reason: {{\"error\":{{\"message\":\"The requested model is not supported.\",\"code\":\"model_not_supported\"}}}}"
+        );
+
+        // Execute
+        let actual = enhance_error(fixture, &ProviderId::GITHUB_COPILOT);
+        let error_string = format!("{:#}", actual);
+        insta::assert_snapshot!(error_string);
+    }
 }
 
 /// Repository for OpenAI-compatible provider responses
@@ -682,6 +724,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let retry_config = self.retry_config.clone();
+        let provider_id = provider.id.clone();
         let provider_client = OpenAIProvider::new(provider, self.infra.clone());
         let stream = provider_client
             .chat(model_id, context)
@@ -689,7 +732,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
             .map_err(|e| into_retry(e, &retry_config))?;
 
         Ok(Box::pin(stream.map(move |item| {
-            item.map_err(|e| into_retry(e, &retry_config))
+            item.map_err(|e| enhance_error(into_retry(e, &retry_config), &provider_id))
         })))
     }
 

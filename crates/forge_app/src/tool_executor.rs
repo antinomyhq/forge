@@ -6,7 +6,7 @@ use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
-use crate::services::ShellService;
+use crate::services::{Services, ShellService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
@@ -35,7 +35,8 @@ impl<
         + PlanCreateService
         + SkillFetchService
         + AgentRegistry
-        + ProviderService,
+        + ProviderService
+        + Services,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -147,7 +148,11 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(&self, input: ToolCatalog) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(
+        &self,
+        input: ToolCatalog,
+        context: &ToolCallContext,
+    ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             ToolCatalog::Read(input) => {
                 let normalized_path = self.normalize_path(input.file_path.clone());
@@ -209,7 +214,7 @@ impl<
                 let output = input
                     .queries
                     .into_iter()
-                    .zip(results.into_iter())
+                    .zip(results)
                     .map(|(query, results)| CodebaseQueryResult {
                         query: query.query,
                         use_case: query.use_case,
@@ -275,10 +280,10 @@ impl<
                             .option1
                             .clone()
                             .into_iter()
-                            .chain(input.option2.clone().into_iter())
-                            .chain(input.option3.clone().into_iter())
-                            .chain(input.option4.clone().into_iter())
-                            .chain(input.option5.clone().into_iter())
+                            .chain(input.option2.clone())
+                            .chain(input.option3.clone())
+                            .chain(input.option4.clone())
+                            .chain(input.option5.clone())
                             .collect(),
                         input.multiple,
                     )
@@ -299,6 +304,15 @@ impl<
             ToolCatalog::Skill(input) => {
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
                 ToolOperation::Skill { output: skill }
+            }
+            ToolCatalog::TodoWrite(input) => {
+                let before = context.get_todos()?;
+                let after = context.update_todos(input.todos.clone())?;
+                ToolOperation::TodoWrite { before, after }
+            }
+            ToolCatalog::TodoRead(_input) => {
+                let todos = context.get_todos()?;
+                ToolOperation::TodoRead { output: todos }
             }
             ToolCatalog::Task(_) => {
                 // Task tools are handled in ToolRegistry before reaching here
@@ -327,7 +341,7 @@ impl<
             self.require_prior_read(context, &input.file_path, "overwrite it")?;
         }
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");

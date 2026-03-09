@@ -5,7 +5,7 @@ use anyhow::Result;
 use colored::Colorize;
 use forge_domain::ConsoleWriter;
 use indicatif::{ProgressBar, ProgressState, ProgressStyle};
-use rand::Rng;
+use rand::RngExt;
 
 mod progress_bar;
 

@@ -1,6 +1,6 @@
 ---
 source: crates/forge_domain/src/conversation_html.rs
-assertion_line: 503
+assertion_line: 511
 expression: html_bytes
 extension: html
 snapshot_kind: binary

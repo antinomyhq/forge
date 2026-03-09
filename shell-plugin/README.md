@@ -80,6 +80,16 @@ Commands within the same session maintain context:
 
 The plugin automatically manages conversation IDs to maintain context across related commands.
 
+### Command Naming
+
+Shell commands should follow the **Object-Action** format.
+
+Examples:
+- `:provider-login`
+- `:sync-status`
+
+For backward compatibility, `:login` remains available as an alias for `:provider-login`.
+
 ### Session Management
 
 #### Starting New Sessions
@@ -182,7 +192,6 @@ This is useful when you want to:
 #### Session Status
 
 The plugin automatically displays session information including:
-
 - Conversation ID when starting new sessions
 - Active agent information
 - New session confirmations with timestamps
@@ -207,6 +216,14 @@ export FORGE_BIN="/path/to/custom/forge"
 ### Available Configuration Variables
 
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
+- `FORGE_EDITOR`: Editor command to use for `:edit` command (default: `$EDITOR` or `nano`)
+- `FORGE_SYNC_ENABLED`: Enable/disable automatic workspace sync (default: `true`)
+- `FORGE_MAX_COMMIT_DIFF`: Maximum diff size for commit message generation in bytes (default: `100000`)
+- `FORGE_SKIP_INTERACTIVE`: Skip interactive prompts (internal use)
+- `FORGE_CURRENCY_SYMBOL`: Currency symbol for cost display in ZSH theme (default: `"$"`)
+- `FORGE_CURRENCY_CONVERSION_RATE`: Conversion rate for currency display (default: `1.0`)
+- `NERD_FONT`: Enable Nerd Font icons in ZSH theme (default: auto-detected, set to `"1"` or `"true"` to enable, `"0"` or `"false"` to disable)
+- `USE_NERD_FONT`: Alternative variable for enabling Nerd Font icons (same behavior as `NERD_FONT`)
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
@@ -249,7 +266,6 @@ The plugin creates a `.forge` directory in your current working directory (simil
 ### Command History
 
 All transformed commands are properly saved to ZSH history, allowing you to:
-
 - Navigate command history with arrow keys
 - Search previous forge commands with `Ctrl+R`
 - Reuse complex commands with file tags

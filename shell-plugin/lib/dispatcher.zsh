@@ -77,6 +77,8 @@ function _forge_action_default() {
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
+    # Start background update check
+    _forge_start_background_update
 }
 
 function forge-accept-line() {
@@ -130,6 +132,8 @@ function forge-accept-line() {
     #     crates/forge_main/src/built_in_commands.json
     #     Add a new entry: {"command": "name", "description": "Description [alias: x]"}
     #
+    # Naming convention: shell commands should follow Object-Action (e.g., provider-login).
+    #
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
@@ -157,10 +161,10 @@ function forge-accept-line() {
             _forge_action_conversation "$input_text"
         ;;
         provider|p)
-            _forge_action_provider
+            _forge_action_provider "$input_text"
         ;;
         model|m)
-            _forge_action_model
+            _forge_action_model "$input_text"
         ;;
         tools|t)
             _forge_action_tools
@@ -175,7 +179,6 @@ function forge-accept-line() {
         ;;
         commit)
             _forge_action_commit "$input_text"
-            return
         ;;
         commit-preview)
             _forge_action_commit_preview "$input_text"
@@ -190,14 +193,23 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        copy)
+            _forge_action_copy
+        ;;
         sync)
             _forge_action_sync
         ;;
-        login)
-            _forge_action_login
+        sync-status)
+            _forge_action_sync_status
+        ;;
+        sync-info)
+            _forge_action_sync_info
+        ;;
+        provider-login|login)
+            _forge_action_login "$input_text"
         ;;
         logout)
-            _forge_action_logout
+            _forge_action_logout "$input_text"
         ;;
         doctor)
             _forge_action_doctor
@@ -212,6 +224,6 @@ function forge-accept-line() {
     
     # Centralized reset after all actions complete
     # This ensures consistent prompt state without requiring each action to call _forge_reset
-    # Exceptions: editor, commit, and suggest actions return early as they intentionally modify BUFFER
+    # Exceptions: editor, commit-preview, and suggest actions return early as they intentionally modify BUFFER
     _forge_reset
 }

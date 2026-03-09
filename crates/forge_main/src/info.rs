@@ -499,11 +499,7 @@ impl From<&Usage> for Info {
 fn calculate_cache_percentage(usage: &Usage) -> u8 {
     let total = *usage.prompt_tokens; // Use prompt tokens as the base for cache percentage
     let cached = *usage.cached_tokens;
-    if total == 0 {
-        0
-    } else {
-        ((cached * 100) / total) as u8
-    }
+    (cached * 100).checked_div(total).unwrap_or(0) as u8
 }
 
 impl fmt::Display for Info {
@@ -545,7 +541,7 @@ impl fmt::Display for Info {
 
 /// Formats a path for display, using actual home directory on Windows and tilde
 /// notation on Unix, with proper quoting for paths containing spaces
-fn format_path_for_display(env: &Environment, path: &Path) -> String {
+pub(crate) fn format_path_for_display(env: &Environment, path: &Path) -> String {
     // Check if path is under home directory first
     if let Some(home) = &env.home
         && let Ok(rel_path) = path.strip_prefix(home)
