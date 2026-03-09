@@ -571,7 +571,10 @@ mod tests {
         assert_eq!(config.id, ProviderId::OPENAI_RESPONSES_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
         assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
-        assert_eq!(config.response_type, Some(ProviderResponse::OpenAIResponses));
+        assert_eq!(
+            config.response_type,
+            Some(ProviderResponse::OpenAIResponses)
+        );
         assert_eq!(config.url, "{{OPENAI_URL}}/responses");
         match config.models.as_ref().unwrap() {
             Models::Url(model_url) => assert_eq!(model_url, "{{OPENAI_URL}}/models"),
