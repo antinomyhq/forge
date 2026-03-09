@@ -112,10 +112,14 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
-    # CRITICAL: Move cursor to end so output doesn't overwrite
-    # Don't clear BUFFER yet - let _forge_reset do that after action completes
-    # This keeps buffer state consistent if Ctrl+C is pressed
-    CURSOR=${#BUFFER}
+    # Shrink ZLE's tracked display height BEFORE actions print output.
+    # ZLE remembers how many terminal lines its display occupies. If the typed
+    # command wrapped across N lines, reset-prompt (in _forge_reset) would move
+    # up N lines and clear them — wiping N lines of action output. Clearing
+    # BUFFER and calling redisplay forces ZLE to re-render as a 1-line empty
+    # prompt, so the later reset-prompt only clears 1 line.
+    BUFFER=""
+    CURSOR=0
     zle redisplay
     
     # Handle aliases - convert to their actual agent names
@@ -216,6 +220,9 @@ function forge-accept-line() {
         ;;
         keyboard-shortcuts|kb)
             _forge_action_keyboard
+        ;;
+        echo)
+            _forge_action_echo "$input_text"
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
