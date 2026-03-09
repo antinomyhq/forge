@@ -704,11 +704,11 @@ EOF
       # Two-pass approach: run forge once as the "pre-install", then test
       # the second run for the fast path detection.
       # First pass — do the full install:
-      PATH="$test_path" HOME="$temp_home" NO_COLOR=1 forge.exe zsh setup --non-interactive > /dev/null 2>&1 || true
+      PATH="$test_path" HOME="$temp_home" NO_COLOR=1 FORGE_EDITOR=vi forge.exe zsh setup --non-interactive > /dev/null 2>&1 || true
       ;;
     partial)
       # Run forge once to get a full install, then remove plugins
-      PATH="$test_path" HOME="$temp_home" NO_COLOR=1 forge.exe zsh setup --non-interactive > /dev/null 2>&1 || true
+      PATH="$test_path" HOME="$temp_home" NO_COLOR=1 FORGE_EDITOR=vi forge.exe zsh setup --non-interactive > /dev/null 2>&1 || true
       # Remove plugins to simulate partial install
       local zsh_custom_dir="${temp_home}/.oh-my-zsh/custom/plugins"
       rm -rf "${zsh_custom_dir}/zsh-autosuggestions" 2>/dev/null || true
@@ -719,14 +719,14 @@ EOF
   # Run forge zsh setup
   local setup_output=""
   local setup_exit=0
-  setup_output=$(PATH="$test_path" HOME="$temp_home" NO_COLOR=1 forge.exe zsh setup --non-interactive 2>&1) || setup_exit=$?
+  setup_output=$(PATH="$test_path" HOME="$temp_home" NO_COLOR=1 FORGE_EDITOR=vi forge.exe zsh setup --non-interactive 2>&1) || setup_exit=$?
 
   # Strip ANSI escape codes for reliable grep matching
   setup_output=$(printf '%s' "$setup_output" | sed 's/\x1b\[[0-9;]*m//g')
 
   # Run verification
   local verify_output
-  verify_output=$(PATH="$test_path" HOME="$temp_home" run_verify_checks "$test_type" "$setup_output" "$setup_exit" 2>&1) || true
+  verify_output=$(PATH="$test_path" HOME="$temp_home" FORGE_EDITOR=vi run_verify_checks "$test_type" "$setup_output" "$setup_exit" 2>&1) || true
 
   # Handle rerun scenario: run forge a second time
   if [ "$test_type" = "rerun" ]; then
@@ -734,7 +734,7 @@ EOF
     local rerun_path="${temp_home}/.local/bin:${test_path}"
     local rerun_output=""
     local rerun_exit=0
-    rerun_output=$(PATH="$rerun_path" HOME="$temp_home" NO_COLOR=1 forge.exe zsh setup --non-interactive 2>&1) || rerun_exit=$?
+    rerun_output=$(PATH="$rerun_path" HOME="$temp_home" NO_COLOR=1 FORGE_EDITOR=vi forge.exe zsh setup --non-interactive 2>&1) || rerun_exit=$?
     rerun_output=$(printf '%s' "$rerun_output" | sed 's/\x1b\[[0-9;]*m//g')
 
     if [ "$rerun_exit" -eq 0 ]; then
