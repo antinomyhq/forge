@@ -1,4 +1,4 @@
-use forge_domain::Todo;
+use forge_domain::{Todo, TodoStatus};
 
 /// Controls the styling applied to a rendered todo line.
 enum TodoLineStyle {
@@ -16,7 +16,6 @@ enum TodoLineStyle {
 /// * `line_style` - Emphasis style for the line.
 fn format_todo_line(todo: &Todo, line_style: TodoLineStyle) -> String {
     use console::style;
-    use forge_domain::TodoStatus;
 
     let checkbox = match todo.status {
         TodoStatus::Completed => "󰄵",
@@ -59,6 +58,21 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
 
     let mut result = "\n".to_string();
 
+    enum DiffLine<'a> {
+        Current { todo: &'a Todo, line_style: TodoLineStyle },
+        Removed { todo: &'a Todo },
+    }
+
+    impl DiffLine<'_> {
+        fn id(&self) -> &str {
+            match self {
+                DiffLine::Current { todo, .. } | DiffLine::Removed { todo } => todo.id.as_str(),
+            }
+        }
+    }
+
+    let mut lines: Vec<DiffLine<'_>> = Vec::new();
+
     for todo in after {
         let previous = before_map.get(todo.id.as_str()).copied();
         let is_new = previous.is_none();
@@ -72,13 +86,31 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
             TodoLineStyle::Dim
         };
 
-        result.push_str(&format_todo_line(todo, line_style));
+        lines.push(DiffLine::Current { todo, line_style });
     }
 
     for todo in before {
         if !after_ids.contains(todo.id.as_str()) {
-            let content = style(todo.content.as_str()).strikethrough().to_string();
-            result.push_str(&format!("  {}\n", style(format!("󰄱 {content}")).red()));
+            lines.push(DiffLine::Removed { todo });
+        }
+    }
+
+    lines.sort_by(|left, right| left.id().cmp(right.id()));
+
+    for line in lines {
+        match line {
+            DiffLine::Current { todo, line_style } => {
+                result.push_str(&format_todo_line(todo, line_style));
+            }
+            DiffLine::Removed { todo } => {
+                let content = style(todo.content.as_str()).strikethrough().to_string();
+
+                if todo.status == TodoStatus::Completed {
+                    result.push_str(&format!("  {}\n", style(format!("󰄵 {content}")).white().dim()));
+                } else {
+                    result.push_str(&format!("  {}\n", style(format!("󰄱 {content}")).red()));
+                }
+            }
         }
     }
 
@@ -97,7 +129,10 @@ pub(crate) fn format_todos(todos: &[Todo]) -> String {
 
     let mut result = "\n".to_string();
 
-    for todo in todos {
+    let mut sorted_todos: Vec<&Todo> = todos.iter().collect();
+    sorted_todos.sort_by(|left, right| left.id.cmp(&right.id));
+
+    for todo in sorted_todos {
         result.push_str(&format_todo_line(todo, TodoLineStyle::Dim));
     }
 
@@ -109,6 +144,7 @@ mod tests {
     use console::strip_ansi_codes;
     use forge_domain::{ChatResponseContent, Environment, Todo, TodoStatus};
     use insta::assert_snapshot;
+    use pretty_assertions::assert_eq;
 
     use crate::fmt::content::FormatContent;
     use crate::operation::ToolOperation;
@@ -160,5 +196,80 @@ mod tests {
 
         let actual = fixture_todo_write_output(setup.0, setup.1);
         assert_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_todo_write_removed_completed_todos_render_as_dimmed_done() {
+        let setup = (
+            vec![fixture_todo("Done", "1", TodoStatus::Completed)],
+            Vec::new(),
+        );
+
+        let actual = fixture_todo_write_output(setup.0, setup.1);
+        let expected = "\n  󰄵 Done\n";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_todos_are_sorted_by_id() {
+        let setup = vec![
+            fixture_todo("Second", "2", TodoStatus::Pending),
+            fixture_todo("First", "1", TodoStatus::Pending),
+        ];
+
+        let actual = strip_ansi_codes(super::format_todos(&setup).as_str()).to_string();
+        let expected = "\n  󰄱 First\n  󰄱 Second\n";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_todo_write_dump_flow_in_same_order() {
+        let step_1 = vec![
+            fixture_todo("Generate JSONL input file with all 59 cases", "1", TodoStatus::InProgress),
+            fixture_todo("Create JSON schema file for structured output", "2", TodoStatus::Pending),
+            fixture_todo("Create system prompt template", "3", TodoStatus::Pending),
+            fixture_todo("Create user prompt template", "4", TodoStatus::Pending),
+            fixture_todo("Test with 2-3 cases first", "5", TodoStatus::Pending),
+            fixture_todo("Run for all cases", "6", TodoStatus::Pending),
+        ];
+        let step_2 = vec![
+            fixture_todo("Generate JSONL input file with all 59 cases", "1", TodoStatus::Completed),
+            fixture_todo("Create JSON schema file for structured output", "2", TodoStatus::InProgress),
+            fixture_todo("Create system prompt template", "3", TodoStatus::Pending),
+            fixture_todo("Create user prompt template", "4", TodoStatus::Pending),
+            fixture_todo("Test with 2-3 cases first", "5", TodoStatus::Pending),
+            fixture_todo("Run for all cases", "6", TodoStatus::Pending),
+        ];
+        let step_3 = vec![
+            fixture_todo("Create JSON schema file for structured output", "2", TodoStatus::Completed),
+            fixture_todo("Create system prompt template", "3", TodoStatus::InProgress),
+            fixture_todo("Create user prompt template", "4", TodoStatus::Pending),
+            fixture_todo("Test with 2-3 cases first", "5", TodoStatus::Pending),
+            fixture_todo("Run for all cases", "6", TodoStatus::Pending),
+        ];
+        let step_4 = vec![
+            fixture_todo("Create system prompt template", "3", TodoStatus::Completed),
+            fixture_todo("Create user prompt template", "4", TodoStatus::Completed),
+            fixture_todo("Test with 2-3 cases first", "5", TodoStatus::InProgress),
+            fixture_todo("Run for all cases", "6", TodoStatus::Pending),
+        ];
+
+        let actual_1 = fixture_todo_write_output(Vec::new(), step_1.clone());
+        let expected_1 = "\n  󰄗 Generate JSONL input file with all 59 cases\n  󰄱 Create JSON schema file for structured output\n  󰄱 Create system prompt template\n  󰄱 Create user prompt template\n  󰄱 Test with 2-3 cases first\n  󰄱 Run for all cases\n";
+        assert_eq!(actual_1, expected_1);
+
+        let actual_2 = fixture_todo_write_output(step_1.clone(), step_2.clone());
+        let expected_2 = "\n  󰄵 Generate JSONL input file with all 59 cases\n  󰄗 Create JSON schema file for structured output\n  󰄱 Create system prompt template\n  󰄱 Create user prompt template\n  󰄱 Test with 2-3 cases first\n  󰄱 Run for all cases\n";
+        assert_eq!(actual_2, expected_2);
+
+        let actual_3 = fixture_todo_write_output(step_2.clone(), step_3.clone());
+        let expected_3 = "\n  󰄵 Generate JSONL input file with all 59 cases\n  󰄵 Create JSON schema file for structured output\n  󰄗 Create system prompt template\n  󰄱 Create user prompt template\n  󰄱 Test with 2-3 cases first\n  󰄱 Run for all cases\n";
+        assert_eq!(actual_3, expected_3);
+
+        let actual_4 = fixture_todo_write_output(step_3, step_4);
+        let expected_4 = "\n  󰄵 Create JSON schema file for structured output\n  󰄵 Create system prompt template\n  󰄵 Create user prompt template\n  󰄗 Test with 2-3 cases first\n  󰄱 Run for all cases\n";
+        assert_eq!(actual_4, expected_4);
     }
 }
