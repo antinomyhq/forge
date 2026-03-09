@@ -1045,7 +1045,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ OpenAI              [api.openai.com]";
+        let expected = "✓ OpenAI                    [api.openai.com]";
         assert_eq!(actual, expected);
     }
 
@@ -1065,7 +1065,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ OpenRouter          [openrouter.ai]";
+        let expected = "✓ OpenRouter                [openrouter.ai]";
         assert_eq!(actual, expected);
     }
 
@@ -1085,7 +1085,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge               [localhost]";
+        let expected = "✓ Forge                     [localhost]";
         assert_eq!(actual, expected);
     }
 
@@ -1105,7 +1105,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("  Anthropic           {}", markers::EMPTY);
+        let expected = format!("  Anthropic                 {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
@@ -1125,7 +1125,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("✓ Forge               {}", markers::EMPTY);
+        let expected = format!("✓ Forge                     {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
