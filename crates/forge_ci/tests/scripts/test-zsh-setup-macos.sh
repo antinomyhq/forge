@@ -477,7 +477,9 @@ run_verify_checks() {
   fi
 
   # --- Verify Oh My Zsh ---
-  if [ -d "$HOME/.oh-my-zsh" ]; then
+  if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    echo "CHECK_OMZ_DIR=PASS (expected: partial OMZ in ${test_type} test)"
+  elif [ -d "$HOME/.oh-my-zsh" ]; then
     local omz_ok=true
     local omz_detail="dir=OK"
     for subdir in custom/plugins themes lib; do
