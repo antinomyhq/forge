@@ -536,6 +536,9 @@ VERIFY_SCRIPT_HEADER
 
   cat <<'VERIFY_SCRIPT_BODY'
 
+# Add ~/.local/bin to PATH so tools installed via GitHub releases are found
+export PATH="$HOME/.local/bin:$PATH"
+
 # --- Run forge zsh setup and capture output ---
 setup_output_raw=$(forge zsh setup --non-interactive 2>&1)
 setup_exit=$?
@@ -1077,8 +1080,11 @@ EOF
       ;;
     PREINSTALLED_ALL)
       install_cmd=$(pkg_install_cmd "$image" "")
-      # Install zsh, OMZ, plugins, and tools (fzf, bat, fd)
-      extra_setup='apt-get install -y -qq zsh fzf bat fd-find && sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended && git clone https://github.com/zsh-users/zsh-autosuggestions.git $HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions && git clone https://github.com/zsh-users/zsh-syntax-highlighting.git $HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting'
+      # Two-pass approach: first pass does full forge install inside the
+      # container (via extra_setup). The test then runs forge again to verify
+      # the fast path. This ensures versions match what forge actually installs
+      # (e.g., fd 10.0.0+ from GitHub, not 9.0.0 from apt).
+      extra_setup='FORGE_EDITOR=vi forge zsh setup --non-interactive || true'
       test_type="preinstalled_all"
       ;;
     NO_GIT)
