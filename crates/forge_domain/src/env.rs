@@ -1,12 +1,13 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, ModelId, ProviderId, RetryConfig};
+use crate::{HttpConfig, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -87,15 +88,40 @@ pub struct Environment {
     /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
     pub workspace_server_url: Url,
-    /// Override model for all providers from FORGE_OVERRIDE_MODEL environment
-    /// variable. If set, this model will be used instead of configured
-    /// models.
-    #[dummy(default)]
-    pub override_model: Option<ModelId>,
-    /// Override provider from FORGE_OVERRIDE_PROVIDER environment variable.
-    /// If set, this provider will be used as default.
-    #[dummy(default)]
-    pub override_provider: Option<ProviderId>,
+    /// Maximum number of file extensions to include in the system prompt.
+    /// Controlled by FORGE_MAX_EXTENSIONS environment variable.
+    pub max_extensions: usize,
+    /// Format for automatically creating a dump when a task is completed.
+    /// Controlled by FORGE_AUTO_DUMP environment variable.
+    /// Set to "json" (or "true"/"1"/"yes") for JSON, "html" for HTML, or
+    /// unset/other to disable.
+    pub auto_dump: Option<AutoDumpFormat>,
+    /// Maximum number of files read concurrently in parallel operations.
+    /// Controlled by FORGE_PARALLEL_FILE_READS environment variable.
+    /// Caps the `buffer_unordered` concurrency to avoid EMFILE errors.
+    pub parallel_file_reads: usize,
+}
+
+/// The output format used when auto-dumping a conversation on task completion.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[serde(rename_all = "camelCase")]
+pub enum AutoDumpFormat {
+    /// Dump as a JSON file.
+    Json,
+    /// Dump as an HTML file.
+    Html,
+}
+
+impl FromStr for AutoDumpFormat {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "html" => Ok(AutoDumpFormat::Html),
+            "json" | "true" | "1" | "yes" => Ok(AutoDumpFormat::Json),
+            _ => Err(()),
+        }
+    }
 }
 
 impl Environment {
@@ -310,8 +336,9 @@ fn test_command_path() {
         sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        override_model: None,
-        override_provider: None,
+        max_extensions: 15,
+        auto_dump: None,
+        parallel_file_reads: 64,
     };
 
     let actual = fixture.command_path();
@@ -351,8 +378,9 @@ fn test_command_cwd_path() {
         sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        override_model: None,
-        override_provider: None,
+        max_extensions: 15,
+        auto_dump: None,
+        parallel_file_reads: 64,
     };
 
     let actual = fixture.command_cwd_path();
@@ -392,8 +420,9 @@ fn test_command_cwd_path_independent_from_command_path() {
         sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        override_model: None,
-        override_provider: None,
+        max_extensions: 15,
+        auto_dump: None,
+        parallel_file_reads: 64,
     };
 
     let command_path = fixture.command_path();

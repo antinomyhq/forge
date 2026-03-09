@@ -60,8 +60,8 @@
     "description": "Generate shell commands without executing them [alias: s]"
   },
   {
-    "command": "login",
-    "description": "Login to a provider"
+    "command": "provider-login",
+    "description": "Login to a provider [alias: login]"
   },
   {
     "command": "logout",
@@ -86,6 +86,10 @@
   {
     "command": "clone",
     "description": "Clone and manage conversation context"
+  },
+  {
+    "command": "copy",
+    "description": "Copy last assistant message to clipboard as raw markdown"
   },
   {
     "command": "doctor",

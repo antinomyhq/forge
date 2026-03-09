@@ -19,7 +19,7 @@ use url::Url;
 use crate::Walker;
 use crate::user::{User, UserUsage};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
@@ -144,6 +144,13 @@ pub struct PlanCreateOutput {
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
     pub after_undo: Option<String>,
+}
+
+/// Output from todo_write tool execution
+#[derive(Debug)]
+pub struct TodoWriteOutput {
+    /// List of todos that were saved
+    pub todos: Vec<forge_domain::Todo>,
 }
 
 #[derive(Debug)]
