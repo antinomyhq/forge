@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-use crate::{ModelId, ProviderId, ReasoningConfig};
+use crate::{Effort, ModelId, ProviderId};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -11,14 +11,6 @@ pub struct InitAuth {
     pub session_id: String,
     pub auth_url: String,
     pub token: String,
-}
-
-/// Per-model configuration that can be set at runtime.
-#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
-pub struct ModelConfig {
-    /// Reasoning configuration for this specific model.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<ReasoningConfig>,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -30,7 +22,7 @@ pub struct AppConfig {
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub model: HashMap<ProviderId, ModelId>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub provider_config: HashMap<ProviderId, HashMap<ModelId, ModelConfig>>,
+    pub reasoning: HashMap<ProviderId, HashMap<ModelId, Effort>>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
