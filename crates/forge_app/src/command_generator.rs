@@ -46,8 +46,7 @@ where
 
         // Get required services and data - use suggest config if available,
         // otherwise fall back to default provider/model
-        let suggest_config = self.services.get_suggest_config().await?;
-        let (provider, model) = match suggest_config {
+        let (provider, model) = match self.services.get_suggest_config().await? {
             Some(config) => {
                 let provider = self.services.get_provider(config.provider).await?;
                 (provider, config.model)
