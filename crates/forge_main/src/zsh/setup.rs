@@ -2162,7 +2162,7 @@ async fn install_bat_from_github(platform: Platform) -> Result<()> {
     let target = construct_rust_target(platform).await?;
 
     // Find the latest release that has this specific binary
-    let version = get_latest_release_with_binary("sharkdp/bat", &target, "0.24.0").await;
+    let version = get_latest_release_with_binary("sharkdp/bat", &target, "0.25.0").await;
     let (archive_type, ext) = if platform == Platform::Windows {
         (ArchiveType::Zip, "zip")
     } else {
