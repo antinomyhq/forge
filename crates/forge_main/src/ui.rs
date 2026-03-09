@@ -3149,23 +3149,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ConfigSetField::ModelReasoning { provider, model, effort } => {
                 let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
                 let model_id = ModelId::new(&model);
-
                 let value_lower = effort.to_lowercase();
-                let reasoning = if value_lower == "none" || value_lower == "off" {
-                    // Store disabled state explicitly so providers know to turn
-                    // off reasoning rather than leaving it at the model default.
-                    Some(forge_domain::ReasoningConfig::default().enabled(false))
-                } else {
-                    use std::str::FromStr;
-                    let effort = forge_domain::Effort::from_str(&value_lower).map_err(|_| {
-                        anyhow::anyhow!(
-                            "Invalid reasoning effort '{}'. Valid values: low, medium, high, none",
-                            effort
-                        )
-                    })?;
-                    Some(forge_domain::ReasoningConfig::default().effort(effort.clone()))
-                };
-
+                let effort = forge_domain::Effort::from_str(&value_lower).map_err(|_| {
+                    use strum::VariantNames;
+                    anyhow::anyhow!(
+                        "Invalid reasoning effort '{}'. Valid values: {}",
+                        effort,
+                        forge_domain::Effort::VARIANTS.join(", ")
+                    )
+                })?;
+                let reasoning = Some(forge_domain::ReasoningConfig::default().effort(effort));
                 self.api
                     .set_model_reasoning(provider_id, model_id.clone(), reasoning.clone())
                     .await?;

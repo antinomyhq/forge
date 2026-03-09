@@ -18,8 +18,7 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
-    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
+    Attachment, AttachmentContent, ConversationId, Effort, EventValue, Image, ModelId, ReasoningFull, ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage
 };
 
 /// Response format for structured output
@@ -605,7 +604,7 @@ impl Context {
     pub fn is_reasoning_supported(&self) -> bool {
         self.reasoning.as_ref().is_some_and(|reasoning| {
             // When enabled parameter is defined then return it's value directly.
-            if reasoning.enabled.is_some() {
+            if reasoning.enabled.is_some() || matches!(reasoning.effort, Some(Effort::None)) {
                 return reasoning.enabled.unwrap_or_default();
             }
 

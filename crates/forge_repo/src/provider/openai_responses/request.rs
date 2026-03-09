@@ -108,6 +108,7 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
                 Effort::High => oai::ReasoningEffort::High,
                 Effort::Medium => oai::ReasoningEffort::Medium,
                 Effort::Low => oai::ReasoningEffort::Low,
+                Effort::None => oai::ReasoningEffort::None,
             };
             builder.effort(oai_effort);
         } else if config.enabled.unwrap_or(false) {
