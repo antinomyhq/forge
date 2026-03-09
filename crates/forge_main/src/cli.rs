@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ConversationId, ModelId, ProviderId};
+use forge_domain::{AgentId, ConversationId, ModelId, ProviderId, Effort};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -532,22 +532,22 @@ pub enum ConfigSetField {
     /// Set the active model.
     Model {
         /// Model ID to set as default.
-        model: String,
+        model: ModelId,
     },
     /// Set the active provider.
     Provider {
         /// Provider ID to set as default.
-        provider: String,
+        provider: ProviderId,
     },
     /// Set reasoning effort for a specific provider and model.
     #[command(name = "model-reasoning")]
     ModelReasoning {
         /// Provider ID.
-        provider: String,
+        provider: ProviderId,
         /// Model ID.
-        model: String,
+        model: ModelId,
         /// Reasoning effort (low, medium, high, or "none" to clear).
-        effort: String,
+        effort: Effort,
     },
 }
 
@@ -569,9 +569,9 @@ pub enum ConfigGetField {
     #[command(name = "model-reasoning")]
     ModelReasoning {
         /// Provider ID.
-        provider: String,
+        provider: ProviderId,
         /// Model ID.
-        model: String,
+        model: ModelId,
     },
 }
 
