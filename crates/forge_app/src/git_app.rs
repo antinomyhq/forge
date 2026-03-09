@@ -318,10 +318,22 @@ where
         let (provider, model) = match commit_config.and_then(|c| c.provider.zip(c.model)) {
             Some((provider_id, commit_model)) => {
                 match self.services.get_provider(provider_id).await {
-                    Ok(provider) => (
-                        self.services.refresh_provider_credential(provider).await?,
-                        commit_model,
-                    ),
+                    Ok(provider) => {
+                        (match self.services.refresh_provider_credential(provider).await {
+                            Ok(provider) => (provider, commit_model),
+                            Err(err) => {
+                                tracing::warn!(
+                                    error = %err,
+                                    "Failed to refresh credentials for configured commit provider. Falling back to the active provider."
+                                );
+                                self.resolve_agent_provider_and_model(
+                                    &agent_provider_resolver,
+                                    agent_id,
+                                )
+                                .await?
+                            }
+                        })
+                    }
                     Err(err) => {
                         tracing::warn!(
                             error = %err,
