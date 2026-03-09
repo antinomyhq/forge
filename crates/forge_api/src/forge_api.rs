@@ -299,8 +299,7 @@ impl<
         model_id: ModelId,
         reasoning: Option<forge_domain::ReasoningConfig>,
     ) -> anyhow::Result<()> {
-         self
-            .services
+        self.services
             .set_model_reasoning(provider_id, model_id, reasoning)
             .await
     }
@@ -310,7 +309,9 @@ impl<
         provider_id: &ProviderId,
         model_id: &ModelId,
     ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
-        self.services.get_model_reasoning(provider_id, model_id).await
+        self.services
+            .get_model_reasoning(provider_id, model_id)
+            .await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

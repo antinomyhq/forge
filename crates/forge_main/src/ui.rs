@@ -3134,8 +3134,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         match args.field {
             ConfigSetField::Provider { provider } => {
-                let provider_id =
-                    ProviderId::from_str(&provider).expect("from_str is infallible");
+                let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
 
                 let provider = self.api.get_provider(&provider_id).await?;
                 self.activate_provider(provider).await?;
@@ -3148,8 +3147,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 )?;
             }
             ConfigSetField::ModelReasoning { provider, model, effort } => {
-                let provider_id =
-                    ProviderId::from_str(&provider).expect("from_str is infallible");
+                let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
                 let model_id = ModelId::new(&model);
 
                 let value_lower = effort.to_lowercase();
@@ -3157,12 +3155,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     None
                 } else {
                     use std::str::FromStr;
-                    let effort = forge_domain::Effort::from_str(&value_lower)
-                        .map_err(|_| anyhow::anyhow!("Invalid reasoning effort '{}'. Valid values: low, medium, high, none", effort))?;
-                    Some(
-                        forge_domain::ReasoningConfig::default()
-                            .effort(effort.clone()),
-                    )
+                    let effort = forge_domain::Effort::from_str(&value_lower).map_err(|_| {
+                        anyhow::anyhow!(
+                            "Invalid reasoning effort '{}'. Valid values: low, medium, high, none",
+                            effort
+                        )
+                    })?;
+                    Some(forge_domain::ReasoningConfig::default().effort(effort.clone()))
                 };
 
                 self.api
@@ -3176,8 +3175,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .unwrap_or_else(|| "none".to_string());
 
                 self.writeln_title(
-                    TitleFormat::action(&format!("{} reasoning", model_id.as_str()))
-                        .sub_title(&format!("set to {}", display)),
+                    TitleFormat::action(format!("{} reasoning", model_id.as_str()))
+                        .sub_title(format!("set to {}", display)),
                 )?;
             }
         }
@@ -3214,8 +3213,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ConfigGetField::ModelReasoning { provider, model } => {
-                let provider_id =
-                    ProviderId::from_str(&provider).expect("from_str is infallible");
+                let provider_id = ProviderId::from_str(&provider).expect("from_str is infallible");
                 let model_id = ModelId::new(&model);
                 let reasoning = self
                     .api
