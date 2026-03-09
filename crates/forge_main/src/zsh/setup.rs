@@ -1892,6 +1892,8 @@ pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
 /// version too old.
 pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
+    // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
+    // preventing the GitHub release fallback below from running.
     let pkg_mgr_result = match platform {
         Platform::Linux => install_via_package_manager_linux("fzf", sudo).await,
         Platform::MacOS => {
@@ -1905,10 +1907,10 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
                 if status.success() {
                     Ok(())
                 } else {
-                    bail!("brew install fzf failed")
+                    Err(anyhow::anyhow!("brew install fzf failed"))
                 }
             } else {
-                bail!("brew not found")
+                Err(anyhow::anyhow!("brew not found"))
             }
         }
         Platform::Android => {
@@ -1922,10 +1924,10 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
                 if status.success() {
                     Ok(())
                 } else {
-                    bail!("pkg install fzf failed")
+                    Err(anyhow::anyhow!("pkg install fzf failed"))
                 }
             } else {
-                bail!("pkg not found")
+                Err(anyhow::anyhow!("pkg not found"))
             }
         }
         Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
@@ -1950,6 +1952,8 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
 /// version too old.
 pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
+    // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
+    // preventing the GitHub release fallback below from running.
     let pkg_mgr_result = match platform {
         Platform::Linux => install_via_package_manager_linux("bat", sudo).await,
         Platform::MacOS => {
@@ -1963,10 +1967,10 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
                 if status.success() {
                     Ok(())
                 } else {
-                    bail!("brew install bat failed")
+                    Err(anyhow::anyhow!("brew install bat failed"))
                 }
             } else {
-                bail!("brew not found")
+                Err(anyhow::anyhow!("brew not found"))
             }
         }
         Platform::Android => {
@@ -1980,10 +1984,10 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
                 if status.success() {
                     Ok(())
                 } else {
-                    bail!("pkg install bat failed")
+                    Err(anyhow::anyhow!("pkg install bat failed"))
                 }
             } else {
-                bail!("pkg not found")
+                Err(anyhow::anyhow!("pkg not found"))
             }
         }
         Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
@@ -2019,6 +2023,8 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
 /// version too old.
 pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
+    // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
+    // preventing the GitHub release fallback below from running.
     let pkg_mgr_result = match platform {
         Platform::Linux => install_via_package_manager_linux("fd", sudo).await,
         Platform::MacOS => {
@@ -2032,10 +2038,10 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
                 if status.success() {
                     Ok(())
                 } else {
-                    bail!("brew install fd failed")
+                    Err(anyhow::anyhow!("brew install fd failed"))
                 }
             } else {
-                bail!("brew not found")
+                Err(anyhow::anyhow!("brew not found"))
             }
         }
         Platform::Android => {
@@ -2049,10 +2055,10 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
                 if status.success() {
                     Ok(())
                 } else {
-                    bail!("pkg install fd failed")
+                    Err(anyhow::anyhow!("pkg install fd failed"))
                 }
             } else {
-                bail!("pkg not found")
+                Err(anyhow::anyhow!("pkg not found"))
             }
         }
         Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
