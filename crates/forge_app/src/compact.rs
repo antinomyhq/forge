@@ -647,4 +647,79 @@ mod tests {
             "accumulate_usage() must include usage from both compacted and surviving messages"
         );
     }
+
+    #[test]
+    fn test_compaction_token_count_differs_after_compaction() {
+        use forge_domain::{TokenCount, Usage};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        // Simulate realistic usage on each assistant response, as the LLM
+        // returns cumulative token counts with every response.
+        let usage_1 = Usage {
+            total_tokens: TokenCount::Actual(10000),
+            prompt_tokens: TokenCount::Actual(9000),
+            completion_tokens: TokenCount::Actual(1000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.3),
+        };
+
+        let usage_2 = Usage {
+            total_tokens: TokenCount::Actual(30000),
+            prompt_tokens: TokenCount::Actual(27000),
+            completion_tokens: TokenCount::Actual(3000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.8),
+        };
+
+        let usage_3 = Usage {
+            total_tokens: TokenCount::Actual(50000),
+            prompt_tokens: TokenCount::Actual(45000),
+            completion_tokens: TokenCount::Actual(5000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(1.5),
+        };
+
+        let context = Context::default()
+            .add_entry(ContextMessage::user("Message 1", None))
+            .add_entry(
+                MessageEntry::from(ContextMessage::assistant("Response 1", None, None, None))
+                    .usage(usage_1),
+            ) // index 1: inside compaction range
+            .add_entry(ContextMessage::user("Message 2", None))
+            .add_entry(
+                MessageEntry::from(ContextMessage::assistant("Response 2", None, None, None))
+                    .usage(usage_2),
+            ) // index 3: inside compaction range
+            .add_entry(ContextMessage::user("Message 3", None))
+            .add_entry(
+                MessageEntry::from(ContextMessage::assistant("Response 3", None, None, None))
+                    .usage(usage_3),
+            ); // index 5: outside compaction range (last msg)
+
+        let original_messages = context.messages.len();
+        let original_token_count = *context.token_count();
+
+        // Compact the first 4 messages (indices 0-3) into a summary
+        let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
+
+        let compacted_messages = compacted.messages.len();
+        let compacted_token_count = *compacted.token_count();
+
+        // Messages MUST differ — compaction reduced them
+        assert!(
+            compacted_messages < original_messages,
+            "Compaction should reduce message count: {compacted_messages} < {original_messages}"
+        );
+
+        // Token count MUST differ — compaction removed content.
+        // BUG: token_count() reads from the last message's usage which is
+        // unchanged by compaction, so both values are identical.
+        assert_ne!(
+            original_token_count, compacted_token_count,
+            "Token count should differ after compaction, but both are {original_token_count}. \
+             token_count() reads from the last message's usage which survives compaction unchanged."
+        );
+    }
 }
