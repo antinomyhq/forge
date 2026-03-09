@@ -77,6 +77,8 @@ function _forge_action_default() {
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
+    # Start background update check
+    _forge_start_background_update
 }
 
 function forge-accept-line() {
@@ -129,6 +131,8 @@ function forge-accept-line() {
     # ⚠️  IMPORTANT: When adding a new command here, you MUST also update:
     #     crates/forge_main/src/built_in_commands.json
     #     Add a new entry: {"command": "name", "description": "Description [alias: x]"}
+    #
+    # Naming convention: shell commands should follow Object-Action (e.g., provider-login).
     #
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
@@ -189,10 +193,19 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        copy)
+            _forge_action_copy
+        ;;
         sync)
             _forge_action_sync
         ;;
-        login)
+        sync-status)
+            _forge_action_sync_status
+        ;;
+        sync-info)
+            _forge_action_sync_info
+        ;;
+        provider-login|login)
             _forge_action_login "$input_text"
         ;;
         logout)

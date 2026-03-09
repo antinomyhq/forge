@@ -400,6 +400,22 @@ pub(super) enum ToolValueRecord {
     Image(ImageRecord),
     Document(DocumentRecord),
     Empty,
+    // Legacy variants for backward compatibility with old conversations
+    // These were removed from the domain model but may exist in stored data
+    /// Legacy: Markdown-formatted text (now converted to Text)
+    Markdown(String),
+    /// Legacy: File diff information (now converted to Text summary)
+    FileDiff(FileDiffRecord),
+    /// Legacy: Paired value for LLM/display (now flattened to first element)
+    Pair(Box<ToolValueRecord>, Box<ToolValueRecord>),
+}
+
+/// Legacy record for FileDiff - kept for backward compatibility
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct FileDiffRecord {
+    pub path: String,
+    pub old_text: Option<String>,
+    pub new_text: String,
 }
 
 impl From<&forge_domain::ToolValue> for ToolValueRecord {
@@ -430,13 +446,23 @@ impl TryFrom<ToolValueRecord> for forge_domain::ToolValue {
             ToolValueRecord::Image(img) => Self::Image(img.into()),
             ToolValueRecord::Document(doc) => Self::Document(doc.into()),
             ToolValueRecord::Empty => Self::Empty,
+            // Legacy variant migrations
+            ToolValueRecord::Markdown(md) => Self::Text(md),
+            ToolValueRecord::FileDiff(diff) => {
+                // Convert FileDiff to a text summary
+                Self::Text(format!("[File diff: {}]", diff.path))
+            }
+            ToolValueRecord::Pair(first, _second) => {
+                // Take the first value (LLM-facing content) and convert it
+                (*first).try_into()?
+            }
         })
     }
 }
 
 /// Repository-specific representation of ToolOutput
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(super) struct ToolOutputRecord {
+pub(crate) struct ToolOutputRecord {
     is_error: bool,
     values: Vec<ToolValueRecord>,
 }
@@ -919,6 +945,7 @@ impl From<MetricsRecord> for forge_domain::Metrics {
             started_at: record.started_at,
             file_operations,
             files_accessed,
+            todos: Vec::new(),
         }
     }
 }

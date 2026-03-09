@@ -474,6 +474,36 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.3-codex",
+        "name": "GPT-5.3 Codex",
+        "description": "GPT-5.3-Codex is optimized for agentic coding tasks",
+        "context_length": 400000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.4-2026-03-05",
+        "name": "GPT 5.4 2026-03-05",
+        "description": "GPT 5.4 frontier model for complex professional work",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.4-pro-2026-03-05",
+        "name": "GPT 5.4 Pro 2026-03-05",
+        "description": "GPT 5.4 Pro frontier model for complex professional work",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       }
     ],
     "auth_methods": ["api_key"]
@@ -503,6 +533,16 @@
     "response_type": "Anthropic",
     "url": "https://api.anthropic.com/v1/messages",
     "models": [
+      {
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "description": "Most balanced model for building agents and coding",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
       {
         "id": "claude-opus-4-6",
         "name": "Claude Opus 4.6",
@@ -896,6 +936,15 @@
     "url": "https://{{#if (eq LOCATION \"global\")}}aiplatform.googleapis.com{{else}}{{LOCATION}}-aiplatform.googleapis.com{{/if}}/v1beta1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/google",
     "models": [
       {
+        "id": "gemini-3.1-pro-preview",
+        "name": "Gemini 3.1 Pro Preview",
+        "description": "Most capable Gemini model with advanced reasoning",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },{
         "id": "gemini-3-flash-preview",
         "name": "Gemini 3 Flash Preview",
         "description": "Google's fast and capable model with thinking support",
@@ -1604,7 +1653,17 @@
     "response_type": "Anthropic",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{/if}}",
     "models": [
+
       {
+        "id": "claude-sonnet-4-6",
+        "name": "Claude Sonnet 4.6",
+        "description": "Most balanced Claude model with excellent performance and speed",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },{
         "id": "claude-opus-4-6",
         "name": "Claude Opus 4.6",
         "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
@@ -1745,10 +1804,20 @@
     "url": "https://chatgpt.com/backend-api/codex/responses",
     "models": [
       {
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "description": "Latest frontier model for complex professional work",
+        "context_length": 272000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
         "id": "gpt-5.3-codex",
         "name": "GPT-5.3 Codex",
-        "description": "Latest GPT-5.3 Codex model with advanced coding capabilities and 400K context window",
-        "context_length": 400000,
+        "description": "Latest GPT-5.3 Codex model optimized for agentic coding",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1757,8 +1826,8 @@
       {
         "id": "gpt-5.2-codex",
         "name": "GPT-5.2 Codex",
-        "description": "GPT-5.2 Codex model with advanced coding capabilities and 200K context window",
-        "context_length": 200000,
+        "description": "Frontier agentic coding model",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1767,18 +1836,8 @@
       {
         "id": "gpt-5.2",
         "name": "GPT-5.2",
-        "description": "GPT-5.2 model with advanced coding capabilities and 200K context window",
-        "context_length": 200000,
-        "tools_supported": true,
-        "supports_parallel_tool_calls": true,
-        "supports_reasoning": true,
-        "input_modalities": ["text", "image", "file"]
-      },
-      {
-        "id": "gpt-5.1-codex",
-        "name": "GPT-5.1 Codex",
-        "description": "GPT-5.1 Codex model with strong coding capabilities and 200K context window",
-        "context_length": 200000,
+        "description": "Frontier model with improvements across knowledge, reasoning and coding",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1787,8 +1846,18 @@
       {
         "id": "gpt-5.1-codex-max",
         "name": "GPT-5.1 Codex Max",
-        "description": "GPT-5.1 Codex Max model with maximum capabilities and 200K context window",
-        "context_length": 200000,
+        "description": "Codex-optimized flagship for deep and fast reasoning",
+        "context_length": 272000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image", "file"]
+      },
+      {
+        "id": "gpt-5.1-codex",
+        "name": "GPT-5.1 Codex",
+        "description": "Optimized for codex agentic coding tasks",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,

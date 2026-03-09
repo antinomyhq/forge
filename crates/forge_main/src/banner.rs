@@ -1,9 +1,46 @@
-use std::io;
+use std::{fmt, io};
 
 use colored::Colorize;
 use forge_tracker::VERSION;
 
 const BANNER: &str = include_str!("banner");
+
+/// Renders messages into a styled box with border characters.
+struct DisplayBox {
+    messages: Vec<String>,
+}
+
+impl DisplayBox {
+    /// Creates a new Box with the given messages.
+    fn new(messages: Vec<String>) -> Self {
+        Self { messages }
+    }
+}
+
+impl fmt::Display for DisplayBox {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let visible_len = |s: &str| console::measure_text_width(s);
+        let width: usize = self
+            .messages
+            .iter()
+            .map(|s| visible_len(s))
+            .max()
+            .unwrap_or(0)
+            + 4;
+        let top = format!("┌{}┐", "─".repeat(width.saturating_sub(2)));
+        let bottom = format!("└{}┘", "─".repeat(width.saturating_sub(2)));
+        let fmt_line = |s: &str| {
+            let padding = width.saturating_sub(4).saturating_sub(visible_len(s));
+            format!("│ {}{} │", s, " ".repeat(padding))
+        };
+
+        writeln!(f, "{}", top)?;
+        for msg in &self.messages {
+            writeln!(f, "{}", fmt_line(msg))?;
+        }
+        write!(f, "{}", bottom)
+    }
+}
 
 /// Displays the banner with version and command tips.
 ///
@@ -67,5 +104,36 @@ pub fn display(cli_mode: bool) -> io::Result<()> {
     }
 
     println!("{banner}\n");
+
+    // Show deprecation warning for REPL mode after the banner
+    if !cli_mode {
+        display_deprecation_warning();
+    }
+
     Ok(())
+}
+
+/// Displays a deprecation warning for REPL mode with instructions to use zsh
+/// integration.
+fn display_deprecation_warning() {
+    let warning = DisplayBox::new(vec![
+        format!(
+            "{} {}",
+            "IMPORTANT:".bold().yellow(),
+            "REPL MODE WILL BE DEPRECATED SOON".bold()
+        ),
+        format!(
+            "{} {} {}",
+            "·".dimmed(),
+            "Use forge via our zsh plugin:".dimmed(),
+            "forge zsh setup".bold().green(),
+        ),
+        format!(
+            "{} {} {}",
+            "·".dimmed(),
+            "Learn more:".dimmed(),
+            "https://forgecode.dev/docs/zsh-support".cyan()
+        ),
+    ]);
+    println!("{}", warning);
 }

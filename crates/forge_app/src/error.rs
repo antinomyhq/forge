@@ -1,4 +1,4 @@
-use forge_domain::{ToolCallArgumentError, ToolName};
+use forge_domain::{InterruptionReason, ToolCallArgumentError, ToolName};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -30,6 +30,9 @@ pub enum Error {
 
     #[error("Empty tool response")]
     EmptyToolResponse,
+
+    #[error("Agent execution was interrupted: {0:?}")]
+    AgentToolInterrupted(InterruptionReason),
 
     #[error("Authentication still in progress")]
     AuthInProgress,

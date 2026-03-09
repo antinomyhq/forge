@@ -1,7 +1,7 @@
 <h1 align="center">⚒️ Forge: AI-Enhanced Terminal Development Environment</h1>
 <p align="center">A comprehensive coding agent that integrates AI capabilities with your development environment</p>
 
-<p align="center"><code>npx forgecode@latest</code></p>
+<p align="center"><code>curl -fsSL https://forgecode.dev/cli | sh</code></p>
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
@@ -41,7 +41,7 @@
 To get started with Forge, run the command below:
 
 ```bash
-npx forgecode@latest
+curl -fsSL https://forgecode.dev/cli | sh
 ```
 
 On first run, Forge will guide you through setting up your AI provider credentials using the interactive login flow. Alternatively, you can configure providers beforehand:
@@ -53,7 +53,6 @@ forge provider login
 # Then start Forge
 forge
 ```
-
 That's it! Forge is now ready to assist you with your development tasks.
 
 ## Usage Examples
@@ -155,7 +154,7 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Zero configuration** - Just add your API key and you're ready to go
 - **Seamless integration** - Works right in your terminal, where you already work
 - **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
-- **Secure by design** - Your code stays on your machine
+- **Secure by design** - Restricted shell mode limits file system access and prevents unintended changes
 - **Open-source** - Transparent, extensible, and community-driven
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
@@ -425,7 +424,7 @@ model: anthropic.claude-3-opus
 </details>
 
 <details>
-<summary><strong>Forge Services</strong></summary>
+<summary><strong>ForgeCode Services</strong></summary>
 
 ```bash
 # .env
@@ -501,8 +500,6 @@ Override default API endpoints and provider/model settings:
 ```bash
 # .env
 FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
-FORGE_OVERRIDE_MODEL=claude-3.7-sonnet   # Override model for all providers (takes precedence over configured models)
-FORGE_OVERRIDE_PROVIDER=anthropic         # Override default provider (takes precedence over configured provider)
 FORGE_WORKSPACE_SERVER_URL=http://localhost:8080  # URL for the indexing server (default: https://api.forgecode.dev/)
 ```
 

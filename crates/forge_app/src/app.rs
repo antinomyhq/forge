@@ -10,7 +10,7 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, TracingHandler};
+use crate::hooks::{CompactionHandler, TitleGenerationHandler, TracingHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{
@@ -143,8 +143,9 @@ impl<S: Services> ForgeApp<S> {
 
         // Create the orchestrator with all necessary dependencies
         let tracing_handler = TracingHandler::new();
+        let title_handler = TitleGenerationHandler::new(services.clone());
         let hook = Hook::default()
-            .on_start(tracing_handler.clone())
+            .on_start(tracing_handler.clone().and(title_handler.clone()))
             .on_request(tracing_handler.clone())
             .on_response(
                 tracing_handler
@@ -153,19 +154,13 @@ impl<S: Services> ForgeApp<S> {
             )
             .on_toolcall_start(tracing_handler.clone())
             .on_toolcall_end(tracing_handler.clone())
-            .on_end(tracing_handler);
+            .on_end(tracing_handler.and(title_handler));
 
-        let orch = Orchestrator::new(
-            services.clone(),
-            environment.clone(),
-            conversation,
-            agent,
-            chat.event,
-        )
-        .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-        .tool_definitions(tool_definitions)
-        .models(models)
-        .hook(Arc::new(hook));
+        let orch = Orchestrator::new(services.clone(), environment.clone(), conversation, agent)
+            .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
+            .tool_definitions(tool_definitions)
+            .models(models)
+            .hook(Arc::new(hook));
 
         // Create and return the stream
         let stream = MpscStream::spawn(
@@ -281,6 +276,44 @@ impl<S: Services> ForgeApp<S> {
 
         self.services.models(provider).await
     }
+
+    /// Gets available models from all configured providers concurrently.
+    ///
+    /// Returns a list of `ProviderModels` for each configured provider.
+    /// All providers are queried in parallel; providers that fail to
+    /// return models are silently skipped.
+    pub async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>> {
+        let all_providers = self.services.get_all_providers().await?;
+
+        // Build one future per configured provider
+        let futures: Vec<_> = all_providers
+            .into_iter()
+            .filter_map(|any_provider| any_provider.into_configured())
+            .map(|provider| {
+                let provider_id = provider.id.clone();
+                let services = self.services.clone();
+                async move {
+                    let refreshed = services
+                        .provider_auth_service()
+                        .refresh_provider_credential(provider)
+                        .await
+                        .ok()?;
+                    let models = services.models(refreshed).await.ok()?;
+                    Some(ProviderModels { provider_id, models })
+                }
+            })
+            .collect();
+
+        // Execute all provider fetches concurrently and collect successful results
+        let results = futures::future::join_all(futures)
+            .await
+            .into_iter()
+            .flatten()
+            .collect();
+
+        Ok(results)
+    }
+
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
     }

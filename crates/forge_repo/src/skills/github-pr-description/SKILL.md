@@ -1,5 +1,5 @@
 ---
-name: create-pr-description
+name: github-pr-description
 description: Generate and create pull request descriptions automatically using GitHub CLI. Use when the user asks to create a PR, generate a PR description, make a pull request, or submit changes for review. Analyzes git diff and commit history to create comprehensive, meaningful PR descriptions that explain what changed, why it matters, and how to test it.
 ---
 

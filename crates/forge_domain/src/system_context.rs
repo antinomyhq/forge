@@ -4,6 +4,58 @@ use serde_json::{Map, Value};
 
 use crate::{Environment, File, Model, Skill};
 
+/// Statistics for a file extension
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExtensionStat {
+    /// File extension (e.g., "rs", "md", "toml")
+    pub extension: String,
+    /// Number of files with this extension
+    pub count: usize,
+    /// Percentage of total files (formatted to 2 decimal places, e.g., "51.42")
+    pub percentage: String,
+}
+
+impl ExtensionStat {
+    /// Creates a new [`ExtensionStat`] with the given extension, count, and
+    /// percentage.
+    pub fn new(extension: impl Into<String>, count: usize, percentage: impl Into<String>) -> Self {
+        Self {
+            extension: extension.into(),
+            count,
+            percentage: percentage.into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Extension {
+    pub extension_stats: Vec<ExtensionStat>,
+    pub max_extensions: usize,
+    pub git_tracked_files: usize,
+    pub total_extensions: usize,
+    /// Percentage of files covered by remaining (non-displayed) extensions
+    pub remaining_percentage: String,
+}
+
+impl Extension {
+    /// Creates a new [`Extension`] summary.
+    pub fn new(
+        extension_stats: Vec<ExtensionStat>,
+        max_extensions: usize,
+        git_tracked_files: usize,
+        total_extensions: usize,
+        remaining_percentage: impl Into<String>,
+    ) -> Self {
+        Self {
+            extension_stats,
+            max_extensions,
+            git_tracked_files,
+            total_extensions,
+            remaining_percentage: remaining_percentage.into(),
+        }
+    }
+}
+
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[setters(strip_option)]
 #[derive(Default)]
@@ -46,4 +98,9 @@ pub struct SystemContext {
     /// {{tool_names.write}}, etc.
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
+
+    /// File extension statistics sorted by count (descending), limited to the
+    /// top `limit` extensions as defined in the `Extension` struct.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<Extension>,
 }
