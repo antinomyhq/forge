@@ -293,6 +293,27 @@ impl<
         result
     }
 
+    async fn set_model_reasoning(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+        reasoning: Option<forge_domain::ReasoningConfig>,
+    ) -> anyhow::Result<()> {
+        self.services
+            .set_model_reasoning(provider_id, model_id, reasoning)
+            .await
+    }
+
+    async fn get_model_reasoning(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
+        self.services
+            .get_model_reasoning(provider_id, model_id)
+            .await
+    }
+
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
     }

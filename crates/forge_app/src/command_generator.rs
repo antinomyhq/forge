@@ -241,6 +241,23 @@ mod tests {
         async fn set_default_model(&self, _model: ModelId) -> Result<()> {
             Ok(())
         }
+
+        async fn set_model_reasoning(
+            &self,
+            _provider_id: ProviderId,
+            _model_id: ModelId,
+            _reasoning: Option<forge_domain::ReasoningConfig>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_model_reasoning(
+            &self,
+            _provider_id: &ProviderId,
+            _model_id: &ModelId,
+        ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
+            Ok(None)
+        }
     }
 
     #[tokio::test]

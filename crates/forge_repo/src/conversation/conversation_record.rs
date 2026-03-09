@@ -649,6 +649,7 @@ pub(super) enum EffortRecord {
     High,
     Medium,
     Low,
+    None,
 }
 
 impl From<&forge_domain::Effort> for EffortRecord {
@@ -657,6 +658,7 @@ impl From<&forge_domain::Effort> for EffortRecord {
             forge_domain::Effort::High => Self::High,
             forge_domain::Effort::Medium => Self::Medium,
             forge_domain::Effort::Low => Self::Low,
+            forge_domain::Effort::None => Self::None,
         }
     }
 }
@@ -667,6 +669,7 @@ impl From<EffortRecord> for forge_domain::Effort {
             EffortRecord::High => Self::High,
             EffortRecord::Medium => Self::Medium,
             EffortRecord::Low => Self::Low,
+            EffortRecord::None => Self::None,
         }
     }
 }

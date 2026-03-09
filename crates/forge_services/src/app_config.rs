@@ -80,6 +80,52 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         })
         .await
     }
+
+    async fn set_model_reasoning(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+        reasoning: Option<forge_domain::ReasoningConfig>,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            let effort = reasoning.as_ref().and_then(|r| r.effort.clone());
+            match effort {
+                Some(e) => {
+                    config
+                        .reasoning
+                        .entry(provider_id.clone())
+                        .or_default()
+                        .insert(model_id, e);
+                }
+                None => {
+                    // Remove reasoning config; clean up empty entries
+                    if let Some(models) = config.reasoning.get_mut(&provider_id) {
+                        models.remove(&model_id);
+                        if models.is_empty() {
+                            config.reasoning.remove(&provider_id);
+                        }
+                    }
+                }
+            }
+        })
+        .await
+    }
+
+    async fn get_model_reasoning(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config
+            .reasoning
+            .get(provider_id)
+            .and_then(|models| models.get(model_id))
+            .map(|effort| forge_domain::ReasoningConfig {
+                effort: Some(effort.clone()),
+                ..Default::default()
+            }))
+    }
 }
 
 #[cfg(test)]

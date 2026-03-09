@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display as StrumDisplay;
+use strum_macros::{Display as StrumDisplay, EnumString, VariantNames};
 
 use crate::compact::Compact;
 use crate::temperature::Temperature;
@@ -194,6 +194,7 @@ pub struct ReasoningConfig {
     /// Controls the effort level of the agent's reasoning
     /// supported by openrouter and forge provider
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[setters(skip)]
     pub effort: Option<Effort>,
 
     /// Controls how many tokens the model can spend thinking.
@@ -213,13 +214,35 @@ pub struct ReasoningConfig {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay)]
+impl ReasoningConfig {
+    pub fn effort(mut self, effort: Effort) -> Self {
+        // if effort is set to None, then disable reasoning directly.
+        if matches!(effort, Effort::None) {
+            self.enabled = Some(false);
+        }
+        self.effort = Some(effort);
+        self
+    }
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    PartialEq,
+    StrumDisplay,
+    EnumString,
+    VariantNames,
+)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Effort {
     High,
     Medium,
     Low,
+    None,
 }
 
 /// Converts a thinking budget (max_tokens) to Effort
