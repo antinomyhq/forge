@@ -15,6 +15,7 @@ fn deprecated_tool_aliases() -> HashMap<&'static str, ToolName> {
         ("search", ToolName::new("fs_search")),
         ("Read", ToolName::new("read")),
         ("Write", ToolName::new("write")),
+        ("Task", ToolName::new("task")),
     ])
 }
 
