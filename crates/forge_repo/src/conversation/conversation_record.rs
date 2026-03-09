@@ -59,6 +59,8 @@ impl From<ImageRecord> for forge_domain::Image {
 pub(super) struct DocumentRecord {
     data: String,
     mime_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filename: Option<String>,
 }
 
 impl From<&forge_domain::Document> for DocumentRecord {
@@ -66,13 +68,19 @@ impl From<&forge_domain::Document> for DocumentRecord {
         Self {
             data: doc.data().to_string(),
             mime_type: doc.mime_type().to_string(),
+            filename: doc.filename().clone(),
         }
     }
 }
 
 impl From<DocumentRecord> for forge_domain::Document {
     fn from(record: DocumentRecord) -> Self {
-        forge_domain::Document::new_base64(record.data, record.mime_type)
+        let doc = forge_domain::Document::new_base64(record.data, record.mime_type);
+        if let Some(filename) = record.filename {
+            doc.with_filename(filename)
+        } else {
+            doc
+        }
     }
 }
 
