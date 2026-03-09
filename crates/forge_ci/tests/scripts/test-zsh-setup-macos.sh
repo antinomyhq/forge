@@ -437,10 +437,12 @@ filter_path_no_brew_no_zsh() {
 #        "partial" | "no_zsh"
 #   $2 - setup_output: the captured output from forge zsh setup
 #   $3 - setup_exit: the exit code from forge zsh setup
+#   $4 - brew_mode: "with_brew" | "no_brew"
 run_verify_checks() {
   local test_type="$1"
   local setup_output="$2"
   local setup_exit="$3"
+  local brew_mode="${4:-with_brew}"
 
   echo "SETUP_EXIT=${setup_exit}"
 
@@ -610,6 +612,10 @@ run_verify_checks() {
   doctor_output=$(forge zsh doctor 2>&1) || doctor_exit=$?
   if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
     echo "CHECK_DOCTOR_EXIT=PASS (skipped for ${test_type} test)"
+  elif [ "$brew_mode" = "no_brew" ]; then
+    # Without brew, fzf/bat/fd can't be installed, so doctor will report
+    # errors for missing dependencies and exit non-zero. This is expected.
+    echo "CHECK_DOCTOR_EXIT=PASS (exit=${doctor_exit}, expected non-zero without brew)"
   else
     if [ $doctor_exit -eq 0 ]; then
       echo "CHECK_DOCTOR_EXIT=PASS (exit=0)"
@@ -867,7 +873,7 @@ EOF
 
   # Run verification
   local verify_output
-  verify_output=$(PATH="$test_path" HOME="$temp_home" run_verify_checks "$test_type" "$setup_output" "$setup_exit" 2>&1) || true
+  verify_output=$(PATH="$test_path" HOME="$temp_home" run_verify_checks "$test_type" "$setup_output" "$setup_exit" "$brew_mode" 2>&1) || true
 
   # Handle rerun scenario: run forge a second time
   if [ "$test_type" = "rerun" ]; then
