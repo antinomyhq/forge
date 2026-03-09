@@ -44,10 +44,21 @@ where
             &serde_json::json!({"env": env, "files": files}),
         )?;
 
-        // Get required services and data
-        let provider_id = self.services.get_default_provider().await?;
-        let provider = self.services.get_provider(provider_id).await?;
-        let model = self.services.get_provider_model(Some(&provider.id)).await?;
+        // Get required services and data - use suggest config if available,
+        // otherwise fall back to default provider/model
+        let suggest_config = self.services.get_suggest_config().await?;
+        let (provider, model) = match suggest_config {
+            Some(config) => {
+                let provider = self.services.get_provider(config.provider).await?;
+                (provider, config.model)
+            }
+            None => {
+                let provider_id = self.services.get_default_provider().await?;
+                let provider = self.services.get_provider(provider_id).await?;
+                let model = self.services.get_provider_model(Some(&provider.id)).await?;
+                (provider, model)
+            }
+        };
 
         // Build user prompt with task and recent commands
         let user_content = format!("<task>{}</task>", prompt.as_str());
@@ -247,6 +258,14 @@ mod tests {
         }
 
         async fn set_commit_config(&self, _config: forge_domain::CommitConfig) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_suggest_config(&self) -> Result<Option<forge_domain::SuggestConfig>> {
+            Ok(None)
+        }
+
+        async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
             Ok(())
         }
     }
