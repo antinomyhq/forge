@@ -7,6 +7,7 @@ mod authenticator;
 mod changed_files;
 mod command_generator;
 mod compact;
+mod compact_transform;
 mod data_gen;
 pub mod dto;
 mod error;
@@ -38,7 +39,6 @@ pub mod user_prompt;
 pub mod utils;
 mod walker;
 mod workspace_status;
-mod compact_transform;
 
 pub use agent::*;
 pub use agent_provider_resolver::*;

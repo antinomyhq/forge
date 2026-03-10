@@ -156,7 +156,7 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported))
             .pipe(
                 Compaction::new(self.agent.clone(), self.environment.clone())
-                    .when(|ctx| self.agent.compact.should_compact(&ctx, *ctx.token_count())),
+                    .when(|ctx| self.agent.compact.should_compact(ctx, *ctx.token_count())),
             );
         let response = self
             .services
