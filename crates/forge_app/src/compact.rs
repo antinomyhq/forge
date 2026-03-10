@@ -1,5 +1,6 @@
 use forge_domain::{
-    Agent, Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, MessageEntry, Transformer
+    Agent, Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
+    MessageEntry, Transformer,
 };
 use tracing::info;
 
@@ -197,9 +198,10 @@ impl Transformer for Compaction {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use forge_domain::{AgentId, Compact, Context, MessagePattern, ModelId, ProviderId, Role};
 
-    use forge_domain::MessageEntry;
+    use forge_domain::{
+        AgentId, Compact, Context, MessageEntry, MessagePattern, ModelId, ProviderId, Role,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
