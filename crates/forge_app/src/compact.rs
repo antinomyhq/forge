@@ -174,29 +174,25 @@ impl Compaction {
 
 impl Transformer for Compaction {
     type Value = Context;
-    fn transform(&mut self, context: Self::Value) -> Self::Value {
-        let mut running_context = context.clone().messages(Vec::default());
+    fn transform(&mut self, mut context: Self::Value) -> Self::Value {
+        let messages = std::mem::take(&mut context.messages);
         let compactor = Compactor::new(self.agent.compact.clone(), self.environment.clone());
-        for entry in context.messages {
-            running_context.messages.push(entry);
-            let token_count = *running_context.token_count();
-            if self
-                .agent
-                .compact
-                .should_compact(&running_context, token_count)
-            {
+        for entry in messages {
+            context.messages.push(entry);
+            let token_count = *context.token_count();
+            if self.agent.compact.should_compact(&context, token_count) {
                 info!(
                     agent_id = %self.agent.id,
-                    message_count = running_context.messages.len(),
+                    message_count = context.messages.len(),
                     token_count,
                     "Compaction threshold reached, compacting context"
                 );
-                running_context = compactor
-                    .compact(running_context, false)
+                context = compactor
+                    .compact(context, false)
                     .expect("Compaction failed during context transformation");
             }
         }
-        running_context
+        context
     }
 }
 
