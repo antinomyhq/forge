@@ -241,6 +241,14 @@ mod tests {
         async fn set_default_model(&self, _model: ModelId) -> Result<()> {
             Ok(())
         }
+
+        async fn get_commit_config(&self) -> Result<Option<forge_domain::CommitConfig>> {
+            Ok(None)
+        }
+
+        async fn set_commit_config(&self, _config: forge_domain::CommitConfig) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
