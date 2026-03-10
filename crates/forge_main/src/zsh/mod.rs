@@ -19,7 +19,7 @@ mod style;
 /// `include_dir!` embed files on Windows (where `git core.autocrlf=true`
 /// converts LF to CRLF on checkout). Zsh cannot parse `\r` in scripts.
 pub(crate) fn normalize_script(content: &str) -> String {
-    content.replace('\r', "")
+    content.replace("\r\n", "\n").replace('\r', "\n")
 }
 
 pub use plugin::{
