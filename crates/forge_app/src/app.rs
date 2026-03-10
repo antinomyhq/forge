@@ -10,7 +10,7 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, TitleGenerationHandler, TracingHandler};
+use crate::hooks::{TitleGenerationHandler, TracingHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{
@@ -148,9 +148,7 @@ impl<S: Services> ForgeApp<S> {
             .on_start(tracing_handler.clone().and(title_handler.clone()))
             .on_request(tracing_handler.clone())
             .on_response(
-                tracing_handler
-                    .clone()
-                    .and(CompactionHandler::new(agent.clone(), environment.clone())),
+                tracing_handler.clone(), // .and(CompactionHandler::new(agent.clone(), environment.clone())),
             )
             .on_toolcall_start(tracing_handler.clone())
             .on_toolcall_end(tracing_handler.clone())

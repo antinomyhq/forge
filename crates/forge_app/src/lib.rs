@@ -38,6 +38,7 @@ pub mod user_prompt;
 pub mod utils;
 mod walker;
 mod workspace_status;
+mod compact_transform;
 
 pub use agent::*;
 pub use agent_provider_resolver::*;

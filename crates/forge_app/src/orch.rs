@@ -10,6 +10,7 @@ use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
+use crate::compact_transform::Compaction;
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -152,12 +153,18 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            .pipe(ReasoningNormalizer.when(|_| reasoning_supported))
+            .pipe(
+                Compaction::new(self.agent.clone(), self.environment.clone()).when(|_ctx| {
+                    let token_count = _ctx.token_count();
+                    self.agent.compact.should_compact(&_ctx, *token_count)
+                }),
+            );
         let response = self
             .services
             .chat_agent(
                 model_id,
-                transformers.transform(context),
+                transformers.transform(context.clone()),
                 Some(self.agent.provider.clone()),
             )
             .await?;
