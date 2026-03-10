@@ -71,10 +71,14 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// Returns error if the script cannot be executed, if output streaming fails,
 /// or if the script exits with a non-zero status code
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
+    // Strip carriage returns — include_str! embeds CRLF when built on Windows
+    // (git core.autocrlf=true), but zsh cannot parse \r in scripts.
+    let script_content = script_content.replace('\r', "");
+
     // Execute the script in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
         .arg("-c")
-        .arg(script_content)
+        .arg(&script_content)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
