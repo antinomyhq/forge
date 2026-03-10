@@ -32,10 +32,6 @@
     "description": "Retry the last command [alias: r]"
   },
   {
-    "command": "compact",
-    "description": "Compact the conversation context"
-  },
-  {
     "command": "edit",
     "description": "Use an external editor to write a prompt"
   },
