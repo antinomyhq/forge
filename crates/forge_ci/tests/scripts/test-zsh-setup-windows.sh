@@ -251,6 +251,7 @@ build_binary() {
 
   # Ensure target is installed
   if ! rustup target list --installed 2>/dev/null | grep -q "$BUILD_TARGET"; then
+    log_info "$(uname -m)"
     log_info "Adding Rust target ${BUILD_TARGET}..."
     rustup target add "$BUILD_TARGET" 2>/dev/null || true
   fi

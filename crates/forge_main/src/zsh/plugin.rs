@@ -22,7 +22,8 @@ pub fn generate_zsh_plugin() -> Result<String> {
     // Iterate through all embedded files in shell-plugin/lib, stripping comments
     // and empty lines. All files in this directory are .zsh files.
     for file in forge_embed::files(&ZSH_PLUGIN_LIB) {
-        let content = std::str::from_utf8(file.contents())?;
+        let raw = std::str::from_utf8(file.contents())?;
+        let content = super::normalize_script(raw);
         for line in content.lines() {
             let trimmed = line.trim();
             // Skip empty lines and comment lines
@@ -51,7 +52,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").to_string();
+    let mut content = super::normalize_script(include_str!("../../../../shell-plugin/forge.theme.zsh"));
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -71,14 +72,40 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// Returns error if the script cannot be executed, if output streaming fails,
 /// or if the script exits with a non-zero status code
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
-    // Execute the script in a zsh subprocess with piped output
-    let mut child = std::process::Command::new("zsh")
-        .arg("-c")
-        .arg(script_content)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context(format!("Failed to execute zsh {} script", script_name))?;
+    let script_content = super::normalize_script(script_content);
+
+    // On Unix, pass script via `zsh -c` -- Command::arg() uses execve which
+    // passes arguments directly without shell interpretation, so embedded
+    // quotes are safe.
+    // On Windows, pipe script via stdin to avoid CreateProcess mangling
+    // embedded double-quote characters in command-line arguments.
+    let mut child = if cfg!(windows) {
+        std::process::Command::new("zsh")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context(format!("Failed to execute zsh {} script", script_name))?
+    } else {
+        std::process::Command::new("zsh")
+            .arg("-c")
+            .arg(&script_content)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context(format!("Failed to execute zsh {} script", script_name))?
+    };
+
+    // On Windows, write script to stdin then close the pipe
+    if cfg!(windows) {
+        use std::io::Write;
+        let mut stdin = child.stdin.take().context("Failed to open stdin")?;
+        stdin
+            .write_all(script_content.as_bytes())
+            .context(format!("Failed to write zsh {} script to stdin", script_name))?;
+        stdin.flush().context("Failed to flush stdin")?;
+        drop(stdin);
+    }
 
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
@@ -209,7 +236,8 @@ pub fn setup_zsh_integration(
 ) -> Result<ZshSetupResult> {
     const START_MARKER: &str = "# >>> forge initialize >>>";
     const END_MARKER: &str = "# <<< forge initialize <<<";
-    const FORGE_INIT_CONFIG: &str = include_str!("../../../../shell-plugin/forge.setup.zsh");
+    const FORGE_INIT_CONFIG_RAW: &str = include_str!("../../../../shell-plugin/forge.setup.zsh");
+    let forge_init_config = super::normalize_script(FORGE_INIT_CONFIG_RAW);
 
     let home = std::env::var("HOME").context("HOME environment variable not set")?;
     let zdotdir = std::env::var("ZDOTDIR").unwrap_or_else(|_| home.clone());
@@ -230,7 +258,7 @@ pub fn setup_zsh_integration(
 
     // Build the forge config block with markers
     let mut forge_config: Vec<String> = vec![START_MARKER.to_string()];
-    forge_config.extend(FORGE_INIT_CONFIG.lines().map(String::from));
+    forge_config.extend(forge_init_config.lines().map(String::from));
 
     // Add nerd font configuration if requested
     if disable_nerd_font {
