@@ -17,6 +17,7 @@ pub use plugin::{
     generate_zsh_plugin, generate_zsh_theme, run_zsh_doctor, run_zsh_keyboard,
     setup_zsh_integration,
 };
+pub(crate) use plugin::normalize_script;
 pub use rprompt::ZshRPrompt;
 pub use setup::{
     BatStatus, FdStatus, FzfStatus, OmzStatus, Platform, PluginStatus, ZshStatus,
