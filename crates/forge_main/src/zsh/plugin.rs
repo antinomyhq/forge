@@ -11,15 +11,6 @@ use include_dir::{Dir, include_dir};
 
 use crate::cli::Cli;
 
-/// Normalizes shell script content for cross-platform compatibility.
-///
-/// Strips carriage returns (`\r`) that appear when `include_str!` or
-/// `include_dir!` embed files on Windows (where `git core.autocrlf=true`
-/// converts LF to CRLF on checkout). Zsh cannot parse `\r` in scripts.
-pub(crate) fn normalize_script(content: &str) -> String {
-    content.replace('\r', "")
-}
-
 /// Embeds shell plugin files for zsh integration
 static ZSH_PLUGIN_LIB: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
 
@@ -32,7 +23,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
     // and empty lines. All files in this directory are .zsh files.
     for file in forge_embed::files(&ZSH_PLUGIN_LIB) {
         let raw = std::str::from_utf8(file.contents())?;
-        let content = normalize_script(raw);
+        let content = super::normalize_script(raw);
         for line in content.lines() {
             let trimmed = line.trim();
             // Skip empty lines and comment lines
@@ -61,7 +52,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = normalize_script(include_str!("../../../../shell-plugin/forge.theme.zsh"));
+    let mut content = super::normalize_script(include_str!("../../../../shell-plugin/forge.theme.zsh"));
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -83,7 +74,7 @@ pub fn generate_zsh_theme() -> Result<String> {
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
     // Normalize: strip \r (CRLF from Windows builds) and escape double quotes
     // so the script survives Windows CreateProcess argument mangling.
-    let script_content = normalize_script(script_content).replace('"', r#"\""#);
+    let script_content = super::normalize_script(script_content).replace('"', r#"\""#);
 
     // Execute the script in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
@@ -224,7 +215,7 @@ pub fn setup_zsh_integration(
     const START_MARKER: &str = "# >>> forge initialize >>>";
     const END_MARKER: &str = "# <<< forge initialize <<<";
     const FORGE_INIT_CONFIG_RAW: &str = include_str!("../../../../shell-plugin/forge.setup.zsh");
-    let forge_init_config = normalize_script(FORGE_INIT_CONFIG_RAW);
+    let forge_init_config = super::normalize_script(FORGE_INIT_CONFIG_RAW);
 
     let home = std::env::var("HOME").context("HOME environment variable not set")?;
     let zdotdir = std::env::var("ZDOTDIR").unwrap_or_else(|_| home.clone());
