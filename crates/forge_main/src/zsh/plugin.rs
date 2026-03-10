@@ -52,7 +52,8 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = super::normalize_script(include_str!("../../../../shell-plugin/forge.theme.zsh"));
+    let mut content =
+        super::normalize_script(include_str!("../../../../shell-plugin/forge.theme.zsh"));
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -100,9 +101,10 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
     if cfg!(windows) {
         use std::io::Write;
         let mut stdin = child.stdin.take().context("Failed to open stdin")?;
-        stdin
-            .write_all(script_content.as_bytes())
-            .context(format!("Failed to write zsh {} script to stdin", script_name))?;
+        stdin.write_all(script_content.as_bytes()).context(format!(
+            "Failed to write zsh {} script to stdin",
+            script_name
+        ))?;
         stdin.flush().context("Failed to flush stdin")?;
         drop(stdin);
     }
