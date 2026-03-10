@@ -383,7 +383,10 @@ impl AuthStrategy for GoogleAdcStrategy {
                 // authentication This ensures the user has run 'gcloud auth
                 // application-default login'
                 use google_cloud_auth::credentials::Builder;
+                const VERTEX_AI_SCOPES: &[&str] =
+                    &["https://www.googleapis.com/auth/cloud-platform"];
                 let credentials = Builder::default()
+                    .with_scopes(VERTEX_AI_SCOPES.iter().map(|s| s.to_string()))
                     .build_access_token_credentials()
                     .map_err(|e| {
                         AuthError::CompletionFailed(format!(
@@ -397,7 +400,7 @@ impl AuthStrategy for GoogleAdcStrategy {
                     .await
                     .map_err(|e| {
                         AuthError::CompletionFailed(format!(
-                            "{e}. Please run 'gcloud auth application-default login' to set up credentials."
+                            "Failed to obtain access token: {e}. Your ADC credentials may be expired — run 'gcloud auth application-default login' to re-authenticate."
                         ))
                     })?;
 
@@ -415,10 +418,13 @@ impl AuthStrategy for GoogleAdcStrategy {
         }
     }
 
-    async fn refresh(&self, _credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
+    async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
         // Google ADC handles token refresh automatically
         // We just need to get a fresh token using the Builder API
+        // Vertex AI requires the cloud-platform scope
+        const VERTEX_AI_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];
         let credentials = Builder::default()
+            .with_scopes(VERTEX_AI_SCOPES.iter().map(|s| s.to_string()))
             .build_access_token_credentials()
             .map_err(|e| {
                 AuthError::RefreshFailed(format!(
@@ -427,13 +433,16 @@ impl AuthStrategy for GoogleAdcStrategy {
             })?;
 
         let access_token = credentials.access_token().await.map_err(|e| {
-            AuthError::RefreshFailed(format!("Failed to refresh Google access token: {e}"))
+            AuthError::RefreshFailed(format!(
+                "Failed to refresh Google access token: {e}. Your ADC credentials may be expired — run 'gcloud auth application-default login' to re-authenticate."
+            ))
         })?;
 
         Ok(AuthCredential::new_google_adc(
             self.provider_id.clone(),
             ApiKey::from(access_token.token),
-        ))
+        )
+        .url_params(credential.url_params.clone()))
     }
 }
 

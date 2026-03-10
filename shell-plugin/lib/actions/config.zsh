@@ -90,10 +90,67 @@ function _forge_action_provider() {
     fi
 }
 
-# Action handler: Select model
+# Action handler: Select model (across all configured providers)
+#
+# Uses `forge list models --porcelain` which outputs columns (after swap):
+#   1:model_id  2:model_name  3:provider(display)  4:provider_id(raw)  5:context  6:tools  7:image
+# Shows the picker hiding model_id (field 1) and provider_id (field 4).
+# When the selected model belongs to a different provider, switches it first.
 function _forge_action_model() {
     local input_text="$1"
-    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.." "$input_text"
+    (
+        echo
+        local output
+        output=$($_FORGE_BIN list models --porcelain 2>/dev/null)
+
+        if [[ -z "$output" ]]; then
+            return 0
+        fi
+
+        local current_model
+        current_model=$($_FORGE_BIN config get model --porcelain 2>/dev/null)
+
+        local fzf_args=(
+            --delimiter="$_FORGE_DELIMITER"
+            --prompt="Model ❯ "
+            --with-nth="2,3,5.."
+        )
+
+        if [[ -n "$input_text" ]]; then
+            fzf_args+=(--query="$input_text")
+        fi
+
+        if [[ -n "$current_model" ]]; then
+            local index=$(_forge_find_index "$output" "$current_model" 1)
+            fzf_args+=(--bind="start:pos($index)")
+        fi
+
+        local selected
+        selected=$(echo "$output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id (raw), field 3 = provider display name,
+            # field 4 = provider_id (raw, for config set)
+            # Extract all fields in a single awk call for efficiency
+            local model_id provider_id provider_display
+            read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
+
+            # Trim whitespace
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+            provider_display=${provider_display//[[:space:]]/}
+
+            # Switch provider first if it differs from the current one
+            # config get provider returns the display name, so compare against that
+            local current_provider
+            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
+            if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
+                _forge_exec config set provider "$provider_id"
+            fi
+
+            _forge_exec config set model "$model_id"
+        fi
+    )
 }
 
 # Action handler: Sync workspace for codebase search

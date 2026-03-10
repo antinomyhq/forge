@@ -52,6 +52,10 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/execute-plan/SKILL.md",
                 include_str!("skills/execute-plan/SKILL.md"),
             ),
+            (
+                "forge://skills/github-pr-description/SKILL.md",
+                include_str!("skills/github-pr-description/SKILL.md"),
+            ),
         ];
 
         builtin_skills
@@ -334,7 +338,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 2);
+        assert_eq!(actual.len(), 3);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -361,6 +365,20 @@ mod tests {
                 .contains("Execute structured task plans")
         );
         assert!(execute_plan.command.contains("Execute Plan"));
+
+        // Check github-pr-description
+        let pr_description = actual
+            .iter()
+            .find(|s| s.name == "github-pr-description")
+            .unwrap();
+        assert_eq!(
+            pr_description.path,
+            Some(
+                std::path::Path::new("forge://skills/github-pr-description/SKILL.md").to_path_buf()
+            )
+        );
+        assert!(!pr_description.description.is_empty());
+        assert!(pr_description.command.contains("Create PR Description"));
     }
 
     #[tokio::test]
