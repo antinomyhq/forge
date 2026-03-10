@@ -175,25 +175,25 @@ impl Compaction {
 impl Transformer for Compaction {
     type Value = Context;
     fn transform(&mut self, context: Self::Value) -> Self::Value {
-        let msg_len = context.messages.len();
         let mut running_context = context.clone().messages(Vec::default());
         let compactor = Compactor::new(self.agent.compact.clone(), self.environment.clone());
-        for idx in 0..=msg_len {
-            if let Some(entry) = context.messages.get(idx).cloned() {
-                running_context.messages.push(entry);
-                if self
-                    .agent
-                    .compact
-                    .should_compact(&running_context, *running_context.token_count())
-                {
-                    info!(
-                        agent_id = %self.agent.id,
-                        message_count = running_context.messages.len(),
-                        token_count = *running_context.token_count(),
-                        "Compaction threshold reached, compacting context"
-                    );
-                    running_context = compactor.compact(running_context, false).unwrap();
-                }
+        for entry in context.messages {
+            running_context.messages.push(entry);
+            let token_count = *running_context.token_count();
+            if self
+                .agent
+                .compact
+                .should_compact(&running_context, token_count)
+            {
+                info!(
+                    agent_id = %self.agent.id,
+                    message_count = running_context.messages.len(),
+                    token_count,
+                    "Compaction threshold reached, compacting context"
+                );
+                running_context = compactor
+                    .compact(running_context, false)
+                    .expect("Compaction failed during context transformation");
             }
         }
         running_context
