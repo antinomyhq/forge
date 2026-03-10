@@ -164,7 +164,7 @@ impl<S: AgentService> Orchestrator<S> {
             .services
             .chat_agent(
                 model_id,
-                transformers.transform(context.clone()),
+                transformers.transform(context),
                 Some(self.agent.provider.clone()),
             )
             .await?;
