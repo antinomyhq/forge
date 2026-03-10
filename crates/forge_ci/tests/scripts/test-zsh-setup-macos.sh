@@ -114,7 +114,9 @@ readonly SCENARIOS=(
   # --- Without Homebrew ---
   "NOBREW_BARE|Fresh install (no brew, GitHub releases)|no_brew|standard"
   "NOBREW_RERUN|Re-run idempotency (no brew)|no_brew|rerun"
-  "NOBREW_NO_ZSH|No brew + no zsh in PATH|no_brew|no_zsh"
+
+  # --- No zsh in PATH (brew available to install it) ---
+  "BREW_NO_ZSH|No zsh in PATH (brew installs it)|with_brew|no_zsh"
 )
 
 # =============================================================================
@@ -383,10 +385,10 @@ filter_path_no_git() {
   echo "${temp_bin}:${filtered}"
 }
 
-# Build a PATH that hides both brew and zsh.
-# For the NOBREW_NO_ZSH scenario: remove brew dirs AND create filtered
-# copies of /usr/bin and /bin that exclude zsh.
-filter_path_no_brew_no_zsh() {
+# Build a PATH that hides zsh but keeps brew available.
+# For the BREW_NO_ZSH scenario: create filtered copies of /usr/bin and /bin
+# that exclude zsh, so forge must install zsh via brew.
+filter_path_no_zsh() {
   local temp_bin="$1"
   local no_zsh_dir="$2"
   local no_zsh_bin_dir="${no_zsh_dir}-bin"
@@ -414,17 +416,11 @@ filter_path_no_brew_no_zsh() {
     ln -sf "$f" "$no_zsh_bin_dir/$base" 2>/dev/null || true
   done
 
-  # Build new PATH: no brew dirs, /usr/bin and /bin replaced with filtered dirs
+  # Build new PATH: keep brew dirs, replace /usr/bin and /bin with filtered dirs
   local filtered=""
   local IFS=':'
   for dir in $PATH; do
     case "$dir" in
-      /opt/homebrew/bin|/opt/homebrew/sbin) continue ;;
-      /usr/local/bin|/usr/local/sbin)
-        if [ -d "/usr/local/Homebrew" ]; then
-          continue
-        fi
-        ;;
       /usr/bin)
         dir="$no_zsh_dir"
         ;;
@@ -469,7 +465,7 @@ run_verify_checks() {
       echo "CHECK_ZSH=FAIL ${zsh_ver} (modules broken)"
     fi
   else
-    if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    if [ "$test_type" = "no_git" ]; then
       echo "CHECK_ZSH=PASS (expected: zsh not needed in ${test_type} test)"
     else
       echo "CHECK_ZSH=FAIL zsh not found in PATH"
@@ -477,7 +473,7 @@ run_verify_checks() {
   fi
 
   # --- Verify Oh My Zsh ---
-  if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+  if [ "$test_type" = "no_git" ]; then
     echo "CHECK_OMZ_DIR=PASS (expected: partial OMZ in ${test_type} test)"
   elif [ -d "$HOME/.oh-my-zsh" ]; then
     local omz_ok=true
@@ -494,7 +490,7 @@ run_verify_checks() {
       echo "CHECK_OMZ_DIR=FAIL ${omz_detail}"
     fi
   else
-    if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    if [ "$test_type" = "no_git" ]; then
       echo "CHECK_OMZ_DIR=PASS (expected: no OMZ in ${test_type} test)"
     else
       echo "CHECK_OMZ_DIR=FAIL ~/.oh-my-zsh not found"
@@ -523,7 +519,7 @@ run_verify_checks() {
       echo "CHECK_OMZ_DEFAULTS=FAIL ${omz_defaults_detail}"
     fi
   else
-    if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    if [ "$test_type" = "no_git" ]; then
       echo "CHECK_OMZ_DEFAULTS=PASS (expected: no .zshrc in ${test_type} test)"
     else
       echo "CHECK_OMZ_DEFAULTS=FAIL ~/.zshrc not found"
@@ -539,7 +535,7 @@ run_verify_checks() {
       echo "CHECK_AUTOSUGGESTIONS=FAIL (dir exists but no .zsh files)"
     fi
   else
-    if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    if [ "$test_type" = "no_git" ]; then
       echo "CHECK_AUTOSUGGESTIONS=PASS (expected: no plugins in ${test_type} test)"
     else
       echo "CHECK_AUTOSUGGESTIONS=FAIL not installed"
@@ -553,7 +549,7 @@ run_verify_checks() {
       echo "CHECK_SYNTAX_HIGHLIGHTING=FAIL (dir exists but no .zsh files)"
     fi
   else
-    if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    if [ "$test_type" = "no_git" ]; then
       echo "CHECK_SYNTAX_HIGHLIGHTING=PASS (expected: no plugins in ${test_type} test)"
     else
       echo "CHECK_SYNTAX_HIGHLIGHTING=FAIL not installed"
@@ -604,7 +600,7 @@ run_verify_checks() {
       echo "CHECK_MARKER_UNIQUE=FAIL (start=${start_count}, end=${end_count})"
     fi
   else
-    if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+    if [ "$test_type" = "no_git" ]; then
       echo "CHECK_ZSHRC_MARKERS=PASS (expected: no .zshrc in ${test_type} test)"
       echo "CHECK_ZSHRC_PLUGIN=PASS (expected: no .zshrc in ${test_type} test)"
       echo "CHECK_ZSHRC_THEME=PASS (expected: no .zshrc in ${test_type} test)"
@@ -624,7 +620,7 @@ run_verify_checks() {
   # --- Check if forge zsh setup's own doctor run failed ---
   # forge zsh setup runs doctor internally. Even if our independent doctor call
   # succeeds (different environment), we must detect if setup's doctor failed.
-  if [ "$test_type" != "no_git" ] && [ "$test_type" != "no_zsh" ]; then
+  if [ "$test_type" != "no_git" ]; then
     if echo "$setup_output" | grep -qi "forge zsh doctor failed"; then
       echo "CHECK_SETUP_DOCTOR=FAIL (setup reported doctor failure)"
     else
@@ -636,7 +632,7 @@ run_verify_checks() {
   local doctor_output
   local doctor_exit=0
   doctor_output=$(forge zsh doctor 2>&1) || doctor_exit=$?
-  if [ "$test_type" = "no_git" ] || [ "$test_type" = "no_zsh" ]; then
+  if [ "$test_type" = "no_git" ]; then
     echo "CHECK_DOCTOR_EXIT=PASS (skipped for ${test_type} test)"
   else
     if [ $doctor_exit -eq 0 ]; then
@@ -666,11 +662,11 @@ run_verify_checks() {
     fi
     echo "CHECK_OUTPUT_FORMAT=PASS ${output_detail}"
   elif [ "$test_type" = "no_zsh" ]; then
-    if echo "$setup_output" | grep -qi "Homebrew not found\|brew.*not found\|Failed to install zsh"; then
-      output_detail="${output_detail}, brew_error=OK"
+    if echo "$setup_output" | grep -qi "zsh not found\|zsh.*not found"; then
+      output_detail="${output_detail}, zsh_detect=OK"
     else
       output_ok=false
-      output_detail="${output_detail}, brew_error=MISSING"
+      output_detail="${output_detail}, zsh_detect=MISSING"
     fi
     echo "CHECK_OUTPUT_FORMAT=PASS ${output_detail}"
   else
@@ -722,11 +718,11 @@ run_verify_checks() {
       fi
       ;;
     no_zsh)
-      # When brew is hidden and zsh is hidden, forge should fail trying to install zsh
-      if echo "$setup_output" | grep -qi "Homebrew not found\|brew.*not found\|Failed to install zsh"; then
-        echo "CHECK_EDGE_NO_ZSH=PASS (correctly reports no brew/zsh)"
+      # When zsh is hidden from PATH but brew is available, forge should install zsh via brew
+      if echo "$setup_output" | grep -qi "zsh not found\|zsh.*not found"; then
+        echo "CHECK_EDGE_NO_ZSH=PASS (correctly detects zsh missing and installs via brew)"
       else
-        echo "CHECK_EDGE_NO_ZSH=FAIL (should report Homebrew not found or install failure)"
+        echo "CHECK_EDGE_NO_ZSH=FAIL (should detect zsh not found)"
       fi
       ;;
     rerun)
@@ -850,19 +846,15 @@ EOF
 
   case "$brew_mode" in
     no_brew)
-      case "$test_type" in
-        no_zsh)
-          test_path=$(filter_path_no_brew_no_zsh "$temp_bin" "$no_zsh_dir")
-          ;;
-        *)
-          test_path=$(filter_path_no_brew "$temp_bin")
-          ;;
-      esac
+      test_path=$(filter_path_no_brew "$temp_bin")
       ;;
     with_brew)
       case "$test_type" in
         no_git)
           test_path=$(filter_path_no_git "$temp_bin" "$no_git_dir")
+          ;;
+        no_zsh)
+          test_path=$(filter_path_no_zsh "$temp_bin" "$no_zsh_dir")
           ;;
         *)
           test_path="${temp_bin}:${PATH}"
@@ -976,7 +968,7 @@ OUTPUT_END"
 
   # Check setup exit code
   if [ -n "$parsed_setup_exit" ] && [ "$parsed_setup_exit" != "0" ] && \
-     [ "$test_type" != "no_git" ] && [ "$test_type" != "no_zsh" ]; then
+     [ "$test_type" != "no_git" ]; then
     status="FAIL"
     details="${details}    SETUP_EXIT=${parsed_setup_exit} (expected 0)\n"
   fi
