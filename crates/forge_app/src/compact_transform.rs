@@ -52,7 +52,9 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         let env = env.cwd(std::path::PathBuf::from("/test/working/dir"));
-        let compact = Compact::new().message_threshold(message_thresh).retention_window(retention);
+        let compact = Compact::new()
+            .message_threshold(message_thresh)
+            .retention_window(retention);
         let agent = Agent::new(
             AgentId::new("test"),
             ProviderId::ANTHROPIC,
