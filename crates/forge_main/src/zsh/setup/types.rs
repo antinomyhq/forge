@@ -89,6 +89,87 @@ pub enum FdStatus {
     },
 }
 
+/// Reason a dependency appears in the missing list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::Display)]
+pub enum ItemReason {
+    /// The tool is not installed at all.
+    #[strum(to_string = "missing")]
+    Missing,
+    /// The tool is installed but below the minimum required version.
+    #[strum(to_string = "outdated")]
+    Outdated,
+}
+
+/// Identifies a dependency managed by the ZSH setup orchestrator.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::Display)]
+pub enum Dependency {
+    /// zsh shell
+    #[strum(to_string = "zsh")]
+    Zsh,
+    /// Oh My Zsh plugin framework
+    #[strum(to_string = "Oh My Zsh")]
+    OhMyZsh,
+    /// zsh-autosuggestions plugin
+    #[strum(to_string = "zsh-autosuggestions")]
+    Autosuggestions,
+    /// zsh-syntax-highlighting plugin
+    #[strum(to_string = "zsh-syntax-highlighting")]
+    SyntaxHighlighting,
+    /// fzf fuzzy finder
+    #[strum(to_string = "fzf")]
+    Fzf,
+    /// bat file viewer
+    #[strum(to_string = "bat")]
+    Bat,
+    /// fd file finder
+    #[strum(to_string = "fd")]
+    Fd,
+}
+
+impl Dependency {
+    /// Returns the human-readable category/kind of this dependency.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Dependency::Zsh => "shell",
+            Dependency::OhMyZsh => "plugin framework",
+            Dependency::Autosuggestions | Dependency::SyntaxHighlighting => "plugin",
+            Dependency::Fzf => "fuzzy finder",
+            Dependency::Bat => "file viewer",
+            Dependency::Fd => "file finder",
+        }
+    }
+}
+
+/// A dependency that needs to be installed or upgraded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MissingItem {
+    /// Which dependency is missing or outdated.
+    pub dep: Dependency,
+    /// Why it appears in the missing list.
+    pub reason: ItemReason,
+}
+
+impl MissingItem {
+    /// Creates a new missing item.
+    pub fn new(dep: Dependency, reason: ItemReason) -> Self {
+        Self { dep, reason }
+    }
+
+    /// Returns the human-readable category/kind of this dependency.
+    pub fn kind(&self) -> &'static str {
+        self.dep.kind()
+    }
+}
+
+impl std::fmt::Display for MissingItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.reason {
+            ItemReason::Missing => write!(f, "{}", self.dep),
+            ItemReason::Outdated => write!(f, "{} ({})", self.dep, self.reason),
+        }
+    }
+}
+
 /// Aggregated dependency detection results.
 #[derive(Debug, Clone)]
 pub struct DependencyStatus {
@@ -120,30 +201,53 @@ impl DependencyStatus {
             && self.syntax_highlighting == PluginStatus::Installed
     }
 
-    /// Returns a list of human-readable names for items that need to be
-    /// installed.
-    pub fn missing_items(&self) -> Vec<(&'static str, &'static str)> {
+    /// Returns a list of dependencies that need to be installed or upgraded.
+    pub fn missing_items(&self) -> Vec<MissingItem> {
         let mut items = Vec::new();
         if !matches!(self.zsh, ZshStatus::Functional { .. }) {
-            items.push(("zsh", "shell"));
+            items.push(MissingItem::new(Dependency::Zsh, ItemReason::Missing));
         }
         if !matches!(self.oh_my_zsh, OmzStatus::Installed { .. }) {
-            items.push(("Oh My Zsh", "plugin framework"));
+            items.push(MissingItem::new(Dependency::OhMyZsh, ItemReason::Missing));
         }
         if self.autosuggestions == PluginStatus::NotInstalled {
-            items.push(("zsh-autosuggestions", "plugin"));
+            items.push(MissingItem::new(
+                Dependency::Autosuggestions,
+                ItemReason::Missing,
+            ));
         }
         if self.syntax_highlighting == PluginStatus::NotInstalled {
-            items.push(("zsh-syntax-highlighting", "plugin"));
+            items.push(MissingItem::new(
+                Dependency::SyntaxHighlighting,
+                ItemReason::Missing,
+            ));
         }
-        if matches!(self.fzf, FzfStatus::NotFound) {
-            items.push(("fzf", "fuzzy finder"));
+        match &self.fzf {
+            FzfStatus::NotFound => {
+                items.push(MissingItem::new(Dependency::Fzf, ItemReason::Missing))
+            }
+            FzfStatus::Found { meets_minimum: false, .. } => {
+                items.push(MissingItem::new(Dependency::Fzf, ItemReason::Outdated))
+            }
+            _ => {}
         }
-        if matches!(self.bat, BatStatus::NotFound) {
-            items.push(("bat", "file viewer"));
+        match &self.bat {
+            BatStatus::NotFound => {
+                items.push(MissingItem::new(Dependency::Bat, ItemReason::Missing))
+            }
+            BatStatus::Installed { meets_minimum: false, .. } => {
+                items.push(MissingItem::new(Dependency::Bat, ItemReason::Outdated))
+            }
+            _ => {}
         }
-        if matches!(self.fd, FdStatus::NotFound) {
-            items.push(("fd", "file finder"));
+        match &self.fd {
+            FdStatus::NotFound => {
+                items.push(MissingItem::new(Dependency::Fd, ItemReason::Missing))
+            }
+            FdStatus::Installed { meets_minimum: false, .. } => {
+                items.push(MissingItem::new(Dependency::Fd, ItemReason::Outdated))
+            }
+            _ => {}
         }
         items
     }
@@ -238,10 +342,10 @@ mod tests {
 
         let actual = fixture.missing_items();
         let expected = vec![
-            ("zsh", "shell"),
-            ("fzf", "fuzzy finder"),
-            ("bat", "file viewer"),
-            ("fd", "file finder"),
+            MissingItem::new(Dependency::Zsh, ItemReason::Missing),
+            MissingItem::new(Dependency::Fzf, ItemReason::Missing),
+            MissingItem::new(Dependency::Bat, ItemReason::Missing),
+            MissingItem::new(Dependency::Fd, ItemReason::Missing),
         ];
         assert_eq!(actual, expected);
     }
@@ -261,13 +365,13 @@ mod tests {
 
         let actual = fixture.missing_items();
         let expected = vec![
-            ("zsh", "shell"),
-            ("Oh My Zsh", "plugin framework"),
-            ("zsh-autosuggestions", "plugin"),
-            ("zsh-syntax-highlighting", "plugin"),
-            ("fzf", "fuzzy finder"),
-            ("bat", "file viewer"),
-            ("fd", "file finder"),
+            MissingItem::new(Dependency::Zsh, ItemReason::Missing),
+            MissingItem::new(Dependency::OhMyZsh, ItemReason::Missing),
+            MissingItem::new(Dependency::Autosuggestions, ItemReason::Missing),
+            MissingItem::new(Dependency::SyntaxHighlighting, ItemReason::Missing),
+            MissingItem::new(Dependency::Fzf, ItemReason::Missing),
+            MissingItem::new(Dependency::Bat, ItemReason::Missing),
+            MissingItem::new(Dependency::Fd, ItemReason::Missing),
         ];
         assert_eq!(actual, expected);
     }
@@ -287,9 +391,9 @@ mod tests {
 
         let actual = fixture.missing_items();
         let expected = vec![
-            ("zsh-autosuggestions", "plugin"),
-            ("fzf", "fuzzy finder"),
-            ("fd", "file finder"),
+            MissingItem::new(Dependency::Autosuggestions, ItemReason::Missing),
+            MissingItem::new(Dependency::Fzf, ItemReason::Missing),
+            MissingItem::new(Dependency::Fd, ItemReason::Missing),
         ];
         assert_eq!(actual, expected);
     }

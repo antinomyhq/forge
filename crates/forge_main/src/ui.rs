@@ -1738,8 +1738,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if !deps.all_installed() || deps.needs_tools() {
             let missing = deps.missing_items();
             self.writeln_title(TitleFormat::info("The following will be installed:"))?;
-            for (name, kind) in &missing {
-                println!("   {} ({kind})", name.dimmed());
+            for item in &missing {
+                println!("   {} ({})", item.to_string().dimmed(), item.kind());
             }
             println!();
 

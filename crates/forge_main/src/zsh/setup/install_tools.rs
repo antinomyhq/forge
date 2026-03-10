@@ -11,7 +11,7 @@ use tokio::process::Command;
 use super::detect::{detect_bat, detect_fd, detect_fzf};
 use super::install_zsh::LinuxPackageManager;
 use super::libc::{LibcType, detect_libc_type};
-use super::platform::Platform;
+use super::platform::{Arch, Platform};
 use super::types::*;
 use super::util::*;
 use super::{BAT_MIN_VERSION, FD_MIN_VERSION, FZF_MIN_VERSION};
@@ -195,27 +195,17 @@ async fn install_via_package_manager_linux(tool: &str, sudo: &SudoCapability) ->
 
 /// Installs fzf from GitHub releases.
 async fn install_fzf_from_github(platform: Platform) -> Result<()> {
-    // Determine the asset pattern based on platform
-    let asset_pattern = match platform {
-        Platform::Linux => "linux",
-        Platform::MacOS => "darwin",
-        Platform::Windows => "windows",
-        Platform::Android => "linux", // fzf doesn't have android-specific builds
-    };
+    let asset_pattern = platform.fzf_asset_pattern();
 
     let version = get_latest_release_with_binary("junegunn/fzf", asset_pattern, "0.56.3").await;
 
     let url = construct_fzf_url(&version, platform)?;
-    let archive_type = if platform == Platform::Windows {
-        ArchiveType::Zip
-    } else {
-        ArchiveType::TarGz
+    let archive_type = match platform.archive_ext() {
+        "zip" => ArchiveType::Zip,
+        _ => ArchiveType::TarGz,
     };
 
-    let binary_path = download_and_extract_tool(&url, "fzf", archive_type, false).await?;
-    install_binary_to_local_bin(&binary_path, "fzf").await?;
-
-    Ok(())
+    download_extract_and_install(&url, "fzf", archive_type, false).await
 }
 
 /// Installs a sharkdp tool (bat, fd) from GitHub releases.
@@ -237,20 +227,17 @@ async fn install_sharkdp_tool_from_github(
     let target = construct_rust_target(platform).await?;
 
     let version = get_latest_release_with_binary(repo, &target, fallback_version).await;
-    let (archive_type, ext) = if platform == Platform::Windows {
-        (ArchiveType::Zip, "zip")
-    } else {
-        (ArchiveType::TarGz, "tar.gz")
+    let ext = platform.archive_ext();
+    let archive_type = match ext {
+        "zip" => ArchiveType::Zip,
+        _ => ArchiveType::TarGz,
     };
     let url = format!(
         "https://github.com/{}/releases/download/v{}/{}-v{}-{}.{}",
         repo, version, tool, version, target, ext
     );
 
-    let binary_path = download_and_extract_tool(&url, tool, archive_type, true).await?;
-    install_binary_to_local_bin(&binary_path, tool).await?;
-
-    Ok(())
+    download_extract_and_install(&url, tool, archive_type, true).await
 }
 
 /// Minimal struct for parsing GitHub release API response.
@@ -278,9 +265,16 @@ struct GitHubAsset {
 ///   "x86_64-unknown-linux-musl")
 ///
 /// Returns the version string (without 'v' prefix) or fallback if all fail.
-async fn get_latest_release_with_binary(repo: &str, asset_pattern: &str, fallback: &str) -> String {
+async fn get_latest_release_with_binary(
+    repo: &str,
+    asset_pattern: &str,
+    fallback: &str,
+) -> String {
     // Try to get list of recent releases
-    let releases_url = format!("https://api.github.com/repos/{}/releases?per_page=10", repo);
+    let releases_url = format!(
+        "https://api.github.com/repos/{}/releases?per_page=10",
+        repo
+    );
     let response = match reqwest::Client::new()
         .get(&releases_url)
         .header("User-Agent", "forge-cli")
@@ -327,22 +321,28 @@ enum ArchiveType {
     Zip,
 }
 
-/// Downloads and extracts a tool from a URL.
+/// Downloads, extracts, and installs a tool binary to `~/.local/bin`.
 ///
-/// Returns the path to the extracted binary.
-async fn download_and_extract_tool(
+/// Creates a temporary directory for the download, extracts the archive,
+/// copies the binary to `~/.local/bin`, and cleans up the temp directory.
+///
+/// # Arguments
+/// * `url` - Download URL for the archive
+/// * `tool_name` - Name of the binary to find in the archive
+/// * `archive_type` - Whether the archive is tar.gz or zip
+/// * `nested` - If true, searches subdirectories for the binary (e.g., bat/fd archives)
+async fn download_extract_and_install(
     url: &str,
     tool_name: &str,
     archive_type: ArchiveType,
     nested: bool,
-) -> Result<PathBuf> {
+) -> Result<()> {
     let temp_dir = std::env::temp_dir().join(format!("forge-{}-download", tool_name));
     tokio::fs::create_dir_all(&temp_dir).await?;
+    let _cleanup = TempDirCleanup(temp_dir.clone());
 
     // Download archive
     let response = reqwest::get(url).await.context("Failed to download tool")?;
-
-    // Check if download was successful
     if !response.status().is_success() {
         bail!(
             "Failed to download {}: HTTP {} - {}",
@@ -351,7 +351,6 @@ async fn download_and_extract_tool(
             response.text().await.unwrap_or_default()
         );
     }
-
     let bytes = response.bytes().await?;
 
     let archive_ext = match archive_type {
@@ -362,10 +361,32 @@ async fn download_and_extract_tool(
     tokio::fs::write(&archive_path, &bytes).await?;
 
     // Extract archive
+    extract_archive(&archive_path, &temp_dir, archive_type).await?;
+
+    // Find binary in extracted files
+    let binary_path = find_binary_in_dir(&temp_dir, tool_name, nested).await?;
+
+    // Install to ~/.local/bin
+    install_binary_to_local_bin(&binary_path, tool_name).await?;
+
+    Ok(())
+}
+
+/// Extracts an archive to the given destination directory.
+async fn extract_archive(
+    archive_path: &Path,
+    dest_dir: &Path,
+    archive_type: ArchiveType,
+) -> Result<()> {
     match archive_type {
         ArchiveType::TarGz => {
             let status = Command::new("tar")
-                .args(["-xzf", &path_str(&archive_path), "-C", &path_str(&temp_dir)])
+                .args([
+                    "-xzf",
+                    &path_str(archive_path),
+                    "-C",
+                    &path_str(dest_dir),
+                ])
                 .status()
                 .await?;
             if !status.success() {
@@ -381,7 +402,7 @@ async fn download_and_extract_tool(
                         &format!(
                             "Expand-Archive -Path '{}' -DestinationPath '{}'",
                             archive_path.display(),
-                            temp_dir.display()
+                            dest_dir.display()
                         ),
                     ])
                     .status()
@@ -393,7 +414,7 @@ async fn download_and_extract_tool(
             #[cfg(not(target_os = "windows"))]
             {
                 let status = Command::new("unzip")
-                    .args(["-q", &path_str(&archive_path), "-d", &path_str(&temp_dir)])
+                    .args(["-q", &path_str(archive_path), "-d", &path_str(dest_dir)])
                     .status()
                     .await?;
                 if !status.success() {
@@ -402,17 +423,22 @@ async fn download_and_extract_tool(
             }
         }
     }
+    Ok(())
+}
 
-    // Find binary in extracted files
+/// Locates the tool binary inside an extracted archive directory.
+///
+/// If `nested` is true, searches one level of subdirectories (for archives
+/// like bat/fd that wrap contents in a folder). Otherwise looks at the top level.
+async fn find_binary_in_dir(dir: &Path, tool_name: &str, nested: bool) -> Result<PathBuf> {
     let binary_name = if cfg!(target_os = "windows") {
         format!("{}.exe", tool_name)
     } else {
         tool_name.to_string()
     };
 
-    let binary_path = if nested {
-        // Nested structure: look in subdirectories
-        let mut entries = tokio::fs::read_dir(&temp_dir).await?;
+    if nested {
+        let mut entries = tokio::fs::read_dir(dir).await?;
         while let Some(entry) = entries.next_entry().await? {
             if entry.file_type().await?.is_dir() {
                 let candidate = entry.path().join(&binary_name);
@@ -421,21 +447,18 @@ async fn download_and_extract_tool(
                 }
             }
         }
-        bail!("Binary not found in nested archive structure");
+        bail!("Binary '{}' not found in nested archive structure", tool_name);
     } else {
-        // Flat structure: binary at top level
-        let candidate = temp_dir.join(&binary_name);
+        let candidate = dir.join(&binary_name);
         if candidate.exists() {
-            candidate
+            Ok(candidate)
         } else {
-            bail!("Binary not found in flat archive structure");
+            bail!("Binary '{}' not found in flat archive structure", tool_name);
         }
-    };
-
-    Ok(binary_path)
+    }
 }
 
-/// Installs a binary to `~/.local/bin`.
+/// Installs a binary to `~/.local/bin` with executable permissions.
 async fn install_binary_to_local_bin(binary_path: &Path, name: &str) -> Result<()> {
     let home = std::env::var("HOME").context("HOME not set")?;
     let local_bin = PathBuf::from(home).join(".local").join("bin");
@@ -462,74 +485,31 @@ async fn install_binary_to_local_bin(binary_path: &Path, name: &str) -> Result<(
 
 /// Constructs the download URL for fzf based on platform and architecture.
 fn construct_fzf_url(version: &str, platform: Platform) -> Result<String> {
-    let arch = std::env::consts::ARCH;
-    let (os, arch_suffix, ext) = match platform {
-        Platform::Linux => {
-            let arch_name = match arch {
-                "x86_64" => "amd64",
-                "aarch64" => "arm64",
-                _ => bail!("Unsupported architecture: {}", arch),
-            };
-            ("linux", arch_name, "tar.gz")
-        }
-        Platform::MacOS => {
-            let arch_name = match arch {
-                "x86_64" => "amd64",
-                "aarch64" => "arm64",
-                _ => bail!("Unsupported architecture: {}", arch),
-            };
-            ("darwin", arch_name, "tar.gz")
-        }
-        Platform::Windows => {
-            let arch_name = match arch {
-                "x86_64" => "amd64",
-                "aarch64" => "arm64",
-                _ => bail!("Unsupported architecture: {}", arch),
-            };
-            ("windows", arch_name, "zip")
-        }
-        Platform::Android => ("android", "arm64", "tar.gz"),
-    };
-
+    let arch = Arch::detect()?;
     Ok(format!(
         "https://github.com/junegunn/fzf/releases/download/v{}/fzf-{}-{}_{}.{}",
-        version, version, os, arch_suffix, ext
+        version,
+        version,
+        platform.fzf_os(),
+        arch.as_go(),
+        platform.archive_ext()
     ))
 }
 
 /// Constructs a Rust target triple for bat/fd downloads.
 async fn construct_rust_target(platform: Platform) -> Result<String> {
-    let arch = std::env::consts::ARCH;
+    let arch = Arch::detect()?;
     match platform {
         Platform::Linux => {
             let libc = detect_libc_type().await.unwrap_or(LibcType::Musl);
-            let arch_prefix = match arch {
-                "x86_64" => "x86_64",
-                "aarch64" => "aarch64",
-                _ => bail!("Unsupported architecture: {}", arch),
-            };
             let libc_suffix = match libc {
                 LibcType::Musl => "musl",
                 LibcType::Gnu => "gnu",
             };
-            Ok(format!("{}-unknown-linux-{}", arch_prefix, libc_suffix))
+            Ok(format!("{}-unknown-linux-{}", arch.as_rust(), libc_suffix))
         }
-        Platform::MacOS => {
-            let arch_prefix = match arch {
-                "x86_64" => "x86_64",
-                "aarch64" => "aarch64",
-                _ => bail!("Unsupported architecture: {}", arch),
-            };
-            Ok(format!("{}-apple-darwin", arch_prefix))
-        }
-        Platform::Windows => {
-            let arch_prefix = match arch {
-                "x86_64" => "x86_64",
-                "aarch64" => "aarch64",
-                _ => bail!("Unsupported architecture: {}", arch),
-            };
-            Ok(format!("{}-pc-windows-msvc", arch_prefix))
-        }
+        Platform::MacOS => Ok(format!("{}-apple-darwin", arch.as_rust())),
+        Platform::Windows => Ok(format!("{}-pc-windows-msvc", arch.as_rust())),
         Platform::Android => Ok("aarch64-unknown-linux-musl".to_string()),
     }
 }

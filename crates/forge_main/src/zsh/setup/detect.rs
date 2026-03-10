@@ -70,7 +70,9 @@ pub async fn detect_zsh() -> ZshStatus {
         .unwrap_or(false);
 
     if !modules_ok {
-        return ZshStatus::Broken { path: path.lines().next().unwrap_or(&path).to_string() };
+        return ZshStatus::Broken {
+            path: path.lines().next().unwrap_or(&path).to_string(),
+        };
     }
 
     // Get version
@@ -173,40 +175,50 @@ pub async fn detect_fzf() -> FzfStatus {
 
     let meets_minimum = version_gte(&version, FZF_MIN_VERSION);
 
-    FzfStatus::Found { version, meets_minimum }
+    FzfStatus::Found {
+        version,
+        meets_minimum,
+    }
 }
 
 /// Detects bat installation (checks both "bat" and "batcat" on Debian/Ubuntu).
 pub async fn detect_bat() -> BatStatus {
-    // Try "bat" first, then "batcat" (Debian/Ubuntu naming)
-    for cmd in &["bat", "batcat"] {
-        if command_exists(cmd).await
-            && let Ok(output) = Command::new(cmd)
-                .arg("--version")
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::null())
-                .output()
-                .await
-            && output.status.success()
-        {
-            let out = String::from_utf8_lossy(&output.stdout);
-            // bat --version outputs "bat 0.24.0" or similar
-            let version = out
-                .split_whitespace()
-                .nth(1)
-                .unwrap_or("unknown")
-                .to_string();
-            let meets_minimum = version_gte(&version, BAT_MIN_VERSION);
-            return BatStatus::Installed { version, meets_minimum };
-        }
+    match detect_tool_with_aliases(&["bat", "batcat"], 1, BAT_MIN_VERSION).await {
+        Some((version, meets_minimum)) => BatStatus::Installed {
+            version,
+            meets_minimum,
+        },
+        None => BatStatus::NotFound,
     }
-    BatStatus::NotFound
 }
 
 /// Detects fd installation (checks both "fd" and "fdfind" on Debian/Ubuntu).
 pub async fn detect_fd() -> FdStatus {
-    // Try "fd" first, then "fdfind" (Debian/Ubuntu naming)
-    for cmd in &["fd", "fdfind"] {
+    match detect_tool_with_aliases(&["fd", "fdfind"], 1, FD_MIN_VERSION).await {
+        Some((version, meets_minimum)) => FdStatus::Installed {
+            version,
+            meets_minimum,
+        },
+        None => FdStatus::NotFound,
+    }
+}
+
+/// Detects a tool by trying multiple command aliases, parsing the version
+/// from `--version` output, and checking against a minimum version.
+///
+/// # Arguments
+/// * `aliases` - Command names to try (e.g., `["bat", "batcat"]`)
+/// * `version_word_index` - Which whitespace-delimited word in the output
+///   contains the version (e.g., `"bat 0.24.0"` -> index 1)
+/// * `min_version` - Minimum acceptable version string
+///
+/// Returns `Some((version, meets_minimum))` if any alias is found.
+async fn detect_tool_with_aliases(
+    aliases: &[&str],
+    version_word_index: usize,
+    min_version: &str,
+) -> Option<(String, bool)> {
+    for cmd in aliases {
         if command_exists(cmd).await
             && let Ok(output) = Command::new(cmd)
                 .arg("--version")
@@ -217,17 +229,16 @@ pub async fn detect_fd() -> FdStatus {
             && output.status.success()
         {
             let out = String::from_utf8_lossy(&output.stdout);
-            // fd --version outputs "fd 10.2.0" or similar
             let version = out
                 .split_whitespace()
-                .nth(1)
+                .nth(version_word_index)
                 .unwrap_or("unknown")
                 .to_string();
-            let meets_minimum = version_gte(&version, FD_MIN_VERSION);
-            return FdStatus::Installed { version, meets_minimum };
+            let meets_minimum = version_gte(&version, min_version);
+            return Some((version, meets_minimum));
         }
     }
-    FdStatus::NotFound
+    None
 }
 
 /// Runs all dependency detection functions in parallel and returns aggregated

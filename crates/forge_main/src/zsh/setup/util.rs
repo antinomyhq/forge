@@ -158,25 +158,13 @@ pub(super) async fn find_file_recursive(dir: &Path, name: &str) -> Option<PathBu
 }
 
 /// Resolves the path to the zsh binary.
+///
+/// Delegates to [`resolve_command_path`] and falls back to `"zsh"` if
+/// the binary cannot be located.
 pub(super) async fn resolve_zsh_path() -> String {
-    let which = if cfg!(target_os = "windows") {
-        "where"
-    } else {
-        "which"
-    };
-    match Command::new(which)
-        .arg("zsh")
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .output()
+    resolve_command_path("zsh")
         .await
-    {
-        Ok(o) if o.status.success() => {
-            let out = String::from_utf8_lossy(&o.stdout);
-            out.lines().next().unwrap_or("zsh").trim().to_string()
-        }
-        _ => "zsh".to_string(),
-    }
+        .unwrap_or_else(|| "zsh".to_string())
 }
 
 /// Compares two version strings (dotted numeric).
