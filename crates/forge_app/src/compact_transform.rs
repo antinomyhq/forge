@@ -91,15 +91,9 @@ mod tests {
     #[test]
     fn test_multi_round_evolution() {
         let mut c = compaction(2, 10);
-        let mut base = String::from("sauau");
-        let seed = MessagePattern::new(base.clone()).build();
-
-        // Request 1
+        let mut base = String::from("s");
         let mut rounds: Vec<(String, Vec<String>)> = Vec::new();
-        let current = c.transform(seed);
-        rounds.push(("request 1".into(), describe(&current)));
-
-        for i in 1..=6 {
+        for i in 1..=7 {
             base.push_str("au");
             let seed = MessagePattern::new(base.clone()).build();
             let current = c.transform(seed);
