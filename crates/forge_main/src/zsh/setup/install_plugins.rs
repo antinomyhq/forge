@@ -33,32 +33,33 @@ pub async fn install_oh_my_zsh() -> Result<()> {
         .send()
         .await
         .context("Failed to download Oh My Zsh install script")?
-        .text()
+        .bytes()
         .await
         .context("Failed to read Oh My Zsh install script")?;
 
-    // Write to temp file
-    let temp_dir = std::env::temp_dir();
-    let script_path = temp_dir.join("omz-install.sh");
-    tokio::fs::write(&script_path, &script)
-        .await
-        .context("Failed to write Oh My Zsh install script")?;
-
-    // Execute the script with RUNZSH=no and CHSH=no to prevent auto-start
-    // and shell changing - we handle those ourselves
-    let status = Command::new("sh")
-        .arg(&script_path)
+    // Pipe the script directly to `sh -s` (like curl | sh) instead of writing
+    // a temp file. The `-s` flag tells sh to read commands from stdin.
+    let mut child = Command::new("sh")
+        .arg("-s")
         .env("RUNZSH", "no")
         .env("CHSH", "no")
+        .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
-        .stdin(std::process::Stdio::inherit())
-        .status()
-        .await
-        .context("Failed to execute Oh My Zsh install script")?;
+        .spawn()
+        .context("Failed to spawn sh for Oh My Zsh install")?;
 
-    // Clean up temp script
-    let _ = tokio::fs::remove_file(&script_path).await;
+    // Write the script to the child's stdin, then drop to close the pipe
+    if let Some(mut stdin) = child.stdin.take() {
+        tokio::io::AsyncWriteExt::write_all(&mut stdin, &script)
+            .await
+            .context("Failed to pipe Oh My Zsh install script to sh")?;
+    }
+
+    let status = child
+        .wait()
+        .await
+        .context("Failed to wait for Oh My Zsh install script")?;
 
     if !status.success() {
         bail!("Oh My Zsh installation failed. Install manually: https://ohmyz.sh/#install");

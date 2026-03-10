@@ -25,48 +25,10 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
     // Try package manager first (version is checked before installing)
     // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
     // preventing the GitHub release fallback below from running.
-    let pkg_mgr_result = match platform {
-        Platform::Linux => install_via_package_manager_linux("fzf", sudo).await,
-        Platform::MacOS => {
-            if command_exists("brew").await {
-                let status = Command::new("brew")
-                    .args(["install", "fzf"])
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit())
-                    .status()
-                    .await?;
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("brew install fzf failed"))
-                }
-            } else {
-                Err(anyhow::anyhow!("brew not found"))
-            }
-        }
-        Platform::Android => {
-            if command_exists("pkg").await {
-                let status = Command::new("pkg")
-                    .args(["install", "-y", "fzf"])
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit())
-                    .status()
-                    .await?;
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("pkg install fzf failed"))
-                }
-            } else {
-                Err(anyhow::anyhow!("pkg not found"))
-            }
-        }
-        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
-    };
+    let pkg_mgr_result = try_install_via_package_manager("fzf", platform, sudo).await;
 
     // If package manager succeeded, verify installation and version
     if pkg_mgr_result.is_ok() {
-        // Verify the tool was installed with correct version
         let status = detect_fzf().await;
         if matches!(status, FzfStatus::Found { meets_minimum: true, .. }) {
             return Ok(());
@@ -86,69 +48,18 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
     // Try package manager first (version is checked before installing)
     // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
     // preventing the GitHub release fallback below from running.
-    let pkg_mgr_result = match platform {
-        Platform::Linux => install_via_package_manager_linux("bat", sudo).await,
-        Platform::MacOS => {
-            if command_exists("brew").await {
-                let status = Command::new("brew")
-                    .args(["install", "bat"])
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit())
-                    .status()
-                    .await?;
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("brew install bat failed"))
-                }
-            } else {
-                Err(anyhow::anyhow!("brew not found"))
-            }
-        }
-        Platform::Android => {
-            if command_exists("pkg").await {
-                let status = Command::new("pkg")
-                    .args(["install", "-y", "bat"])
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit())
-                    .status()
-                    .await?;
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("pkg install bat failed"))
-                }
-            } else {
-                Err(anyhow::anyhow!("pkg not found"))
-            }
-        }
-        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
-    };
+    let pkg_mgr_result = try_install_via_package_manager("bat", platform, sudo).await;
 
     // If package manager succeeded, verify installation and version
     if pkg_mgr_result.is_ok() {
-        // Verify the tool was installed with correct version
         let status = detect_bat().await;
         if matches!(status, BatStatus::Installed { meets_minimum: true, .. }) {
             return Ok(());
         }
-        // Package manager installed old version or tool not found, fall back to GitHub
-        match status {
-            BatStatus::Installed {
-                meets_minimum: true,
-                ..
-            } => {
-                // Already handled above, this branch is unreachable
-                unreachable!("bat with correct version should have returned early");
-            }
-            _ => {
-                // Old version or not detected — fall through to GitHub install
-            }
-        }
     }
 
     // Fall back to GitHub releases (pkg mgr unavailable or version too old)
-    install_bat_from_github(platform).await
+    install_sharkdp_tool_from_github("bat", "sharkdp/bat", "0.25.0", platform).await
 }
 
 /// Installs fd (file finder) using package manager or GitHub releases.
@@ -160,58 +71,73 @@ pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()>
     // Try package manager first (version is checked before installing)
     // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
     // preventing the GitHub release fallback below from running.
-    let pkg_mgr_result = match platform {
-        Platform::Linux => install_via_package_manager_linux("fd", sudo).await,
-        Platform::MacOS => {
-            if command_exists("brew").await {
-                let status = Command::new("brew")
-                    .args(["install", "fd"])
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit())
-                    .status()
-                    .await?;
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("brew install fd failed"))
-                }
-            } else {
-                Err(anyhow::anyhow!("brew not found"))
-            }
-        }
-        Platform::Android => {
-            if command_exists("pkg").await {
-                let status = Command::new("pkg")
-                    .args(["install", "-y", "fd"])
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit())
-                    .status()
-                    .await?;
-                if status.success() {
-                    Ok(())
-                } else {
-                    Err(anyhow::anyhow!("pkg install fd failed"))
-                }
-            } else {
-                Err(anyhow::anyhow!("pkg not found"))
-            }
-        }
-        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
-    };
+    let pkg_mgr_result = try_install_via_package_manager("fd", platform, sudo).await;
 
     // If package manager succeeded, verify installation and version
     if pkg_mgr_result.is_ok() {
-        // Verify the tool was installed with correct version
         let status = detect_fd().await;
         if matches!(status, FdStatus::Installed { meets_minimum: true, .. }) {
             return Ok(());
         }
-        // Package manager installed old version or not detected — fall through
-        // to GitHub install
     }
 
     // Fall back to GitHub releases (pkg mgr unavailable or version too old)
-    install_fd_from_github(platform).await
+    install_sharkdp_tool_from_github("fd", "sharkdp/fd", "10.1.0", platform).await
+}
+
+/// Tries to install a tool using the platform's native package manager.
+///
+/// Returns `Ok(())` if the package manager ran successfully (the caller should
+/// still verify the installed version). Returns `Err` if no package manager is
+/// available or the install command failed -- the caller should fall back to
+/// GitHub releases.
+async fn try_install_via_package_manager(
+    tool: &str,
+    platform: Platform,
+    sudo: &SudoCapability,
+) -> Result<()> {
+    match platform {
+        Platform::Linux => install_via_package_manager_linux(tool, sudo).await,
+        Platform::MacOS => install_via_brew(tool).await,
+        Platform::Android => install_via_pkg(tool).await,
+        Platform::Windows => Err(anyhow::anyhow!("No package manager on Windows")),
+    }
+}
+
+/// Installs a tool via Homebrew on macOS.
+async fn install_via_brew(tool: &str) -> Result<()> {
+    if !command_exists("brew").await {
+        bail!("brew not found");
+    }
+    let status = Command::new("brew")
+        .args(["install", tool])
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .await?;
+    if status.success() {
+        Ok(())
+    } else {
+        bail!("brew install {} failed", tool)
+    }
+}
+
+/// Installs a tool via pkg on Android (Termux).
+async fn install_via_pkg(tool: &str) -> Result<()> {
+    if !command_exists("pkg").await {
+        bail!("pkg not found");
+    }
+    let status = Command::new("pkg")
+        .args(["install", "-y", tool])
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .status()
+        .await?;
+    if status.success() {
+        Ok(())
+    } else {
+        bail!("pkg install {} failed", tool)
+    }
 }
 
 /// Installs a tool via Linux package manager.
@@ -292,46 +218,37 @@ async fn install_fzf_from_github(platform: Platform) -> Result<()> {
     Ok(())
 }
 
-/// Installs bat from GitHub releases.
-async fn install_bat_from_github(platform: Platform) -> Result<()> {
+/// Installs a sharkdp tool (bat, fd) from GitHub releases.
+///
+/// Both bat and fd follow the same naming convention:
+/// `{tool}-v{version}-{target}.{ext}` with nested archive layout.
+///
+/// # Arguments
+/// * `tool` - Tool name (e.g., "bat", "fd")
+/// * `repo` - GitHub repository (e.g., "sharkdp/bat")
+/// * `fallback_version` - Version to use if GitHub API is unavailable
+/// * `platform` - Target platform
+async fn install_sharkdp_tool_from_github(
+    tool: &str,
+    repo: &str,
+    fallback_version: &str,
+    platform: Platform,
+) -> Result<()> {
     let target = construct_rust_target(platform).await?;
 
-    // Find the latest release that has this specific binary
-    let version = get_latest_release_with_binary("sharkdp/bat", &target, "0.25.0").await;
+    let version = get_latest_release_with_binary(repo, &target, fallback_version).await;
     let (archive_type, ext) = if platform == Platform::Windows {
         (ArchiveType::Zip, "zip")
     } else {
         (ArchiveType::TarGz, "tar.gz")
     };
     let url = format!(
-        "https://github.com/sharkdp/bat/releases/download/v{}/bat-v{}-{}.{}",
-        version, version, target, ext
+        "https://github.com/{}/releases/download/v{}/{}-v{}-{}.{}",
+        repo, version, tool, version, target, ext
     );
 
-    let binary_path = download_and_extract_tool(&url, "bat", archive_type, true).await?;
-    install_binary_to_local_bin(&binary_path, "bat").await?;
-
-    Ok(())
-}
-
-/// Installs fd from GitHub releases.
-async fn install_fd_from_github(platform: Platform) -> Result<()> {
-    let target = construct_rust_target(platform).await?;
-
-    // Find the latest release that has this specific binary
-    let version = get_latest_release_with_binary("sharkdp/fd", &target, "10.1.0").await;
-    let (archive_type, ext) = if platform == Platform::Windows {
-        (ArchiveType::Zip, "zip")
-    } else {
-        (ArchiveType::TarGz, "tar.gz")
-    };
-    let url = format!(
-        "https://github.com/sharkdp/fd/releases/download/v{}/fd-v{}-{}.{}",
-        version, version, target, ext
-    );
-
-    let binary_path = download_and_extract_tool(&url, "fd", archive_type, true).await?;
-    install_binary_to_local_bin(&binary_path, "fd").await?;
+    let binary_path = download_and_extract_tool(&url, tool, archive_type, true).await?;
+    install_binary_to_local_bin(&binary_path, tool).await?;
 
     Ok(())
 }
