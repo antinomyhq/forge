@@ -70,9 +70,7 @@ pub async fn detect_zsh() -> ZshStatus {
         .unwrap_or(false);
 
     if !modules_ok {
-        return ZshStatus::Broken {
-            path: path.lines().next().unwrap_or(&path).to_string(),
-        };
+        return ZshStatus::Broken { path: path.lines().next().unwrap_or(&path).to_string() };
     }
 
     // Get version
@@ -175,10 +173,7 @@ pub async fn detect_fzf() -> FzfStatus {
 
     let meets_minimum = version_gte(&version, FZF_MIN_VERSION);
 
-    FzfStatus::Found {
-        version,
-        meets_minimum,
-    }
+    FzfStatus::Found { version, meets_minimum }
 }
 
 /// Detects bat installation (checks both "bat" and "batcat" on Debian/Ubuntu).
@@ -202,10 +197,7 @@ pub async fn detect_bat() -> BatStatus {
                 .unwrap_or("unknown")
                 .to_string();
             let meets_minimum = version_gte(&version, BAT_MIN_VERSION);
-            return BatStatus::Installed {
-                version,
-                meets_minimum,
-            };
+            return BatStatus::Installed { version, meets_minimum };
         }
     }
     BatStatus::NotFound
@@ -232,10 +224,7 @@ pub async fn detect_fd() -> FdStatus {
                 .unwrap_or("unknown")
                 .to_string();
             let meets_minimum = version_gte(&version, FD_MIN_VERSION);
-            return FdStatus::Installed {
-                version,
-                meets_minimum,
-            };
+            return FdStatus::Installed { version, meets_minimum };
         }
     }
     FdStatus::NotFound

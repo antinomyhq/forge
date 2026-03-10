@@ -23,11 +23,7 @@ use super::{MSYS2_BASE, MSYS2_PKGS};
 ///
 /// Returns error if no supported package manager is found or installation
 /// fails.
-pub async fn install_zsh(
-    platform: Platform,
-    sudo: &SudoCapability,
-    reinstall: bool,
-) -> Result<()> {
+pub async fn install_zsh(platform: Platform, sudo: &SudoCapability, reinstall: bool) -> Result<()> {
     match platform {
         Platform::MacOS => install_zsh_macos(sudo).await,
         Platform::Linux => install_zsh_linux(sudo, reinstall).await,

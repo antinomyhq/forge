@@ -8,10 +8,10 @@ use std::path::PathBuf;
 use anyhow::{Context, Result, bail};
 use tokio::process::Command;
 
+use super::OMZ_INSTALL_URL;
 use super::detect::zsh_custom_dir;
 use super::types::BashrcConfigResult;
 use super::util::{path_str, resolve_zsh_path};
-use super::OMZ_INSTALL_URL;
 
 /// Installs Oh My Zsh by downloading and executing the official install script.
 ///
