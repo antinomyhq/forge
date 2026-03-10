@@ -74,23 +74,37 @@ pub fn generate_zsh_theme() -> Result<String> {
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
     let script_content = super::normalize_script(script_content);
 
-    // Pipe script via stdin to avoid Windows CreateProcess mangling embedded
-    // quotes in command-line arguments. `zsh` without `-c` reads from stdin.
-    let mut child = std::process::Command::new("zsh")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .context(format!("Failed to execute zsh {} script", script_name))?;
+    // On Unix, pass script via `zsh -c` -- Command::arg() uses execve which
+    // passes arguments directly without shell interpretation, so embedded
+    // quotes are safe.
+    // On Windows, pipe script via stdin to avoid CreateProcess mangling
+    // embedded double-quote characters in command-line arguments.
+    let mut child = if cfg!(windows) {
+        std::process::Command::new("zsh")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context(format!("Failed to execute zsh {} script", script_name))?
+    } else {
+        std::process::Command::new("zsh")
+            .arg("-c")
+            .arg(&script_content)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .context(format!("Failed to execute zsh {} script", script_name))?
+    };
 
-    // Write script content to stdin, then drop to close the pipe
-    {
+    // On Windows, write script to stdin then close the pipe
+    if cfg!(windows) {
         use std::io::Write;
-        let stdin = child.stdin.take().context("Failed to open stdin")?;
-        let mut writer = std::io::BufWriter::new(stdin);
-        writer
+        let mut stdin = child.stdin.take().context("Failed to open stdin")?;
+        stdin
             .write_all(script_content.as_bytes())
             .context(format!("Failed to write zsh {} script to stdin", script_name))?;
+        stdin.flush().context("Failed to flush stdin")?;
+        drop(stdin);
     }
 
     // Get stdout and stderr handles
