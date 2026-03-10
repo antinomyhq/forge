@@ -691,7 +691,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-
     async fn handle_conversation_command(
         &mut self,
         conversation_group: crate::cli::ConversationCommandGroup,

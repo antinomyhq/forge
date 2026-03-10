@@ -1,6 +1,7 @@
 use std::process::Command;
 
 use anyhow::{Context, bail};
+
 use crate::cli::WorktreeCommand;
 
 /// Returns the main worktree root path by reading the first line of
@@ -55,16 +56,20 @@ pub fn handle_worktree_command(command: WorktreeCommand) -> anyhow::Result<()> {
 
             // Derive a filesystem-safe directory name from the branch
             // (e.g. "feature/foo" -> "foo").
-            let dir_name = branch
-                .split('/')
-                .last()
-                .unwrap_or(&branch)
-                .replace(|c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-', "-");
+            let dir_name = branch.split('/').next_back().unwrap_or(&branch).replace(
+                |c: char| !c.is_ascii_alphanumeric() && c != '.' && c != '-',
+                "-",
+            );
             let worktree_path = parent.join(&dir_name);
 
             // Decide whether to check out an existing branch or create a new one.
             let branch_exists = Command::new("git")
-                .args(["show-ref", "--verify", "--quiet", &format!("refs/heads/{branch}")])
+                .args([
+                    "show-ref",
+                    "--verify",
+                    "--quiet",
+                    &format!("refs/heads/{branch}"),
+                ])
                 .current_dir(&main_root)
                 .status()
                 .context("Failed to check if branch exists")?
@@ -78,7 +83,13 @@ pub fn handle_worktree_command(command: WorktreeCommand) -> anyhow::Result<()> {
                     .context("Failed to run git worktree add")?
             } else {
                 Command::new("git")
-                    .args(["worktree", "add", "-b", &branch, worktree_path.to_str().unwrap()])
+                    .args([
+                        "worktree",
+                        "add",
+                        "-b",
+                        &branch,
+                        worktree_path.to_str().unwrap(),
+                    ])
                     .current_dir(&main_root)
                     .status()
                     .context("Failed to run git worktree add -b")?
