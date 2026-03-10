@@ -734,7 +734,7 @@ mod tests {
         let mut c = compaction(2, 10);
         let mut base = String::from("s");
         let mut rounds: Vec<(String, Vec<String>)> = Vec::new();
-        for i in 1..=7 {
+        for i in 1..=8 {
             base.push_str("au");
             let seed = MessagePattern::new(base.clone()).build();
             let current = c.transform(seed);
