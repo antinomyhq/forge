@@ -175,6 +175,10 @@ pub enum TopLevelCommand {
 
     /// Run diagnostics on shell environment (alias for `zsh doctor`).
     Doctor,
+
+    /// Manage git worktrees.
+    #[command(alias = "wt")]
+    Worktree(WorktreeCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -751,6 +755,38 @@ pub struct UpdateArgs {
     /// Skip the confirmation prompt when applying updates.
     #[arg(long, default_value_t = false)]
     pub no_confirm: bool,
+}
+
+/// Command group for git worktree management.
+#[derive(Parser, Debug, Clone)]
+pub struct WorktreeCommandGroup {
+    #[command(subcommand)]
+    pub command: WorktreeCommand,
+}
+
+/// Git worktree subcommands.
+#[derive(Subcommand, Debug, Clone)]
+pub enum WorktreeCommand {
+    /// List all worktrees in porcelain format for shell tooling.
+    #[command(alias = "ls")]
+    List,
+
+    /// Create a new worktree for a branch.
+    ///
+    /// Creates a sibling directory of the main worktree root. If the branch
+    /// does not exist, it is created from the current HEAD.
+    #[command(alias = "add")]
+    Create {
+        /// Branch name to check out (or create) in the new worktree.
+        branch: String,
+    },
+
+    /// Remove a worktree by its path.
+    #[command(alias = "rm")]
+    Delete {
+        /// Path to the worktree to remove.
+        path: String,
+    },
 }
 
 #[cfg(test)]

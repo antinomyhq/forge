@@ -19,6 +19,7 @@ pub mod tracker;
 mod ui;
 mod utils;
 mod vscode;
+mod worktree;
 mod zsh;
 
 mod update;

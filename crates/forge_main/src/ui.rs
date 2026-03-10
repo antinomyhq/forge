@@ -683,9 +683,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_zsh_doctor().await?;
                 return Ok(());
             }
+            TopLevelCommand::Worktree(worktree_group) => {
+                crate::worktree::handle_worktree_command(worktree_group.command)?;
+                return Ok(());
+            }
         }
         Ok(())
     }
+
 
     async fn handle_conversation_command(
         &mut self,

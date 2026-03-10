@@ -112,9 +112,15 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
-    # CRITICAL: Move cursor to end so output doesn't overwrite
-    # Don't clear BUFFER yet - let _forge_reset do that after action completes
-    # This keeps buffer state consistent if Ctrl+C is pressed
+    # Save the number of extra wrapped lines the prompt+buffer occupies.
+    # BUFFERLINES is a ZSH built-in that counts how many screen lines the
+    # buffer spans (including wrapping). When reset-prompt is called later,
+    # ZLE jumps back this many lines to redraw. If the buffer wrapped, it
+    # overshoots and overwrites command output. We pass this to _forge_reset
+    # so it can compensate with extra newlines.
+    _FORGE_EXTRA_LINES=$(( BUFFERLINES - 1 ))
+    
+    # Move cursor to end so the prompt displays correctly
     CURSOR=${#BUFFER}
     zle redisplay
     

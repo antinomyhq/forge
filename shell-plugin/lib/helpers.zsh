@@ -26,6 +26,14 @@ function _forge_exec() {
 }
 
 function _forge_reset() {
+  # Compensate for wrapped prompt lines. When the original prompt+buffer
+  # wrapped across multiple terminal lines, ZLE's reset-prompt will jump
+  # back that many lines to redraw, overwriting command output. Print
+  # extra newlines to push the cursor down so reset-prompt lands correctly.
+  if [[ ${_FORGE_EXTRA_LINES:-0} -gt 0 ]]; then
+    repeat $_FORGE_EXTRA_LINES; do echo; done
+    _FORGE_EXTRA_LINES=0
+  fi
   # Clear buffer and reset cursor position
   BUFFER=""
   CURSOR=0
