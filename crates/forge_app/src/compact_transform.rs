@@ -99,7 +99,7 @@ mod tests {
         let current = c.transform(seed);
         rounds.push(("request 1".into(), describe(&current)));
 
-        for i in 1..=5 {
+        for i in 1..=6 {
             base.push_str("au");
             let seed = MessagePattern::new(base.clone()).build();
             let current = c.transform(seed);

@@ -50,3 +50,10 @@ expression: rounds
     - "[User] Message 13"
     - "[Assistant] Message 14"
     - "[User] Message 15"
+- - request 6
+  - - "[System] Message 1"
+    - "[Compacted]"
+    - "[User] Message 9"
+    - "[Compacted]"
+    - "[Assistant] Message 16"
+    - "[User] Message 17"
