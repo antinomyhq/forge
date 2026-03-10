@@ -223,12 +223,12 @@ pub trait AppConfigService: Send + Sync {
     /// generation).
     async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()>;
 
-    /// Gets the suggest configuration (provider and model for command suggestion
-    /// generation).
+    /// Gets the suggest configuration (provider and model for command
+    /// suggestion generation).
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
 
-    /// Sets the suggest configuration (provider and model for command suggestion
-    /// generation).
+    /// Sets the suggest configuration (provider and model for command
+    /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 }
 

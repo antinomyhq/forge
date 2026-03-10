@@ -3189,10 +3189,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     model: validated_model.clone(),
                 };
                 self.api.set_suggest_config(suggest_config).await?;
-                self.writeln_title(
-                    TitleFormat::action(validated_model.as_str())
-                        .sub_title(format!("is now the suggest model for provider '{provider}'")),
-                )?;
+                self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
+                    format!("is now the suggest model for provider '{provider}'"),
+                ))?;
             }
         }
 
