@@ -10,7 +10,7 @@ use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
-use crate::compact_transform::Compaction;
+use crate::compact::Compaction;
 
 #[derive(Clone, Setters)]
 #[setters(into)]

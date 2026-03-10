@@ -7,7 +7,6 @@ mod authenticator;
 mod changed_files;
 mod command_generator;
 mod compact;
-mod compact_transform;
 mod data_gen;
 pub mod dto;
 mod error;
