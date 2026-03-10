@@ -29,7 +29,13 @@ impl Transformer for Compaction {
         for idx in 0..=msg_len {
             if let Some(entry) = context.messages.get(idx).cloned() {
                 running_context.messages.push(entry);
-                running_context = compactor.compact(running_context, false).unwrap();
+                if self
+                    .agent
+                    .compact
+                    .should_compact(&running_context, *running_context.token_count())
+                {
+                    running_context = compactor.compact(running_context, false).unwrap();
+                }
             }
         }
         running_context
@@ -38,17 +44,23 @@ impl Transformer for Compaction {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Compact, Context, ContextMessage, MessagePattern, Role};
+    use forge_domain::{AgentId, Compact, Context, MessagePattern, ModelId, ProviderId, Role};
 
     use super::*;
 
-    fn compactor(retention: usize) -> Compactor {
+    fn compaction(retention: usize, message_thresh: usize) -> impl Transformer<Value = Context> {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        Compactor::new(
-            Compact::new().retention_window(retention),
-            env.cwd(std::path::PathBuf::from("/test/working/dir")),
+        let env = env.cwd(std::path::PathBuf::from("/test/working/dir"));
+        let compact = Compact::new().message_threshold(message_thresh).retention_window(retention);
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("test-model"),
         )
+        .compact(compact.clone());
+        Compaction::new(agent, env)
+            .when(move |ctx: &Context| compact.should_compact(ctx, *ctx.token_count()))
     }
 
     /// One-line label per message: `[System] Message 1` or `[Compacted]`.
@@ -71,51 +83,25 @@ mod tests {
             .collect()
     }
 
-    /// Compacts different-sized conversations in a single shot.
-    #[test]
-    fn test_single_compaction() {
-        let c = compactor(2);
-        let cases: Vec<(&str, Vec<String>)> = [
-            ("uaua", "4 messages"),
-            ("uauauaua", "8 messages"),
-            ("uauauauauaua", "12 messages"),
-            ("suauauauauau", "with system"),
-        ]
-        .into_iter()
-        .map(|(pat, label)| {
-            let ctx = MessagePattern::new(pat).build();
-            let compacted = c.compact(ctx, false).unwrap();
-            (label, describe(&compacted))
-        })
-        .collect();
-
-        insta::assert_yaml_snapshot!(cases);
-    }
-
-    /// Multi-round conversation: start with a seed, compact, then add
-    /// a user+assistant pair each round and compact again.
+    /// Multi-round conversation: each round builds the full lossless context
+    /// from the pattern and passes it through the Compaction transformer.
+    /// The transformer is pure -- same input always produces same output.
     #[test]
     fn test_multi_round_evolution() {
-        let c = compactor(2);
-        let seed = MessagePattern::new("suauauau").build();
+        let mut c = compaction(2, 10);
+        let mut base = String::from("sauau");
+        let seed = MessagePattern::new(base.clone()).build();
 
+        // Request 1
         let mut rounds: Vec<(String, Vec<String>)> = Vec::new();
-        rounds.push(("before compaction".into(), describe(&seed)));
-
-        let mut current = c.compact(seed, false).unwrap();
+        let current = c.transform(seed);
         rounds.push(("request 1".into(), describe(&current)));
 
-        for r in 2..=5 {
-            current = current
-                .add_message(ContextMessage::user(format!("Question {r}"), None))
-                .add_message(ContextMessage::assistant(
-                    format!("Answer {r}"),
-                    None,
-                    None,
-                    None,
-                ));
-            current = c.compact(current, false).unwrap();
-            rounds.push((format!("request {r}"), describe(&current)));
+        for i in 1..=5 {
+            base.push_str("au");
+            let seed = MessagePattern::new(base.clone()).build();
+            let current = c.transform(seed);
+            rounds.push((format!("request {}", i), describe(&current)));
         }
 
         insta::assert_yaml_snapshot!(rounds);
