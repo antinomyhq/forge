@@ -1810,10 +1810,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Conversations => {
                 self.list_conversations().await?;
             }
-            SlashCommand::Compact => {
-                self.spinner.start(Some("Compacting"))?;
-                self.on_compaction().await?;
-            }
             SlashCommand::Delete => {
                 self.handle_delete_conversation().await?;
             }
