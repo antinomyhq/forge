@@ -3232,7 +3232,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     Some(config) => {
                         let provider = config
                             .provider
-                            .map(|p| p.to_string())
+                            .map(|p| p.as_ref().to_string())
                             .unwrap_or_else(|| "Not set".to_string());
                         let model = config
                             .model
@@ -3248,7 +3248,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let suggest_config = self.api.get_suggest_config().await?;
                 match suggest_config {
                     Some(config) => {
-                        self.writeln(config.provider.to_string())?;
+                        self.writeln(config.provider.as_ref())?;
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
