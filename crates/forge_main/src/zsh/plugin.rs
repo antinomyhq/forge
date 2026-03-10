@@ -72,18 +72,26 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// Returns error if the script cannot be executed, if output streaming fails,
 /// or if the script exits with a non-zero status code
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
-    // Normalize: strip \r (CRLF from Windows builds) and escape double quotes
-    // so the script survives Windows CreateProcess argument mangling.
-    let script_content = super::normalize_script(script_content).replace('"', r#"\""#);
+    let script_content = super::normalize_script(script_content);
 
-    // Execute the script in a zsh subprocess with piped output
+    // Pipe script via stdin to avoid Windows CreateProcess mangling embedded
+    // quotes in command-line arguments. `zsh` without `-c` reads from stdin.
     let mut child = std::process::Command::new("zsh")
-        .arg("-c")
-        .arg(&script_content)
+        .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
         .context(format!("Failed to execute zsh {} script", script_name))?;
+
+    // Write script content to stdin, then drop to close the pipe
+    {
+        use std::io::Write;
+        let stdin = child.stdin.take().context("Failed to open stdin")?;
+        let mut writer = std::io::BufWriter::new(stdin);
+        writer
+            .write_all(script_content.as_bytes())
+            .context(format!("Failed to write zsh {} script to stdin", script_name))?;
+    }
 
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
