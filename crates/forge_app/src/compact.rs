@@ -2,7 +2,7 @@ use forge_domain::{
     Agent, Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
     MessageEntry, Transformer,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
@@ -187,9 +187,16 @@ impl Transformer for Compaction {
                     token_count,
                     "Compaction threshold reached, compacting context"
                 );
-                context = compactor
-                    .compact(context, false)
-                    .expect("Compaction failed during context transformation");
+                match compactor.compact(context.clone(), false) {
+                    Ok(compacted) => context = compacted,
+                    Err(err) => {
+                        warn!(
+                            agent_id = %self.agent.id,
+                            error = %err,
+                            "Compaction failed, continuing with original context"
+                        );
+                    }
+                }
             }
         }
         context
