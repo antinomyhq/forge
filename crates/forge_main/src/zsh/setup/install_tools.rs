@@ -265,16 +265,9 @@ struct GitHubAsset {
 ///   "x86_64-unknown-linux-musl")
 ///
 /// Returns the version string (without 'v' prefix) or fallback if all fail.
-async fn get_latest_release_with_binary(
-    repo: &str,
-    asset_pattern: &str,
-    fallback: &str,
-) -> String {
+async fn get_latest_release_with_binary(repo: &str, asset_pattern: &str, fallback: &str) -> String {
     // Try to get list of recent releases
-    let releases_url = format!(
-        "https://api.github.com/repos/{}/releases?per_page=10",
-        repo
-    );
+    let releases_url = format!("https://api.github.com/repos/{}/releases?per_page=10", repo);
     let response = match reqwest::Client::new()
         .get(&releases_url)
         .header("User-Agent", "forge-cli")
@@ -330,7 +323,8 @@ enum ArchiveType {
 /// * `url` - Download URL for the archive
 /// * `tool_name` - Name of the binary to find in the archive
 /// * `archive_type` - Whether the archive is tar.gz or zip
-/// * `nested` - If true, searches subdirectories for the binary (e.g., bat/fd archives)
+/// * `nested` - If true, searches subdirectories for the binary (e.g., bat/fd
+///   archives)
 async fn download_extract_and_install(
     url: &str,
     tool_name: &str,
@@ -381,12 +375,7 @@ async fn extract_archive(
     match archive_type {
         ArchiveType::TarGz => {
             let status = Command::new("tar")
-                .args([
-                    "-xzf",
-                    &path_str(archive_path),
-                    "-C",
-                    &path_str(dest_dir),
-                ])
+                .args(["-xzf", &path_str(archive_path), "-C", &path_str(dest_dir)])
                 .status()
                 .await?;
             if !status.success() {
@@ -429,7 +418,8 @@ async fn extract_archive(
 /// Locates the tool binary inside an extracted archive directory.
 ///
 /// If `nested` is true, searches one level of subdirectories (for archives
-/// like bat/fd that wrap contents in a folder). Otherwise looks at the top level.
+/// like bat/fd that wrap contents in a folder). Otherwise looks at the top
+/// level.
 async fn find_binary_in_dir(dir: &Path, tool_name: &str, nested: bool) -> Result<PathBuf> {
     let binary_name = if cfg!(target_os = "windows") {
         format!("{}.exe", tool_name)
@@ -447,7 +437,10 @@ async fn find_binary_in_dir(dir: &Path, tool_name: &str, nested: bool) -> Result
                 }
             }
         }
-        bail!("Binary '{}' not found in nested archive structure", tool_name);
+        bail!(
+            "Binary '{}' not found in nested archive structure",
+            tool_name
+        );
     } else {
         let candidate = dir.join(&binary_name);
         if candidate.exists() {

@@ -241,9 +241,7 @@ impl DependencyStatus {
             _ => {}
         }
         match &self.fd {
-            FdStatus::NotFound => {
-                items.push(MissingItem::new(Dependency::Fd, ItemReason::Missing))
-            }
+            FdStatus::NotFound => items.push(MissingItem::new(Dependency::Fd, ItemReason::Missing)),
             FdStatus::Installed { meets_minimum: false, .. } => {
                 items.push(MissingItem::new(Dependency::Fd, ItemReason::Outdated))
             }
