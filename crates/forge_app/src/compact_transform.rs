@@ -62,7 +62,6 @@ mod tests {
         )
         .compact(compact.clone());
         Compaction::new(agent, env)
-            .when(move |ctx: &Context| compact.should_compact(ctx, *ctx.token_count()))
     }
 
     /// One-line label per message: `[System] Message 1` or `[Compacted]`.

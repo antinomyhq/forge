@@ -154,10 +154,10 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported))
-            .pipe(
-                Compaction::new(self.agent.clone(), self.environment.clone())
-                    .when(|ctx| self.agent.compact.should_compact(ctx, *ctx.token_count())),
-            );
+            .pipe(Compaction::new(
+                self.agent.clone(),
+                self.environment.clone(),
+            ));
         let response = self
             .services
             .chat_agent(
