@@ -175,7 +175,6 @@ impl Compaction {
 impl Transformer for Compaction {
     type Value = Context;
     fn transform(&mut self, context: Self::Value) -> Self::Value {
-        info!(agent_id = %self.agent.id, "Compaction triggered");
         let msg_len = context.messages.len();
         let mut running_context = context.clone().messages(Vec::default());
         let compactor = Compactor::new(self.agent.compact.clone(), self.environment.clone());
@@ -187,6 +186,12 @@ impl Transformer for Compaction {
                     .compact
                     .should_compact(&running_context, *running_context.token_count())
                 {
+                    info!(
+                        agent_id = %self.agent.id,
+                        message_count = running_context.messages.len(),
+                        token_count = *running_context.token_count(),
+                        "Compaction threshold reached, compacting context"
+                    );
                     running_context = compactor.compact(running_context, false).unwrap();
                 }
             }
