@@ -1,7 +1,9 @@
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+
 use chrono::Utc;
 
-/// A simple thread-safe rate limiter that allows a maximum number of events per minute.
+/// A simple thread-safe rate limiter that allows a maximum number of events per
+/// minute.
 #[derive(Debug)]
 pub struct RateLimiter {
     max_per_minute: usize,
@@ -27,13 +29,13 @@ impl RateLimiter {
 
         // If a minute has passed, reset the window and counter
         if now.saturating_sub(window_start) >= 60 {
-            // We use compare_exchange to avoid race conditions when multiple threads try to reset
-            if self.window_start.compare_exchange(
-                window_start,
-                now,
-                Ordering::SeqCst,
-                Ordering::Relaxed,
-            ).is_ok() {
+            // We use compare_exchange to avoid race conditions when multiple threads try to
+            // reset
+            if self
+                .window_start
+                .compare_exchange(window_start, now, Ordering::SeqCst, Ordering::Relaxed)
+                .is_ok()
+            {
                 self.count.store(0, Ordering::SeqCst);
             }
         }
@@ -46,11 +48,11 @@ impl RateLimiter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_rate_limiter() {
         let limiter = RateLimiter::new(2);
-        
+
         assert!(limiter.check()); // 1
         assert!(limiter.check()); // 2
         assert!(!limiter.check()); // 3 - blocked

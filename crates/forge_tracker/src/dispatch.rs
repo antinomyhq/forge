@@ -50,9 +50,9 @@ static CACHED_ARGS: LazyLock<Vec<String>> = LazyLock::new(|| std::env::args().sk
 
 /// Maximum number of events that can be dispatched per minute.
 ///
-/// This acts as a rate limiter to prevent runaway loops (e.g. when stdout/stderr
-/// is closed and every write error triggers another error event) while allowing
-/// normal tracking to continue for long-running sessions.
+/// This acts as a rate limiter to prevent runaway loops (e.g. when
+/// stdout/stderr is closed and every write error triggers another error event)
+/// while allowing normal tracking to continue for long-running sessions.
 const MAX_EVENTS_PER_MINUTE: usize = 1_000;
 
 #[derive(Clone)]
@@ -113,29 +113,29 @@ impl Tracker {
 
         // Create a new event
         let email = self.email().await;
-            let event = Event {
-                event_name: event_kind.name(),
-                event_value: event_kind.value(),
-                start_time: self.start_time,
-                cores: cores(),
-                client_id: client_id(),
-                os_name: os_name(),
-                up_time: up_time(self.start_time),
-                args: args(),
-                path: path(),
-                cwd: cwd(),
-                user: user(),
-                version: version(),
-                email: email.clone(),
-                model: self.model.lock().await.clone(),
-                conversation: self.conversation().await,
-                identity: match event_kind {
-                    EventKind::Login(id) => Some(id),
-                    _ => None,
-                },
-            };
+        let event = Event {
+            event_name: event_kind.name(),
+            event_value: event_kind.value(),
+            start_time: self.start_time,
+            cores: cores(),
+            client_id: client_id(),
+            os_name: os_name(),
+            up_time: up_time(self.start_time),
+            args: args(),
+            path: path(),
+            cwd: cwd(),
+            user: user(),
+            version: version(),
+            email: email.clone(),
+            model: self.model.lock().await.clone(),
+            conversation: self.conversation().await,
+            identity: match event_kind {
+                EventKind::Login(id) => Some(id),
+                _ => None,
+            },
+        };
 
-            // Dispatch the event to all collectors
+        // Dispatch the event to all collectors
         // Dispatch the event to all collectors
         for collector in self.collectors.as_ref() {
             collector.collect(event.clone()).await?;
