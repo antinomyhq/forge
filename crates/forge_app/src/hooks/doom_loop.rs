@@ -55,7 +55,7 @@ impl DoomLoopDetector {
     ) -> Option<(ToolName, usize)> {
         let all_signatures = self.extract_tool_signatures(conversation);
 
-        let (pattern_start_idx, count) = self.detect_pattern_start(&all_signatures)?;
+        let (pattern_start_idx, count) = self.check_repeating_pattern(&all_signatures)?;
         let tool_name = all_signatures.get(pattern_start_idx)?.0.clone();
 
         Some((tool_name, count))
@@ -78,11 +78,8 @@ impl DoomLoopDetector {
             .collect()
     }
 
-    /// Detects doom-loop patterns from any sequence type.
-    ///
-    /// Returns the start index of the detected pattern and the repetition
-    /// count.
-    fn detect_pattern_start<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
+    /// Checks for repeating patterns at the end of the sequence.
+    fn check_repeating_pattern<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
     where
         T: Eq,
     {
@@ -90,42 +87,6 @@ impl DoomLoopDetector {
             return None;
         }
 
-        if let Some(result) = self.check_consecutive_identical(sequence) {
-            return Some(result);
-        }
-
-        self.check_repeating_pattern(sequence)
-    }
-
-    /// Checks for consecutive identical values at the end of the sequence.
-    fn check_consecutive_identical<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
-    where
-        T: Eq,
-    {
-        let last_signature = sequence.last()?;
-
-        let mut consecutive_count = 0usize;
-        for signature in sequence.iter().rev() {
-            if signature == last_signature {
-                consecutive_count += 1;
-            } else {
-                break;
-            }
-        }
-
-        if consecutive_count >= self.threshold {
-            let start_idx = sequence.len().checked_sub(consecutive_count)?;
-            Some((start_idx, consecutive_count))
-        } else {
-            None
-        }
-    }
-
-    /// Checks for repeating patterns at the end of the sequence.
-    fn check_repeating_pattern<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
-    where
-        T: Eq,
-    {
         if sequence.len() < self.threshold {
             return None;
         }
@@ -486,7 +447,7 @@ mod tests {
         let detector = DoomLoopDetector::new();
         let fixture = vec![1, 2, 3, 1, 2, 3, 1, 2, 3];
 
-        let actual = detector.detect_pattern_start(&fixture);
+        let actual = detector.check_repeating_pattern(&fixture);
         let expected = Some((0, 3));
         assert_eq!(actual, expected);
     }
@@ -496,7 +457,7 @@ mod tests {
         let detector = DoomLoopDetector::new();
         let fixture = vec![1, 2, 3, 1, 2, 3, 4, 5, 4, 5, 4, 5];
 
-        let actual = detector.detect_pattern_start(&fixture);
+        let actual = detector.check_repeating_pattern(&fixture);
         let expected = Some((6, 3));
         assert_eq!(actual, expected);
     }
@@ -506,7 +467,7 @@ mod tests {
         let detector = DoomLoopDetector::new();
         let fixture = vec![1, 2, 3, 3, 3];
 
-        let actual = detector.detect_pattern_start(&fixture);
+        let actual = detector.check_repeating_pattern(&fixture);
         let expected = Some((2, 3));
         assert_eq!(actual, expected);
     }
