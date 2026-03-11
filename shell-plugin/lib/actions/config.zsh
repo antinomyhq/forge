@@ -85,7 +85,21 @@ function _forge_action_provider() {
         # Extract the second field (provider ID) from the selected line
         # Format: "DisplayName  provider_id  host  type  status"
         local provider_id=$(echo "$selected" | awk '{print $2}')
-        # Always use config set - it will handle authentication if needed
+
+        # Check if the provider is already configured. If not, run the
+        # shell-native auth flow before switching — this avoids handing
+        # control back to the Rust CLI's interactive ForgeSelect prompts
+        # (which crash on Windows Git Bash / mintty).
+        local auth_info configured
+        auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null)
+        configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
+
+        if [[ "$configured" != "yes" ]]; then
+            # Provider not logged in — authenticate first via shell-native flow
+            _forge_provider_auth "$provider_id" || return 1
+        fi
+
+        # Now set it as the active provider (credentials are already stored)
         _forge_exec config set provider "$provider_id"
     fi
 }
@@ -158,6 +172,13 @@ function _forge_action_model() {
             local current_provider
             current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
+                # Check if the target provider is configured before switching
+                local auth_info configured
+                auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null)
+                configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
+                if [[ "$configured" != "yes" ]]; then
+                    _forge_provider_auth "$provider_id" || return 1
+                fi
                 _forge_exec config set provider "$provider_id"
             fi
 
