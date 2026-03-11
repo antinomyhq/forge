@@ -470,17 +470,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         async_stream::stream! {
             info!("Discovering files for sync via git ls-files");
-
-            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
-                Ok(files) => {
-                    info!(file_count = files.len(), "Discovered files via git ls-files");
-                    files
-                }
-                Err(err) => {
-                    yield Err(err);
-                    return;
-                }
-            };
+            let walked_files: Vec<WalkedFile> = service.git_ls_files(&dir_path).await?;
+            info!(file_count = walked_files.len(), "Discovered files via git ls-files");
 
             // Filter files by allowed extension (pure function, no I/O)
             let filtered_files: Vec<_> = walked_files
