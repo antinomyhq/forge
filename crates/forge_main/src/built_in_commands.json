@@ -21,7 +21,7 @@
   },
   {
     "command": "config-suggest-model",
-    "description": "Set the model used for command suggestion generation [alias: sm]"
+    "description": "Set the model used for command suggestion generation [alias: csm]"
   },
   {
     "command": "new",
