@@ -71,7 +71,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: WorkspaceIndexRepository,
     {
-        info!("Fetching existing file hashes from server to detect changes...");
+        info!(workspace_id = %workspace_id, "Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
 
@@ -120,7 +120,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .await?;
 
         for path in &files_to_delete {
-            info!(path = %path, "File deleted successfully");
+            info!(workspace_id = %workspace_id, path = %path, "File deleted successfully");
         }
 
         Ok(files_to_delete.len())
@@ -177,10 +177,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 let token = token.clone();
                 let file_path = file.path.clone();
                 async move {
-                    info!(path = %file_path, "File sync started");
+                    info!(workspace_id = %workspace_id, path = %file_path, "File sync started");
                     self.upload(&user_id, &workspace_id, &token, vec![file])
                         .await?;
-                    info!(path = %file_path, "File sync completed");
+                    info!(workspace_id = %workspace_id, path = %file_path, "File sync completed");
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -222,7 +222,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             workspace_id: workspace_id.clone(),
         })
         .await;
-        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
+        let local_files: Vec<FileNode> = self
+            .read_files(batch_size, &path, &workspace_id)
+            .try_concat()
+            .await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
@@ -284,7 +287,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 emit(counter.sync_progress()).await;
             }
             Err(e) => {
-                warn!("Failed to delete files during sync: {:#}", e);
+                warn!(workspace_id = %workspace_id, error = %e,"Failed to delete files during sync");
                 failed_files += files_to_delete.len();
             }
         }
@@ -301,7 +304,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                     emit(counter.sync_progress()).await;
                 }
                 Err(e) => {
-                    warn!("Failed to upload file during sync: {:#}", e);
+                    warn!(workspace_id = %workspace_id, error = %e, "Failed to upload file during sync");
                     failed_files += 1;
                     // Continue processing remaining uploads
                 }
@@ -461,6 +464,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         &self,
         batch_size: usize,
         dir_path: &Path,
+        workspace_id: &WorkspaceId,
     ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
     where
         F: FileReaderInfra + EnvironmentInfra + CommandInfra + WalkerInfra,
@@ -468,6 +472,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
         let service = self.clone();
+        let workspace_id = workspace_id.clone();
 
         async_stream::stream! {
             info!("Discovering files for sync via git ls-files");
@@ -504,6 +509,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 .collect();
 
             info!(
+                workspace_id = %workspace_id,
                 filtered_count = filtered_files.len(),
                 "Files after extension filtering"
             );
@@ -535,7 +541,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                         yield Ok(file_nodes);
                     }
                     Err(e) => {
-                        warn!(error = ?e, "Failed to read file batch");
+                        warn!(workspace_id = %workspace_id, error = ?e, "Failed to read file batch");
                         yield Err(e);
                     }
                 }
@@ -730,7 +736,7 @@ impl<
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let local_files: Vec<FileNode> = self
-            .read_files(batch_size, &canonical_path)
+            .read_files(batch_size, &canonical_path, &workspace.workspace_id)
             .try_concat()
             .await?;
 
