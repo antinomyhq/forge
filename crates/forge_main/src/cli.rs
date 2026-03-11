@@ -684,6 +684,30 @@ pub enum ProviderCommand {
     Login {
         /// Provider name to authenticate with.
         provider: Option<ProviderId>,
+
+        /// Pre-supply the API key (for non-interactive mode).
+        #[arg(long)]
+        api_key: Option<String>,
+
+        /// Pre-supply URL parameters in NAME=VALUE format (repeatable).
+        #[arg(long = "param")]
+        params: Vec<String>,
+
+        /// Pre-select authentication method.
+        #[arg(long, value_parser = ["api-key", "oauth-device", "oauth-code", "google-adc", "codex-device"])]
+        auth_method: Option<String>,
+
+        /// Automatically set as active provider without confirmation.
+        #[arg(long)]
+        set_active: bool,
+
+        /// Pre-supply OAuth authorization code (for oauth-code flow).
+        #[arg(long)]
+        auth_code: Option<String>,
+
+        /// Initialize OAuth code flow only (output URL and exit).
+        #[arg(long)]
+        init_only: bool,
     },
 
     /// Remove provider credentials.
@@ -700,6 +724,15 @@ pub enum ProviderCommand {
         /// specified multiple times.
         #[arg(long = "type", short = 't')]
         types: Vec<forge_domain::ProviderType>,
+    },
+
+    /// Get authentication information for a provider.
+    ///
+    /// Outputs machine-readable information about what authentication methods
+    /// and parameters are required for a provider.
+    AuthInfo {
+        /// Provider name to get auth info for.
+        provider: ProviderId,
     },
 }
 

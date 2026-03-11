@@ -803,8 +803,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Login { provider } => {
-                self.handle_provider_login(provider.as_ref()).await?;
+            ProviderCommand::Login {
+                provider,
+                api_key,
+                params,
+                auth_method,
+                set_active,
+                auth_code,
+                init_only,
+            } => {
+                self.handle_provider_login(
+                    provider.as_ref(),
+                    api_key,
+                    params,
+                    auth_method,
+                    set_active,
+                    auth_code,
+                    init_only,
+                )
+                .await?;
             }
             ProviderCommand::Logout { provider } => {
                 self.handle_provider_logout(provider.as_ref()).await?;
@@ -812,6 +829,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ProviderCommand::List { types } => {
                 self.on_show_providers(provider_group.porcelain, types)
                     .await?;
+            }
+            ProviderCommand::AuthInfo { provider } => {
+                self.handle_provider_auth_info(&provider).await?;
             }
         }
 
@@ -821,6 +841,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_provider_login(
         &mut self,
         provider_id: Option<&ProviderId>,
+        api_key: Option<String>,
+        params: Vec<String>,
+        auth_method: Option<String>,
+        set_active: bool,
+        auth_code: Option<String>,
+        init_only: bool,
     ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
@@ -857,13 +883,31 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // For login, always configure (even if already configured) to allow
         // re-authentication
+        let set_active_option = if set_active { Some(true) } else { None };
         let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+            .configure_provider(
+                any_provider.id(),
+                any_provider.auth_methods().to_vec(),
+                api_key,
+                params,
+                auth_method,
+                auth_code,
+                set_active_option,
+            )
             .await?
         {
             Some(provider) => provider,
             None => return Ok(()),
         };
+
+        // If init_only flag is set, skip activation and model selection
+        if init_only {
+            self.writeln_title(TitleFormat::debug(format!(
+                "Provider '{}' configured successfully (not set as active)",
+                provider.id
+            )))?;
+            return Ok(());
+        }
 
         // Set as default and handle model selection
         self.finalize_provider_activation(provider).await
@@ -918,6 +962,87 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         Ok(false)
+    }
+
+    async fn handle_provider_auth_info(&mut self, provider_id: &ProviderId) -> anyhow::Result<()> {
+        // Get the provider (works for both configured and unconfigured)
+        let providers = self.api.get_providers().await?;
+        let provider = providers
+            .iter()
+            .find(|p| &p.id() == provider_id)
+            .ok_or_else(|| anyhow::anyhow!("Provider '{provider_id}' not found"))?;
+
+        // Get auth methods
+        let auth_methods: Vec<String> = provider
+            .auth_methods()
+            .iter()
+            .map(|method| match method {
+                forge_domain::AuthMethod::ApiKey => "api_key".to_string(),
+                forge_domain::AuthMethod::OAuthDevice(_) => "oauth_device".to_string(),
+                forge_domain::AuthMethod::OAuthCode(_) => "oauth_code".to_string(),
+                forge_domain::AuthMethod::GoogleAdc => "google_adc".to_string(),
+                forge_domain::AuthMethod::CodexDevice(_) => "codex_device".to_string(),
+            })
+            .collect();
+
+        // Get URL parameters
+        let url_params: Vec<String> = provider
+            .url_params()
+            .iter()
+            .map(|param| param.to_string())
+            .collect();
+
+        // Check if configured
+        let configured = provider.is_configured();
+
+        // Get existing credential if available (only for configured providers)
+        let (existing_api_key, existing_params) = if configured {
+            // For configured providers, we need to convert to Provider<Url>
+            if let Some(configured_provider) = provider.clone().into_configured() {
+                let api_key = configured_provider
+                    .api_key()
+                    .map(|key| {
+                        let key_str = key.as_ref();
+                        // Mask the key: show first 3 and last 3 chars
+                        if key_str.len() > 10 {
+                            format!("{}...{}", &key_str[..3], &key_str[key_str.len() - 3..])
+                        } else {
+                            "***".to_string()
+                        }
+                    })
+                    .unwrap_or_default();
+
+                let params: Vec<String> = if let Some(credential) = &configured_provider.credential
+                {
+                    credential
+                        .url_params
+                        .iter()
+                        .map(|(k, v)| format!("{}={}", k, v.as_str()))
+                        .collect()
+                } else {
+                    Vec::new()
+                };
+
+                (api_key, params)
+            } else {
+                (String::new(), Vec::new())
+            }
+        } else {
+            (String::new(), Vec::new())
+        };
+
+        // Output in key=value format for easy shell parsing
+        self.writeln(format!("auth_methods={}", auth_methods.join(",")))?;
+        self.writeln(format!("url_params={}", url_params.join(",")))?;
+        self.writeln(format!("configured={}", if configured { "yes" } else { "no" }))?;
+        if !existing_api_key.is_empty() {
+            self.writeln(format!("existing_api_key={existing_api_key}"))?;
+        }
+        if !existing_params.is_empty() {
+            self.writeln(format!("existing_params={}", existing_params.join(",")))?;
+        }
+
+        Ok(())
     }
 
     async fn handle_commit_command(
@@ -1965,7 +2090,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             SlashCommand::Login => {
-                self.handle_provider_login(None).await?;
+                self.handle_provider_login(None, None, vec![], None, false, None, false)
+                    .await?;
             }
             SlashCommand::Logout => {
                 return self.handle_provider_logout(None).await;
@@ -2066,9 +2192,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &ApiKeyRequest,
+        pre_supplied_api_key: Option<String>,
+        pre_supplied_params: Vec<String>,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
+
+        // Parse pre-supplied params into a HashMap (format: KEY=VALUE)
+        let mut pre_supplied_params_map: HashMap<String, String> = HashMap::new();
+        for param_str in pre_supplied_params {
+            if let Some((key, value)) = param_str.split_once('=') {
+                pre_supplied_params_map.insert(key.to_string(), value.to_string());
+            }
+        }
 
         // Extract existing API key and URL params for prefilling
         let existing_url_params = request.existing_params.as_ref();
@@ -2078,6 +2214,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
+                let param_str = param.as_str();
+                
+                // Check if the param was pre-supplied via CLI
+                if let Some(value) = pre_supplied_params_map.get(param_str) {
+                    return Ok((param.to_string(), value.clone()));
+                }
+
+                // Otherwise, prompt interactively
                 let mut input = ForgeSelect::input(format!("Enter {param}:"));
 
                 // Add default value if it exists in the credential
@@ -2095,10 +2239,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        // Check if API key is already provided
-        // For Google ADC, we use a marker to skip prompting
-        // For other providers, we use the existing key as a default value (autofill)
-        let api_key_str = if let Some(default_key) = &request.api_key {
+        // Determine the API key to use (pre-supplied, existing, or prompt)
+        let api_key_str = if let Some(key) = pre_supplied_api_key {
+            // Use the pre-supplied API key from CLI
+            anyhow::ensure!(!key.trim().is_empty(), "API key cannot be empty");
+            key.trim().to_string()
+        } else if let Some(default_key) = &request.api_key {
             let key_str = default_key.as_ref();
 
             // Skip prompting only for Google ADC marker
@@ -2222,12 +2368,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn display_credential_success(
         &mut self,
         provider_id: ProviderId,
+        pre_supplied_set_active: Option<bool>,
     ) -> anyhow::Result<bool> {
         self.writeln_title(TitleFormat::info(format!(
             "{provider_id} configured successfully!"
         )))?;
 
-        // Prompt user to set as active provider
+        // If set_active flag was provided via CLI, use it directly
+        if let Some(set_active) = pre_supplied_set_active {
+            return Ok(set_active);
+        }
+
+        // Otherwise, prompt user to set as active provider
         let should_set_active = ForgeSelect::confirm(format!(
             "Would you like to set {provider_id} as the active provider?"
         ))
@@ -2241,38 +2393,48 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &CodeRequest,
+        pre_supplied_code: Option<String>,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
         self.spinner.stop(None)?;
 
-        self.writeln(format!(
-            "{}",
-            format!("Authenticate using your {provider_id} account").dimmed()
-        ))?;
+        // Determine the authorization code to use (pre-supplied or prompt)
+        let code = if let Some(code) = pre_supplied_code {
+            // Use the pre-supplied code from CLI
+            anyhow::ensure!(!code.trim().is_empty(), "Authorization code cannot be empty");
+            code.trim().to_string()
+        } else {
+            // Display interactive prompts
+            self.writeln(format!(
+                "{}",
+                format!("Authenticate using your {provider_id} account").dimmed()
+            ))?;
 
-        // Display authorization URL
-        self.writeln(format!(
-            "{} Please visit: {}",
-            "→".blue(),
-            request.authorization_url.as_str().blue().underline()
-        ))?;
+            // Display authorization URL
+            self.writeln(format!(
+                "{} Please visit: {}",
+                "→".blue(),
+                request.authorization_url.as_str().blue().underline()
+            ))?;
 
-        // Try to open browser automatically
-        if let Err(e) = open::that(request.authorization_url.as_str()) {
-            self.writeln_title(TitleFormat::error(format!(
-                "Failed to open browser automatically: {e}"
-            )))?;
-        }
+            // Try to open browser automatically
+            if let Err(e) = open::that(request.authorization_url.as_str()) {
+                self.writeln_title(TitleFormat::error(format!(
+                    "Failed to open browser automatically: {e}"
+                )))?;
+            }
 
-        // Prompt user to paste authorization code
-        let code = ForgeSelect::input("Paste the authorization code:")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+            // Prompt user to paste authorization code
+            let code = ForgeSelect::input("Paste the authorization code:")
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
-        }
+            if code.trim().is_empty() {
+                anyhow::bail!("Authorization code cannot be empty");
+            }
+            code.trim().to_string()
+        };
 
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
@@ -2360,18 +2522,53 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
+        api_key: Option<String>,
+        params: Vec<String>,
+        auth_method_str: Option<String>,
+        auth_code: Option<String>,
+        set_active: Option<bool>,
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
             self.init_forge_services().await?;
             return Ok(None);
         }
-        // Select auth method (or use the only one available)
-        let auth_method = match self
-            .select_auth_method(provider_id.clone(), &auth_methods)
-            .await?
-        {
-            Some(method) => method,
-            None => return Ok(None), // User cancelled
+        
+        // Select auth method (or use the pre-supplied one, or the only one available)
+        let auth_method = if let Some(method_str) = auth_method_str {
+            // Pre-supplied auth method from CLI (kebab-case format like "api-key")
+            // Convert to lowercase and normalize for comparison
+            let normalized_input = method_str.to_lowercase().replace('-', "_");
+            
+            auth_methods
+                .iter()
+                .find(|m| {
+                    // Convert AuthMethod to a comparable string format
+                    let method_name = match m {
+                        forge_domain::AuthMethod::ApiKey => "api_key",
+                        forge_domain::AuthMethod::OAuthDevice(_) => "oauth_device",
+                        forge_domain::AuthMethod::OAuthCode(_) => "oauth_code",
+                        forge_domain::AuthMethod::GoogleAdc => "google_adc",
+                        forge_domain::AuthMethod::CodexDevice(_) => "codex_device",
+                    };
+                    method_name == normalized_input
+                })
+                .cloned()
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Invalid auth method '{}' for provider '{}'",
+                        method_str,
+                        provider_id
+                    )
+                })?
+        } else {
+            // Interactive selection
+            match self
+                .select_auth_method(provider_id.clone(), &auth_methods)
+                .await?
+            {
+                Some(method) => method,
+                None => return Ok(None), // User cancelled
+            }
         };
 
         self.spinner.start(Some("Initiating authentication..."))?;
@@ -2385,7 +2582,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id.clone(), &request)
+                self.handle_api_key_input(provider_id.clone(), &request, api_key, params)
                     .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
@@ -2393,11 +2590,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id.clone(), &request).await?;
+                self.handle_code_flow(provider_id.clone(), &request, auth_code)
+                    .await?;
             }
         }
 
-        let should_set_active = self.display_credential_success(provider_id.clone()).await?;
+        let should_set_active = self
+            .display_credential_success(provider_id.clone(), set_active)
+            .await?;
 
         if !should_set_active {
             return Ok(None);
@@ -2492,7 +2692,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+                .configure_provider(
+                    any_provider.id(),
+                    any_provider.auth_methods().to_vec(),
+                    None, // api_key
+                    vec![], // params
+                    None, // auth_method
+                    None, // auth_code
+                    None, // set_active
+                )
                 .await?
             {
                 Some(provider) => provider,
