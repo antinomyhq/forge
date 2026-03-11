@@ -48,17 +48,16 @@ impl DoomLoopDetector {
     /// This variant is intended for request-phase hooks, where tool call
     /// results from the previous turn have already been appended to context.
     ///
-    /// Returns Some((tool_name, count)) if a doom loop is detected
+    /// Returns Some(count) if a doom loop is detected
     pub fn detect_from_conversation(
         &self,
         conversation: &Conversation,
-    ) -> Option<(ToolName, usize)> {
+    ) -> Option<usize> {
         let all_signatures = self.extract_tool_signatures(conversation);
 
-        let (pattern_start_idx, count) = self.check_repeating_pattern(&all_signatures)?;
-        let tool_name = all_signatures.get(pattern_start_idx)?.0.clone();
+        let (_, count) = self.check_repeating_pattern(&all_signatures)?;
 
-        Some((tool_name, count))
+        Some(count)
     }
 
     fn extract_tool_signatures(
@@ -229,11 +228,10 @@ impl EventHandle<EventData<RequestPayload>> for DoomLoopDetector {
         event: &EventData<RequestPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        if let Some((tool_name, consecutive_calls)) = self.detect_from_conversation(conversation) {
+        if let Some(consecutive_calls) = self.detect_from_conversation(conversation) {
             warn!(
                 agent_id = %event.agent.id,
                 request_count = event.payload.request_count,
-                tool_name = %tool_name,
                 consecutive_calls,
                 "Doom loop detected from conversation context before next request"
             );
@@ -308,7 +306,7 @@ mod tests {
 
         // Third call - doom loop detected!
         let actual = detector.detect_from_conversation(&conversation);
-        let expected = Some((ToolName::new("read"), 3));
+        let expected = Some(3);
         assert_eq!(actual, expected);
     }
 
@@ -382,7 +380,7 @@ mod tests {
 
         // Second call - doom loop detected with threshold of 2!
         let actual = detector.detect_from_conversation(&conversation);
-        let expected = Some((ToolName::new("read"), 2));
+        let expected = Some(2);
         assert_eq!(actual, expected);
     }
 
@@ -504,10 +502,7 @@ mod tests {
         let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern repetition (3 times)
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
-        assert_eq!(tool_name, ToolName::new("read"));
-        assert_eq!(count, 3);
+        assert_eq!(actual, Some(3));
     }
 
     #[test]
@@ -533,10 +528,7 @@ mod tests {
         let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern repetition (3 times)
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
-        assert_eq!(tool_name, ToolName::new("read"));
-        assert_eq!(count, 3);
+        assert_eq!(actual, Some(3));
     }
 
     #[test]
@@ -586,10 +578,7 @@ mod tests {
         let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern with threshold of 2
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
-        assert_eq!(tool_name, ToolName::new("read"));
-        assert_eq!(count, 2);
+        assert_eq!(actual, Some(2));
     }
 
     #[test]
@@ -609,10 +598,7 @@ mod tests {
         // Third consecutive identical call - should be caught by consecutive check
         let actual = detector.detect_from_conversation(&conversation);
 
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
-        assert_eq!(tool_name, ToolName::new("read"));
-        assert_eq!(count, 3);
+        assert_eq!(actual, Some(3));
     }
 
     #[test]
@@ -649,10 +635,7 @@ mod tests {
         let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern repetition (3 times)
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
-        assert_eq!(tool_name, ToolName::new("read"));
-        assert_eq!(count, 3);
+        assert_eq!(actual, Some(3));
     }
 
     #[test]
@@ -686,10 +669,7 @@ mod tests {
         let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect the pattern loop
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
-        assert_eq!(tool_name, ToolName::new("read"));
-        assert_eq!(count, 3);
+        assert_eq!(actual, Some(3));
     }
 
     #[test]
@@ -732,11 +712,8 @@ mod tests {
         // Should detect the [4,5][4,5][4,5] pattern at the end
         // The detector looks for the longest repeating pattern, starting from the most
         // recent calls
-        assert!(actual.is_some());
-        let (tool_name, count) = actual.unwrap();
         // The pattern [4,5] repeats 3 times at the end
-        assert_eq!(tool_name, ToolName::new("shell"));
-        assert_eq!(count, 3);
+        assert_eq!(actual, Some(3));
     }
 
     #[test]
@@ -829,9 +806,6 @@ mod tests {
         let result = detector.detect_from_conversation(&conv);
 
         // Should detect pattern [4,5] repeating 3 times
-        assert!(result.is_some());
-        let (tool_name, count) = result.unwrap();
-        assert_eq!(tool_name, ToolName::new("shell")); // First tool in the pattern [4,5]
-        assert_eq!(count, 3);
+        assert_eq!(result, Some(3));
     }
 }
