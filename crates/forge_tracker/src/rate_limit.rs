@@ -19,14 +19,12 @@ impl RateLimiter {
     /// Creates a new rate limiter.
     ///
     /// # Arguments
-    /// - `max_per_minute`: Maximum number of allowed events in each 60-second window.
+    /// - `max_per_minute`: Maximum number of allowed events in each 60-second
+    ///   window.
     pub fn new(max_per_minute: usize) -> Self {
         Self {
             max_per_minute,
-            state: Mutex::new(State {
-                window_start: Utc::now().timestamp() as u64,
-                count: 0,
-            }),
+            state: Mutex::new(State { window_start: Utc::now().timestamp() as u64, count: 0 }),
         }
     }
 
@@ -39,7 +37,10 @@ impl RateLimiter {
     }
 
     fn check_at(&self, now: u64) -> bool {
-        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
 
         if now.saturating_sub(state.window_start) >= 60 {
             state.window_start = now;
