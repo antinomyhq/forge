@@ -286,6 +286,12 @@ function _forge_select_and_set_config() {
     )
 }
 
+# Action handler: Show config list
+function _forge_action_config() {
+    echo
+    _forge_exec config list
+}
+
 # Action handler: Show tools
 function _forge_action_tools() {
     echo

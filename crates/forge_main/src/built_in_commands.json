@@ -8,20 +8,24 @@
     "description": "Display environment information [alias: e]"
   },
   {
-    "command": "provider",
-    "description": "Switch the providers [alias: p]"
+    "command": "config-provider",
+    "description": "Switch the providers [alias: p, provider]"
   },
   {
-    "command": "model",
-    "description": "Switch the models [alias: m]"
+    "command": "config-model",
+    "description": "Switch the models [alias: m, model]"
   },
   {
     "command": "config-commit-model",
     "description": "Set the model used for commit message generation [alias: ccm]"
   },
   {
-    "command": "suggest-model",
-    "description": "Set the model used for command suggestion generation [alias: sm]"
+    "command": "config-suggest-model",
+    "description": "Set the model used for command suggestion generation [alias: csm]"
+  },
+  {
+    "command": "config",
+    "description": "List current configuration values"
   },
   {
     "command": "new",
