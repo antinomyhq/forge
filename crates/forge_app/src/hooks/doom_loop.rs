@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use derive_setters::Setters;
 use forge_domain::{
     ContextMessage, Conversation, EventData, EventHandle, RequestPayload, Role, TextMessage,
-    ToolName,
+    ToolCallArguments, ToolName,
 };
 use forge_template::Element;
 use tracing::warn;
@@ -61,7 +61,10 @@ impl DoomLoopDetector {
         Some((tool_name, count))
     }
 
-    fn extract_tool_signatures(&self, conversation: &Conversation) -> Vec<(ToolName, String)> {
+    fn extract_tool_signatures(
+        &self,
+        conversation: &Conversation,
+    ) -> Vec<(ToolName, ToolCallArguments)> {
         let assistant_messages = conversation
             .context
             .as_ref()
@@ -74,7 +77,7 @@ impl DoomLoopDetector {
             .iter()
             .filter_map(|msg| msg.tool_calls.as_ref())
             .flat_map(|calls| calls.iter())
-            .map(|call| (call.name.clone(), call.arguments.to_owned().into_string()))
+            .map(|call| (call.name.clone(), call.arguments.clone()))
             .collect()
     }
 
