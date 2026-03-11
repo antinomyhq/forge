@@ -7,16 +7,19 @@ use crate::steps::setup_protoc;
 #[derive(Clone, Default, Setters)]
 #[setters(strip_option, into)]
 pub struct ReleaseBuilderJob {
-    // Required to burn into the binary
+    /// Required to burn into the binary
     pub version: String,
 
-    // When provide the generated release will be uploaded
+    /// When provided the generated release will be uploaded to a GitHub release
     pub release_id: Option<String>,
+
+    /// When true, the built binary is uploaded as a GitHub Actions artifact
+    pub upload_artifact: Option<bool>,
 }
 
 impl ReleaseBuilderJob {
     pub fn new(version: impl AsRef<str>) -> Self {
-        Self { version: version.as_ref().to_string(), release_id: None }
+        Self { version: version.as_ref().to_string(), release_id: None, upload_artifact: None }
     }
 
     pub fn into_job(self) -> Job {
@@ -95,6 +98,22 @@ impl From<ReleaseBuilderJob> for Job {
                         .add_with(("release_id", release_id))
                         .add_with(("file", "${{ matrix.binary_name }}"))
                         .add_with(("overwrite", "true")),
+                );
+        }
+
+        if value.upload_artifact.unwrap_or(false) {
+            job = job
+                // Rename binary to target name before uploading as artifact
+                .add_step(
+                    Step::new("Copy Binary")
+                        .run("cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}"),
+                )
+                // Upload the built binary as a GitHub Actions artifact
+                .add_step(
+                    Step::new("Upload Artifact")
+                        .uses("actions", "upload-artifact", "v4")
+                        .add_with(("name", "${{ matrix.binary_name }}"))
+                        .add_with(("path", "${{ matrix.binary_name }}")),
                 );
         }
 
