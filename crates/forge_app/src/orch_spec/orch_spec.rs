@@ -393,7 +393,7 @@ async fn test_multiple_consecutive_tool_calls() {
 }
 
 #[tokio::test]
-async fn test_doom_loop_detection_fails_third_call_with_system_message() {
+async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls() {
     let tool_call = ToolCallFull::new("fs_read")
         .arguments(ToolCallArguments::from(json!({"path": "loop.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Same content")));
@@ -403,11 +403,13 @@ async fn test_doom_loop_detection_fails_third_call_with_system_message() {
             (tool_call.clone(), tool_result.clone()),
             (tool_call.clone(), tool_result.clone()),
             (tool_call.clone(), tool_result.clone()),
+            (tool_call.clone(), tool_result.clone()),
         ])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant("Call 1").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Call 2").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Call 3").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Call 4").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
         ]);
 
@@ -420,7 +422,6 @@ async fn test_doom_loop_detection_fails_third_call_with_system_message() {
         .filter_map(|r| r.as_ref().ok())
         .collect();
 
-    // Verify the third tool call result is a failure with the system message
     let tool_call_results: Vec<_> = chat_responses
         .iter()
         .filter_map(|response| match response {
@@ -429,41 +430,31 @@ async fn test_doom_loop_detection_fails_third_call_with_system_message() {
         })
         .collect();
 
-    // Should have 3 tool call results
+    let actual = tool_call_results.len();
+    let expected = 4;
+    assert_eq!(actual, expected, "Should have 4 tool call results");
+
+    let actual = tool_call_results.iter().all(|result| !result.is_error());
+    let expected = true;
+    assert_eq!(actual, expected, "All tool calls should succeed");
+
+    let actual = ctx.output.conversation_history.iter().any(|conversation| {
+        conversation
+            .context
+            .as_ref()
+            .is_some_and(|context| {
+                context.messages.iter().any(|message| {
+                    message.has_role(Role::User)
+                        && message
+                            .content()
+                            .is_some_and(|content| content.contains("system_reminder"))
+                })
+            })
+    });
+    let expected = true;
     assert_eq!(
-        tool_call_results.len(),
-        3,
-        "Should have 3 tool call results"
-    );
-
-    // First two should be successful
-    assert!(
-        !tool_call_results[0].is_error(),
-        "First call should succeed"
-    );
-    assert!(
-        !tool_call_results[1].is_error(),
-        "Second call should succeed"
-    );
-
-    // Third call should fail with system message
-    assert!(
-        tool_call_results[2].is_error(),
-        "Third call should fail due to doom loop"
-    );
-
-    let error_output = format!("{:?}", tool_call_results[2].output);
-    assert!(
-        error_output.contains("SYSTEM ALERT"),
-        "Error should contain SYSTEM ALERT"
-    );
-    assert!(
-        error_output.contains("repetitive loop"),
-        "Error should mention repetitive loop"
-    );
-    assert!(
-        error_output.contains("Reconsider your approach"),
-        "Error should provide actionable guidance"
+        actual, expected,
+        "Should add a user reminder message for doom loop detection"
     );
 }
 
