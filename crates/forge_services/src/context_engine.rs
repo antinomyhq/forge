@@ -475,23 +475,23 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let workspace_id = workspace_id.clone();
 
         async_stream::stream! {
-            info!("Discovering files for sync via git ls-files");
+            info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
             let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
                 Ok(walked_files) => {
-                    info!(file_count = walked_files.len(), "Discovered files via git ls-files");
+                    info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
                     walked_files
                 }
                 Err(err) => {
-                    warn!(error = ?err, "Failed to get files via git ls-files, falling back to walker");
+                    warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
                     let walker_config = Walker::unlimited().cwd(dir_path.clone()).skip_binary(true);
                     match infra.walk(walker_config).await.context("Failed to walk directory") {
                         Ok(files) => {
                             let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
-                            info!(file_count = files.len(), "Discovered files via walker fallback");
+                            info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
                             files
                         }
                         Err(e) => {
-                            warn!(error = ?e, "Failed to get files via walker fallback");
+                            warn!(workspace_id = %workspace_id, error = ?e, "Failed to get files via walker fallback");
                             yield Err(e);
                             return;
                         }
