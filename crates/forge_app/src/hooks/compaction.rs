@@ -41,7 +41,7 @@ impl EventHandle<EventData<ResponsePayload>> for CompactionHandler {
                 let compacted =
                     Compactor::new(self.agent.compact.clone(), self.environment.clone())
                         .compact(context.clone(), false)?;
-                        conversation.context = Some(compacted);
+                conversation.context = Some(compacted);
             } else {
                 debug!(agent_id = %self.agent.id, "Compaction not needed");
             }
