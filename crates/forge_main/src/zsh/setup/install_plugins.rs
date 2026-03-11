@@ -223,13 +223,14 @@ pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
     // --- Clean legacy auto-start blocks from ~/.bashrc ---
     let bashrc_path = home_path.join(".bashrc");
     if bashrc_path.exists()
-        && let Ok(mut bashrc) = tokio::fs::read_to_string(&bashrc_path).await {
-            let original = bashrc.clone();
-            remove_autostart_blocks(&mut bashrc, &mut result);
-            if bashrc != original {
-                let _ = tokio::fs::write(&bashrc_path, &bashrc).await;
-            }
+        && let Ok(mut bashrc) = tokio::fs::read_to_string(&bashrc_path).await
+    {
+        let original = bashrc.clone();
+        remove_autostart_blocks(&mut bashrc, &mut result);
+        if bashrc != original {
+            let _ = tokio::fs::write(&bashrc_path, &bashrc).await;
         }
+    }
 
     // --- Write auto-start block to ~/.bash_profile ---
     let bash_profile_path = home_path.join(".bash_profile");
