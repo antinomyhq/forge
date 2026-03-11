@@ -12,7 +12,8 @@ impl RateLimiter {
     /// Creates a new rate limiter.
     ///
     /// # Arguments
-    /// - `max_per_minute`: Maximum number of allowed events in each 60-second window.
+    /// - `max_per_minute`: Maximum number of allowed events in each 60-second
+    ///   window.
     pub fn new(max_per_minute: usize) -> Self {
         Self {
             max_per_minute,
