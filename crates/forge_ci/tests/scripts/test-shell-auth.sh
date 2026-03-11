@@ -338,7 +338,8 @@ pkg_install_cmd() {
       echo "pacman -Sy --noconfirm zsh git curl fzf fd bat"
       ;;
     opensuse*|suse*)
-      echo "zypper -n install zsh git curl fzf fd bat"
+      # gawk provides awk (not in base openSUSE image)
+      echo "zypper -n install zsh git curl fzf fd bat gawk"
       ;;
     *void*)
       echo "xbps-install -Sy zsh git curl bash fzf fd bat"
@@ -553,128 +554,131 @@ if [[ -z "$_FORGE_PLUGIN_LOADED" ]]; then
 fi
 echo "CHECK_ZSH_PLUGIN_LOAD=PASS plugin loaded (timestamp=$_FORGE_PLUGIN_LOADED)"
 
-# Mock fzf: always selects the first line of input
-function fzf() {
-  head -1
-}
+# ─── Test C1: _forge_provider_auth calls real CLI with correct args ───────────
+#
+# We mock fzf (for auth method selection) and _forge_exec only for the
+# auth-info call (to avoid stdin consumption by the real binary).
+# The login call is forwarded to the REAL forge binary with --init-only,
+# so we exercise the full shell→CLI pipeline.
 
-# Capture directory for _forge_exec calls
-CAPTURE_DIR="$(mktemp -d)"
-CALL_COUNT=0
+# Mock fzf: always picks the first line (selects first auth method)
+function fzf() { head -1; }
 
-# Mock _forge_exec: captures args to file, returns pre-canned auth-info output.
-# We do NOT forward auth-info to the real binary because the real binary
-# consumes stdin (for REPL mode), which would steal the piped API key input
-# before 'read -rs' can read it.
+# Ensure clean state
+forge provider logout anthropic 2>/dev/null || true
+
+# Intercept _forge_exec:
+#   - auth-info: return pre-canned output (real binary consumes stdin)
+#   - login:     forward to real binary with --init-only appended
+#   - everything else: pass through
 function _forge_exec() {
-  CALL_COUNT=$((CALL_COUNT + 1))
-  echo "$@" > "${CAPTURE_DIR}/call_${CALL_COUNT}.txt"
-
-  if [[ "$1" == "provider" && "$2" == "auth-info" && "$3" == "anthropic" ]]; then
+  if [[ "$1" == "provider" && "$2" == "auth-info" ]]; then
+    # Return pre-canned output matching what the real binary would produce
     echo "auth_methods=api_key"
     echo "url_params="
     echo "configured=no"
     return 0
   fi
-
   if [[ "$1" == "provider" && "$2" == "login" ]]; then
-    echo "configured successfully (mocked)"
-    return 0
+    # Forward to real binary; append --init-only so it skips model fetching
+    forge "$@" --init-only
+    return $?
   fi
-
-  return 0
+  forge "$@"
 }
 
-# Ensure anthropic is logged out for clean state
-forge provider logout anthropic 2>/dev/null || true
+# Simulate `:login` — pipe the API key as stdin (replaces interactive read -rs)
+login_output=$(echo "sk-ant-test-key-for-ci" | _forge_provider_auth "anthropic" 2>&1)
+login_exit=$?
 
-# Reset capture
-CALL_COUNT=0
-rm -f "${CAPTURE_DIR}"/call_*.txt
-
-# Simulate user input: API key via stdin pipe.
-# _forge_provider_auth reads the API key with 'read -rs' from stdin.
-(
-  echo "sk-ant-test-key-from-shell"
-) | _forge_provider_auth "anthropic" 2>/dev/null
-auth_exit=$?
-
-# Find the login call (should be call #2 after auth-info)
-login_call_file=""
-for f in "${CAPTURE_DIR}"/call_*.txt; do
-  if grep -q "provider login" "$f" 2>/dev/null; then
-    login_call_file="$f"
-    break
-  fi
-done
-
-if [[ -n "$login_call_file" ]]; then
-  login_args="$(cat "$login_call_file")"
-
-  if echo "$login_args" | grep -q "\-\-auth-method api-key"; then
-    echo "CHECK_ZSH_AUTH_METHOD_ARG=PASS --auth-method api-key present"
-  else
-    echo "CHECK_ZSH_AUTH_METHOD_ARG=FAIL missing --auth-method api-key in: $login_args"
-  fi
-
-  if echo "$login_args" | grep -q "\-\-api-key"; then
-    echo "CHECK_ZSH_API_KEY_ARG=PASS --api-key present"
-  else
-    echo "CHECK_ZSH_API_KEY_ARG=FAIL missing --api-key in: $login_args"
-  fi
-
-  if echo "$login_args" | grep -q "\-\-set-active"; then
-    echo "CHECK_ZSH_SET_ACTIVE_ARG=PASS --set-active present"
-  else
-    echo "CHECK_ZSH_SET_ACTIVE_ARG=FAIL missing --set-active in: $login_args"
-  fi
-
-  if echo "$login_args" | grep -q "anthropic"; then
-    echo "CHECK_ZSH_PROVIDER_ID_ARG=PASS provider id anthropic present"
-  else
-    echo "CHECK_ZSH_PROVIDER_ID_ARG=FAIL missing provider id in: $login_args"
-  fi
-
-  # Auth method must be kebab-case (api-key), not underscore (api_key)
-  if echo "$login_args" | grep -q "\-\-auth-method api-key" && ! echo "$login_args" | grep -q "\-\-auth-method api_key"; then
-    echo "CHECK_ZSH_KEBAB_CASE=PASS api-key (not api_key)"
-  else
-    echo "CHECK_ZSH_KEBAB_CASE=FAIL wrong format in: $login_args"
-  fi
+# C1a: _forge_provider_auth exits 0
+if [[ "$login_exit" -eq 0 ]]; then
+  echo "CHECK_ZSH_PROVIDER_AUTH_EXIT=PASS exit=0"
 else
-  echo "CHECK_ZSH_AUTH_METHOD_ARG=FAIL no login call captured"
-  echo "CHECK_ZSH_API_KEY_ARG=FAIL no login call captured"
-  echo "CHECK_ZSH_SET_ACTIVE_ARG=FAIL no login call captured"
-  echo "CHECK_ZSH_PROVIDER_ID_ARG=FAIL no login call captured"
-  echo "CHECK_ZSH_KEBAB_CASE=FAIL no login call captured"
+  echo "CHECK_ZSH_PROVIDER_AUTH_EXIT=FAIL exit=$login_exit output: $login_output"
 fi
 
-# Test _forge_action_login: selects provider via fzf then calls _forge_provider_auth
-CALL_COUNT=0
-rm -f "${CAPTURE_DIR}"/call_*.txt
+# C1b: real CLI reported success
+if echo "$login_output" | grep -qi "configured successfully\|Anthropic configured"; then
+  echo "CHECK_ZSH_PROVIDER_AUTH_SUCCESS_MSG=PASS got success message"
+else
+  echo "CHECK_ZSH_PROVIDER_AUTH_SUCCESS_MSG=FAIL no success message: $login_output"
+fi
 
+# C1c: provider is now configured (real credential was stored)
+configured_after=$(forge provider auth-info anthropic 2>&1 </dev/null) || true
+if echo "$configured_after" | grep -q "^configured=yes"; then
+  echo "CHECK_ZSH_PROVIDER_AUTH_CONFIGURED=PASS configured=yes after shell login"
+else
+  echo "CHECK_ZSH_PROVIDER_AUTH_CONFIGURED=FAIL expected configured=yes, got: $configured_after"
+fi
+
+# C1d: no crossterm/mintty errors in the output
+if echo "$login_output" | grep -qi "incorrect function\|bracketedpaste\|os error 1"; then
+  echo "CHECK_ZSH_NO_CROSSTERM_ERRORS=FAIL found crossterm errors: $login_output"
+else
+  echo "CHECK_ZSH_NO_CROSSTERM_ERRORS=PASS no crossterm errors"
+fi
+
+# Cleanup
+forge provider logout anthropic 2>/dev/null || true
+
+# ─── Test C2: :login flow — _forge_action_login selects provider via fzf ─────
+#
+# Simulates the user typing `:login` in their zsh session.
+# fzf is mocked to auto-select "anthropic" from the provider list.
+# _forge_exec still intercepts auth-info (stdin issue) but forwards login to
+# the real binary with --init-only.
+
+# Reset _forge_exec to forward login to real binary
+function _forge_exec() {
+  if [[ "$1" == "provider" && "$2" == "auth-info" ]]; then
+    echo "auth_methods=api_key"
+    echo "url_params="
+    echo "configured=no"
+    return 0
+  fi
+  if [[ "$1" == "provider" && "$2" == "login" ]]; then
+    forge "$@" --init-only
+    return $?
+  fi
+  forge "$@"
+}
+
+# Mock _forge_select_provider to return anthropic without launching real fzf
+# (fzf requires a TTY; in CI we don't have one for the provider list)
 function _forge_select_provider() {
   echo "Anthropic                  anthropic                    [empty]            llm"
 }
 
-(echo "sk-ant-action-login-test") | _forge_action_login "" 2>/dev/null
+forge provider logout anthropic 2>/dev/null || true
+
+action_output=$(echo "sk-ant-test-key-action-login" | _forge_action_login "" 2>&1)
 action_exit=$?
 
-login_found=false
-for f in "${CAPTURE_DIR}"/call_*.txt; do
-  if grep -q "provider login" "$f" 2>/dev/null; then
-    login_found=true
-    break
-  fi
-done
-
-if [[ "$login_found" == "true" ]]; then
-  echo "CHECK_ZSH_ACTION_LOGIN_CALLS_PROVIDER_AUTH=PASS login call captured"
+# C2a: _forge_action_login exits 0
+if [[ "$action_exit" -eq 0 ]]; then
+  echo "CHECK_ZSH_ACTION_LOGIN_EXIT=PASS exit=0"
 else
-  echo "CHECK_ZSH_ACTION_LOGIN_CALLS_PROVIDER_AUTH=FAIL no login call captured"
+  echo "CHECK_ZSH_ACTION_LOGIN_EXIT=FAIL exit=$action_exit output: $action_output"
 fi
 
-rm -rf "${CAPTURE_DIR}"
+# C2b: real CLI reported success (proves the full :login path works)
+if echo "$action_output" | grep -qi "configured successfully\|Anthropic configured"; then
+  echo "CHECK_ZSH_ACTION_LOGIN_SUCCESS_MSG=PASS got success message"
+else
+  echo "CHECK_ZSH_ACTION_LOGIN_SUCCESS_MSG=FAIL no success message: $action_output"
+fi
+
+# C2c: provider is configured after :login
+configured_after2=$(forge provider auth-info anthropic 2>&1 </dev/null) || true
+if echo "$configured_after2" | grep -q "^configured=yes"; then
+  echo "CHECK_ZSH_ACTION_LOGIN_CONFIGURED=PASS configured=yes after :login"
+else
+  echo "CHECK_ZSH_ACTION_LOGIN_CONFIGURED=FAIL expected configured=yes, got: $configured_after2"
+fi
+
+forge provider logout anthropic 2>/dev/null || true
 ZSH_TEST_SCRIPT
 
 chmod +x "$ZSH_SCRIPT"
