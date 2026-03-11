@@ -50,13 +50,13 @@ function _forge_provider_auth() {
         return 1
     fi
     
-    # Build CLI arguments array
-    local -a cli_args
-    cli_args=("provider" "login" "$provider_id" "--auth-method" "$selected_auth_method" "--set-active")
-    
     # Convert auth method to kebab-case for CLI (api_key -> api-key)
     local auth_method_cli="${selected_auth_method//_/-}"
-    
+
+    # Build CLI arguments array with kebab-case auth method
+    local -a cli_args
+    cli_args=("provider" "login" "$provider_id" "--auth-method" "$auth_method_cli" "--set-active")
+
     # Handle different auth methods
     case "$selected_auth_method" in
         api_key)
@@ -65,15 +65,14 @@ function _forge_provider_auth() {
             echo -n "Enter your $provider_id API key: " >&2
             read -rs api_key
             echo >&2  # newline after hidden input
-            
+
             if [[ -z "$api_key" ]]; then
                 echo "Error: API key cannot be empty" >&2
                 return 1
             fi
-            
-            cli_args[4]="$auth_method_cli"  # Replace the auth method with kebab-case version
+
             cli_args+=("--api-key" "$api_key")
-            
+
             # Prompt for URL parameters if required
             for param in "${url_params_array[@]}"; do
                 [[ -z "$param" ]] && continue
@@ -87,9 +86,8 @@ function _forge_provider_auth() {
                 cli_args+=("--param" "${param}=${param_value}")
             done
             ;;
-            
+
         google_adc)
-            cli_args[4]="$auth_method_cli"  # Replace the auth method with kebab-case version
             # Google ADC is fully automatic - just need URL params
             for param in "${url_params_array[@]}"; do
                 [[ -z "$param" ]] && continue
@@ -103,15 +101,13 @@ function _forge_provider_auth() {
                 cli_args+=("--param" "${param}=${param_value}")
             done
             ;;
-            
+
         oauth_device|codex_device)
-            cli_args[4]="$auth_method_cli"  # Replace the auth method with kebab-case version
             # Device flow is fully automatic - no user input needed
             # The Rust CLI handles everything (opens browser, displays code, polls)
             ;;
-            
+
         oauth_code)
-            cli_args[4]="$auth_method_cli"  # Replace the auth method with kebab-case version
             # OAuth code flow: Rust CLI opens browser and shows URL
             # We need to wait for user to paste the code
             # For now, let the Rust CLI handle it interactively
@@ -120,7 +116,7 @@ function _forge_provider_auth() {
             #   2. Prompt user for code in shell
             #   3. Call with --auth-code to complete
             ;;
-            
+
         *)
             echo "Warning: Unknown auth method '$selected_auth_method', falling back to interactive mode" >&2
             ;;

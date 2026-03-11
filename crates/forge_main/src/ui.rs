@@ -882,8 +882,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // For login, always configure (even if already configured) to allow
-        // re-authentication
-        let set_active_option = if set_active { Some(true) } else { None };
+        // re-authentication.
+        // When init_only is true, never prompt for set_active interactively.
+        let set_active_option = if set_active {
+            Some(true)
+        } else if init_only {
+            // init_only suppresses the interactive "set as active?" prompt
+            Some(false)
+        } else {
+            None
+        };
         let provider = match self
             .configure_provider(
                 any_provider.id(),
