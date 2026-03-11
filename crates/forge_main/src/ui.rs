@@ -107,7 +107,7 @@ pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
     cli: Cli,
     spinner: SharedSpinner<A>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
-    _guard: Option<forge_tracker::Guard>,
+    _guard: forge_tracker::Guard,
 }
 
 impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
@@ -223,11 +223,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
-        let guard = if cli.should_init_tracing() {
-            Some(forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?)
-        } else {
-            None
-        };
         Ok(Self {
             state: Default::default(),
             api,
@@ -237,7 +232,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             command,
             spinner,
             markdown: MarkdownFormat::new(),
-            _guard: guard,
+            _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
 
