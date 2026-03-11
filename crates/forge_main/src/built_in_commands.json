@@ -20,8 +20,8 @@
     "description": "Set the model used for commit message generation [alias: ccm]"
   },
   {
-    "command": "suggest-model",
-    "description": "Set the model used for command suggestion generation [alias: sm]"
+    "command": "config-suggest-model",
+    "description": "Set the model used for command suggestion generation [alias: csm]"
   },
   {
     "command": "new",
