@@ -439,9 +439,13 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(best_match.map(|(w, _)| w.clone()))
     }
     /// Runs `git ls-files` in `dir_path` and returns the tracked files as
-    /// `WalkedFile` entries. Returns `None` when git is unavailable or the
-    /// directory is not a git repository.
-    async fn git_ls_files(&self, dir_path: &Path) -> Option<Vec<WalkedFile>>
+    /// `WalkedFile` entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the command fails to execute or exits with a
+    /// non-zero status code (e.g. when the directory is not a git repository).
+    async fn git_ls_files(&self, dir_path: &Path) -> anyhow::Result<Vec<WalkedFile>>
     where
         F: CommandInfra,
     {
@@ -453,11 +457,14 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 true,
                 None,
             )
-            .await
-            .ok()?;
+            .await?;
 
         if output.exit_code != Some(0) {
-            return None;
+            let err = anyhow::anyhow!(output.stderr);
+            return Err(match output.exit_code {
+                Some(code) => err.context(format!("'git ls-files' exited with code {}", code)),
+                None => err,
+            });
         }
 
         let files = output
@@ -473,7 +480,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             })
             .collect();
 
-        Some(files)
+        Ok(files)
     }
 
     /// Only includes files with allowed extensions.
@@ -491,19 +498,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         async_stream::stream! {
             info!("Discovering files for sync via git ls-files");
-
-            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
-                Some(files) => {
-                    info!(file_count = files.len(), "Discovered files via git ls-files");
-                    files
-                }
-                None => {
-                    yield Err(anyhow::anyhow!(
-                        "Failed to list files: 'git ls-files' failed or directory is not a git repository"
-                    ));
-                    return;
-                }
-            };
+            let walked_files: Vec<WalkedFile> = service.git_ls_files(&dir_path).await?;
+            info!(file_count = walked_files.len(), "Discovered files via git ls-files");
 
             // Filter files by allowed extension (pure function, no I/O)
             let filtered_files: Vec<_> = walked_files
