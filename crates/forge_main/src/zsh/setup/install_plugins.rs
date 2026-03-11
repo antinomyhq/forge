@@ -222,15 +222,14 @@ pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
 
     // --- Clean legacy auto-start blocks from ~/.bashrc ---
     let bashrc_path = home_path.join(".bashrc");
-    if bashrc_path.exists() {
-        if let Ok(mut bashrc) = tokio::fs::read_to_string(&bashrc_path).await {
+    if bashrc_path.exists()
+        && let Ok(mut bashrc) = tokio::fs::read_to_string(&bashrc_path).await {
             let original = bashrc.clone();
             remove_autostart_blocks(&mut bashrc, &mut result);
             if bashrc != original {
                 let _ = tokio::fs::write(&bashrc_path, &bashrc).await;
             }
         }
-    }
 
     // --- Write auto-start block to ~/.bash_profile ---
     let bash_profile_path = home_path.join(".bash_profile");
@@ -495,7 +494,10 @@ mod tests {
         let content_second = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
         assert_eq!(content_first, content_second);
-        assert_eq!(content_second.matches("# Added by forge zsh setup").count(), 1);
+        assert_eq!(
+            content_second.matches("# Added by forge zsh setup").count(),
+            1
+        );
     }
 
     #[tokio::test]
