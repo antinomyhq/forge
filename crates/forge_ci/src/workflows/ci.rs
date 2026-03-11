@@ -44,6 +44,7 @@ pub fn generate_ci_workflow() {
         );
     let build_release_pr_job =
         ReleaseBuilderJob::new("${{ needs.draft_release_pr.outputs.crate_release_name }}")
+            .upload_artifact(true)
             .into_job()
             .add_needs("draft_release_pr")
             .cond(Expression::new(
