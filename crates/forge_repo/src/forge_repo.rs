@@ -297,7 +297,7 @@ where
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send {
+    ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
         self.infra.read_batch_utf8(batch_size, paths)
     }
 

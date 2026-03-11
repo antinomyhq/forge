@@ -45,20 +45,20 @@ pub trait FileReaderInfra: Send + Sync {
     /// Returns the file content as a UTF-8 string.
     async fn read_utf8(&self, path: &Path) -> anyhow::Result<String>;
 
-    /// Reads multiple files in batches and returns a stream of file batches.
+    /// Reads multiple files in batches and returns a stream of file results.
     ///
     /// # Arguments
-    /// * `batch_size` - Number of files to include in each batch
+    /// * `batch_size` - Number of files to read concurrently per batch
     /// * `paths` - Vector of file paths to read
     ///
-    /// Returns a stream where each item is a vector of tuples containing
-    /// (file_path, file_content). Files within each batch are read concurrently
-    /// for better performance.
+    /// Returns a stream where each item is a tuple containing (file_path,
+    /// file_content). Files are processed in batches internally for concurrency
+    /// control.
     fn read_batch_utf8(
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send;
+    ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send;
 
     /// Reads the content of a file at the specified path.
     /// Returns the file content as raw bytes.

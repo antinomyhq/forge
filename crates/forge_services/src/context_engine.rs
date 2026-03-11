@@ -530,18 +530,16 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
 
-            while let Some(batch) = stream.next().await {
-                for (absolute_path, result) in batch {
-                    match result {
-                        Ok(content) => {
-                            let hash = compute_hash(&content);
-                            let absolute_path_str = absolute_path.to_string_lossy().to_string();
-                            yield Ok(FileNode { file_path: absolute_path_str, content, hash });
-                        }
-                        Err(e) => {
-                            warn!(path = %absolute_path.display(), error = ?e, "Skipping unreadable file during sync");
-                            yield Err(FileReadError { path: absolute_path, source: e }.into());
-                        }
+            while let Some((absolute_path, result)) = stream.next().await {
+                match result {
+                    Ok(content) => {
+                        let hash = compute_hash(&content);
+                        let absolute_path_str = absolute_path.to_string_lossy().to_string();
+                        yield Ok(FileNode { file_path: absolute_path_str, content, hash });
+                    }
+                    Err(e) => {
+                        warn!(path = %absolute_path.display(), error = ?e, "Skipping unreadable file during sync");
+                        yield Err(FileReadError { path: absolute_path, source: e }.into());
                     }
                 }
             }

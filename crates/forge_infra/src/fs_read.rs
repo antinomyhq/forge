@@ -29,20 +29,22 @@ impl FileReaderInfra for ForgeFileReadService {
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send {
+    ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
         let batches: Vec<Vec<PathBuf>> = paths
             .chunks(batch_size)
             .map(|chunk| chunk.to_vec())
             .collect();
 
-        stream::iter(batches).then(move |batch| async move {
-            let futures = batch.into_iter().map(|path| async move {
-                let result = self.read_utf8(&path).await;
-                (path, result)
-            });
+        stream::iter(batches)
+            .then(move |batch| async move {
+                let futures = batch.into_iter().map(|path| async move {
+                    let result = self.read_utf8(&path).await;
+                    (path, result)
+                });
 
-            futures::future::join_all(futures).await
-        })
+                futures::future::join_all(futures).await
+            })
+            .flat_map(stream::iter)
     }
 
     async fn read(&self, path: &Path) -> Result<Vec<u8>> {
@@ -91,21 +93,19 @@ mod tests {
         let stream = fixture.read_batch_utf8(2, paths.clone());
         futures::pin_mut!(stream);
 
-        // First batch should have 2 files
-        let batch1 = stream.next().await.unwrap();
-        assert_eq!(batch1.len(), 2);
-        assert_eq!(batch1[0].0, paths[0]);
-        assert_eq!(batch1[0].1.as_deref().unwrap().trim(), "content1");
-        assert_eq!(batch1[1].0, paths[1]);
-        assert_eq!(batch1[1].1.as_deref().unwrap().trim(), "content2");
+        let item1 = stream.next().await.unwrap();
+        assert_eq!(item1.0, paths[0]);
+        assert_eq!(item1.1.as_deref().unwrap().trim(), "content1");
 
-        // Second batch should have 1 file
-        let batch2 = stream.next().await.unwrap();
-        assert_eq!(batch2.len(), 1);
-        assert_eq!(batch2[0].0, paths[2]);
-        assert_eq!(batch2[0].1.as_deref().unwrap().trim(), "content3");
+        let item2 = stream.next().await.unwrap();
+        assert_eq!(item2.0, paths[1]);
+        assert_eq!(item2.1.as_deref().unwrap().trim(), "content2");
 
-        // No more batches
+        let item3 = stream.next().await.unwrap();
+        assert_eq!(item3.0, paths[2]);
+        assert_eq!(item3.1.as_deref().unwrap().trim(), "content3");
+
+        // No more items
         assert!(stream.next().await.is_none());
     }
 
@@ -125,11 +125,13 @@ mod tests {
         let stream = fixture.read_batch_utf8(10, paths.clone());
         futures::pin_mut!(stream);
 
-        // Should get all files in one batch
-        let batch = stream.next().await.unwrap();
-        assert_eq!(batch.len(), 2);
+        let item1 = stream.next().await.unwrap();
+        assert_eq!(item1.0, paths[0]);
 
-        // No more batches
+        let item2 = stream.next().await.unwrap();
+        assert_eq!(item2.0, paths[1]);
+
+        // No more items
         assert!(stream.next().await.is_none());
     }
 }
