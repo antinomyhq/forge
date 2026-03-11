@@ -7,4 +7,3 @@ pub use compaction::CompactionHandler;
 pub use doom_loop_detector::DoomLoopDetector;
 pub use title_generation::TitleGenerationHandler;
 pub use tracing::TracingHandler;
-
