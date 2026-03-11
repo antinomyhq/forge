@@ -1871,24 +1871,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             println!();
         }
 
-        // Step E: Windows bashrc auto-start
+        // Step E: Windows bash_profile auto-start
         if platform == Platform::Windows {
             self.spinner.start(Some("Configuring Git Bash"))?;
-            match zsh::configure_bashrc_autostart().await {
+            match zsh::configure_bash_profile_autostart().await {
                 Ok(bashrc_result) => {
                     self.spinner.stop(None)?;
                     if let Some(warning) = bashrc_result.warning {
                         self.writeln_title(TitleFormat::warning(warning))?;
                     }
                     self.writeln_title(TitleFormat::info(
-                        "Configured ~/.bashrc to auto-start zsh",
+                        "Configured ~/.bash_profile to auto-start zsh",
                     ))?;
                 }
                 Err(e) => {
                     setup_fully_successful = false;
                     self.spinner.stop(None)?;
                     self.writeln_title(TitleFormat::error(format!(
-                        "Failed to configure bashrc: {}",
+                        "Failed to configure bash_profile: {}",
                         e
                     )))?;
                 }
@@ -2092,7 +2092,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if setup_fully_successful {
             if platform == Platform::Windows {
                 self.writeln_title(TitleFormat::info(
-                    "Setup complete! Open a new Git Bash window or run: source ~/.bashrc",
+                    "Setup complete! Open a new Git Bash window to start zsh.",
                 ))?;
             } else {
                 self.writeln_title(TitleFormat::info("Setup complete!"))?;

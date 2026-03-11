@@ -191,37 +191,88 @@ pub async fn install_syntax_highlighting() -> Result<()> {
 /// auto-start block, and appends a new one.
 ///
 /// Returns a `BashrcConfigResult` which may contain a warning if an incomplete
-/// block was found and removed.
+/// Configures `~/.bash_profile` to auto-start zsh on Git Bash login.
+///
+/// Git Bash runs as a login shell and reads `~/.bash_profile` (not
+/// `~/.bashrc`). The generated block sources `~/.bashrc` for user
+/// customizations, then execs into zsh for interactive sessions.
+///
+/// Also cleans up any legacy auto-start blocks from `~/.bashrc` left by
+/// previous versions of the installer.
+///
+/// Returns a `BashrcConfigResult` which may contain a warning if an incomplete
+/// or malformed auto-start block was found and removed.
 ///
 /// # Errors
 ///
 /// Returns error if HOME is not set or file operations fail.
-pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
+pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
     let mut result = BashrcConfigResult::default();
     let home = std::env::var("HOME").context("HOME not set")?;
     let home_path = PathBuf::from(&home);
 
-    // Create empty files to suppress Git Bash warnings
-    for file in &[".bash_profile", ".bash_login", ".profile"] {
+    // Create empty sentinel files to suppress Git Bash "no such file" warnings.
+    // We skip .bash_profile since we're about to write real content to it.
+    for file in &[".bash_login", ".profile"] {
         let path = home_path.join(file);
         if !path.exists() {
             let _ = tokio::fs::write(&path, "").await;
         }
     }
 
+    // --- Clean legacy auto-start blocks from ~/.bashrc ---
     let bashrc_path = home_path.join(".bashrc");
+    if bashrc_path.exists() {
+        if let Ok(mut bashrc) = tokio::fs::read_to_string(&bashrc_path).await {
+            let original = bashrc.clone();
+            remove_autostart_blocks(&mut bashrc, &mut result);
+            if bashrc != original {
+                let _ = tokio::fs::write(&bashrc_path, &bashrc).await;
+            }
+        }
+    }
 
-    // Read or create .bashrc
-    let mut content = if bashrc_path.exists() {
-        tokio::fs::read_to_string(&bashrc_path)
+    // --- Write auto-start block to ~/.bash_profile ---
+    let bash_profile_path = home_path.join(".bash_profile");
+
+    let mut content = if bash_profile_path.exists() {
+        tokio::fs::read_to_string(&bash_profile_path)
             .await
             .unwrap_or_default()
     } else {
-        "# Created by forge zsh setup\n".to_string()
+        String::new()
     };
 
-    // Remove any previous auto-start blocks (from old installer or from us)
-    // Loop until no more markers are found to handle multiple incomplete blocks
+    // Remove any previous auto-start blocks
+    remove_autostart_blocks(&mut content, &mut result);
+
+    // Resolve zsh path
+    let zsh_path = resolve_zsh_path().await;
+
+    let autostart_block =
+        crate::zsh::normalize_script(include_str!("../scripts/bash_profile_autostart_block.sh"))
+            .replace("{{zsh}}", &zsh_path);
+
+    content.push_str(&autostart_block);
+
+    tokio::fs::write(&bash_profile_path, &content)
+        .await
+        .context("Failed to write ~/.bash_profile")?;
+
+    Ok(result)
+}
+
+/// End-of-block sentinel used by the new multi-line block format.
+const END_MARKER: &str = "# End forge zsh setup";
+
+/// Removes all auto-start blocks (old and new markers) from the given content.
+///
+/// Supports both the new `# End forge zsh setup` sentinel and the legacy
+/// single-`fi` closing format (from older installer versions).
+///
+/// Mutates `content` in place and may set a warning on `result` if an
+/// incomplete block is found.
+fn remove_autostart_blocks(content: &mut String, result: &mut BashrcConfigResult) {
     loop {
         let mut found = false;
         for marker in &["# Added by zsh installer", "# Added by forge zsh setup"] {
@@ -235,19 +286,29 @@ pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
                     start
                 };
 
-                // Find the closing "fi" line
-                if let Some(fi_offset) = content[start..].find("\nfi\n") {
+                // Prefer the explicit end sentinel (new format with two if/fi blocks)
+                if let Some(end_offset) = content[start..].find(END_MARKER) {
+                    let end = start + end_offset + END_MARKER.len();
+                    // Consume trailing newline if present
+                    let end = if end < content.len() && content.as_bytes()[end] == b'\n' {
+                        end + 1
+                    } else {
+                        end
+                    };
+                    content.replace_range(actual_start..end, "");
+                }
+                // Fall back to legacy single-fi format
+                else if let Some(fi_offset) = content[start..].find("\nfi\n") {
                     let end = start + fi_offset + 4; // +4 for "\nfi\n"
                     content.replace_range(actual_start..end, "");
                 } else if let Some(fi_offset) = content[start..].find("\nfi") {
                     let end = start + fi_offset + 3;
                     content.replace_range(actual_start..end, "");
                 } else {
-                    // Incomplete block: marker found but no closing "fi"
-                    // Remove from marker to end of file to prevent corruption
+                    // Incomplete block: marker found but no closing sentinel or fi
                     result.warning = Some(
-                        "Found incomplete auto-start block (marker without closing 'fi'). \
-                         Removing incomplete block to prevent bashrc corruption."
+                        "Found incomplete auto-start block (marker without closing sentinel). \
+                         Removing incomplete block to prevent shell config corruption."
                             .to_string(),
                     );
                     content.truncate(actual_start);
@@ -259,218 +320,137 @@ pub async fn configure_bashrc_autostart() -> Result<BashrcConfigResult> {
             break;
         }
     }
-
-    // Resolve zsh path
-    let zsh_path = resolve_zsh_path().await;
-
-    let autostart_block =
-        crate::zsh::normalize_script(include_str!("../bashrc_autostart_block.sh"))
-            .replace("{{zsh}}", &zsh_path);
-
-    content.push_str(&autostart_block);
-
-    tokio::fs::write(&bashrc_path, &content)
-        .await
-        .context("Failed to write ~/.bashrc")?;
-
-    Ok(result)
 }
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    #[serial_test::serial]
-    async fn test_configure_bashrc_clean_file() {
-        let temp = tempfile::TempDir::new().unwrap();
-        let bashrc_path = temp.path().join(".bashrc");
-
-        // Create a clean bashrc
-        let initial_content = include_str!("../fixtures/bashrc_clean.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
-
-        // Set HOME to temp directory
+    /// Runs `configure_bash_profile_autostart()` with HOME set to the given
+    /// temp directory, then restores the original HOME.
+    async fn run_with_home(temp: &tempfile::TempDir) -> Result<BashrcConfigResult> {
         let original_home = std::env::var("HOME").ok();
+        unsafe { std::env::set_var("HOME", temp.path()) };
+        let result = configure_bash_profile_autostart().await;
         unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        let actual = configure_bashrc_autostart().await;
-
-        // Restore HOME
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
+            match original_home {
+                Some(home) => std::env::set_var("HOME", home),
+                None => std::env::remove_var("HOME"),
             }
         }
-
-        assert!(actual.is_ok(), "Should succeed: {:?}", actual);
-
-        let content = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
-
-        // Should contain original content
-        assert!(content.contains("# My bashrc"));
-        assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
-
-        // Should contain new auto-start block
-        assert!(content.contains("# Added by forge zsh setup"));
-        assert!(content.contains("if [ -t 0 ] && [ -x"));
-        assert!(content.contains("export SHELL="));
-        assert!(content.contains("exec"));
-        assert!(content.contains("fi"));
+        result
     }
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_configure_bashrc_replaces_existing_block() {
+    async fn test_writes_to_bash_profile_not_bashrc() {
         let temp = tempfile::TempDir::new().unwrap();
-        let bashrc_path = temp.path().join(".bashrc");
 
-        // Create bashrc with existing auto-start block
-        let initial_content = include_str!("../fixtures/bashrc_with_forge_block.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
-
-        let original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        let actual = configure_bashrc_autostart().await;
-
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-
+        let actual = run_with_home(&temp).await;
         assert!(actual.is_ok(), "Should succeed: {:?}", actual);
 
-        let content = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        let bash_profile = temp.path().join(".bash_profile");
+        let content = tokio::fs::read_to_string(&bash_profile).await.unwrap();
 
-        // Should contain original content
+        // Should contain the auto-start block in .bash_profile
+        assert!(content.contains("# Added by forge zsh setup"));
+        assert!(content.contains("source \"$HOME/.bashrc\""));
+        assert!(content.contains("if [ -t 0 ] && [ -x"));
+        assert!(content.contains("export SHELL="));
+        assert!(content.contains("exec"));
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_replaces_existing_block_in_bash_profile() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let bash_profile_path = temp.path().join(".bash_profile");
+
+        // Seed .bash_profile with an existing forge block
+        let initial = include_str!("../fixtures/bashrc_with_forge_block.sh");
+        tokio::fs::write(&bash_profile_path, initial).await.unwrap();
+
+        let actual = run_with_home(&temp).await;
+        assert!(actual.is_ok(), "Should succeed: {:?}", actual);
+
+        let content = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
+
+        // Original non-block content preserved
         assert!(content.contains("# My bashrc"));
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
         assert!(content.contains("# More config"));
         assert!(content.contains("alias ll='ls -la'"));
 
-        // Should have exactly one auto-start block
-        let marker_count = content.matches("# Added by forge zsh setup").count();
-        assert_eq!(
-            marker_count, 1,
-            "Should have exactly one marker, found {}",
-            marker_count
-        );
-
-        // Should have exactly one fi
-        let fi_count = content.matches("\nfi\n").count();
-        assert_eq!(
-            fi_count, 1,
-            "Should have exactly one fi, found {}",
-            fi_count
-        );
+        // Exactly one auto-start block
+        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
     }
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_configure_bashrc_removes_old_installer_block() {
+    async fn test_removes_old_installer_block_from_bash_profile() {
         let temp = tempfile::TempDir::new().unwrap();
-        let bashrc_path = temp.path().join(".bashrc");
+        let bash_profile_path = temp.path().join(".bash_profile");
 
-        // Create bashrc with old installer block
-        let initial_content = include_str!("../fixtures/bashrc_with_old_installer_block.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
+        let initial = include_str!("../fixtures/bashrc_with_old_installer_block.sh");
+        tokio::fs::write(&bash_profile_path, initial).await.unwrap();
 
-        let original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        let actual = configure_bashrc_autostart().await;
-
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-
+        let actual = run_with_home(&temp).await;
         assert!(actual.is_ok(), "Should succeed: {:?}", actual);
 
-        let content = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        let content = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
-        // Should NOT contain old installer marker
         assert!(!content.contains("# Added by zsh installer"));
-
-        // Should contain new marker
         assert!(content.contains("# Added by forge zsh setup"));
-
-        // Should have exactly one auto-start block
-        let marker_count = content.matches("# Added by forge zsh setup").count();
-        assert_eq!(marker_count, 1);
+        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
     }
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_configure_bashrc_handles_incomplete_block_no_fi() {
+    async fn test_cleans_legacy_block_from_bashrc() {
         let temp = tempfile::TempDir::new().unwrap();
         let bashrc_path = temp.path().join(".bashrc");
 
-        // Create bashrc with incomplete block (marker but no closing fi)
-        let initial_content = include_str!("../fixtures/bashrc_incomplete_block_no_fi.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
+        // Seed .bashrc with a legacy forge block (from previous installer version)
+        let initial = include_str!("../fixtures/bashrc_with_forge_block.sh");
+        tokio::fs::write(&bashrc_path, initial).await.unwrap();
 
-        let original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        let actual = configure_bashrc_autostart().await;
-
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-
+        let actual = run_with_home(&temp).await;
         assert!(actual.is_ok(), "Should succeed: {:?}", actual);
 
-        let content = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        // .bashrc should have the forge block removed
+        let bashrc = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        assert!(!bashrc.contains("# Added by forge zsh setup"));
+        assert!(bashrc.contains("# My bashrc"));
+        assert!(bashrc.contains("alias ll='ls -la'"));
 
-        // Should contain original content before the incomplete block
+        // .bash_profile should have the new block
+        let bash_profile = tokio::fs::read_to_string(temp.path().join(".bash_profile"))
+            .await
+            .unwrap();
+        assert!(bash_profile.contains("# Added by forge zsh setup"));
+    }
+
+    #[tokio::test]
+    #[serial_test::serial]
+    async fn test_handles_incomplete_block_no_fi() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let bash_profile_path = temp.path().join(".bash_profile");
+
+        let initial = include_str!("../fixtures/bashrc_incomplete_block_no_fi.sh");
+        tokio::fs::write(&bash_profile_path, initial).await.unwrap();
+
+        let actual = run_with_home(&temp).await;
+        assert!(actual.is_ok(), "Should succeed: {:?}", actual);
+
+        let content = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
+
+        // Original content before the incomplete block preserved
         assert!(content.contains("# My bashrc"));
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
 
-        // Should have exactly one complete auto-start block
-        let marker_count = content.matches("# Added by forge zsh setup").count();
-        assert_eq!(
-            marker_count, 1,
-            "Should have exactly one marker after fixing incomplete block"
-        );
-
-        // Should have exactly one fi
-        let fi_count = content.matches("\nfi\n").count();
-        assert_eq!(
-            fi_count, 1,
-            "Should have exactly one fi after fixing incomplete block"
-        );
-
-        // The new block should be complete
+        // Exactly one complete block
+        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
         assert!(content.contains("if [ -t 0 ] && [ -x"));
         assert!(content.contains("export SHELL="));
         assert!(content.contains("exec"));
@@ -478,142 +458,63 @@ mod tests {
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_configure_bashrc_handles_malformed_block_missing_closing_fi() {
+    async fn test_handles_malformed_block_missing_closing_fi() {
         let temp = tempfile::TempDir::new().unwrap();
-        let bashrc_path = temp.path().join(".bashrc");
+        let bash_profile_path = temp.path().join(".bash_profile");
 
-        // Create bashrc with malformed block (has 'if' but closing 'fi' is missing)
-        // NOTE: Content after the incomplete block will be lost since we can't
-        // reliably determine where the incomplete block ends
-        let initial_content = include_str!("../fixtures/bashrc_malformed_block_missing_fi.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
+        // Content after the incomplete block will be lost
+        let initial = include_str!("../fixtures/bashrc_malformed_block_missing_fi.sh");
+        tokio::fs::write(&bash_profile_path, initial).await.unwrap();
 
-        let original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        let actual = configure_bashrc_autostart().await;
-
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-
+        let actual = run_with_home(&temp).await;
         assert!(actual.is_ok(), "Should succeed: {:?}", actual);
 
-        let content = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        let content = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
-        // Should contain original content before the incomplete block
         assert!(content.contains("# My bashrc"));
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
+        assert!(!content.contains("alias ll='ls -la'")); // lost after truncation
 
-        // The incomplete block and everything after is removed for safety
-        // This is acceptable since the file was already corrupted
-        assert!(!content.contains("alias ll='ls -la'"));
-
-        // Should have new complete block
         assert!(content.contains("# Added by forge zsh setup"));
-        let marker_count = content.matches("# Added by forge zsh setup").count();
-        assert_eq!(marker_count, 1);
-
-        // Should have exactly one complete fi
-        let fi_count = content.matches("\nfi\n").count();
-        assert_eq!(fi_count, 1);
+        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
     }
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_configure_bashrc_idempotent() {
+    async fn test_idempotent() {
         let temp = tempfile::TempDir::new().unwrap();
-        let bashrc_path = temp.path().join(".bashrc");
+        let bash_profile_path = temp.path().join(".bash_profile");
 
-        let initial_content = include_str!("../fixtures/bashrc_clean.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
-
-        let original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        // Run first time
-        let actual = configure_bashrc_autostart().await;
+        let actual = run_with_home(&temp).await;
         assert!(actual.is_ok(), "First run failed: {:?}", actual);
+        let content_first = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
-        let content_after_first = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        let actual = run_with_home(&temp).await;
+        assert!(actual.is_ok(), "Second run failed: {:?}", actual);
+        let content_second = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
-        // Run second time
-        let actual = configure_bashrc_autostart().await;
-        assert!(actual.is_ok());
-
-        let content_after_second = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
-
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-
-        // Both runs should produce same content (idempotent)
-        assert_eq!(content_after_first, content_after_second);
-
-        // Should have exactly one marker
-        let marker_count = content_after_second
-            .matches("# Added by forge zsh setup")
-            .count();
-        assert_eq!(marker_count, 1);
+        assert_eq!(content_first, content_second);
+        assert_eq!(content_second.matches("# Added by forge zsh setup").count(), 1);
     }
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_configure_bashrc_handles_multiple_incomplete_blocks() {
+    async fn test_handles_multiple_incomplete_blocks() {
         let temp = tempfile::TempDir::new().unwrap();
-        let bashrc_path = temp.path().join(".bashrc");
+        let bash_profile_path = temp.path().join(".bash_profile");
 
-        // Create bashrc with multiple incomplete blocks
-        let initial_content = include_str!("../fixtures/bashrc_multiple_incomplete_blocks.sh");
-        tokio::fs::write(&bashrc_path, initial_content)
-            .await
-            .unwrap();
+        let initial = include_str!("../fixtures/bashrc_multiple_incomplete_blocks.sh");
+        tokio::fs::write(&bash_profile_path, initial).await.unwrap();
 
-        let original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", temp.path());
-        }
-
-        let actual = configure_bashrc_autostart().await;
-
-        unsafe {
-            if let Some(home) = original_home {
-                std::env::set_var("HOME", home);
-            } else {
-                std::env::remove_var("HOME");
-            }
-        }
-
+        let actual = run_with_home(&temp).await;
         assert!(actual.is_ok(), "Should succeed: {:?}", actual);
 
-        let content = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
+        let content = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
-        // Should contain original content before incomplete blocks
         assert!(content.contains("# My bashrc"));
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
-
-        // Should have exactly one complete block
-        let marker_count = content.matches("# Added by forge zsh setup").count();
-        assert_eq!(marker_count, 1);
-
-        // Should have exactly one fi
-        let fi_count = content.matches("\nfi\n").count();
-        assert_eq!(fi_count, 1);
+        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
     }
 }

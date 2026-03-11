@@ -15,7 +15,7 @@
 //! | `util`             | Path / command helpers, `version_gte`, sudo runner |
 //! | `detect`           | Dependency detection (`detect_all_dependencies`, per-tool) |
 //! | `install_zsh`      | ZSH + zshenv installation (per platform) |
-//! | `install_plugins`  | Oh My Zsh, zsh-autosuggestions, zsh-syntax-highlighting, bashrc |
+//! | `install_plugins`  | Oh My Zsh, zsh-autosuggestions, zsh-syntax-highlighting, bash_profile |
 //! | `install_tools`    | fzf / bat / fd (package manager + GitHub fallback) |
 
 mod detect;
@@ -62,7 +62,7 @@ pub(super) const FD_MIN_VERSION: &str = "10.0.0";
 
 pub use detect::{detect_all_dependencies, detect_git, detect_sudo};
 pub use install_plugins::{
-    configure_bashrc_autostart, install_autosuggestions, install_oh_my_zsh,
+    configure_bash_profile_autostart, install_autosuggestions, install_oh_my_zsh,
     install_syntax_highlighting,
 };
 pub use install_tools::{install_bat, install_fd, install_fzf};
