@@ -1,59 +1,98 @@
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Mutex;
+
 use chrono::Utc;
 
-/// A simple thread-safe rate limiter that allows a maximum number of events per minute.
+/// Thread-safe fixed-window limiter for event dispatch.
 #[derive(Debug)]
 pub struct RateLimiter {
     max_per_minute: usize,
-    window_start: AtomicU64,
-    count: AtomicUsize,
+    state: Mutex<State>,
+}
+
+#[derive(Debug)]
+struct State {
+    window_start: u64,
+    count: usize,
 }
 
 impl RateLimiter {
-    /// Creates a new rate limiter with the specified maximum events per minute.
+    /// Creates a new rate limiter.
+    ///
+    /// # Arguments
+    /// - `max_per_minute`: Maximum number of allowed events in each 60-second window.
     pub fn new(max_per_minute: usize) -> Self {
         Self {
             max_per_minute,
-            window_start: AtomicU64::new(Utc::now().timestamp() as u64),
-            count: AtomicUsize::new(0),
+            state: Mutex::new(State {
+                window_start: Utc::now().timestamp() as u64,
+                count: 0,
+            }),
         }
     }
 
-    /// Checks if an event should be allowed based on the rate limit.
-    /// Returns true if the event is allowed, false if it should be dropped.
+    /// Checks whether a new event is allowed in the current minute window.
+    ///
+    /// Returns `true` when the event can be dispatched and `false` when it
+    /// should be dropped.
     pub fn check(&self) -> bool {
-        let now = Utc::now().timestamp() as u64;
-        let window_start = self.window_start.load(Ordering::Relaxed);
+        self.check_at(Utc::now().timestamp() as u64)
+    }
 
-        // If a minute has passed, reset the window and counter
-        if now.saturating_sub(window_start) >= 60 {
-            // We use compare_exchange to avoid race conditions when multiple threads try to reset
-            if self.window_start.compare_exchange(
-                window_start,
-                now,
-                Ordering::SeqCst,
-                Ordering::Relaxed,
-            ).is_ok() {
-                self.count.store(0, Ordering::SeqCst);
-            }
+    fn check_at(&self, now: u64) -> bool {
+        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+
+        if now.saturating_sub(state.window_start) >= 60 {
+            state.window_start = now;
+            state.count = 0;
         }
 
-        // Increment and check the rate limit
-        self.count.fetch_add(1, Ordering::Relaxed) < self.max_per_minute
+        if state.count >= self.max_per_minute {
+            return false;
+        }
+
+        state.count += 1;
+        true
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
-    fn test_rate_limiter() {
-        let limiter = RateLimiter::new(2);
-        
-        assert!(limiter.check()); // 1
-        assert!(limiter.check()); // 2
-        assert!(!limiter.check()); // 3 - blocked
-        assert!(!limiter.check()); // 4 - blocked
+    fn test_rate_limiter_blocks_after_limit() {
+        let fixture = RateLimiter::new(2);
+
+        let actual = vec![
+            fixture.check_at(100),
+            fixture.check_at(100),
+            fixture.check_at(100),
+            fixture.check_at(100),
+        ];
+
+        let expected = vec![true, true, false, false];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_rate_limiter_resets_on_new_window() {
+        let fixture = RateLimiter::new(2);
+        let start = fixture
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .window_start;
+
+        let actual = vec![
+            fixture.check_at(start),
+            fixture.check_at(start),
+            fixture.check_at(start),
+            fixture.check_at(start + 61),
+            fixture.check_at(start + 61),
+            fixture.check_at(start + 61),
+        ];
+
+        let expected = vec![true, true, false, true, true, false];
+        assert_eq!(actual, expected);
     }
 }
