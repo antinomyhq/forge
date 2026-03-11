@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use dashmap::DashMap;
 use dashmap::mapref::entry::Entry;
 use forge_domain::{
-    Conversation, ConversationId, EndPayload, EventData, EventHandle, HandleOperation, StartPayload,
+    Conversation, ConversationId, EndPayload, EventData, EventHandle, StartPayload,
 };
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -44,9 +44,9 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         &self,
         event: &EventData<StartPayload>,
         conversation: &mut Conversation,
-    ) -> HandleOperation {
+    ) -> anyhow::Result<()> {
         if conversation.title.is_some() {
-            return HandleOperation::Continue;
+            return Ok(());
         }
 
         let user_prompt = conversation
@@ -61,7 +61,7 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
             .and_then(|e| e.as_user_prompt());
 
         let Some(user_prompt) = user_prompt else {
-            return HandleOperation::Continue;
+            return Ok(());
         };
 
         let generator = TitleGenerator::new(
@@ -81,7 +81,7 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
             }))
         });
 
-        HandleOperation::Continue
+        Ok(())
     }
 }
 
@@ -91,7 +91,7 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
         &self,
         _event: &EventData<EndPayload>,
         conversation: &mut Conversation,
-    ) -> HandleOperation {
+    ) -> anyhow::Result<()> {
         // Atomically transition InProgress → Awaiting, extracting the handle while
         // keeping the entry occupied. A concurrent StartPayload sees Occupied and
         // skips, so no duplicate task can be spawned during the await below.
@@ -102,15 +102,15 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
                     // Awaiting or Done: another EndPayload is already handling this.
                     TitleTask::Done(title) => {
                         conversation.title = Some(title);
-                        return HandleOperation::Continue;
+                        return Ok(());
                     }
                     other => {
                         *e.get_mut() = other; // restore
-                        return HandleOperation::Continue;
+                        return Ok(());
                     }
                 }
             }
-            Entry::Vacant(_) => return HandleOperation::Continue,
+            Entry::Vacant(_) => return Ok(()),
         };
 
         match handle.await {
@@ -137,7 +137,7 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
             }
         }
 
-        HandleOperation::Continue
+        Ok(())
     }
 }
 
@@ -214,7 +214,8 @@ mod tests {
 
         handler
             .handle(&event(StartPayload), &mut conversation)
-            .await;
+            .await
+            .unwrap();
 
         assert!(!handler.title_tasks.contains_key(&conversation.id));
     }
@@ -229,7 +230,8 @@ mod tests {
 
         handler
             .handle(&event(StartPayload), &mut conversation)
-            .await;
+            .await
+            .unwrap();
 
         let (_, task) = handler.title_tasks.remove(&conversation.id).unwrap();
         let actual = match task {
@@ -250,7 +252,8 @@ mod tests {
 
         handler
             .handle(&event(StartPayload), &mut conversation)
-            .await;
+            .await
+            .unwrap();
 
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
@@ -268,7 +271,8 @@ mod tests {
 
         handler
             .handle(&event(StartPayload), &mut conversation)
-            .await;
+            .await
+            .unwrap();
 
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
@@ -284,7 +288,10 @@ mod tests {
             TitleTask::InProgress(tokio::spawn(async { Some("generated".into()) })),
         );
 
-        handler.handle(&event(EndPayload), &mut conversation).await;
+        handler
+            .handle(&event(EndPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert_eq!(conversation.title, Some("generated".into()));
         assert!(matches!(
@@ -301,7 +308,10 @@ mod tests {
             TitleTask::InProgress(tokio::spawn(async { panic!("fail") })),
         );
 
-        handler.handle(&event(EndPayload), &mut conversation).await;
+        handler
+            .handle(&event(EndPayload), &mut conversation)
+            .await
+            .unwrap();
 
         assert!(conversation.title.is_none());
         assert!(!handler.title_tasks.contains_key(&conversation.id));
@@ -322,7 +332,10 @@ mod tests {
             let mut conv = conversation.clone();
             joins.push(tokio::spawn(async move {
                 barrier.wait().await;
-                handler.handle(&event(StartPayload), &mut conv).await;
+                handler
+                    .handle(&event(StartPayload), &mut conv)
+                    .await
+                    .unwrap();
             }));
         }
         for j in joins {

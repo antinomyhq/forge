@@ -452,7 +452,6 @@ impl Context {
 
     pub fn add_entry(mut self, content: impl Into<MessageEntry>) -> Self {
         let content = content.into();
-        debug!(content = ?content, "Adding message to context");
         self.messages.push(content);
 
         self
