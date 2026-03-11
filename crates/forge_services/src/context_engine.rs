@@ -432,8 +432,9 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .await?;
 
         if output.exit_code != Some(0) {
-            return Err(anyhow::anyhow!(output.stderr))
-                .with_context(|| format!("'git ls-files' exited with code {:?}", output.exit_code));
+            return Err(anyhow::anyhow!(output.stderr)).with_context(|| {
+                format!("'git ls-files' exited with code {:?}", output.exit_code)
+            });
         }
 
         let files = output
