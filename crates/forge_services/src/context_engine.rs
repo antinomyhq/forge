@@ -233,7 +233,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         })
         .await;
 
-        let results: Vec<Result<FileNode>> = self.read_files(batch_size, &path, &workspace_id).collect().await;
+        let results: Vec<Result<FileNode>> = self
+            .read_files(batch_size, &path, &workspace_id)
+            .collect()
+            .await;
         let failed_statuses: Vec<forge_domain::FileStatus> = results
             .iter()
             .filter_map(|r| r.as_ref().err())
@@ -756,8 +759,10 @@ impl<
         let canonical_path = PathBuf::from(&workspace.working_dir);
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let results: Vec<Result<FileNode>> =
-            self.read_files(batch_size, &canonical_path, &workspace.workspace_id).collect().await;
+        let results: Vec<Result<FileNode>> = self
+            .read_files(batch_size, &canonical_path, &workspace.workspace_id)
+            .collect()
+            .await;
 
         let mut failed_statuses: Vec<forge_domain::FileStatus> = results
             .iter()
