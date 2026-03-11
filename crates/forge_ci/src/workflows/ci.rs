@@ -32,8 +32,9 @@ pub fn generate_ci_workflow() {
 
     // Shell-native provider auth E2E tests — Linux (ubuntu-latest, Docker)
     // Builds musl + gnu binaries then runs tests inside Docker containers across
-    // multiple distros (Ubuntu, Debian, Fedora, Rocky, Alpine, Arch, openSUSE, Void).
-    // Uses --native-build because GitHub runners don't have `cross` pre-installed.
+    // multiple distros (Ubuntu, Debian, Fedora, Rocky, Alpine, Arch, openSUSE,
+    // Void). Uses --native-build because GitHub runners don't have `cross`
+    // pre-installed.
     let shell_auth_e2e_job = Job::new("Shell Auth E2E (Linux, Docker)")
         .name("Shell Auth E2E: Linux (Docker multi-distro)")
         .runs_on("ubuntu-latest")
@@ -41,10 +42,7 @@ pub fn generate_ci_workflow() {
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(setup_protoc())
         .add_step(Step::toolchain().add_stable())
-        .add_step(
-            Step::new("Add musl target")
-                .run("rustup target add x86_64-unknown-linux-musl"),
-        )
+        .add_step(Step::new("Add musl target").run("rustup target add x86_64-unknown-linux-musl"))
         .add_step(
             Step::new("Install musl toolchain")
                 .run("sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools"),
@@ -56,7 +54,8 @@ pub fn generate_ci_workflow() {
 
     // Shell-native provider auth E2E tests — macOS (macos-latest, native)
     // Builds the host binary and runs the full CLI + zsh test suite natively.
-    // No Docker: macOS GitHub-hosted runners don't have Docker available by default.
+    // No Docker: macOS GitHub-hosted runners don't have Docker available by
+    // default.
     let shell_auth_macos_job = Job::new("Shell Auth E2E (macOS)")
         .name("Shell Auth E2E: macOS (native)")
         .runs_on("macos-latest")
@@ -67,8 +66,7 @@ pub fn generate_ci_workflow() {
         .add_step(
             // macOS runners ship with Homebrew. fzf, fd, bat are available as brew formulae.
             // zsh is pre-installed on macOS runners.
-            Step::new("Install fzf, fd, bat (Homebrew)")
-                .run("brew install fzf fd bat"),
+            Step::new("Install fzf, fd, bat (Homebrew)").run("brew install fzf fd bat"),
         )
         .add_step(
             Step::new("Run shell auth E2E tests (native macOS)")
@@ -77,8 +75,9 @@ pub fn generate_ci_workflow() {
 
     // Shell-native provider auth E2E tests — Windows (windows-latest, Git Bash)
     // Builds the host binary and runs the full CLI + zsh test suite natively via
-    // Git Bash (mintty/MSYS2). zsh is installed via MSYS2's pacman before the tests run.
-    // This directly validates the core regression: no BracketedPasteGuard crash on mintty.
+    // Git Bash (mintty/MSYS2). zsh is installed via MSYS2's pacman before the tests
+    // run. This directly validates the core regression: no BracketedPasteGuard
+    // crash on mintty.
     let shell_auth_windows_job = Job::new("Shell Auth E2E (Windows)")
         .name("Shell Auth E2E: Windows (native, Git Bash)")
         .runs_on("windows-latest")

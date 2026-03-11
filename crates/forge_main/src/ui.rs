@@ -1042,7 +1042,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Output in key=value format for easy shell parsing
         self.writeln(format!("auth_methods={}", auth_methods.join(",")))?;
         self.writeln(format!("url_params={}", url_params.join(",")))?;
-        self.writeln(format!("configured={}", if configured { "yes" } else { "no" }))?;
+        self.writeln(format!(
+            "configured={}",
+            if configured { "yes" } else { "no" }
+        ))?;
         if !existing_api_key.is_empty() {
             self.writeln(format!("existing_api_key={existing_api_key}"))?;
         }
@@ -2223,7 +2226,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .iter()
             .map(|param| {
                 let param_str = param.as_str();
-                
+
                 // Check if the param was pre-supplied via CLI
                 if let Some(value) = pre_supplied_params_map.get(param_str) {
                     return Ok((param.to_string(), value.clone()));
@@ -2410,7 +2413,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Determine the authorization code to use (pre-supplied or prompt)
         let code = if let Some(code) = pre_supplied_code {
             // Use the pre-supplied code from CLI
-            anyhow::ensure!(!code.trim().is_empty(), "Authorization code cannot be empty");
+            anyhow::ensure!(
+                !code.trim().is_empty(),
+                "Authorization code cannot be empty"
+            );
             code.trim().to_string()
         } else {
             // Display interactive prompts
@@ -2540,13 +2546,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.init_forge_services().await?;
             return Ok(None);
         }
-        
+
         // Select auth method (or use the pre-supplied one, or the only one available)
         let auth_method = if let Some(method_str) = auth_method_str {
             // Pre-supplied auth method from CLI (kebab-case format like "api-key")
             // Convert to lowercase and normalize for comparison
             let normalized_input = method_str.to_lowercase().replace('-', "_");
-            
+
             auth_methods
                 .iter()
                 .find(|m| {
@@ -2703,11 +2709,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .configure_provider(
                     any_provider.id(),
                     any_provider.auth_methods().to_vec(),
-                    None, // api_key
+                    None,   // api_key
                     vec![], // params
-                    None, // auth_method
-                    None, // auth_code
-                    None, // set_active
+                    None,   // auth_method
+                    None,   // auth_code
+                    None,   // set_active
                 )
                 .await?
             {
