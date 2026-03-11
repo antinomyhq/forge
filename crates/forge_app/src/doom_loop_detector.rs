@@ -7,6 +7,8 @@ use forge_domain::{
 use forge_template::Element;
 use tracing::warn;
 
+use crate::TemplateEngine;
+
 /// Detector for identifying doom loops - when tool calls form repetitive
 /// patterns
 ///
@@ -284,14 +286,11 @@ impl EventHandle<EventData<ToolcallEndPayload>> for DoomLoopDetector {
             );
 
             if let Some(context) = conversation.context.as_mut() {
-                let content = Element::new("system_reminder").cdata(format!(r#"
-                You appear to be stuck in a repetitive loop, having made {consecutive_calls} similar calls. 
-                This indicates you are not making progress. Please:
-
-                1. Reconsider your approach to solving this problem
-                2. Try a different tool or different arguments
-                3. If you're stuck, explain what you're trying to accomplish and ask for clarification
-                "#));
+                let reminder = TemplateEngine::default().render(
+                    "forge-doom-loop-reminder.md",
+                    &serde_json::json!({"consecutive_calls": consecutive_calls}),
+                )?;
+                let content = Element::new("system_reminder").cdata(reminder);
                 context
                     .messages
                     .push(ContextMessage::user(content, None).into());
