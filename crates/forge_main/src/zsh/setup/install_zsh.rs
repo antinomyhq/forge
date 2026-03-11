@@ -721,6 +721,8 @@ Write-Host "ZSH_INSTALL_OK""#,
 
     let ps_file_win = to_win_path(&ps_file);
 
+    let zsh_exe = PathBuf::from(&git_usr).join("bin").join("zsh.exe");
+
     // Try elevated install via UAC
     let uac_cmd = format!(
         "Start-Process powershell -Verb RunAs -Wait -ArgumentList \"-NoProfile -ExecutionPolicy Bypass -File `\"{}`\"\"",
@@ -735,7 +737,7 @@ Write-Host "ZSH_INSTALL_OK""#,
         .await;
 
     // Fallback: direct execution if already admin
-    if !Path::new("/usr/bin/zsh.exe").exists() {
+    if !zsh_exe.exists() {
         let _ = Command::new("powershell.exe")
             .args([
                 "-NoProfile",
@@ -750,9 +752,10 @@ Write-Host "ZSH_INSTALL_OK""#,
             .await;
     }
 
-    if !Path::new("/usr/bin/zsh.exe").exists() {
+    if !zsh_exe.exists() && !command_exists("zsh").await {
         bail!(
-            "zsh.exe not found in /usr/bin after installation. Try re-running from an Administrator Git Bash."
+            "zsh.exe not found at {} after installation. Try re-running from an Administrator Git Bash.",
+            zsh_exe.display()
         );
     }
 
