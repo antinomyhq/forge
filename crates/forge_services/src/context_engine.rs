@@ -221,7 +221,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             workspace_id: workspace_id.clone(),
         })
         .await;
-        let local_files: Vec<FileNode> = self.read_files(batch_size, &path, &workspace_id).try_concat().await?;
+        let local_files: Vec<FileNode> = self
+            .read_files(batch_size, &path, &workspace_id)
+            .try_concat()
+            .await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
