@@ -5,8 +5,8 @@ use std::sync::{Arc, LazyLock};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkedFile,
-    WorkspaceService, WorkspaceStatus, compute_hash,
+    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkedFile, Walker,
+    WalkerInfra, WorkspaceService, WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -199,7 +199,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             + WorkspaceIndexRepository
             + FileReaderInfra
             + EnvironmentInfra
-            + CommandInfra,
+            + CommandInfra
+            + WalkerInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -466,7 +467,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         workspace_id: &WorkspaceId,
     ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
     where
-        F: FileReaderInfra + EnvironmentInfra + CommandInfra,
+        F: FileReaderInfra + EnvironmentInfra + CommandInfra + WalkerInfra,
     {
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
@@ -475,8 +476,28 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         async_stream::stream! {
             info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
-            let walked_files: Vec<WalkedFile> = service.git_ls_files(&dir_path).await?;
-            info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
+            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
+                Ok(walked_files) => {
+                    info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
+                    walked_files
+                }
+                Err(err) => {
+                    warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
+                    let walker_config = Walker::unlimited().cwd(dir_path.clone()).skip_binary(true);
+                    match infra.walk(walker_config).await.context("Failed to walk directory") {
+                        Ok(files) => {
+                            let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
+                            info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
+                            files
+                        }
+                        Err(e) => {
+                            warn!(workspace_id = %workspace_id, error = ?e, "Failed to get files via walker fallback");
+                            yield Err(e);
+                            return;
+                        }
+                    }
+                }
+            };
 
             // Filter files by allowed extension (pure function, no I/O)
             let filtered_files: Vec<_> = walked_files
@@ -569,6 +590,7 @@ impl<
         + FileReaderInfra
         + EnvironmentInfra
         + CommandInfra
+        + WalkerInfra
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
