@@ -152,6 +152,9 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
                     self.openai_repo.chat(model_id, context, provider).await
                 }
             }
+            Some(ProviderResponse::OpenAIResponses) => {
+                self.codex_repo.chat(model_id, context, provider).await
+            }
             Some(ProviderResponse::Anthropic) => {
                 self.anthropic_repo.chat(model_id, context, provider).await
             }
@@ -171,6 +174,7 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         match provider.response {
             Some(ProviderResponse::OpenAI) => self.openai_repo.models(provider).await,
+            Some(ProviderResponse::OpenAIResponses) => self.codex_repo.models(provider).await,
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
             Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
             Some(ProviderResponse::Google) => self.google_repo.models(provider).await,

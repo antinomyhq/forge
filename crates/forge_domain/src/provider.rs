@@ -61,6 +61,8 @@ impl ProviderId {
     pub const AZURE: ProviderId = ProviderId(Cow::Borrowed("azure"));
     pub const GITHUB_COPILOT: ProviderId = ProviderId(Cow::Borrowed("github_copilot"));
     pub const OPENAI_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("openai_compatible"));
+    pub const OPENAI_RESPONSES_COMPATIBLE: ProviderId =
+        ProviderId(Cow::Borrowed("openai_responses_compatible"));
     pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
     pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
@@ -89,6 +91,7 @@ impl ProviderId {
             ProviderId::AZURE,
             ProviderId::GITHUB_COPILOT,
             ProviderId::OPENAI_COMPATIBLE,
+            ProviderId::OPENAI_RESPONSES_COMPATIBLE,
             ProviderId::ANTHROPIC_COMPATIBLE,
             ProviderId::FORGE_SERVICES,
             ProviderId::IO_INTELLIGENCE,
@@ -114,6 +117,7 @@ impl ProviderId {
             "vertex_ai" => "VertexAI".to_string(),
             "vertex_ai_anthropic" => "VertexAIAnthropic".to_string(),
             "openai_compatible" => "OpenAICompatible".to_string(),
+            "openai_responses_compatible" => "OpenAIResponsesCompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
             "codex" => "Codex".to_string(),
             "minimax" => "MiniMax".to_string(),
@@ -153,6 +157,7 @@ impl std::str::FromStr for ProviderId {
             "azure" => ProviderId::AZURE,
             "github_copilot" => ProviderId::GITHUB_COPILOT,
             "openai_compatible" => ProviderId::OPENAI_COMPATIBLE,
+            "openai_responses_compatible" => ProviderId::OPENAI_RESPONSES_COMPATIBLE,
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
             "forge_services" => ProviderId::FORGE_SERVICES,
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
@@ -174,6 +179,7 @@ impl From<String> for ProviderId {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ProviderResponse {
     OpenAI,
+    OpenAIResponses,
     Anthropic,
     Bedrock,
     Google,
@@ -500,6 +506,10 @@ mod tests {
             "OpenAICompatible"
         );
         assert_eq!(
+            ProviderId::OPENAI_RESPONSES_COMPATIBLE.to_string(),
+            "OpenAIResponsesCompatible"
+        );
+        assert_eq!(
             ProviderId::ANTHROPIC_COMPATIBLE.to_string(),
             "AnthropicCompatible"
         );
@@ -518,6 +528,7 @@ mod tests {
     fn test_codex_in_built_in_providers() {
         let built_in = ProviderId::built_in_providers();
         assert!(built_in.contains(&ProviderId::CODEX));
+        assert!(built_in.contains(&ProviderId::OPENAI_RESPONSES_COMPATIBLE));
     }
 
     #[test]
