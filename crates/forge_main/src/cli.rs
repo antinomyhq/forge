@@ -99,6 +99,14 @@ impl Cli {
     pub fn is_interactive(&self) -> bool {
         self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
+
+    /// Determines whether tracing/logging should be initialized.
+    ///
+    /// Returns true only when running a direct prompt flow via `-p/--prompt`
+    /// or when content is piped into stdin.
+    pub fn should_init_tracing(&self) -> bool {
+        self.prompt.is_some() || self.piped_input.is_some()
+    }
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -1553,6 +1561,31 @@ mod tests {
         let fixture = Cli::parse_from(["forge"]);
         let actual = fixture.is_interactive();
         let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_should_init_tracing_with_prompt_flag() {
+        let fixture = Cli::parse_from(["forge", "-p", "hello"]);
+        let actual = fixture.should_init_tracing();
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_should_init_tracing_with_piped_input() {
+        let mut fixture = Cli::parse_from(["forge"]);
+        fixture.piped_input = Some("context".to_string());
+        let actual = fixture.should_init_tracing();
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_should_not_init_tracing_for_rprompt_subcommand() {
+        let fixture = Cli::parse_from(["forge", "zsh", "rprompt"]);
+        let actual = fixture.should_init_tracing();
+        let expected = false;
         assert_eq!(actual, expected);
     }
 
