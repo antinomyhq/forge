@@ -33,9 +33,7 @@ impl ForgeEnvironmentInfra {
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         match Self::migrate_global_base_path() {
             Ok(BasePathMigrationOutcome::BothExist) => {
-                warn!(
-                    "Both ~/forge and ~/.forge exist; using ~/.forge and skipping migration"
-                );
+                warn!("Both ~/forge and ~/.forge exist; using ~/.forge and skipping migration");
             }
             Ok(_) => {}
             Err(error) => {
@@ -492,8 +490,8 @@ mod tests {
         fs::create_dir_all(old_file.parent().unwrap()).unwrap();
         fs::write(&old_file, "legacy-data").unwrap();
 
-        let actual = ForgeEnvironmentInfra::migrate_global_base_path_for_home(fixture.path())
-            .unwrap();
+        let actual =
+            ForgeEnvironmentInfra::migrate_global_base_path_for_home(fixture.path()).unwrap();
         let expected = BasePathMigrationOutcome::Migrated;
 
         assert_eq!(actual, expected);
@@ -515,8 +513,8 @@ mod tests {
         fs::write(&old_file, "old-data").unwrap();
         fs::write(&new_file, "new-data").unwrap();
 
-        let actual = ForgeEnvironmentInfra::migrate_global_base_path_for_home(fixture.path())
-            .unwrap();
+        let actual =
+            ForgeEnvironmentInfra::migrate_global_base_path_for_home(fixture.path()).unwrap();
         let expected = BasePathMigrationOutcome::BothExist;
 
         assert_eq!(actual, expected);
@@ -528,8 +526,8 @@ mod tests {
     fn test_migrate_global_base_path_when_neither_path_exists() {
         let fixture = tempdir().unwrap();
 
-        let actual = ForgeEnvironmentInfra::migrate_global_base_path_for_home(fixture.path())
-            .unwrap();
+        let actual =
+            ForgeEnvironmentInfra::migrate_global_base_path_for_home(fixture.path()).unwrap();
         let expected = BasePathMigrationOutcome::NoOp;
 
         assert_eq!(actual, expected);
