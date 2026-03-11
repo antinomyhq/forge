@@ -292,7 +292,9 @@ impl EventHandle<EventData<RequestPayload>> for DoomLoopDetector {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ContextMessage, ConversationId, MessageEntry, ToolCallArguments};
+    use forge_domain::{
+        Context, ContextMessage, ConversationId, MessageEntry, ToolCallArguments, ToolCallFull,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
