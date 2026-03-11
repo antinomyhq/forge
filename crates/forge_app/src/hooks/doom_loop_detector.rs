@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use derive_setters::Setters;
 use forge_domain::{
     ContextMessage, Conversation, EventData, EventHandle, RequestPayload, Role, TextMessage,
-    ToolCallFull, ToolName,
+    ToolName,
 };
 use forge_template::Element;
 use tracing::warn;
@@ -49,20 +49,16 @@ impl DoomLoopDetector {
     /// results from the previous turn have already been appended to context.
     ///
     /// Returns Some((tool_name, count)) if a doom loop is detected
-    pub fn detect_from_conversation(&self, conversation: &Conversation) -> Option<(ToolName, usize)> {
+    pub fn detect_from_conversation(
+        &self,
+        conversation: &Conversation,
+    ) -> Option<(ToolName, usize)> {
         let all_signatures = self.extract_tool_signatures(conversation);
 
-        if all_signatures.is_empty() {
-            return None;
-        }
+        let (pattern_start_idx, count) = self.detect_pattern_start(&all_signatures)?;
+        let tool_name = all_signatures.get(pattern_start_idx)?.0.clone();
 
-        // Check for consecutive identical calls at the end
-        if let Some(result) = self.check_consecutive_identical_in_signatures(&all_signatures) {
-            return Some(result);
-        }
-
-        // Check for repeating patterns at the end
-        self.check_repeating_pattern_in_signatures(&all_signatures)
+        Some((tool_name, count))
     }
 
     fn extract_tool_signatures(&self, conversation: &Conversation) -> Vec<(ToolName, String)> {
@@ -82,18 +78,34 @@ impl DoomLoopDetector {
             .collect()
     }
 
-    /// Checks for consecutive identical tool calls at the end of the provided
-    /// signature list.
-    fn check_consecutive_identical_in_signatures(
-        &self,
-        signatures: &[(ToolName, String)],
-    ) -> Option<(ToolName, usize)> {
-        let Some(last_signature) = signatures.last() else {
+    /// Detects doom-loop patterns from any sequence type.
+    ///
+    /// Returns the start index of the detected pattern and the repetition
+    /// count.
+    fn detect_pattern_start<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
+    where
+        T: Eq + std::hash::Hash,
+    {
+        if sequence.is_empty() {
             return None;
-        };
+        }
 
-        let mut consecutive_count = 0;
-        for signature in signatures.iter().rev() {
+        if let Some(result) = self.check_consecutive_identical(sequence) {
+            return Some(result);
+        }
+
+        self.check_repeating_pattern(sequence)
+    }
+
+    /// Checks for consecutive identical values at the end of the sequence.
+    fn check_consecutive_identical<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
+    where
+        T: Eq + std::hash::Hash,
+    {
+        let last_signature = sequence.last()?;
+
+        let mut consecutive_count = 0usize;
+        for signature in sequence.iter().rev() {
             if signature == last_signature {
                 consecutive_count += 1;
             } else {
@@ -102,40 +114,38 @@ impl DoomLoopDetector {
         }
 
         if consecutive_count >= self.threshold {
-            Some((last_signature.0.clone(), consecutive_count))
+            let start_idx = sequence.len().checked_sub(consecutive_count)?;
+            Some((start_idx, consecutive_count))
         } else {
             None
         }
     }
 
-    /// Checks for repeating patterns at the end of the provided signature list.
-    fn check_repeating_pattern_in_signatures(
-        &self,
-        signatures: &[(ToolName, String)],
-    ) -> Option<(ToolName, usize)> {
-        if signatures.len() < self.threshold {
+    /// Checks for repeating patterns at the end of the sequence.
+    fn check_repeating_pattern<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
+    where
+        T: Eq + std::hash::Hash,
+    {
+        if sequence.len() < self.threshold {
             return None;
         }
 
-        for pattern_length in 1..signatures.len() {
+        for pattern_length in 1..sequence.len() {
             let complete_repetitions =
-                self.count_recent_pattern_repetitions(signatures, pattern_length);
+                self.count_recent_pattern_repetitions(sequence, pattern_length);
 
             if complete_repetitions >= self.threshold {
-                let pattern_offset = complete_repetitions.saturating_mul(pattern_length);
-                let pattern_start_idx = signatures.len().saturating_sub(pattern_offset);
-                return Some((
-                    signatures[pattern_start_idx].0.clone(),
-                    complete_repetitions,
-                ));
+                let pattern_offset = complete_repetitions.checked_mul(pattern_length)?;
+                let pattern_start_idx = sequence.len().checked_sub(pattern_offset)?;
+
+                if sequence.get(pattern_start_idx).is_some() {
+                    return Some((pattern_start_idx, complete_repetitions));
+                }
             }
         }
 
         None
     }
-
-
-
 
     /// Counts how many times a pattern of given length repeats at the END of
     /// the sequence
@@ -144,17 +154,16 @@ impl DoomLoopDetector {
     /// patterns, which allows detecting new patterns even if earlier
     /// patterns existed. For example, in [1,2,3,1,2,3,4,5,4,5,4,5], this
     /// will detect [4,5] repeating 3 times.
-    fn count_recent_pattern_repetitions(
-        &self,
-        signatures: &[(ToolName, String)],
-        pattern_length: usize,
-    ) -> usize {
-        if pattern_length == 0 || signatures.len() < pattern_length {
+    fn count_recent_pattern_repetitions<T>(&self, sequence: &[T], pattern_length: usize) -> usize
+    where
+        T: Eq + std::hash::Hash,
+    {
+        if pattern_length == 0 || sequence.len() < pattern_length {
             return 0;
         }
 
         // Start from the end and work backwards
-        let total_len = signatures.len();
+        let total_len = sequence.len();
         let mut repetitions = 0;
 
         // The pattern is defined by the last pattern_length elements
@@ -167,20 +176,29 @@ impl DoomLoopDetector {
             let partial_len = total_len % pattern_length;
             // Check if the partial segment matches the start of what would be the pattern
             // We need to look back to find what the pattern would be
-            if total_len >= pattern_length + partial_len {
-                let pattern_start = total_len - partial_len - pattern_length;
-                let pattern = &signatures[pattern_start..pattern_start + pattern_length];
-                let partial = &signatures[total_len - partial_len..];
+            if total_len < pattern_length + partial_len {
+                return 0;
+            }
 
-                if partial == &pattern[..partial_len] {
-                    repetitions += 1;
-                    check_len = total_len - partial_len;
-                } else {
-                    // Partial doesn't match, no pattern
-                    return 0;
-                }
+            let pattern_start = total_len - partial_len - pattern_length;
+            let pattern_end = pattern_start + pattern_length;
+            let partial_start = total_len - partial_len;
+
+            let Some(pattern) = sequence.get(pattern_start..pattern_end) else {
+                return 0;
+            };
+            let Some(partial) = sequence.get(partial_start..total_len) else {
+                return 0;
+            };
+            let Some(pattern_prefix) = pattern.get(..partial_len) else {
+                return 0;
+            };
+
+            if partial == pattern_prefix {
+                repetitions += 1;
+                check_len = total_len - partial_len;
             } else {
-                // Not enough data for a pattern
+                // Partial doesn't match, no pattern
                 return 0;
             }
         }
@@ -192,14 +210,19 @@ impl DoomLoopDetector {
 
         // The pattern is the last complete chunk
         let pattern_start = check_len - pattern_length;
-        let pattern = &signatures[pattern_start..check_len];
+        let Some(pattern) = sequence.get(pattern_start..check_len) else {
+            return repetitions;
+        };
         repetitions += 1; // Count the pattern itself
 
         // Check backwards for more repetitions
         let mut pos = pattern_start;
         while pos >= pattern_length {
             pos -= pattern_length;
-            let chunk = &signatures[pos..pos + pattern_length];
+            let Some(chunk) = sequence.get(pos..pos + pattern_length) else {
+                break;
+            };
+
             if chunk == pattern {
                 repetitions += 1;
             } else {
@@ -457,6 +480,36 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_pattern_start_with_integers_for_123_123_123() {
+        let detector = DoomLoopDetector::new();
+        let fixture = vec![1, 2, 3, 1, 2, 3, 1, 2, 3];
+
+        let actual = detector.detect_pattern_start(&fixture);
+        let expected = Some((0, 3));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_pattern_start_with_integers_detects_recent_suffix_pattern() {
+        let detector = DoomLoopDetector::new();
+        let fixture = vec![1, 2, 3, 1, 2, 3, 4, 5, 4, 5, 4, 5];
+
+        let actual = detector.detect_pattern_start(&fixture);
+        let expected = Some((6, 3));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_pattern_start_with_integers_detects_consecutive_identical() {
+        let detector = DoomLoopDetector::new();
+        let fixture = vec![1, 2, 3, 3, 3];
+
+        let actual = detector.detect_pattern_start(&fixture);
+        let expected = Some((2, 3));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_doom_loop_detector_detects_repeating_pattern_123_123_123() {
         let detector = DoomLoopDetector::new();
 
@@ -660,8 +713,9 @@ mod tests {
         let msg8 = create_assistant_message(&diagnostics_call);
         let msg9 = create_assistant_message(&patch_call);
 
-        let conversation =
-            create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9]);
+        let conversation = create_conversation_with_messages(vec![
+            msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9,
+        ]);
 
         let actual = detector.detect_from_conversation(&conversation);
 
@@ -801,7 +855,8 @@ mod tests {
         let conv = create_conversation_with_messages(messages.clone());
         assert_eq!(detector.detect_from_conversation(&conv), None);
 
-        // Step 13: [1,2,3,4,5,4,6,4,5,4,5,4,5] - [4,5] pattern now repeats 3 times at end
+        // Step 13: [1,2,3,4,5,4,6,4,5,4,5,4,5] - [4,5] pattern now repeats 3 times at
+        // end
         messages.push(create_assistant_message(&tool_5));
         let conv = create_conversation_with_messages(messages.clone());
 
