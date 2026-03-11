@@ -487,6 +487,67 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(files)
     }
 
+    /// Discovers workspace files and filters them by allowed source extensions.
+    async fn discover_sync_file_paths(
+        &self,
+        dir_path: &Path,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Vec<PathBuf>>
+    where
+        F: CommandInfra + WalkerInfra,
+    {
+        info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
+        let walked_files: Vec<WalkedFile> = match self.git_ls_files(dir_path).await {
+            Ok(walked_files) => {
+                info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
+                walked_files
+            }
+            Err(err) => {
+                warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
+                let walker_config = Walker::unlimited().cwd(dir_path.to_path_buf()).skip_binary(true);
+                match self
+                    .infra
+                    .walk(walker_config)
+                    .await
+                    .context("Failed to walk directory")
+                {
+                    Ok(files) => {
+                        let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
+                        info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
+                        files
+                    }
+                    Err(err) => {
+                        warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via walker fallback");
+                        return Err(err);
+                    }
+                }
+            }
+        };
+
+        let filtered_files: Vec<_> = walked_files
+            .into_iter()
+            .filter(|walked| {
+                let file_path = dir_path.join(&walked.path);
+                has_allowed_extension(&file_path)
+            })
+            .collect();
+
+        info!(
+            workspace_id = %workspace_id,
+            filtered_count = filtered_files.len(),
+            "Files after extension filtering"
+        );
+
+        if filtered_files.is_empty() {
+            return Err(ServiceError::NoSourceFilesFound.into());
+        }
+
+        Ok(filtered_files
+            .iter()
+            .map(|walked| dir_path.join(&walked.path))
+            .collect())
+    }
+
     /// Only includes files with allowed extensions.
     fn read_files(
         &self,
@@ -503,57 +564,16 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let workspace_id = workspace_id.clone();
 
         async_stream::stream! {
-            info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
-            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
-                Ok(walked_files) => {
-                    info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
-                    walked_files
-                }
+            let file_paths: Vec<PathBuf> = match service.discover_sync_file_paths(&dir_path, &workspace_id).await {
+                Ok(file_paths) => file_paths,
                 Err(err) => {
-                    warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
-                    let walker_config = Walker::unlimited().cwd(dir_path.clone()).skip_binary(true);
-                    match infra.walk(walker_config).await.context("Failed to walk directory") {
-                        Ok(files) => {
-                            let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
-                            info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
-                            files
-                        }
-                        Err(e) => {
-                            warn!(workspace_id = %workspace_id, error = ?e, "Failed to get files via walker fallback");
-                            yield Err(e);
-                            return;
-                        }
-                    }
+                    yield Err(err);
+                    return;
                 }
             };
 
-            // Filter files by allowed extension (pure function, no I/O)
-            let filtered_files: Vec<_> = walked_files
-                .into_iter()
-                .filter(|walked| {
-                    let file_path = dir_path.join(&walked.path);
-                    has_allowed_extension(&file_path)
-                })
-                .collect();
-
-            info!(
-                workspace_id = %workspace_id,
-                filtered_count = filtered_files.len(),
-                "Files after extension filtering"
-            );
-
-            if filtered_files.is_empty() {
-                yield Err(ServiceError::NoSourceFilesFound.into());
-                return;
-            }
-
             // Use read_batch_utf8 with streaming for better memory efficiency with large
             // file sets
-            let file_paths: Vec<PathBuf> = filtered_files
-                .iter()
-                .map(|walked| dir_path.join(&walked.path))
-                .collect();
-
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
 
@@ -837,8 +857,3 @@ impl<
         }
     }
 }
-
-// TODO: Tests need to be rewritten to work with remote-only workspace
-// management
-#[cfg(test)]
-mod tests {}
