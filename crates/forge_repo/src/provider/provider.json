@@ -518,6 +518,15 @@
     "auth_methods": ["api_key"]
   },
   {
+    "id": "openai_responses_compatible",
+    "api_key_vars": "OPENAI_API_KEY",
+    "url_param_vars": ["OPENAI_URL"],
+    "response_type": "OpenAIResponses",
+    "url": "{{OPENAI_URL}}/responses",
+    "models": "{{OPENAI_URL}}/models",
+    "auth_methods": ["api_key"]
+  },
+  {
     "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": [],
@@ -1804,20 +1813,10 @@
     "url": "https://chatgpt.com/backend-api/codex/responses",
     "models": [
       {
-        "id": "gpt-5.4-2026-03-05",
-        "name": "GPT 5.4 2026-03-05",
-        "description": "GPT 5.4 frontier model for complex professional work",
-        "context_length": 1000000,
-        "tools_supported": true,
-        "supports_parallel_tool_calls": true,
-        "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
-      },
-      {
-        "id": "gpt-5.4-pro-2026-03-05",
-        "name": "GPT 5.4 Pro 2026-03-05",
-        "description": "GPT 5.4 Pro frontier model for complex professional work",
-        "context_length": 1000000,
+        "id": "gpt-5.4",
+        "name": "GPT-5.4",
+        "description": "Latest frontier model for complex professional work",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1826,8 +1825,8 @@
       {
         "id": "gpt-5.3-codex",
         "name": "GPT-5.3 Codex",
-        "description": "Latest GPT-5.3 Codex model with advanced coding capabilities and 400K context window",
-        "context_length": 400000,
+        "description": "Latest GPT-5.3 Codex model optimized for agentic coding",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1836,8 +1835,8 @@
       {
         "id": "gpt-5.2-codex",
         "name": "GPT-5.2 Codex",
-        "description": "GPT-5.2 Codex model with advanced coding capabilities and 200K context window",
-        "context_length": 200000,
+        "description": "Frontier agentic coding model",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1846,18 +1845,8 @@
       {
         "id": "gpt-5.2",
         "name": "GPT-5.2",
-        "description": "GPT-5.2 model with advanced coding capabilities and 200K context window",
-        "context_length": 200000,
-        "tools_supported": true,
-        "supports_parallel_tool_calls": true,
-        "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
-      },
-      {
-        "id": "gpt-5.1-codex",
-        "name": "GPT-5.1 Codex",
-        "description": "GPT-5.1 Codex model with strong coding capabilities and 200K context window",
-        "context_length": 200000,
+        "description": "Frontier model with improvements across knowledge, reasoning and coding",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
@@ -1866,8 +1855,18 @@
       {
         "id": "gpt-5.1-codex-max",
         "name": "GPT-5.1 Codex Max",
-        "description": "GPT-5.1 Codex Max model with maximum capabilities and 200K context window",
-        "context_length": 200000,
+        "description": "Codex-optimized flagship for deep and fast reasoning",
+        "context_length": 272000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.1-codex",
+        "name": "GPT-5.1 Codex",
+        "description": "Optimized for codex agentic coding tasks",
+        "context_length": 272000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,

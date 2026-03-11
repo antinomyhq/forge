@@ -59,6 +59,8 @@ pub enum SyncStatus {
     New,
     /// File exists on server but not locally (deleted locally)
     Deleted,
+    /// File could not be read locally (e.g. permission error, binary file)
+    Failed,
 }
 
 /// Information about a file's sync status
