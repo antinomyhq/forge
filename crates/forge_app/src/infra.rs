@@ -58,7 +58,7 @@ pub trait FileReaderInfra: Send + Sync {
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send;
+    ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send;
 
     /// Reads the content of a file at the specified path.
     /// Returns the file content as raw bytes.

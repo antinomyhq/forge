@@ -29,7 +29,7 @@ impl FileReaderInfra for ForgeFileReadService {
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+    ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send {
         let batches: Vec<Vec<PathBuf>> = paths
             .chunks(batch_size)
             .map(|chunk| chunk.to_vec())
@@ -37,14 +37,11 @@ impl FileReaderInfra for ForgeFileReadService {
 
         stream::iter(batches).then(move |batch| async move {
             let futures = batch.into_iter().map(|path| async move {
-                let content = self.read_utf8(&path).await?;
-                Ok::<_, anyhow::Error>((path, content))
+                let result = self.read_utf8(&path).await;
+                (path, result)
             });
 
-            futures::future::join_all(futures)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
+            futures::future::join_all(futures).await
         })
     }
 
@@ -95,18 +92,18 @@ mod tests {
         futures::pin_mut!(stream);
 
         // First batch should have 2 files
-        let batch1 = stream.next().await.unwrap().unwrap();
+        let batch1 = stream.next().await.unwrap();
         assert_eq!(batch1.len(), 2);
         assert_eq!(batch1[0].0, paths[0]);
-        assert_eq!(batch1[0].1.trim(), "content1");
+        assert_eq!(batch1[0].1.as_deref().unwrap().trim(), "content1");
         assert_eq!(batch1[1].0, paths[1]);
-        assert_eq!(batch1[1].1.trim(), "content2");
+        assert_eq!(batch1[1].1.as_deref().unwrap().trim(), "content2");
 
         // Second batch should have 1 file
-        let batch2 = stream.next().await.unwrap().unwrap();
+        let batch2 = stream.next().await.unwrap();
         assert_eq!(batch2.len(), 1);
         assert_eq!(batch2[0].0, paths[2]);
-        assert_eq!(batch2[0].1.trim(), "content3");
+        assert_eq!(batch2[0].1.as_deref().unwrap().trim(), "content3");
 
         // No more batches
         assert!(stream.next().await.is_none());
@@ -129,7 +126,7 @@ mod tests {
         futures::pin_mut!(stream);
 
         // Should get all files in one batch
-        let batch = stream.next().await.unwrap().unwrap();
+        let batch = stream.next().await.unwrap();
         assert_eq!(batch.len(), 2);
 
         // No more batches

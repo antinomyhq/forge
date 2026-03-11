@@ -232,7 +232,7 @@ pub mod tests {
             &self,
             _: usize,
             _: Vec<PathBuf>,
-        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send {
             stream::empty()
         }
 
@@ -448,7 +448,7 @@ pub mod tests {
             &self,
             batch_size: usize,
             paths: Vec<PathBuf>,
-        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        ) -> impl futures::Stream<Item = Vec<(PathBuf, anyhow::Result<String>)>> + Send {
             self.file_service.read_batch_utf8(batch_size, paths)
         }
 

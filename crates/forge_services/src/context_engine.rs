@@ -14,10 +14,20 @@ use forge_domain::{
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
-use futures::stream::{Stream, StreamExt, TryStreamExt};
+use futures::stream::{Stream, StreamExt};
 use tracing::{info, warn};
 
 use crate::error::Error as ServiceError;
+
+/// Error type for a single file that could not be read during workspace
+/// operations, carrying the file path for downstream reporting.
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to read file '{path}': {source}")]
+struct FileReadError {
+    path: PathBuf,
+    #[source]
+    source: anyhow::Error,
+}
 
 static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
     let extensions_str = include_str!("allowed_extensions.txt");
@@ -221,8 +231,22 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             workspace_id: workspace_id.clone(),
         })
         .await;
-        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
-        let total_file_count = local_files.len();
+
+        let results: Vec<Result<FileNode>> = self.read_files(batch_size, &path).collect().await;
+        let failed_statuses: Vec<forge_domain::FileStatus> = results
+            .iter()
+            .filter_map(|r| r.as_ref().err())
+            .filter_map(|e| e.downcast_ref::<FileReadError>())
+            .map(|e| {
+                forge_domain::FileStatus::new(
+                    e.path.to_string_lossy().into_owned(),
+                    forge_domain::SyncStatus::Failed,
+                )
+            })
+            .collect();
+        let local_files: Vec<FileNode> = results.into_iter().flatten().collect();
+
+        let total_file_count = local_files.len() + failed_statuses.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
         let remote_files = if is_new_workspace {
@@ -241,7 +265,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let plan = WorkspaceStatus::new(path.clone(), remote_files);
         let local_file_hashes: Vec<forge_domain::FileHash> =
             local_files.iter().cloned().map(Into::into).collect();
-        let statuses = plan.file_statuses(local_file_hashes);
+        let mut statuses = plan.file_statuses(local_file_hashes);
+        statuses.extend(failed_statuses);
 
         // Compute counts from statuses
         let added = statuses
@@ -256,6 +281,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .iter()
             .filter(|s| s.status == forge_domain::SyncStatus::Modified)
             .count();
+        let mut failed_files = statuses
+            .iter()
+            .filter(|s| s.status == forge_domain::SyncStatus::Failed)
+            .count();
 
         // Compute total number of affected files
         let total_file_changes = added + deleted + modified;
@@ -269,7 +298,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         let total_operations = files_to_delete.len() + nodes_to_upload.len();
         let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
-        let mut failed_files = 0;
 
         emit(counter.sync_progress()).await;
 
@@ -453,7 +481,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         &self,
         batch_size: usize,
         dir_path: &Path,
-    ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
+    ) -> impl Stream<Item = Result<FileNode>> + Send
     where
         F: FileReaderInfra + EnvironmentInfra + CommandInfra,
     {
@@ -506,20 +534,18 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
 
-            while let Some(batch_result) = stream.next().await {
-                match batch_result {
-                    Ok(batch) => {
-                        let mut file_nodes = Vec::new();
-                        for (absolute_path, content) in batch {
+            while let Some(batch) = stream.next().await {
+                for (absolute_path, result) in batch {
+                    match result {
+                        Ok(content) => {
                             let hash = compute_hash(&content);
                             let absolute_path_str = absolute_path.to_string_lossy().to_string();
-                            file_nodes.push(FileNode { file_path: absolute_path_str, content, hash });
+                            yield Ok(FileNode { file_path: absolute_path_str, content, hash });
                         }
-                        yield Ok(file_nodes);
-                    }
-                    Err(e) => {
-                        warn!(error = ?e, "Failed to read file batch");
-                        yield Err(e);
+                        Err(e) => {
+                            warn!(path = %absolute_path.display(), error = ?e, "Skipping unreadable file during sync");
+                            yield Err(FileReadError { path: absolute_path, source: e }.into());
+                        }
                     }
                 }
             }
@@ -711,10 +737,24 @@ impl<
         let canonical_path = PathBuf::from(&workspace.working_dir);
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let local_files: Vec<FileNode> = self
+        let results: Vec<Result<FileNode>> = self
             .read_files(batch_size, &canonical_path)
-            .try_concat()
-            .await?;
+            .collect()
+            .await;
+
+        let mut failed_statuses: Vec<forge_domain::FileStatus> = results
+            .iter()
+            .filter_map(|r| r.as_ref().err())
+            .filter_map(|e| e.downcast_ref::<FileReadError>())
+            .map(|e| {
+                forge_domain::FileStatus::new(
+                    e.path.to_string_lossy().into_owned(),
+                    forge_domain::SyncStatus::Failed,
+                )
+            })
+            .collect();
+
+        let local_files: Vec<FileNode> = results.into_iter().flatten().collect();
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
@@ -723,7 +763,9 @@ impl<
         let plan = WorkspaceStatus::new(canonical_path, remote_files);
         let local_file_hashes: Vec<forge_domain::FileHash> =
             local_files.into_iter().map(Into::into).collect();
-        Ok(plan.file_statuses(local_file_hashes))
+        let mut statuses = plan.file_statuses(local_file_hashes);
+        statuses.append(&mut failed_statuses);
+        Ok(statuses)
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
