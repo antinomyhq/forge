@@ -25,7 +25,7 @@ function _forge_provider_auth() {
             url_params) url_params="$value" ;;
             configured) configured="$value" ;;
             existing_api_key) existing_api_key="$value" ;;
-            existing_params) existing_params="$value" ;;
+            existing_params) exis ting_params="$value" ;;
         esac
     done <<< "$auth_info"
     
