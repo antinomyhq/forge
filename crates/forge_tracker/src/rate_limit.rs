@@ -1,16 +1,9 @@
-use std::sync::Mutex;
-
 use chrono::Utc;
 
-/// Thread-safe fixed-window limiter for event dispatch.
+/// Fixed-window limiter for event dispatch.
 #[derive(Debug)]
 pub struct RateLimiter {
     max_per_minute: usize,
-    state: Mutex<State>,
-}
-
-#[derive(Debug)]
-struct State {
     window_start: u64,
     count: usize,
 }
@@ -23,10 +16,8 @@ impl RateLimiter {
     pub fn new(max_per_minute: usize) -> Self {
         Self {
             max_per_minute,
-            state: Mutex::new(State {
-                window_start: Utc::now().timestamp() as u64,
-                count: 0,
-            }),
+            window_start: Utc::now().timestamp() as u64,
+            count: 0,
         }
     }
 
@@ -34,23 +25,21 @@ impl RateLimiter {
     ///
     /// Returns `true` when the event can be dispatched and `false` when it
     /// should be dropped.
-    pub fn check(&self) -> bool {
+    pub fn inc_and_check(&mut self) -> bool {
         self.check_at(Utc::now().timestamp() as u64)
     }
 
-    fn check_at(&self, now: u64) -> bool {
-        let mut state = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-
-        if now.saturating_sub(state.window_start) >= 60 {
-            state.window_start = now;
-            state.count = 0;
+    fn check_at(&mut self, now: u64) -> bool {
+        if now.saturating_sub(self.window_start) >= 60 {
+            self.window_start = now;
+            self.count = 0;
         }
 
-        if state.count >= self.max_per_minute {
+        if self.count >= self.max_per_minute {
             return false;
         }
 
-        state.count += 1;
+        self.count += 1;
         true
     }
 }
@@ -61,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_blocks_after_limit() {
-        let fixture = RateLimiter::new(2);
+        let mut fixture = RateLimiter::new(2);
 
         let actual = vec![
             fixture.check_at(100),
@@ -76,12 +65,8 @@ mod tests {
 
     #[test]
     fn test_rate_limiter_resets_on_new_window() {
-        let fixture = RateLimiter::new(2);
-        let start = fixture
-            .state
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .window_start;
+        let mut fixture = RateLimiter::new(2);
+        let start = fixture.window_start;
 
         let actual = vec![
             fixture.check_at(start),
