@@ -3605,6 +3605,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .iter()
                     .filter(|s| s.status == SyncStatus::Deleted)
                     .count();
+                let failed = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::Failed)
+                    .count();
 
                 // Add sync status section
                 info = info.add_title("Sync Status");
@@ -3620,6 +3624,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 if deleted > 0 {
                     info = info.add_key_value("Deleted", deleted.to_string());
+                }
+                if failed > 0 {
+                    info = info.add_key_value("Failed", failed.to_string());
                 }
 
                 self.writeln(info)
@@ -3697,6 +3704,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 s.status == SyncStatus::Modified
                     || s.status == SyncStatus::New
                     || s.status == SyncStatus::Deleted
+                    || s.status == SyncStatus::Failed
             })
             .count();
 
@@ -3729,6 +3737,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SyncStatus::Modified => Some((status, "modified")),
             SyncStatus::New => Some((status, "added")),
             SyncStatus::Deleted => Some((status, "deleted")),
+            SyncStatus::Failed => Some((status, "failed")),
         }) {
             info = info.add_key_value(&status.path, label);
         }
