@@ -8,12 +8,12 @@
     "description": "Display environment information [alias: e]"
   },
   {
-    "command": "provider",
-    "description": "Switch the providers [alias: p]"
+    "command": "config-provider",
+    "description": "Switch the providers [alias: p, provider]"
   },
   {
-    "command": "model",
-    "description": "Switch the models [alias: m]"
+    "command": "config-model",
+    "description": "Switch the models [alias: m, model]"
   },
   {
     "command": "config-commit-model",
