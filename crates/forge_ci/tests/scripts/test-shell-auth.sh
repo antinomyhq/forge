@@ -362,6 +362,16 @@ generate_verify_script() {
 #!/bin/bash
 set -o pipefail
 
+# On Windows Git Bash (MINGW/MSYS), prepend MSYS2 tool paths so that zsh, fzf,
+# fd, and bat — installed via pacman into C:\msys64 — are visible to this script
+# and all subprocesses it spawns. We do this here (not just in the parent) because
+# launching a new bash.exe on Windows may reset PATH via its startup scripts.
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW*|MSYS*|CYGWIN*)
+    export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH"
+    ;;
+esac
+
 # =============================================================================
 # Phase A: CLI auth-info tests
 # =============================================================================
@@ -522,6 +532,14 @@ echo "CHECK_ZSH_AVAILABLE=PASS $(zsh --version 2>&1 | head -1)"
 ZSH_SCRIPT=$(mktemp /tmp/forge_zsh_test_XXXXXX.zsh)
 cat > "$ZSH_SCRIPT" <<'ZSH_TEST_SCRIPT'
 #!/usr/bin/env zsh
+
+# On Windows Git Bash (MINGW/MSYS), ensure MSYS2 tool paths are in PATH
+# so that fzf, fd, bat are visible inside this zsh process.
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW*|MSYS*|CYGWIN*)
+    export PATH="/c/msys64/mingw64/bin:/c/msys64/usr/bin:$PATH"
+    ;;
+esac
 
 # Initialize zsh completion system so compdef works (needed by forge zsh plugin)
 autoload -Uz compinit 2>/dev/null
@@ -1080,18 +1098,40 @@ run_native_tests() {
 
   log_info "Using binary: $forge_bin"
 
+  # On Windows (Git Bash / MINGW), tools installed via MSYS2 pacman land in
+  # C:\msys64\usr\bin and C:\msys64\mingw64\bin, which map to /c/msys64/usr/bin
+  # and /c/msys64/mingw64/bin in Git Bash's POSIX path space.
+  # Git for Windows bash does NOT include these in its default PATH, so we must
+  # prepend them explicitly so that zsh, fzf, fd, bat are all visible.
+  local extra_path=""
+  local os_name
+  os_name=$(uname -s 2>/dev/null || echo "")
+  case "$os_name" in
+    MINGW*|MSYS*|CYGWIN*)
+      extra_path="/c/msys64/mingw64/bin:/c/msys64/usr/bin"
+      log_info "Windows detected — prepending MSYS2 paths: $extra_path"
+      ;;
+  esac
+
   # Write the verify script to a temp file
   local verify_script
   verify_script=$(mktemp "$RESULTS_DIR/verify_native_XXXXXX.sh")
   generate_verify_script > "$verify_script"
   chmod +x "$verify_script"
 
-  # Run on host, with forge on PATH
+  # Run on host, with forge on PATH (and MSYS2 paths prepended on Windows)
   local dir_with_forge
   dir_with_forge=$(dirname "$forge_bin")
 
+  local effective_path
+  if [ -n "$extra_path" ]; then
+    effective_path="$extra_path:$dir_with_forge:$PATH"
+  else
+    effective_path="$dir_with_forge:$PATH"
+  fi
+
   local raw_output
-  raw_output=$(PATH="$dir_with_forge:$PATH" bash "$verify_script" 2>&1) || true
+  raw_output=$(PATH="$effective_path" bash "$verify_script" 2>&1) || true
 
   rm -f "$verify_script"
 
