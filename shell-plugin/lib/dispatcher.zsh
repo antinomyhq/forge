@@ -169,7 +169,7 @@ function forge-accept-line() {
         config-commit-model|ccm)
             _forge_action_commit_model "$input_text"
         ;;
-        suggest-model|sm)
+        config-suggest-model|csm)
             _forge_action_suggest_model "$input_text"
         ;;
         tools|t)

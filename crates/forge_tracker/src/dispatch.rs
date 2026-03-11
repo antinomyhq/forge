@@ -13,6 +13,7 @@ use super::Result;
 use crate::can_track::can_track;
 use crate::collect::{Collect, posthog};
 use crate::event::Identity;
+use crate::rate_limit::RateLimiter;
 use crate::{Event, EventKind, client_id};
 
 const POSTHOG_API_SECRET: &str = match option_env!("POSTHOG_API_SECRET") {
@@ -47,6 +48,13 @@ static CACHED_PATH: LazyLock<Option<String>> = LazyLock::new(|| {
 });
 static CACHED_ARGS: LazyLock<Vec<String>> = LazyLock::new(|| std::env::args().skip(1).collect());
 
+/// Maximum number of events that can be dispatched per minute.
+///
+/// This acts as a rate limiter to prevent runaway loops (e.g. when
+/// stdout/stderr is closed and every write error triggers another error event)
+/// while allowing normal tracking to continue for long-running sessions.
+const MAX_EVENTS_PER_MINUTE: usize = 1_000;
+
 #[derive(Clone)]
 pub struct Tracker {
     collectors: Arc<Vec<Box<dyn Collect>>>,
@@ -56,6 +64,7 @@ pub struct Tracker {
     model: Arc<Mutex<Option<String>>>,
     conversation: Arc<Mutex<Option<Conversation>>>,
     is_logged_in: Arc<AtomicBool>,
+    rate_limiter: Arc<RateLimiter>,
 }
 
 impl Default for Tracker {
@@ -71,6 +80,7 @@ impl Default for Tracker {
             model: Arc::new(Mutex::new(None)),
             conversation: Arc::new(Mutex::new(None)),
             is_logged_in: Arc::new(AtomicBool::new(false)),
+            rate_limiter: Arc::new(RateLimiter::new(MAX_EVENTS_PER_MINUTE)),
         }
     }
 }
@@ -93,35 +103,41 @@ impl Tracker {
     }
 
     pub async fn dispatch(&self, event_kind: EventKind) -> Result<()> {
-        if self.can_track {
-            // Create a new event
-            let email = self.email().await;
-            let event = Event {
-                event_name: event_kind.name(),
-                event_value: event_kind.value(),
-                start_time: self.start_time,
-                cores: cores(),
-                client_id: client_id(),
-                os_name: os_name(),
-                up_time: up_time(self.start_time),
-                args: args(),
-                path: path(),
-                cwd: cwd(),
-                user: user(),
-                version: version(),
-                email: email.clone(),
-                model: self.model.lock().await.clone(),
-                conversation: self.conversation().await,
-                identity: match event_kind {
-                    EventKind::Login(id) => Some(id),
-                    _ => None,
-                },
-            };
+        if !self.can_track {
+            return Ok(());
+        }
 
-            // Dispatch the event to all collectors
-            for collector in self.collectors.as_ref() {
-                collector.collect(event.clone()).await?;
-            }
+        if !self.rate_limiter.check() {
+            return Ok(()); // Drop event if rate limit exceeded
+        }
+
+        // Create a new event
+        let email = self.email().await;
+        let event = Event {
+            event_name: event_kind.name(),
+            event_value: event_kind.value(),
+            start_time: self.start_time,
+            cores: cores(),
+            client_id: client_id(),
+            os_name: os_name(),
+            up_time: up_time(self.start_time),
+            args: args(),
+            path: path(),
+            cwd: cwd(),
+            user: user(),
+            version: version(),
+            email: email.clone(),
+            model: self.model.lock().await.clone(),
+            conversation: self.conversation().await,
+            identity: match event_kind {
+                EventKind::Login(id) => Some(id),
+                _ => None,
+            },
+        };
+
+        // Dispatch the event to all collectors
+        for collector in self.collectors.as_ref() {
+            collector.collect(event.clone()).await?;
         }
         Ok(())
     }
