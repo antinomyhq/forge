@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use derive_setters::Setters;
 use forge_domain::{
     ContextMessage, Conversation, EventData, EventHandle, HandleOperation, Role, TextMessage,
-    ToolCallFull, ToolName, ToolcallStartPayload,
+    ToolCallFull, ToolName, ToolcallEndPayload,
 };
 use tracing::warn;
 
@@ -276,10 +276,10 @@ impl DoomLoopDetector {
 /// the tool execution to be skipped and the error to be returned as a tool
 /// result.
 #[async_trait]
-impl EventHandle<EventData<ToolcallStartPayload>> for DoomLoopDetector {
+impl EventHandle<EventData<ToolcallEndPayload>> for DoomLoopDetector {
     async fn handle(
         &self,
-        event: &EventData<ToolcallStartPayload>,
+        event: &EventData<ToolcallEndPayload>,
         conversation: &mut Conversation,
     ) -> HandleOperation {
         let tool_call = &event.payload.tool_call;

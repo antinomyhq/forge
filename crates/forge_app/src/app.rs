@@ -153,8 +153,8 @@ impl<S: Services> ForgeApp<S> {
                     .clone()
                     .and(CompactionHandler::new(agent.clone(), environment.clone())),
             )
-            .on_toolcall_start(tracing_handler.clone().and(DoomLoopDetector::default()))
-            .on_toolcall_end(tracing_handler.clone())
+            .on_toolcall_start(tracing_handler.clone())
+            .on_toolcall_end(tracing_handler.clone().and(DoomLoopDetector::default()))
             .on_end(tracing_handler.and(title_handler));
 
         let orch = Orchestrator::new(services.clone(), environment.clone(), conversation, agent)
