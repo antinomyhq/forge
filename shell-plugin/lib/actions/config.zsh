@@ -191,6 +191,31 @@ function _forge_action_commit_model() {
     )
 }
 
+# Action handler: Select model for command suggestion generation
+# Calls `forge config set suggest <provider_id> <model_id>` on selection.
+function _forge_action_suggest_model() {
+    local input_text="$1"
+    (
+        echo
+        local current_suggest_model
+        current_suggest_model=$(_forge_exec config get suggest 2>/dev/null | tail -n 1)
+
+        local selected
+        selected=$(_forge_pick_model "Suggest Model ❯ " "$current_suggest_model" "$input_text")
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id (raw), field 4 = provider_id (raw)
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set suggest "$provider_id" "$model_id"
+        fi
+    )
+}
+
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
