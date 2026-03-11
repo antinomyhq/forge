@@ -504,7 +504,9 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             }
             Err(err) => {
                 warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
-                let walker_config = Walker::unlimited().cwd(dir_path.to_path_buf()).skip_binary(true);
+                let walker_config = Walker::unlimited()
+                    .cwd(dir_path.to_path_buf())
+                    .skip_binary(true);
                 match self
                     .infra
                     .walk(walker_config)
