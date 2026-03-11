@@ -49,10 +49,7 @@ impl DoomLoopDetector {
     /// results from the previous turn have already been appended to context.
     ///
     /// Returns Some(count) if a doom loop is detected
-    pub fn detect_from_conversation(
-        &self,
-        conversation: &Conversation,
-    ) -> Option<usize> {
+    pub fn detect_from_conversation(&self, conversation: &Conversation) -> Option<usize> {
         let all_signatures = self.extract_tool_signatures(conversation);
 
         let (_, count) = self.check_repeating_pattern(&all_signatures)?;
