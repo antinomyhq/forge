@@ -71,7 +71,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: WorkspaceIndexRepository,
     {
-        info!("Fetching existing file hashes from server to detect changes...");
+        info!(workspace_id = %workspace_id, "Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
 
@@ -120,7 +120,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .await?;
 
         for path in &files_to_delete {
-            info!(path = %path, "File deleted successfully");
+            info!(workspace_id = %workspace_id, path = %path, "File deleted successfully");
         }
 
         Ok(files_to_delete.len())
@@ -177,10 +177,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 let token = token.clone();
                 let file_path = file.path.clone();
                 async move {
-                    info!(path = %file_path, "File sync started");
+                    info!(workspace_id = %workspace_id, path = %file_path, "File sync started");
                     self.upload(&user_id, &workspace_id, &token, vec![file])
                         .await?;
-                    info!(path = %file_path, "File sync completed");
+                    info!(workspace_id = %workspace_id, path = %file_path, "File sync completed");
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -221,7 +221,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             workspace_id: workspace_id.clone(),
         })
         .await;
-        let local_files: Vec<FileNode> = self.read_files(batch_size, &path).try_concat().await?;
+        let local_files: Vec<FileNode> = self
+            .read_files(batch_size, &path, &workspace_id)
+            .try_concat()
+            .await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
@@ -283,7 +286,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 emit(counter.sync_progress()).await;
             }
             Err(e) => {
-                warn!("Failed to delete files during sync: {:#}", e);
+                warn!(workspace_id = %workspace_id, error = %e,"Failed to delete files during sync");
                 failed_files += files_to_delete.len();
             }
         }
@@ -300,7 +303,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                     emit(counter.sync_progress()).await;
                 }
                 Err(e) => {
-                    warn!("Failed to upload file during sync: {:#}", e);
+                    warn!(workspace_id = %workspace_id, error = %e, "Failed to upload file during sync");
                     failed_files += 1;
                     // Continue processing remaining uploads
                 }
@@ -411,9 +414,13 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(best_match.map(|(w, _)| w.clone()))
     }
     /// Runs `git ls-files` in `dir_path` and returns the tracked files as
-    /// `WalkedFile` entries. Returns `None` when git is unavailable or the
-    /// directory is not a git repository.
-    async fn git_ls_files(&self, dir_path: &Path) -> Option<Vec<WalkedFile>>
+    /// `WalkedFile` entries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the command fails to execute or exits with a
+    /// non-zero status code (e.g. when the directory is not a git repository).
+    async fn git_ls_files(&self, dir_path: &Path) -> anyhow::Result<Vec<WalkedFile>>
     where
         F: CommandInfra,
     {
@@ -425,11 +432,14 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 true,
                 None,
             )
-            .await
-            .ok()?;
+            .await?;
 
         if output.exit_code != Some(0) {
-            return None;
+            let err = anyhow::anyhow!(output.stderr);
+            return Err(match output.exit_code {
+                Some(code) => err.context(format!("'git ls-files' exited with code {}", code)),
+                None => err,
+            });
         }
 
         let files = output
@@ -445,7 +455,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             })
             .collect();
 
-        Some(files)
+        Ok(files)
     }
 
     /// Only includes files with allowed extensions.
@@ -453,6 +463,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         &self,
         batch_size: usize,
         dir_path: &Path,
+        workspace_id: &WorkspaceId,
     ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
     where
         F: FileReaderInfra + EnvironmentInfra + CommandInfra,
@@ -460,22 +471,12 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
         let service = self.clone();
+        let workspace_id = workspace_id.clone();
 
         async_stream::stream! {
-            info!("Discovering files for sync via git ls-files");
-
-            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
-                Some(files) => {
-                    info!(file_count = files.len(), "Discovered files via git ls-files");
-                    files
-                }
-                None => {
-                    yield Err(anyhow::anyhow!(
-                        "Failed to list files: 'git ls-files' failed or directory is not a git repository"
-                    ));
-                    return;
-                }
-            };
+            info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
+            let walked_files: Vec<WalkedFile> = service.git_ls_files(&dir_path).await?;
+            info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
 
             // Filter files by allowed extension (pure function, no I/O)
             let filtered_files: Vec<_> = walked_files
@@ -487,6 +488,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 .collect();
 
             info!(
+                workspace_id = %workspace_id,
                 filtered_count = filtered_files.len(),
                 "Files after extension filtering"
             );
@@ -518,7 +520,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                         yield Ok(file_nodes);
                     }
                     Err(e) => {
-                        warn!(error = ?e, "Failed to read file batch");
+                        warn!(workspace_id = %workspace_id, error = ?e, "Failed to read file batch");
                         yield Err(e);
                     }
                 }
@@ -712,7 +714,7 @@ impl<
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let local_files: Vec<FileNode> = self
-            .read_files(batch_size, &canonical_path)
+            .read_files(batch_size, &canonical_path, &workspace.workspace_id)
             .try_concat()
             .await?;
 
