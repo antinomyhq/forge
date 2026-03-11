@@ -509,11 +509,11 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             Ok(files) => {
                 let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
                 info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
-                return Ok(files);
+                Ok(files)
             }
             Err(err) => {
                 warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via walker fallback");
-                return Err(err);
+                Err(err)
             }
         }
     }
