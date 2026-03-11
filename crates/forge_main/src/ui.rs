@@ -2115,19 +2115,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ))?;
         }
 
-        // fzf recommendation
-        if matches!(deps.fzf, FzfStatus::NotFound) {
-            println!();
-            println!(
-                "   {} fzf is recommended for interactive features",
-                "Tip:".yellow().bold()
-            );
-            println!(
-                "   Install: {}",
-                "https://github.com/junegunn/fzf#installation".dimmed()
-            );
-        }
-
         Ok(())
     }
     /// Handle the cmd command - generates shell command from natural language
