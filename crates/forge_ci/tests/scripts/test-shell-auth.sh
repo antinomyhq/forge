@@ -330,8 +330,9 @@ pkg_install_cmd() {
       echo "dnf install -y zsh git curl fzf fd-find bat"
       ;;
     rockylinux*|almalinux*|centos*)
-      # EPEL provides fzf, fd-find, bat on RHEL-based distros
-      echo "dnf install -y epel-release && dnf install -y zsh git curl fzf fd-find bat"
+      # EPEL provides fzf, fd-find, bat on RHEL-based distros.
+      # --allowerasing resolves the curl-minimal vs curl conflict in the base image.
+      echo "dnf install -y epel-release && dnf install -y --allowerasing zsh git curl fzf fd-find bat"
       ;;
     archlinux*)
       echo "pacman -Sy --noconfirm zsh git curl fzf fd bat"
@@ -729,7 +730,7 @@ get_compatible_targets() {
       if [[ "$version" == "22.04" ]]; then
         echo "$all_targets" | tr ' ' '\n' | grep -E 'musl$'
       else
-        echo "$all_targets"
+        echo "$all_targets" | tr ' ' '\n'
       fi
       ;;
     rockylinux)
@@ -737,7 +738,7 @@ get_compatible_targets() {
       ;;
     *)
       # Arch, Fedora, openSUSE, Void — all have recent glibc, support both
-      echo "$all_targets"
+      echo "$all_targets" | tr ' ' '\n'
       ;;
   esac
 }
