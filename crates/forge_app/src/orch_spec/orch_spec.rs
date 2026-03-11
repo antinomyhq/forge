@@ -439,17 +439,14 @@ async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls() {
     assert_eq!(actual, expected, "All tool calls should succeed");
 
     let actual = ctx.output.conversation_history.iter().any(|conversation| {
-        conversation
-            .context
-            .as_ref()
-            .is_some_and(|context| {
-                context.messages.iter().any(|message| {
-                    message.has_role(Role::User)
-                        && message
-                            .content()
-                            .is_some_and(|content| content.contains("system_reminder"))
-                })
+        conversation.context.as_ref().is_some_and(|context| {
+            context.messages.iter().any(|message| {
+                message.has_role(Role::User)
+                    && message
+                        .content()
+                        .is_some_and(|content| content.contains("system_reminder"))
             })
+        })
     });
     let expected = true;
     assert_eq!(
