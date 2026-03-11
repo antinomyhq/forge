@@ -487,6 +487,37 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(files)
     }
 
+    /// Walks a directory using the file-system walker and returns all
+    /// non-directory entries.
+    async fn walk_directory(
+        &self,
+        dir_path: &Path,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Vec<WalkedFile>>
+    where
+        F: WalkerInfra,
+    {
+        let walker_config = Walker::unlimited()
+            .cwd(dir_path.to_path_buf())
+            .skip_binary(true);
+        match self
+            .infra
+            .walk(walker_config)
+            .await
+            .context("Failed to walk directory")
+        {
+            Ok(files) => {
+                let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
+                info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
+                return Ok(files);
+            }
+            Err(err) => {
+                warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via walker fallback");
+                return Err(err);
+            }
+        }
+    }
+
     /// Discovers workspace files and filters them by allowed source extensions.
     async fn discover_sync_file_paths(
         &self,
@@ -497,32 +528,22 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         F: CommandInfra + WalkerInfra,
     {
         info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
+        // `git ls-files` can succeed yet return an empty list (e.g. a freshly
+        // initialized repo with no commits, or a directory outside the working
+        // tree). Treat that the same as a failure and fall back to the walker so
+        // we still discover files on disk.
         let walked_files: Vec<WalkedFile> = match self.git_ls_files(dir_path).await {
-            Ok(walked_files) => {
+            Ok(walked_files) if !walked_files.is_empty() => {
                 info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
                 walked_files
             }
+            Ok(_) => {
+                warn!(workspace_id = %workspace_id, "git ls-files returned no files, falling back to walker");
+                self.walk_directory(dir_path, workspace_id).await?
+            }
             Err(err) => {
                 warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
-                let walker_config = Walker::unlimited()
-                    .cwd(dir_path.to_path_buf())
-                    .skip_binary(true);
-                match self
-                    .infra
-                    .walk(walker_config)
-                    .await
-                    .context("Failed to walk directory")
-                {
-                    Ok(files) => {
-                        let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
-                        info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
-                        files
-                    }
-                    Err(err) => {
-                        warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via walker fallback");
-                        return Err(err);
-                    }
-                }
+                self.walk_directory(dir_path, workspace_id).await?
             }
         };
 
