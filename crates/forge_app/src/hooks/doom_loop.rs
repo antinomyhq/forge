@@ -84,7 +84,7 @@ impl DoomLoopDetector {
     /// count.
     fn detect_pattern_start<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
     where
-        T: Eq + std::hash::Hash,
+        T: Eq,
     {
         if sequence.is_empty() {
             return None;
@@ -100,7 +100,7 @@ impl DoomLoopDetector {
     /// Checks for consecutive identical values at the end of the sequence.
     fn check_consecutive_identical<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
     where
-        T: Eq + std::hash::Hash,
+        T: Eq,
     {
         let last_signature = sequence.last()?;
 
@@ -124,7 +124,7 @@ impl DoomLoopDetector {
     /// Checks for repeating patterns at the end of the sequence.
     fn check_repeating_pattern<T>(&self, sequence: &[T]) -> Option<(usize, usize)>
     where
-        T: Eq + std::hash::Hash,
+        T: Eq,
     {
         if sequence.len() < self.threshold {
             return None;
@@ -156,7 +156,7 @@ impl DoomLoopDetector {
     /// will detect [4,5] repeating 3 times.
     fn count_recent_pattern_repetitions<T>(&self, sequence: &[T], pattern_length: usize) -> usize
     where
-        T: Eq + std::hash::Hash,
+        T: Eq,
     {
         if pattern_length == 0 || sequence.len() < pattern_length {
             return 0;
