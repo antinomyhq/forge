@@ -14,10 +14,20 @@ use forge_domain::{
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
-use futures::stream::{Stream, StreamExt, TryStreamExt};
+use futures::stream::{Stream, StreamExt};
 use tracing::{info, warn};
 
 use crate::error::Error as ServiceError;
+
+/// Error type for a single file that could not be read during workspace
+/// operations, carrying the file path for downstream reporting.
+#[derive(Debug, thiserror::Error)]
+#[error("Failed to read file '{path}': {source}")]
+struct FileReadError {
+    path: PathBuf,
+    #[source]
+    source: anyhow::Error,
+}
 
 static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
     let extensions_str = include_str!("allowed_extensions.txt");
@@ -222,11 +232,25 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             workspace_id: workspace_id.clone(),
         })
         .await;
-        let local_files: Vec<FileNode> = self
+
+        let results: Vec<Result<FileNode>> = self
             .read_files(batch_size, &path, &workspace_id)
-            .try_concat()
-            .await?;
-        let total_file_count = local_files.len();
+            .collect()
+            .await;
+        let failed_statuses: Vec<forge_domain::FileStatus> = results
+            .iter()
+            .filter_map(|r| r.as_ref().err())
+            .filter_map(|e| e.downcast_ref::<FileReadError>())
+            .map(|e| {
+                forge_domain::FileStatus::new(
+                    e.path.to_string_lossy().into_owned(),
+                    forge_domain::SyncStatus::Failed,
+                )
+            })
+            .collect();
+        let local_files: Vec<FileNode> = results.into_iter().flatten().collect();
+
+        let total_file_count = local_files.len() + failed_statuses.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
         let remote_files = if is_new_workspace {
@@ -245,7 +269,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let plan = WorkspaceStatus::new(path.clone(), remote_files);
         let local_file_hashes: Vec<forge_domain::FileHash> =
             local_files.iter().cloned().map(Into::into).collect();
-        let statuses = plan.file_statuses(local_file_hashes);
+        let mut statuses = plan.file_statuses(local_file_hashes);
+        statuses.extend(failed_statuses);
 
         // Compute counts from statuses
         let added = statuses
@@ -260,6 +285,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .iter()
             .filter(|s| s.status == forge_domain::SyncStatus::Modified)
             .count();
+        let mut failed_files = statuses
+            .iter()
+            .filter(|s| s.status == forge_domain::SyncStatus::Failed)
+            .count();
 
         // Compute total number of affected files
         let total_file_changes = added + deleted + modified;
@@ -273,7 +302,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         let total_operations = files_to_delete.len() + nodes_to_upload.len();
         let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
-        let mut failed_files = 0;
 
         emit(counter.sync_progress()).await;
 
@@ -459,13 +487,76 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(files)
     }
 
+    /// Discovers workspace files and filters them by allowed source extensions.
+    async fn discover_sync_file_paths(
+        &self,
+        dir_path: &Path,
+        workspace_id: &WorkspaceId,
+    ) -> anyhow::Result<Vec<PathBuf>>
+    where
+        F: CommandInfra + WalkerInfra,
+    {
+        info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
+        let walked_files: Vec<WalkedFile> = match self.git_ls_files(dir_path).await {
+            Ok(walked_files) => {
+                info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
+                walked_files
+            }
+            Err(err) => {
+                warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
+                let walker_config = Walker::unlimited()
+                    .cwd(dir_path.to_path_buf())
+                    .skip_binary(true);
+                match self
+                    .infra
+                    .walk(walker_config)
+                    .await
+                    .context("Failed to walk directory")
+                {
+                    Ok(files) => {
+                        let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
+                        info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
+                        files
+                    }
+                    Err(err) => {
+                        warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via walker fallback");
+                        return Err(err);
+                    }
+                }
+            }
+        };
+
+        let filtered_files: Vec<_> = walked_files
+            .into_iter()
+            .filter(|walked| {
+                let file_path = dir_path.join(&walked.path);
+                has_allowed_extension(&file_path)
+            })
+            .collect();
+
+        info!(
+            workspace_id = %workspace_id,
+            filtered_count = filtered_files.len(),
+            "Files after extension filtering"
+        );
+
+        if filtered_files.is_empty() {
+            return Err(ServiceError::NoSourceFilesFound.into());
+        }
+
+        Ok(filtered_files
+            .iter()
+            .map(|walked| dir_path.join(&walked.path))
+            .collect())
+    }
+
     /// Only includes files with allowed extensions.
     fn read_files(
         &self,
         batch_size: usize,
         dir_path: &Path,
         workspace_id: &WorkspaceId,
-    ) -> impl Stream<Item = Result<Vec<FileNode>>> + Send
+    ) -> impl Stream<Item = Result<FileNode>> + Send
     where
         F: FileReaderInfra + EnvironmentInfra + CommandInfra + WalkerInfra,
     {
@@ -475,74 +566,29 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let workspace_id = workspace_id.clone();
 
         async_stream::stream! {
-            info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
-            let walked_files: Vec<WalkedFile> = match service.git_ls_files(&dir_path).await {
-                Ok(walked_files) => {
-                    info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
-                    walked_files
-                }
+            let file_paths: Vec<PathBuf> = match service.discover_sync_file_paths(&dir_path, &workspace_id).await {
+                Ok(file_paths) => file_paths,
                 Err(err) => {
-                    warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
-                    let walker_config = Walker::unlimited().cwd(dir_path.clone()).skip_binary(true);
-                    match infra.walk(walker_config).await.context("Failed to walk directory") {
-                        Ok(files) => {
-                            let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
-                            info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
-                            files
-                        }
-                        Err(e) => {
-                            warn!(workspace_id = %workspace_id, error = ?e, "Failed to get files via walker fallback");
-                            yield Err(e);
-                            return;
-                        }
-                    }
+                    yield Err(err);
+                    return;
                 }
             };
 
-            // Filter files by allowed extension (pure function, no I/O)
-            let filtered_files: Vec<_> = walked_files
-                .into_iter()
-                .filter(|walked| {
-                    let file_path = dir_path.join(&walked.path);
-                    has_allowed_extension(&file_path)
-                })
-                .collect();
-
-            info!(
-                workspace_id = %workspace_id,
-                filtered_count = filtered_files.len(),
-                "Files after extension filtering"
-            );
-
-            if filtered_files.is_empty() {
-                yield Err(ServiceError::NoSourceFilesFound.into());
-                return;
-            }
-
             // Use read_batch_utf8 with streaming for better memory efficiency with large
             // file sets
-            let file_paths: Vec<PathBuf> = filtered_files
-                .iter()
-                .map(|walked| dir_path.join(&walked.path))
-                .collect();
-
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
 
-            while let Some(batch_result) = stream.next().await {
-                match batch_result {
-                    Ok(batch) => {
-                        let mut file_nodes = Vec::new();
-                        for (absolute_path, content) in batch {
-                            let hash = compute_hash(&content);
-                            let absolute_path_str = absolute_path.to_string_lossy().to_string();
-                            file_nodes.push(FileNode { file_path: absolute_path_str, content, hash });
-                        }
-                        yield Ok(file_nodes);
+            while let Some((absolute_path, result)) = stream.next().await {
+                match result {
+                    Ok(content) => {
+                        let hash = compute_hash(&content);
+                        let absolute_path_str = absolute_path.to_string_lossy().to_string();
+                        yield Ok(FileNode { file_path: absolute_path_str, content, hash });
                     }
                     Err(e) => {
-                        warn!(workspace_id = %workspace_id, error = ?e, "Failed to read file batch");
-                        yield Err(e);
+                        warn!(path = %absolute_path.display(), error = ?e, "Skipping unreadable file during sync");
+                        yield Err(FileReadError { path: absolute_path, source: e }.into());
                     }
                 }
             }
@@ -735,10 +781,24 @@ impl<
         let canonical_path = PathBuf::from(&workspace.working_dir);
 
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let local_files: Vec<FileNode> = self
+        let results: Vec<Result<FileNode>> = self
             .read_files(batch_size, &canonical_path, &workspace.workspace_id)
-            .try_concat()
-            .await?;
+            .collect()
+            .await;
+
+        let mut failed_statuses: Vec<forge_domain::FileStatus> = results
+            .iter()
+            .filter_map(|r| r.as_ref().err())
+            .filter_map(|e| e.downcast_ref::<FileReadError>())
+            .map(|e| {
+                forge_domain::FileStatus::new(
+                    e.path.to_string_lossy().into_owned(),
+                    forge_domain::SyncStatus::Failed,
+                )
+            })
+            .collect();
+
+        let local_files: Vec<FileNode> = results.into_iter().flatten().collect();
 
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
@@ -747,7 +807,9 @@ impl<
         let plan = WorkspaceStatus::new(canonical_path, remote_files);
         let local_file_hashes: Vec<forge_domain::FileHash> =
             local_files.into_iter().map(Into::into).collect();
-        Ok(plan.file_statuses(local_file_hashes))
+        let mut statuses = plan.file_statuses(local_file_hashes);
+        statuses.append(&mut failed_statuses);
+        Ok(statuses)
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
@@ -797,8 +859,3 @@ impl<
         }
     }
 }
-
-// TODO: Tests need to be rewritten to work with remote-only workspace
-// management
-#[cfg(test)]
-mod tests {}
