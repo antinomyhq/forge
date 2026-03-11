@@ -26,8 +26,6 @@ env:
     - synchronize
     - reopened
     - labeled
-    branches:
-    - main
   push:
     branches:
     - main
