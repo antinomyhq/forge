@@ -332,7 +332,6 @@ impl ForgeCommandManager {
 
         // TODO: Can leverage Clap to parse commands and provide correct error messages
         match command {
-            "/compact" => Ok(SlashCommand::Compact),
             "/new" => Ok(SlashCommand::New),
             "/info" => Ok(SlashCommand::Info),
             "/env" => Ok(SlashCommand::Env),
@@ -410,10 +409,6 @@ impl ForgeCommandManager {
 /// - File content
 #[derive(Debug, Clone, PartialEq, Eq, EnumProperty, EnumIter)]
 pub enum SlashCommand {
-    /// Compact the conversation context. This can be triggered with the
-    /// '/compact' command.
-    #[strum(props(usage = "Compact the conversation context"))]
-    Compact,
     /// Start a new conversation while preserving history.
     /// This can be triggered with the '/new' command.
     #[strum(props(usage = "Start a new conversation"))]
@@ -523,7 +518,6 @@ pub enum SlashCommand {
 impl SlashCommand {
     pub fn name(&self) -> &str {
         match self {
-            SlashCommand::Compact => "compact",
             SlashCommand::New => "new",
             SlashCommand::Message(_) => "message",
             SlashCommand::Update => "update",

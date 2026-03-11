@@ -10,6 +10,7 @@ use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
+use crate::compact::Compaction;
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -152,7 +153,11 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            .pipe(ReasoningNormalizer.when(|_| reasoning_supported))
+            .pipe(Compaction::new(
+                self.agent.clone(),
+                self.environment.clone(),
+            ));
         let response = self
             .services
             .chat_agent(

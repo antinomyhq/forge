@@ -1,8 +1,8 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
+    Agent, Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
     MessageEntry, Transformer,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
@@ -156,11 +156,60 @@ impl Compactor {
     }
 }
 
+pub struct Compaction {
+    agent: Agent,
+    environment: Environment,
+}
+
+impl Compaction {
+    /// Creates a new compaction handler
+    ///
+    /// # Arguments
+    /// * `agent` - The agent configuration containing compaction settings
+    /// * `environment` - The environment configuration
+    pub fn new(agent: Agent, environment: Environment) -> Self {
+        Self { agent, environment }
+    }
+}
+
+impl Transformer for Compaction {
+    type Value = Context;
+    fn transform(&mut self, mut context: Self::Value) -> Self::Value {
+        let messages = std::mem::take(&mut context.messages);
+        let compactor = Compactor::new(self.agent.compact.clone(), self.environment.clone());
+        for entry in messages {
+            context.messages.push(entry);
+            let token_count = *context.token_count();
+            if self.agent.compact.should_compact(&context, token_count) {
+                info!(
+                    agent_id = %self.agent.id,
+                    message_count = context.messages.len(),
+                    token_count,
+                    "Compaction threshold reached, compacting context"
+                );
+                match compactor.compact(context.clone(), false) {
+                    Ok(compacted) => context = compacted,
+                    Err(err) => {
+                        warn!(
+                            agent_id = %self.agent.id,
+                            error = %err,
+                            "Compaction failed, continuing with original context"
+                        );
+                    }
+                }
+            }
+        }
+        context
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::MessageEntry;
+    use forge_domain::{
+        AgentId, Compact, Context, MessageEntry, MessagePattern, ModelId, ProviderId, Role,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -646,5 +695,59 @@ mod tests {
             Some(expected_total_usage),
             "accumulate_usage() must include usage from both compacted and surviving messages"
         );
+    }
+
+    fn compaction(retention: usize, message_thresh: usize) -> impl Transformer<Value = Context> {
+        use fake::{Fake, Faker};
+        let env: Environment = Faker.fake();
+        let env = env.cwd(std::path::PathBuf::from("/test/working/dir"));
+        let compact = Compact::new()
+            .message_threshold(message_thresh)
+            .retention_window(retention);
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("test-model"),
+        )
+        .compact(compact.clone());
+        Compaction::new(agent, env)
+    }
+
+    /// One-line label per message: `[System] Message 1` or `[Compacted]`.
+    fn describe(ctx: &Context) -> Vec<String> {
+        ctx.messages
+            .iter()
+            .map(|e| {
+                let text = e.content().unwrap_or("");
+                if text.contains("summary frames") {
+                    return "[Compacted]".to_string();
+                }
+                let role = match () {
+                    _ if e.has_role(Role::System) => "System",
+                    _ if e.has_role(Role::Assistant) => "Assistant",
+                    _ if e.has_tool_result() => "ToolResult",
+                    _ => "User",
+                };
+                format!("[{role}] {}", &text[..text.len().min(30)])
+            })
+            .collect()
+    }
+
+    /// Multi-round conversation: each round builds the full lossless context
+    /// from the pattern and passes it through the Compaction transformer.
+    /// The transformer is pure -- same input always produces same output.
+    #[test]
+    fn test_multi_round_evolution() {
+        let mut c = compaction(2, 10);
+        let mut base = String::from("s");
+        let mut rounds: Vec<(String, Vec<String>)> = Vec::new();
+        for i in 1..=8 {
+            base.push_str("au");
+            let seed = MessagePattern::new(base.clone()).build();
+            let current = c.transform(seed);
+            rounds.push((format!("request {}", i), describe(&current)));
+        }
+
+        insta::assert_yaml_snapshot!(rounds);
     }
 }
