@@ -24,6 +24,10 @@
     "description": "Set the model used for command suggestion generation [alias: csm]"
   },
   {
+    "command": "config",
+    "description": "List current configuration values"
+  },
+  {
     "command": "new",
     "description": "Start new conversation [alias: n]"
   },

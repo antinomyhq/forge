@@ -175,6 +175,9 @@ function forge-accept-line() {
         tools|t)
             _forge_action_tools
         ;;
+        config)
+            _forge_action_config
+        ;;
         skill)
             _forge_action_skill
         ;;
