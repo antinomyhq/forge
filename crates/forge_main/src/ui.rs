@@ -1743,7 +1743,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             println!();
 
-            // Phase 1: Install zsh (must be first)
+            // Phase 1: Install zsh (must be first -- all later phases depend on it)
             if deps.needs_zsh() {
                 let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
                 self.spinner.start(Some("Installing zsh"))?;
@@ -1755,10 +1755,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     Err(e) => {
                         self.spinner.stop(None)?;
                         self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install zsh: {}",
+                            "Failed to install zsh: {}. Setup cannot continue.",
                             e
                         )))?;
-                        setup_fully_successful = false;
+                        return Ok(());
                     }
                 }
             }
@@ -1773,10 +1773,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                     Err(e) => {
                         self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install Oh My Zsh: {}",
+                            "Failed to install Oh My Zsh: {}. Setup cannot continue.",
                             e
                         )))?;
-                        setup_fully_successful = false;
+                        return Ok(());
                     }
                 }
             }
@@ -1803,78 +1803,66 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                 );
 
-                let mut plugins_ok = true;
                 if let Err(e) = auto_result {
-                    plugins_ok = false;
                     self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install zsh-autosuggestions: {}",
+                        "Failed to install zsh-autosuggestions: {}. Setup cannot continue.",
                         e
                     )))?;
+                    return Ok(());
                 }
                 if let Err(e) = syntax_result {
-                    plugins_ok = false;
                     self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install zsh-syntax-highlighting: {}",
+                        "Failed to install zsh-syntax-highlighting: {}. Setup cannot continue.",
                         e
                     )))?;
+                    return Ok(());
                 }
 
-                if plugins_ok {
-                    self.writeln_title(TitleFormat::info("Plugins installed"))?;
-                }
+                self.writeln_title(TitleFormat::info("Plugins installed"))?;
             }
 
-            // Phase D4: Install tools (fzf, bat, fd) - sequential to avoid package manager
-            // locks
+            // Phase 4: Install tools (fzf, bat, fd) - sequential to avoid
+            // package manager locks. Package managers like apt-get maintain
+            // exclusive locks, so parallel installation causes "Could not get
+            // lock" errors.
             if deps.needs_tools() {
                 self.spinner.start(Some("Installing tools"))?;
 
-                // Install tools sequentially to avoid package manager lock conflicts
-                // Package managers like apt-get maintain exclusive locks, so parallel
-                // installation causes "Could not get lock" errors
-                let mut fzf_result = Ok(());
-                let mut bat_result = Ok(());
-                let mut fd_result = Ok(());
-
                 if matches!(deps.fzf, FzfStatus::NotFound) {
-                    fzf_result = zsh::install_fzf(platform, &sudo).await;
+                    zsh::install_fzf(platform, &sudo).await.map_err(|e| {
+                        let _ = self.spinner.stop(None);
+                        let _ = self.writeln_title(TitleFormat::error(format!(
+                            "Failed to install fzf: {}",
+                            e
+                        )));
+                        e
+                    })?;
                 }
 
                 if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
-                    bat_result = zsh::install_bat(platform, &sudo).await;
+                    zsh::install_bat(platform, &sudo).await.map_err(|e| {
+                        let _ = self.spinner.stop(None);
+                        let _ = self.writeln_title(TitleFormat::error(format!(
+                            "Failed to install bat: {}",
+                            e
+                        )));
+                        e
+                    })?;
                 }
 
                 if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
-                    fd_result = zsh::install_fd(platform, &sudo).await;
+                    zsh::install_fd(platform, &sudo).await.map_err(|e| {
+                        let _ = self.spinner.stop(None);
+                        let _ = self.writeln_title(TitleFormat::error(format!(
+                            "Failed to install fd: {}",
+                            e
+                        )));
+                        e
+                    })?;
                 }
 
                 self.spinner.stop(None)?;
-
-                let mut tools_ok = true;
-                if let Err(e) = fzf_result {
-                    tools_ok = false;
-                    self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install fzf: {}",
-                        e
-                    )))?;
-                }
-                if let Err(e) = bat_result {
-                    tools_ok = false;
-                    self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install bat: {}",
-                        e
-                    )))?;
-                }
-                if let Err(e) = fd_result {
-                    tools_ok = false;
-                    self.writeln_title(TitleFormat::error(format!("Failed to install fd: {}", e)))?;
-                }
-
-                if tools_ok {
-                    self.writeln_title(TitleFormat::info("Tools installed (fzf, bat, fd)"))?;
-                } else {
-                    setup_fully_successful = false;
-                }
+                self.writeln_title(TitleFormat::info("Tools installed (fzf, bat, fd)"))?;
             }
 
             println!();
