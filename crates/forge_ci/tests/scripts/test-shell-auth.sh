@@ -2,12 +2,32 @@
 # =============================================================================
 # E2E test suite for shell-native provider authentication
 #
-# Tests `forge provider auth-info` and `forge provider login` non-interactive
-# CLI commands, and the `_forge_provider_auth` zsh shell function.
+# What this tests
+# ───────────────
+# Phase A — `forge provider auth-info` CLI:
+#   Validates the machine-readable output format (auth_methods, url_params,
+#   configured fields) that the zsh plugin reads to decide how to prompt the user.
 #
-# This replaces the crossterm/dialoguer interactive selection (which crashes on
-# Windows Git Bash mintty with "IO error: Incorrect function (os error 1)") with
-# shell-native fzf/read prompts.
+# Phase B — `forge provider login` non-interactive CLI:
+#   Validates that passing --auth-method / --api-key / --set-active / --init-only
+#   as CLI args stores credentials without any terminal interaction.
+#   This is the core regression test: proves BracketedPasteGuard is never
+#   invoked when args are pre-supplied (fixing the Windows mintty crash).
+#
+# Phase C — ZSH shell function integration:
+#   Loads the forge zsh plugin and exercises _forge_provider_auth and
+#   _forge_action_login (the functions that `:login` calls).
+#
+#   NOTE — what is mocked vs real in Phase C:
+#     MOCKED: fzf (no TTY in CI), _forge_select_provider (needs TTY + provider
+#             list), _forge_exec for auth-info (real binary consumes stdin,
+#             stealing the piped API key before read -rs can read it).
+#     REAL:   forge provider login (called with --init-only via the forwarding
+#             _forge_exec mock), credential storage, configured=yes verification.
+#
+#   In other words: Phase C tests that the shell glue passes the right args to
+#   the CLI and that the real CLI accepts them. It does NOT test fzf provider
+#   selection or interactive read -rs — those require a real TTY.
 #
 # Three execution modes:
 #
@@ -20,8 +40,8 @@
 #
 #   Native (macOS / Windows, --native):
 #     Builds a single host binary and runs the full verification script directly
-#     on the host. macOS gets CLI + zsh function tests. Windows gets CLI only
-#     (use --skip-zsh since zsh is not available on Windows runners).
+#     on the host. Both macOS and Windows run all three phases (A, B, C).
+#     zsh must be pre-installed (brew on macOS, MSYS2 pacman on Windows).
 #
 #   Quick (--quick):
 #     Static analysis only (bash -n + shellcheck). No build, no Docker, no binary.
@@ -29,7 +49,6 @@
 # Usage:
 #   bash crates/forge_ci/tests/scripts/test-shell-auth.sh                    # Linux Docker
 #   bash crates/forge_ci/tests/scripts/test-shell-auth.sh --native           # macOS/Windows
-#   bash crates/forge_ci/tests/scripts/test-shell-auth.sh --native --skip-zsh  # Windows
 #   bash crates/forge_ci/tests/scripts/test-shell-auth.sh --skip-build       # reuse binaries
 #   bash crates/forge_ci/tests/scripts/test-shell-auth.sh --native-build     # cargo not cross
 #   bash crates/forge_ci/tests/scripts/test-shell-auth.sh --filter "alpine"  # Docker only
