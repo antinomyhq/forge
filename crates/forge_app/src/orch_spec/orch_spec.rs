@@ -393,7 +393,7 @@ async fn test_multiple_consecutive_tool_calls() {
 }
 
 #[tokio::test]
-async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls() {
+async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls_on_next_request() {
     let tool_call = ToolCallFull::new("fs_read")
         .arguments(ToolCallArguments::from(json!({"path": "loop.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Same content")));
@@ -438,20 +438,41 @@ async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls() {
     let expected = true;
     assert_eq!(actual, expected, "All tool calls should succeed");
 
-    let actual = ctx.output.conversation_history.iter().any(|conversation| {
-        conversation.context.as_ref().is_some_and(|context| {
-            context.messages.iter().any(|message| {
-                message.has_role(Role::User)
-                    && message
-                        .content()
-                        .is_some_and(|content| content.contains("system_reminder"))
-            })
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+
+    let reminder_message_index = context
+        .messages
+        .iter()
+        .enumerate()
+        .find(|(_, message)| {
+            message.has_role(Role::User)
+                && message
+                    .content()
+                    .is_some_and(|content| content.contains("system_reminder"))
         })
-    });
-    let expected = true;
+        .map(|(idx, _)| idx)
+        .expect("Expected reminder message in context");
+
+    let assistant_with_tool_call_indices: Vec<_> = context
+        .messages
+        .iter()
+        .enumerate()
+        .filter(|(_, message)| message.has_role(Role::Assistant) && message.has_tool_call())
+        .map(|(idx, _)| idx)
+        .collect();
+
     assert_eq!(
-        actual, expected,
-        "Should add a user reminder message for doom loop detection"
+        assistant_with_tool_call_indices.len(),
+        4,
+        "Expected four assistant tool-call messages"
+    );
+
+    let third_assistant_with_tool_call_index = assistant_with_tool_call_indices[2];
+
+    assert!(
+        reminder_message_index > third_assistant_with_tool_call_index,
+        "Reminder should be appended after the triggering tool-call history is persisted"
     );
 }
 

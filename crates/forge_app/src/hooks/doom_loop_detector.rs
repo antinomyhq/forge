@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use derive_setters::Setters;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, Role, TextMessage, ToolCallFull,
-    ToolName, ToolcallEndPayload,
+    ContextMessage, Conversation, EventData, EventHandle, RequestPayload, Role, TextMessage,
+    ToolCallFull, ToolName,
 };
 use forge_template::Element;
 use tracing::warn;
@@ -19,8 +19,8 @@ use crate::TemplateEngine;
 /// Both patterns indicate the agent is stuck in a loop, wasting tokens without
 /// making progress.
 ///
-/// Can be used as a hook on `on_toolcall_start` events to automatically detect
-/// and prevent doom loops during conversation processing.
+/// Can be used as a hook on `on_request` events to detect doom loops after
+/// tool call records from prior turns are already persisted in context.
 #[derive(Debug, Clone, Setters)]
 pub struct DoomLoopDetector {
     /// Threshold for consecutive identical tool calls before triggering
@@ -42,20 +42,30 @@ impl DoomLoopDetector {
         Self { threshold: Self::DEFAULT_THRESHOLD }
     }
 
-    /// Checks conversation history for doom loops - when the same tool is
-    /// called repeatedly with identical arguments
+    /// Checks conversation history for doom loops using already-recorded tool
+    /// call history in context.
+    ///
+    /// This variant is intended for request-phase hooks, where tool call
+    /// results from the previous turn have already been appended to context.
     ///
     /// Returns Some((tool_name, count)) if a doom loop is detected
-    ///
-    /// # Arguments
-    /// * `current_tool_call` - The tool call being executed
-    /// * `conversation` - The conversation to analyze for repetitive patterns
-    pub fn detect(
-        &self,
-        current_tool_call: &ToolCallFull,
-        conversation: &Conversation,
-    ) -> Option<(ToolName, usize)> {
-        // Extract assistant messages from conversation context
+    pub fn detect_from_conversation(&self, conversation: &Conversation) -> Option<(ToolName, usize)> {
+        let all_signatures = self.extract_tool_signatures(conversation);
+
+        if all_signatures.is_empty() {
+            return None;
+        }
+
+        // Check for consecutive identical calls at the end
+        if let Some(result) = self.check_consecutive_identical_in_signatures(&all_signatures) {
+            return Some(result);
+        }
+
+        // Check for repeating patterns at the end
+        self.check_repeating_pattern_in_signatures(&all_signatures)
+    }
+
+    fn extract_tool_signatures(&self, conversation: &Conversation) -> Vec<(ToolName, String)> {
         let assistant_messages = conversation
             .context
             .as_ref()
@@ -64,103 +74,58 @@ impl DoomLoopDetector {
             })
             .unwrap_or_default();
 
-        let current_signature = (
-            &current_tool_call.name,
-            current_tool_call.arguments.to_owned().into_string(),
-        );
-
-        // Check for consecutive identical calls (e.g., [1,1,1,1])
-        if let Some(result) =
-            self.check_consecutive_identical(&assistant_messages, &current_signature)
-        {
-            return Some(result);
-        }
-
-        // Check for repeating patterns (e.g., [1,2,3][1,2,3][1,2,3])
-        self.check_repeating_pattern(&assistant_messages, &current_signature)
+        assistant_messages
+            .iter()
+            .filter_map(|msg| msg.tool_calls.as_ref())
+            .flat_map(|calls| calls.iter())
+            .map(|call| (call.name.clone(), call.arguments.to_owned().into_string()))
+            .collect()
     }
 
-    /// Checks for consecutive identical tool calls
-    fn check_consecutive_identical(
+    /// Checks for consecutive identical tool calls at the end of the provided
+    /// signature list.
+    fn check_consecutive_identical_in_signatures(
         &self,
-        assistant_messages: &[&TextMessage],
-        current_signature: &(&ToolName, String),
+        signatures: &[(ToolName, String)],
     ) -> Option<(ToolName, usize)> {
-        // Count consecutive identical tool calls from the end (most recent)
-        let mut consecutive_count = 1; // Count includes the current call
+        let Some(last_signature) = signatures.last() else {
+            return None;
+        };
 
-        // Iterate through assistant messages in reverse (most recent first)
-        for message in assistant_messages.iter().rev() {
-            if let Some(tool_calls) = &message.tool_calls {
-                // Check if this message contains the same tool call
-                let has_matching_call = tool_calls.iter().any(|call| {
-                    let signature = (&call.name, call.arguments.to_owned().into_string());
-                    signature == *current_signature
-                });
-
-                if has_matching_call {
-                    consecutive_count += 1;
-                } else {
-                    // Different tool call found, stop counting
-                    break;
-                }
+        let mut consecutive_count = 0;
+        for signature in signatures.iter().rev() {
+            if signature == last_signature {
+                consecutive_count += 1;
             } else {
-                // No tool calls in this message, stop counting
                 break;
             }
         }
 
         if consecutive_count >= self.threshold {
-            Some((current_signature.0.clone(), consecutive_count))
+            Some((last_signature.0.clone(), consecutive_count))
         } else {
             None
         }
     }
 
-    /// Checks for repeating patterns of tool calls (e.g.,
-    /// [1,2,3][1,2,3][1,2,3])
-    ///
-    /// This detects when a sequence of tool calls is repeated multiple times,
-    /// indicating the agent is stuck in a loop even if individual calls differ.
-    ///
-    /// The detector looks for the most recent repeating pattern by checking
-    /// patterns of various lengths working backwards from the current call.
-    fn check_repeating_pattern(
+    /// Checks for repeating patterns at the end of the provided signature list.
+    fn check_repeating_pattern_in_signatures(
         &self,
-        assistant_messages: &[&TextMessage],
-        current_signature: &(&ToolName, String),
+        signatures: &[(ToolName, String)],
     ) -> Option<(ToolName, usize)> {
-        // Extract all tool call signatures from messages in chronological order
-        let mut all_signatures: Vec<(ToolName, String)> = assistant_messages
-            .iter()
-            .filter_map(|msg| msg.tool_calls.as_ref())
-            .flat_map(|calls| calls.iter())
-            .map(|call| (call.name.clone(), call.arguments.to_owned().into_string()))
-            .collect();
-
-        // Add the current call
-        all_signatures.push((current_signature.0.clone(), current_signature.1.clone()));
-
-        // Need at least threshold signatures to detect a pattern
-        if all_signatures.len() < self.threshold {
+        if signatures.len() < self.threshold {
             return None;
         }
 
-        // Try different pattern lengths (from 1 to total_signatures - 1)
-        // We need at least one repetition to detect a pattern
-        // We try from smallest to largest to detect the most granular pattern
-        for pattern_length in 1..(all_signatures.len()) {
+        for pattern_length in 1..signatures.len() {
             let complete_repetitions =
-                self.count_recent_pattern_repetitions(&all_signatures, pattern_length);
+                self.count_recent_pattern_repetitions(signatures, pattern_length);
 
-            // Only trigger if we have at least 'threshold' complete repetitions
             if complete_repetitions >= self.threshold {
-                // Return the first tool in the pattern as the representative
-                // The pattern starts from the end, so get it from the appropriate position
                 let pattern_offset = complete_repetitions.saturating_mul(pattern_length);
-                let pattern_start_idx = all_signatures.len().saturating_sub(pattern_offset);
+                let pattern_start_idx = signatures.len().saturating_sub(pattern_offset);
                 return Some((
-                    all_signatures[pattern_start_idx].0.clone(),
+                    signatures[pattern_start_idx].0.clone(),
                     complete_repetitions,
                 ));
             }
@@ -168,6 +133,9 @@ impl DoomLoopDetector {
 
         None
     }
+
+
+
 
     /// Counts how many times a pattern of given length repeats at the END of
     /// the sequence
@@ -264,25 +232,23 @@ impl DoomLoopDetector {
 
 /// Implementation of EventHandle for DoomLoopDetector
 ///
-/// This allows the detector to be used as a hook on toolcall_start events.
-/// When a doom loop is detected, it returns an AgentError which causes
-/// the tool execution to be skipped and the error to be returned as a tool
-/// result.
+/// This allows the detector to run on request events so the previous turn's
+/// tool calls and results are already appended in context before reminders are
+/// inserted.
 #[async_trait]
-impl EventHandle<EventData<ToolcallEndPayload>> for DoomLoopDetector {
+impl EventHandle<EventData<RequestPayload>> for DoomLoopDetector {
     async fn handle(
         &self,
-        event: &EventData<ToolcallEndPayload>,
+        event: &EventData<RequestPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        let tool_call = &event.payload.tool_call;
-
-        if let Some((tool_name, consecutive_calls)) = self.detect(tool_call, conversation) {
+        if let Some((tool_name, consecutive_calls)) = self.detect_from_conversation(conversation) {
             warn!(
                 agent_id = %event.agent.id,
+                request_count = event.payload.request_count,
                 tool_name = %tool_name,
                 consecutive_calls,
-                "Doom loop detected: same tool called repeatedly with identical arguments"
+                "Doom loop detected from conversation context before next request"
             );
 
             if let Some(context) = conversation.context.as_mut() {
@@ -348,10 +314,11 @@ mod tests {
         // Build history with repeated calls
         let msg1 = create_assistant_message(&tool_call);
         let msg2 = create_assistant_message(&tool_call);
-        let conversation = create_conversation_with_messages(vec![msg1, msg2]);
+        let msg3 = create_assistant_message(&tool_call);
+        let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3]);
 
         // Third call - doom loop detected!
-        let actual = detector.detect(&tool_call, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
         let expected = Some((ToolName::new("read"), 3));
         assert_eq!(actual, expected);
     }
@@ -368,7 +335,7 @@ mod tests {
         let conversation = create_conversation_with_messages(vec![msg1]);
 
         // Second call - no loop yet (need 3 for default threshold)
-        let actual = detector.detect(&tool_call, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
         assert_eq!(actual, None);
     }
 
@@ -388,7 +355,7 @@ mod tests {
         let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3]);
 
         // Call with first arguments again - should not detect loop
-        let actual = detector.detect(&tool_call_1, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
         assert_eq!(actual, None);
     }
 
@@ -408,7 +375,7 @@ mod tests {
         let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3]);
 
         // Call different tool - should not detect loop
-        let actual = detector.detect(&tool_call_2, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
         assert_eq!(actual, None);
     }
 
@@ -421,10 +388,11 @@ mod tests {
 
         // Build history with one call
         let msg1 = create_assistant_message(&tool_call);
-        let conversation = create_conversation_with_messages(vec![msg1]);
+        let msg2 = create_assistant_message(&tool_call);
+        let conversation = create_conversation_with_messages(vec![msg1, msg2]);
 
         // Second call - doom loop detected with threshold of 2!
-        let actual = detector.detect(&tool_call, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
         let expected = Some((ToolName::new("read"), 2));
         assert_eq!(actual, expected);
     }
@@ -433,13 +401,10 @@ mod tests {
     fn test_doom_loop_detector_empty_history() {
         let detector = DoomLoopDetector::new();
 
-        let tool_call = ToolCallFull::new("read")
-            .arguments(ToolCallArguments::from_json(r#"{"path": "file.txt"}"#));
-
         // Empty history - first call, no loop
         let conversation = create_conversation_with_messages(vec![]);
 
-        let actual = detector.detect(&tool_call, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
         assert_eq!(actual, None);
     }
 
@@ -502,19 +467,22 @@ mod tests {
         let tool_call_3 = ToolCallFull::new("patch")
             .arguments(ToolCallArguments::from_json(r#"{"path": "file3.txt"}"#));
 
-        // Build history with pattern [1,2,3][1,2,3]
+        // Build history with pattern [1,2,3][1,2,3][1,2,3]
         let msg1 = create_assistant_message(&tool_call_1);
         let msg2 = create_assistant_message(&tool_call_2);
         let msg3 = create_assistant_message(&tool_call_3);
         let msg4 = create_assistant_message(&tool_call_1);
         let msg5 = create_assistant_message(&tool_call_2);
         let msg6 = create_assistant_message(&tool_call_3);
+        let msg7 = create_assistant_message(&tool_call_1);
+        let msg8 = create_assistant_message(&tool_call_2);
+        let msg9 = create_assistant_message(&tool_call_3);
 
-        let conversation =
-            create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5, msg6]);
+        let conversation = create_conversation_with_messages(vec![
+            msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9,
+        ]);
 
-        // Current call would complete the third repetition [1,2,3][1,2,3][1,2,3]
-        let actual = detector.detect(&tool_call_1, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern repetition (3 times)
         assert!(actual.is_some());
@@ -532,16 +500,18 @@ mod tests {
         let tool_call_2 = ToolCallFull::new("write")
             .arguments(ToolCallArguments::from_json(r#"{"path": "file2.txt"}"#));
 
-        // Build history with pattern [1,2][1,2]
+        // Build history with pattern [1,2][1,2][1,2]
         let msg1 = create_assistant_message(&tool_call_1);
         let msg2 = create_assistant_message(&tool_call_2);
         let msg3 = create_assistant_message(&tool_call_1);
         let msg4 = create_assistant_message(&tool_call_2);
+        let msg5 = create_assistant_message(&tool_call_1);
+        let msg6 = create_assistant_message(&tool_call_2);
 
-        let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3, msg4]);
+        let conversation =
+            create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5, msg6]);
 
-        // Current call would complete the third repetition [1,2][1,2][1,2]
-        let actual = detector.detect(&tool_call_1, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern repetition (3 times)
         assert!(actual.is_some());
@@ -571,7 +541,7 @@ mod tests {
         let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5]);
 
         // Current call would not complete a full third repetition
-        let actual = detector.detect(&tool_call_2, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should not detect pattern (incomplete)
         assert_eq!(actual, None);
@@ -586,14 +556,15 @@ mod tests {
         let tool_call_2 = ToolCallFull::new("write")
             .arguments(ToolCallArguments::from_json(r#"{"path": "file2.txt"}"#));
 
-        // Build history with pattern [1,2]
+        // Build history with pattern [1,2][1,2]
         let msg1 = create_assistant_message(&tool_call_1);
         let msg2 = create_assistant_message(&tool_call_2);
+        let msg3 = create_assistant_message(&tool_call_1);
+        let msg4 = create_assistant_message(&tool_call_2);
 
-        let conversation = create_conversation_with_messages(vec![msg1, msg2]);
+        let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3, msg4]);
 
-        // Current call would complete the second repetition [1,2][1,2]
-        let actual = detector.detect(&tool_call_1, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern with threshold of 2
         assert!(actual.is_some());
@@ -612,11 +583,12 @@ mod tests {
         // Build history with three consecutive identical calls
         let msg1 = create_assistant_message(&tool_call_1);
         let msg2 = create_assistant_message(&tool_call_1);
+        let msg3 = create_assistant_message(&tool_call_1);
 
-        let conversation = create_conversation_with_messages(vec![msg1, msg2]);
+        let conversation = create_conversation_with_messages(vec![msg1, msg2, msg3]);
 
         // Third consecutive identical call - should be caught by consecutive check
-        let actual = detector.detect(&tool_call_1, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         assert!(actual.is_some());
         let (tool_name, count) = actual.unwrap();
@@ -637,7 +609,7 @@ mod tests {
         let tool_call_4 = ToolCallFull::new("shell")
             .arguments(ToolCallArguments::from_json(r#"{"command": "ls"}"#));
 
-        // Build history with pattern [1,2,3,4][1,2,3,4]
+        // Build history with pattern [1,2,3,4][1,2,3,4][1,2,3,4]
         let msg1 = create_assistant_message(&tool_call_1);
         let msg2 = create_assistant_message(&tool_call_2);
         let msg3 = create_assistant_message(&tool_call_3);
@@ -646,12 +618,16 @@ mod tests {
         let msg6 = create_assistant_message(&tool_call_2);
         let msg7 = create_assistant_message(&tool_call_3);
         let msg8 = create_assistant_message(&tool_call_4);
+        let msg9 = create_assistant_message(&tool_call_1);
+        let msg10 = create_assistant_message(&tool_call_2);
+        let msg11 = create_assistant_message(&tool_call_3);
+        let msg12 = create_assistant_message(&tool_call_4);
 
-        let conversation =
-            create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8]);
+        let conversation = create_conversation_with_messages(vec![
+            msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9, msg10, msg11, msg12,
+        ]);
 
-        // Current call would complete the third repetition [1,2,3,4][1,2,3,4][1,2,3,4]
-        let actual = detector.detect(&tool_call_1, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect pattern repetition (3 times)
         assert!(actual.is_some());
@@ -673,19 +649,21 @@ mod tests {
             r#"{"path": "src/main.rs", "old": "foo", "new": "bar"}"#,
         ));
 
-        // Create pattern [read, diagnostics, patch] repeated twice
+        // Create pattern [read, diagnostics, patch] repeated three times
         let msg1 = create_assistant_message(&read_call);
         let msg2 = create_assistant_message(&diagnostics_call);
         let msg3 = create_assistant_message(&patch_call);
         let msg4 = create_assistant_message(&read_call);
         let msg5 = create_assistant_message(&diagnostics_call);
         let msg6 = create_assistant_message(&patch_call);
+        let msg7 = create_assistant_message(&read_call);
+        let msg8 = create_assistant_message(&diagnostics_call);
+        let msg9 = create_assistant_message(&patch_call);
 
         let conversation =
-            create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5, msg6]);
+            create_conversation_with_messages(vec![msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9]);
 
-        // Third iteration begins
-        let actual = detector.detect(&read_call, &conversation);
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect the pattern loop
         assert!(actual.is_some());
@@ -709,7 +687,7 @@ mod tests {
         let tool_call_5 = ToolCallFull::new("fs_search")
             .arguments(ToolCallArguments::from_json(r#"{"pattern": "test"}"#));
 
-        // Build history with pattern [1,2,3][1,2,3] then [4,5][4,5]
+        // Build history with pattern [1,2,3][1,2,3] then [4,5][4,5][4,5]
         // Pattern: 123123454545
         let msg1 = create_assistant_message(&tool_call_1);
         let msg2 = create_assistant_message(&tool_call_2);
@@ -722,14 +700,14 @@ mod tests {
         let msg9 = create_assistant_message(&tool_call_4);
         let msg10 = create_assistant_message(&tool_call_5);
         let msg11 = create_assistant_message(&tool_call_4);
+        let msg12 = create_assistant_message(&tool_call_5);
 
         let conversation = create_conversation_with_messages(vec![
-            msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9, msg10, msg11,
+            msg1, msg2, msg3, msg4, msg5, msg6, msg7, msg8, msg9, msg10, msg11, msg12,
         ]);
 
-        // Current call would be the 6th occurrence of tool_call_5, completing
-        // [4,5][4,5][4,5]
-        let actual = detector.detect(&tool_call_5, &conversation);
+        // [4,5][4,5][4,5] now fully exists at the end
+        let actual = detector.detect_from_conversation(&conversation);
 
         // Should detect the [4,5][4,5][4,5] pattern at the end
         // The detector looks for the longest repeating pattern, starting from the most
@@ -766,67 +744,68 @@ mod tests {
         // Step 1: [1] - no loop
         messages.push(create_assistant_message(&tool_1));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_2, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 2: [1,2] - no loop
         messages.push(create_assistant_message(&tool_2));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_3, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 3: [1,2,3] - no loop
         messages.push(create_assistant_message(&tool_3));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_4, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 4: [1,2,3,4] - no loop
         messages.push(create_assistant_message(&tool_4));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_5, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 5: [1,2,3,4,5] - no loop
         messages.push(create_assistant_message(&tool_5));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_4, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 6: [1,2,3,4,5,4] - no loop yet
         messages.push(create_assistant_message(&tool_4));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_6, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 7: [1,2,3,4,5,4,6] - no loop
         messages.push(create_assistant_message(&tool_6));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_4, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 8: [1,2,3,4,5,4,6,4] - no loop yet
         messages.push(create_assistant_message(&tool_4));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_5, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 9: [1,2,3,4,5,4,6,4,5] - no loop yet (only 1.5 repetitions of [4,5])
         messages.push(create_assistant_message(&tool_5));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_4, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 10: [1,2,3,4,5,4,6,4,5,4] - no loop yet (2 repetitions of [4,5])
         messages.push(create_assistant_message(&tool_4));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_5, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 11: [1,2,3,4,5,4,6,4,5,4,5] - still no loop (2.5 repetitions)
         messages.push(create_assistant_message(&tool_5));
         let conv = create_conversation_with_messages(messages.clone());
-        assert_eq!(detector.detect(&tool_4, &conv), None);
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
         // Step 12: [1,2,3,4,5,4,6,4,5,4,5,4] - still no loop (almost 3)
         messages.push(create_assistant_message(&tool_4));
         let conv = create_conversation_with_messages(messages.clone());
+        assert_eq!(detector.detect_from_conversation(&conv), None);
 
-        // Now the next call (tool_5) would complete the third repetition of [4,5]
-        // Current state: ...6,4,5,4,5,4
-        // Next call: 5
-        // Full pattern at end: 4,5,4,5,4,5 = [4,5] x 3
-        let result = detector.detect(&tool_5, &conv);
+        // Step 13: [1,2,3,4,5,4,6,4,5,4,5,4,5] - [4,5] pattern now repeats 3 times at end
+        messages.push(create_assistant_message(&tool_5));
+        let conv = create_conversation_with_messages(messages.clone());
+
+        let result = detector.detect_from_conversation(&conv);
 
         // Should detect pattern [4,5] repeating 3 times
         assert!(result.is_some());

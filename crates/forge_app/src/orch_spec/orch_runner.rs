@@ -115,9 +115,7 @@ impl Runner {
         let orch = Orchestrator::new(services.clone(), setup.env.clone(), conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
-            .hook(Arc::new(
-                Hook::default().on_toolcall_end(DoomLoopDetector::default()),
-            ))
+            .hook(Arc::new(Hook::default().on_request(DoomLoopDetector::default())))
             .sender(tx);
 
         let (mut orch, runner) = (orch, services);
