@@ -136,7 +136,6 @@ impl Tracker {
         };
 
         // Dispatch the event to all collectors
-        // Dispatch the event to all collectors
         for collector in self.collectors.as_ref() {
             collector.collect(event.clone()).await?;
         }
