@@ -6,6 +6,10 @@ use crate::read::read;
 /// Root configuration type for the forge_config crate.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ForgeConfig {
+    /// Base URL for Forge's backend APIs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_url: Option<String>,
+
     /// Format for automatically creating a dump when a task is completed.
     /// Set to "json" (or "true"/"1"/"yes") for JSON, "html" for HTML, or
     /// omit to disable.
@@ -60,10 +64,6 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit_provider_id: Option<String>,
 
-    /// Custom history file path. If omitted, uses the default history path.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_history_path: Option<String>,
-
     /// Conversion rate applied to token costs for currency display in the ZSH theme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub currency_conversion_rate: Option<f64>,
@@ -72,17 +72,13 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub currency_symbol: Option<String>,
 
+    /// Custom history file path. If omitted, uses the default history path.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_history_path: Option<String>,
+
     /// Path where debug request files should be written.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_requests: Option<String>,
-
-    /// Maximum characters for fetch content.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_fetch_length: Option<usize>,
-
-    /// Base URL for Forge's backend APIs.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub api_url: Option<String>,
 
     /// Accept invalid TLS certificates. Use with caution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -152,6 +148,18 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_extensions: Option<usize>,
 
+    /// Maximum characters for fetch content.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_fetch_length: Option<usize>,
+
+    /// Maximum characters per line for file read operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_file_line_length: Option<usize>,
+
+    /// Maximum number of lines to read from a file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_file_lines: Option<u64>,
+
     /// Maximum number of files that can be open in a single batch operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_file_open: Option<usize>,
@@ -163,14 +171,6 @@ pub struct ForgeConfig {
     /// Maximum image file size in bytes for binary read operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_image_size: Option<u64>,
-
-    /// Maximum characters per line for file read operations.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_file_line_length: Option<usize>,
-
-    /// Maximum number of lines to read from a file.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_file_lines: Option<u64>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
@@ -205,13 +205,13 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_initial_delay: Option<u64>,
 
-    /// Maximum delay between retries in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_max_delay: Option<u64>,
-
     /// Maximum number of retry attempts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_max_attempts: Option<usize>,
+
+    /// Maximum delay between retries in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_max_delay: Option<u64>,
 
     /// Minimum delay in milliseconds between retry attempts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
