@@ -2217,6 +2217,7 @@ dependencies = [
  "lazy_static",
  "machineid-rs",
  "posthog-rs",
+ "pretty_assertions",
  "regex",
  "reqwest 0.12.28",
  "serde",
