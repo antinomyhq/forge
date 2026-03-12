@@ -8,8 +8,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use clap::builder::Str;
-use clap::{Parser, Subcommand, ValueEnum, builder::PossibleValue};
+use clap::builder::{PossibleValue, Str};
+use clap::{Parser, Subcommand, ValueEnum};
 use derive_more::Into;
 use forge_domain::{AgentId, AuthMethodKind, ConversationId, ModelId, ProviderId};
 use lazy_static::lazy_static;
@@ -37,7 +37,7 @@ impl ValueEnum for CliAuthMethod {
 
     fn to_possible_value(&self) -> Option<PossibleValue> {
         AUTH_METHOD_NAMES
-            .get(&self)
+            .get(self)
             .map(|s| PossibleValue::new(Str::from(s.as_str())))
     }
 }

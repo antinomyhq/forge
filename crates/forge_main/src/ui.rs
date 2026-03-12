@@ -30,7 +30,7 @@ use tokio_stream::StreamExt;
 use url::Url;
 
 use crate::cli::{
-    CliAuthMethod, Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand,
+    Cli, CliAuthMethod, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand,
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
