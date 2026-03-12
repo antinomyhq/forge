@@ -265,10 +265,14 @@ impl<T> SelectBuilderOwned<T> {
 /// Returns `Ok(Some(true))` for Yes, `Ok(Some(false))` for No, and `Ok(None)`
 /// if cancelled.
 fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> Result<Option<T>> {
-    let items = vec!["Yes", "No"];
+    let items = ["Yes", "No"];
 
     // Pre-position cursor on the default option: "Yes" is index 0, "No" is index 1.
-    let starting_cursor = if default == Some(false) { Some(1) } else { Some(0) };
+    let starting_cursor = if default == Some(false) {
+        Some(1)
+    } else {
+        Some(0)
+    };
 
     let fzf = build_fzf(message, None, None, starting_cursor);
     let selected = run_with_output(fzf, items.iter().copied());
