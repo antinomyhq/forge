@@ -16,6 +16,10 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_open_dump: Option<bool>,
 
+    /// Custom banner text displayed on startup instead of the default ASCII art.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub banner: Option<String>,
+
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<CompactConfig>,
 
@@ -26,6 +30,14 @@ pub struct ForgeConfig {
     /// Custom history file path. If omitted, uses the default history path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_history_path: Option<String>,
+
+    /// Conversion rate applied to token costs for currency display in the ZSH theme.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub currency_conversion_rate: Option<f64>,
+
+    /// Currency symbol used for cost display in the ZSH theme (e.g. `"$"`, `"€"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub currency_symbol: Option<String>,
 
     /// Path where debug request files should be written.
     #[serde(default, skip_serializing_if = "Option::is_none")]

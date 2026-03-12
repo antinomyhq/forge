@@ -26,7 +26,9 @@ pub async fn read<T: DeserializeOwned>(path: &str) -> Result<T, Error> {
             Environment::with_prefix("FORGE")
                 .prefix_separator("_")
                 .separator("__")
-                .try_parsing(true),
+                .try_parsing(true)
+                .list_separator(",")
+                .with_list_parse_key("retry.retry_status_codes"),
         )
         .build()
         .await?;
@@ -70,6 +72,56 @@ mod tests {
         let config = read_env("FORGE_HTTP__CONNECT_TIMEOUT=42").await.unwrap();
         let actual = config.http.as_ref().and_then(|h| h.connect_timeout);
         let expected = Some(42u64);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_http_keep_alive_interval() {
+        let config = read_env("FORGE_HTTP__KEEP_ALIVE_INTERVAL=30").await.unwrap();
+        let actual = config.http.as_ref().and_then(|h| h.keep_alive_interval);
+        let expected = Some(30u64);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_retry_status_codes() {
+        let config = read_env("FORGE_RETRY__RETRY_STATUS_CODES=429,500,502")
+            .await
+            .unwrap();
+        let actual = config
+            .retry
+            .as_ref()
+            .and_then(|r| r.retry_status_codes.clone());
+        let expected = Some(vec![429u16, 500u16, 502u16]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_banner() {
+        let config = read_env("FORGE_BANNER=hello").await.unwrap();
+        let actual = config.banner.clone();
+        let expected = Some("hello".to_string());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_currency_symbol() {
+        let config = read_env("FORGE_CURRENCY_SYMBOL=$").await.unwrap();
+        let actual = config.currency_symbol.clone();
+        let expected = Some("$".to_string());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_currency_conversion_rate() {
+        let config = read_env("FORGE_CURRENCY_CONVERSION_RATE=1.5").await.unwrap();
+        let actual = config.currency_conversion_rate;
+        let expected = Some(1.5f64);
 
         assert_eq!(actual, expected);
     }
