@@ -947,7 +947,7 @@
       {
         "id": "gemini-3.1-flash-lite-preview",
         "name": "Gemini 3.1 Flash Lite Preview",
-        "description": "Most capable Gemini model with advanced reasoning",
+        "description": "Google's most cost-efficient Gemini model, optimized for low latency use cases for high-volume, cost-sensitive LLM traffic.",
         "context_length": 1000000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
