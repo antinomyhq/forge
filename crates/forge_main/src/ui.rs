@@ -917,8 +917,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
-        // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        // Set as default; skip interactive model selection since the shell
+        // handles model selection via :model after login.
+        self.finalize_provider_activation(provider, None, true).await
     }
 
     async fn handle_provider_logout(
@@ -2728,13 +2729,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         };
 
-        // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        // Set as default and handle model selection (REPL interactive path)
+        self.finalize_provider_activation(provider, None, false).await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
     /// a compatible model is selected.
-    async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
+    ///
+    /// When `preset_model` is provided, sets it as the default model without
+    /// interactive selection. When `skip_model_selection` is true, skips
+    /// interactive model selection entirely (used by CLI/shell-native paths
+    /// to avoid crossterm/TTY dependency).
+    async fn finalize_provider_activation(
+        &mut self,
+        provider: Provider<Url>,
+        preset_model: Option<ModelId>,
+        skip_model_selection: bool,
+    ) -> Result<()> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
@@ -2742,6 +2753,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::action(format!("{}", provider.id))
                 .sub_title("is now the default provider"),
         )?;
+
+        // If a model was pre-supplied (e.g. from --model CLI arg), set it directly
+        if let Some(model) = preset_model {
+            let model_id = self.validate_model(model.as_str(), Some(&provider.id)).await?;
+            self.api.set_default_model(model_id.clone()).await?;
+            self.update_model(Some(model_id.clone()));
+            self.writeln_title(TitleFormat::action(format!("Switched to model: {model_id}")))?;
+            return Ok(());
+        }
+
+        // Skip interactive model selection when called from non-REPL CLI paths
+        if skip_model_selection {
+            return Ok(());
+        }
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -3380,9 +3405,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider } => {
-                let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider(provider).await?;
+            ConfigSetField::Provider { provider, model } => {
+                let any_provider = self.api.get_provider(&provider).await?;
+                // For CLI/shell-native paths, skip interactive model selection.
+                // The shell handles model selection via :model separately.
+                if !any_provider.is_configured() {
+                    anyhow::bail!(
+                        "Provider '{}' is not configured. Run `:login` or `forge provider login {}` first.",
+                        provider,
+                        provider
+                    );
+                }
+                let configured_provider = any_provider
+                    .into_configured()
+                    .ok_or_else(|| anyhow::anyhow!("Failed to get configured provider '{}'", provider))?;
+                self.finalize_provider_activation(configured_provider, model, true).await?;
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;
