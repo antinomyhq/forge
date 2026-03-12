@@ -64,7 +64,7 @@ pub struct Tracker {
     model: Arc<Mutex<Option<String>>>,
     conversation: Arc<Mutex<Option<Conversation>>>,
     is_logged_in: Arc<AtomicBool>,
-    rate_limiter: Arc<RateLimiter>,
+    rate_limiter: Arc<Mutex<RateLimiter>>,
 }
 
 impl Default for Tracker {
@@ -80,7 +80,7 @@ impl Default for Tracker {
             model: Arc::new(Mutex::new(None)),
             conversation: Arc::new(Mutex::new(None)),
             is_logged_in: Arc::new(AtomicBool::new(false)),
-            rate_limiter: Arc::new(RateLimiter::new(MAX_EVENTS_PER_MINUTE)),
+            rate_limiter: Arc::new(Mutex::new(RateLimiter::new(MAX_EVENTS_PER_MINUTE))),
         }
     }
 }
@@ -107,7 +107,7 @@ impl Tracker {
             return Ok(());
         }
 
-        if !self.rate_limiter.check() {
+        if !self.rate_limiter.lock().await.inc_and_check() {
             return Ok(()); // Drop event if rate limit exceeded
         }
 

@@ -160,10 +160,10 @@ function forge-accept-line() {
         conversation|c)
             _forge_action_conversation "$input_text"
         ;;
-        provider|p)
+        config-provider|provider|p)
             _forge_action_provider "$input_text"
         ;;
-        model|m)
+        config-model|model|m)
             _forge_action_model "$input_text"
         ;;
         config-commit-model|ccm)
@@ -174,6 +174,9 @@ function forge-accept-line() {
         ;;
         tools|t)
             _forge_action_tools
+        ;;
+        config)
+            _forge_action_config
         ;;
         skill)
             _forge_action_skill
