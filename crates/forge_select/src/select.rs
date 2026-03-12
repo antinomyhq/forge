@@ -39,13 +39,10 @@ impl ForgeSelect {
         }
     }
 
-    /// Entry point for select operations with owned values (doesn't require Clone).
+    /// Entry point for select operations with owned values (doesn't require
+    /// Clone).
     pub fn select_owned<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilderOwned<T> {
-        SelectBuilderOwned {
-            message: message.into(),
-            options,
-            initial_text: None,
-        }
+        SelectBuilderOwned { message: message.into(), options, initial_text: None }
     }
 
     /// Convenience method for confirm (yes/no).
@@ -92,21 +89,25 @@ fn build_fzf(header: &str, help_message: Option<&str>, initial_text: Option<&str
     builder.header(full_header);
     builder.header_first(true);
 
-    // Combine all custom args in a single call — custom_args() replaces (not appends).
+    // Combine all custom args in a single call — custom_args() replaces (not
+    // appends).
     let mut args = vec!["--height=40%".to_string()];
     if let Some(query) = initial_text {
         args.push(format!("--query={}", query));
     }
     builder.custom_args(args);
 
-    builder.build().expect("fzf builder should always succeed with default options")
+    builder
+        .build()
+        .expect("fzf builder should always succeed with default options")
 }
 
 impl<T: 'static> SelectBuilder<T> {
     /// Set starting cursor position.
     ///
-    /// Note: This is a no-op with fzf backend. fzf does not support pre-selecting
-    /// a specific item by index. Users can use fuzzy search to quickly find items.
+    /// Note: This is a no-op with fzf backend. fzf does not support
+    /// pre-selecting a specific item by index. Users can use fuzzy search
+    /// to quickly find items.
     pub fn with_starting_cursor(self, _cursor: usize) -> Self {
         self
     }
@@ -161,7 +162,11 @@ impl<T: 'static> SelectBuilder<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).trim().to_string())
             .collect();
 
-        let fzf = build_fzf(&self.message, self.help_message, self.initial_text.as_deref());
+        let fzf = build_fzf(
+            &self.message,
+            self.help_message,
+            self.initial_text.as_deref(),
+        );
 
         let selected = run_with_output(fzf, display_options.iter().map(|s| s.as_str()));
 
@@ -179,8 +184,8 @@ impl<T: 'static> SelectBuilder<T> {
 impl<T> SelectBuilderOwned<T> {
     /// Set starting cursor position.
     ///
-    /// Note: This is a no-op with fzf backend. fzf does not support pre-selecting
-    /// a specific item by index.
+    /// Note: This is a no-op with fzf backend. fzf does not support
+    /// pre-selecting a specific item by index.
     pub fn with_starting_cursor(self, _cursor: usize) -> Self {
         self
     }
@@ -235,9 +240,11 @@ impl<T> SelectBuilderOwned<T> {
 
 /// Runs a yes/no confirmation prompt via fzf.
 ///
-/// Returns `Ok(Some(true))` for Yes, `Ok(Some(false))` for No, and `Ok(None)` if cancelled.
+/// Returns `Ok(Some(true))` for Yes, `Ok(Some(false))` for No, and `Ok(None)`
+/// if cancelled.
 fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> Result<Option<T>> {
-    // Present "Yes" first when default is true (or unset), "No" first when default is false
+    // Present "Yes" first when default is true (or unset), "No" first when default
+    // is false
     let items: Vec<&str> = if default == Some(false) {
         vec!["No", "Yes"]
     } else {
@@ -269,7 +276,8 @@ fn shell_escape(s: &str) -> String {
 ///
 /// When bracketed paste mode is active in the terminal, pasted text is wrapped
 /// in `\x1b[200~` (start) and `\x1b[201~` (end) markers. This function removes
-/// those markers from the captured shell output so the raw input value is clean.
+/// those markers from the captured shell output so the raw input value is
+/// clean.
 fn strip_bracketed_paste(s: &str) -> String {
     s.replace("\x1b[200~", "").replace("\x1b[201~", "")
 }
@@ -428,7 +436,8 @@ impl<T> MultiSelectBuilder<T> {
             .expect("fzf builder should always succeed with default options");
 
         let mut fzf = fzf;
-        fzf.run().map_err(|e| anyhow::anyhow!("Failed to start fzf: {e}"))?;
+        fzf.run()
+            .map_err(|e| anyhow::anyhow!("Failed to start fzf: {e}"))?;
         fzf.add_items(display_options.iter().map(|s| s.as_str()))
             .map_err(|e| anyhow::anyhow!("Failed to add items to fzf: {e}"))?;
 
@@ -530,10 +539,14 @@ mod tests {
 
     #[test]
     fn test_display_options_are_trimmed() {
-        // Simulate a provider display string with leading spaces (like template providers)
-        // and trailing spaces (like padded names). After stripping ANSI and trimming,
-        // the result must match what fzf returns (fzf trims its output).
-        let options = ["  openai               [empty]", "✓ anthropic            [api.anthropic.com]"];
+        // Simulate a provider display string with leading spaces (like template
+        // providers) and trailing spaces (like padded names). After stripping
+        // ANSI and trimming, the result must match what fzf returns (fzf trims
+        // its output).
+        let options = [
+            "  openai               [empty]",
+            "✓ anthropic            [api.anthropic.com]",
+        ];
         let display: Vec<String> = options
             .iter()
             .map(|s| strip_ansi_codes(s).trim().to_string())
