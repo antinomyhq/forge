@@ -919,7 +919,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Set as default; skip interactive model selection since the shell
         // handles model selection via :model after login.
-        self.finalize_provider_activation(provider, None, true).await
+        self.finalize_provider_activation(provider, None, true)
+            .await
     }
 
     async fn handle_provider_logout(
@@ -2730,7 +2731,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection (REPL interactive path)
-        self.finalize_provider_activation(provider, None, false).await
+        self.finalize_provider_activation(provider, None, false)
+            .await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
@@ -2756,10 +2758,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // If a model was pre-supplied (e.g. from --model CLI arg), set it directly
         if let Some(model) = preset_model {
-            let model_id = self.validate_model(model.as_str(), Some(&provider.id)).await?;
+            let model_id = self
+                .validate_model(model.as_str(), Some(&provider.id))
+                .await?;
             self.api.set_default_model(model_id.clone()).await?;
             self.update_model(Some(model_id.clone()));
-            self.writeln_title(TitleFormat::action(format!("Switched to model: {model_id}")))?;
+            self.writeln_title(TitleFormat::action(format!(
+                "Switched to model: {model_id}"
+            )))?;
             return Ok(());
         }
 
@@ -3416,10 +3422,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         provider
                     );
                 }
-                let configured_provider = any_provider
-                    .into_configured()
-                    .ok_or_else(|| anyhow::anyhow!("Failed to get configured provider '{}'", provider))?;
-                self.finalize_provider_activation(configured_provider, model, true).await?;
+                let configured_provider = any_provider.into_configured().ok_or_else(|| {
+                    anyhow::anyhow!("Failed to get configured provider '{}'", provider)
+                })?;
+                self.finalize_provider_activation(configured_provider, model, true)
+                    .await?;
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;
