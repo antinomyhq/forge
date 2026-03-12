@@ -99,8 +99,13 @@ function _forge_action_provider() {
             _forge_provider_auth "$provider_id" || return 1
         fi
 
-        # Now set it as the active provider (credentials are already stored)
+        # Now set it as the active provider (credentials are already stored).
+        # The Rust CLI skips interactive model selection when called from CLI.
         _forge_exec config set provider "$provider_id"
+
+        # Shell-native model selection: let the user pick a model for the new
+        # provider via fzf, replacing the Rust CLI's ForgeSelect prompt.
+        _forge_action_model ""
     fi
 }
 

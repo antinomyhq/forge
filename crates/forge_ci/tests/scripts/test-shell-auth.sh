@@ -698,6 +698,88 @@ else
 fi
 
 forge provider logout anthropic 2>/dev/null || true
+
+# ─── Test C3: :provider flow — select openrouter, set fake key, verify configured
+#
+# Simulates the user typing `:provider` and selecting openrouter.
+#
+# What is mocked:
+#   _forge_select_provider  — returns openrouter without launching real fzf (no TTY)
+#   _forge_exec auth-info   — pre-canned output (real binary consumes stdin)
+#   _forge_provider_auth    — calls real `forge provider login --init-only` directly,
+#                             bypassing `read -rs` which requires a TTY.
+#                             C1 already tests _forge_provider_auth; here we test
+#                             the _forge_action_provider orchestration layer.
+#   _forge_action_model     — no-op: model selection is a separate concern tested
+#                             by _forge_action_model tests; avoids fzf TTY requirement.
+#
+# What is real:
+#   forge provider login      — stores the credential in the real credential store
+#   forge config set provider — activates the provider (no interactive prompts,
+#                               no crossterm/ForgeSelect calls)
+
+function _forge_exec() {
+  if [[ "$1" == "provider" && "$2" == "auth-info" ]]; then
+    echo "auth_methods=api_key"
+    echo "url_params="
+    echo "configured=no"
+    return 0
+  fi
+  forge "$@"
+}
+
+function _forge_select_provider() {
+  echo "OpenRouter                 open_router                  openrouter.ai      llm"
+}
+
+# Mock _forge_provider_auth to call the real CLI directly, bypassing `read -rs`.
+# This tests the _forge_action_provider orchestration (auth check → auth → set)
+# without needing a TTY. C1 already validates _forge_provider_auth internals.
+function _forge_provider_auth() {
+  local provider_id="$1"
+  forge provider login "$provider_id" \
+    --auth-method api-key \
+    --api-key "sk-or-fake-test-key-for-ci" \
+    --init-only
+  return $?
+}
+
+# Mock _forge_action_model: model selection is a separate concern.
+# After provider switch, _forge_action_provider calls _forge_action_model ""
+# which would launch fzf (needs TTY). We skip it here.
+function _forge_action_model() { return 0; }
+
+forge provider logout open_router 2>/dev/null || true
+
+_provider_out_file=$(mktemp /tmp/forge_provider_out_XXXXXX)
+_forge_action_provider "" > "$_provider_out_file" 2>&1
+provider_exit=$?
+provider_output=$(cat "$_provider_out_file")
+rm -f "$_provider_out_file"
+
+# C3a: _forge_action_provider exits 0
+if [[ "$provider_exit" -eq 0 ]]; then
+  echo "CHECK_ZSH_ACTION_PROVIDER_EXIT=PASS exit=0"
+else
+  echo "CHECK_ZSH_ACTION_PROVIDER_EXIT=FAIL exit=$provider_exit output: $provider_output"
+fi
+
+# C3b: provider_output contains the activation message from `forge config set provider`
+# (proves the real CLI was called and the credential was accepted — no crossterm crash)
+if echo "$provider_output" | grep -qi "now the default provider\|open_router\|openrouter"; then
+  echo "CHECK_ZSH_ACTION_PROVIDER_CONFIGURED=PASS activation message in output"
+else
+  echo "CHECK_ZSH_ACTION_PROVIDER_CONFIGURED=FAIL no activation message: $provider_output"
+fi
+
+# C3c: no crossterm/mintty errors in the output
+if echo "$provider_output" | grep -qi "incorrect function\|bracketedpaste\|os error 1"; then
+  echo "CHECK_ZSH_ACTION_PROVIDER_NO_CROSSTERM=FAIL found crossterm errors: $provider_output"
+else
+  echo "CHECK_ZSH_ACTION_PROVIDER_NO_CROSSTERM=PASS no crossterm errors in :provider flow"
+fi
+
+forge provider logout open_router 2>/dev/null || true
 ZSH_TEST_SCRIPT
 
 chmod +x "$ZSH_SCRIPT"
