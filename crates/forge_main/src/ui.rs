@@ -910,17 +910,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(()),
         };
 
-        // If init_only flag is set, skip activation and model selection
-        if init_only {
-            self.writeln_title(TitleFormat::debug(format!(
-                "Provider '{}' configured successfully (not set as active)",
-                provider.id
-            )))?;
-            return Ok(());
-        }
-
-        // Set as default; skip interactive model selection since the shell
-        // handles model selection via :model after login.
+        // Set as default and handle model selection
         self.finalize_provider_activation(provider, true).await
     }
 
