@@ -8,6 +8,7 @@ pub struct MatrixEntry {
     pub target: &'static str,
     pub binary_name: &'static str,
     pub binary_path: &'static str,
+    pub debug_binary_path: &'static str,
     pub cross: &'static str,
 }
 
@@ -23,6 +24,7 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-unknown-linux-musl",
                 binary_name: "forge-x86_64-unknown-linux-musl",
                 binary_path: "target/x86_64-unknown-linux-musl/release/forge",
+                debug_binary_path: "target/x86_64-unknown-linux-musl/debug/forge",
                 cross: "true",
             },
             MatrixEntry {
@@ -30,6 +32,7 @@ impl Default for ReleaseMatrix {
                 target: "aarch64-unknown-linux-musl",
                 binary_name: "forge-aarch64-unknown-linux-musl",
                 binary_path: "target/aarch64-unknown-linux-musl/release/forge",
+                debug_binary_path: "target/aarch64-unknown-linux-musl/debug/forge",
                 cross: "true",
             },
             MatrixEntry {
@@ -37,6 +40,7 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-unknown-linux-gnu",
                 binary_name: "forge-x86_64-unknown-linux-gnu",
                 binary_path: "target/x86_64-unknown-linux-gnu/release/forge",
+                debug_binary_path: "target/x86_64-unknown-linux-gnu/debug/forge",
                 cross: "false",
             },
             MatrixEntry {
@@ -44,6 +48,7 @@ impl Default for ReleaseMatrix {
                 target: "aarch64-unknown-linux-gnu",
                 binary_name: "forge-aarch64-unknown-linux-gnu",
                 binary_path: "target/aarch64-unknown-linux-gnu/release/forge",
+                debug_binary_path: "target/aarch64-unknown-linux-gnu/debug/forge",
                 cross: "true",
             },
             MatrixEntry {
@@ -51,6 +56,7 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-apple-darwin",
                 binary_name: "forge-x86_64-apple-darwin",
                 binary_path: "target/x86_64-apple-darwin/release/forge",
+                debug_binary_path: "target/x86_64-apple-darwin/debug/forge",
                 cross: "false",
             },
             MatrixEntry {
@@ -58,6 +64,7 @@ impl Default for ReleaseMatrix {
                 target: "aarch64-apple-darwin",
                 binary_name: "forge-aarch64-apple-darwin",
                 binary_path: "target/aarch64-apple-darwin/release/forge",
+                debug_binary_path: "target/aarch64-apple-darwin/debug/forge",
                 cross: "false",
             },
             MatrixEntry {
@@ -65,6 +72,7 @@ impl Default for ReleaseMatrix {
                 target: "x86_64-pc-windows-msvc",
                 binary_name: "forge-x86_64-pc-windows-msvc.exe",
                 binary_path: "target/x86_64-pc-windows-msvc/release/forge.exe",
+                debug_binary_path: "target/x86_64-pc-windows-msvc/debug/forge.exe",
                 cross: "false",
             },
             MatrixEntry {
@@ -72,6 +80,7 @@ impl Default for ReleaseMatrix {
                 target: "aarch64-pc-windows-msvc",
                 binary_name: "forge-aarch64-pc-windows-msvc.exe",
                 binary_path: "target/aarch64-pc-windows-msvc/release/forge.exe",
+                debug_binary_path: "target/aarch64-pc-windows-msvc/debug/forge.exe",
                 cross: "false",
             },
             MatrixEntry {
@@ -79,6 +88,7 @@ impl Default for ReleaseMatrix {
                 target: "aarch64-linux-android",
                 binary_name: "forge-aarch64-linux-android",
                 binary_path: "target/aarch64-linux-android/release/forge",
+                debug_binary_path: "target/aarch64-linux-android/debug/forge",
                 cross: "true",
             },
         ])

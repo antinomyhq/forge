@@ -15,11 +15,19 @@ pub struct ReleaseBuilderJob {
 
     /// When true, the built binary is uploaded as a GitHub Actions artifact
     pub upload_artifact: Option<bool>,
+
+    /// When true, builds a debug binary instead of a release binary
+    pub debug: Option<bool>,
 }
 
 impl ReleaseBuilderJob {
     pub fn new(version: impl AsRef<str>) -> Self {
-        Self { version: version.as_ref().to_string(), release_id: None, upload_artifact: None }
+        Self {
+            version: version.as_ref().to_string(),
+            release_id: None,
+            upload_artifact: None,
+            debug: None,
+        }
     }
 
     pub fn into_job(self) -> Job {
@@ -29,6 +37,13 @@ impl ReleaseBuilderJob {
 
 impl From<ReleaseBuilderJob> for Job {
     fn from(value: ReleaseBuilderJob) -> Job {
+        let is_debug = value.debug.unwrap_or(false);
+        let (cargo_command, binary_path_expr) = if is_debug {
+            ("build", "${{ matrix.debug_binary_path }}")
+        } else {
+            ("build --release", "${{ matrix.binary_path }}")
+        };
+
         let mut job = Job::new("build-release")
             .strategy(Strategy {
                 fail_fast: None,
@@ -75,7 +90,7 @@ impl From<ReleaseBuilderJob> for Job {
             .add_step(
                 Step::new("Build Binary")
                     .uses("ClementTsang", "cargo-action", "v0.0.7")
-                    .add_with(("command", "build --release"))
+                    .add_with(("command", cargo_command))
                     .add_with(("args", "--target ${{ matrix.target }}"))
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.5"))
@@ -89,7 +104,7 @@ impl From<ReleaseBuilderJob> for Job {
                 // Rename binary to target name
                 .add_step(
                     Step::new("Copy Binary")
-                        .run("cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}"),
+                        .run(format!("cp {} ${{{{ matrix.binary_name }}}}", binary_path_expr)),
                 )
                 // Upload to the generated github release id
                 .add_step(
@@ -106,7 +121,7 @@ impl From<ReleaseBuilderJob> for Job {
                 // Rename binary to target name before uploading as artifact
                 .add_step(
                     Step::new("Copy Binary")
-                        .run("cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}"),
+                        .run(format!("cp {} ${{{{ matrix.binary_name }}}}", binary_path_expr)),
                 )
                 // Upload the built binary as a GitHub Actions artifact
                 .add_step(
