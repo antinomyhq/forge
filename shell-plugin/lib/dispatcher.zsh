@@ -28,6 +28,9 @@ function _forge_action_default() {
             local command_type=$(echo "$command_row" | awk '{print $2}')
             # Case-insensitive comparison using :l (lowercase) modifier
             if [[ "${command_type:l}" == "custom" ]]; then
+                # Ensure a provider is configured before running the command
+                _forge_ensure_provider || return 0
+
                 # Generate conversation ID if needed (don't track previous for auto-generation)
                 if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
                     local new_id=$($_FORGE_BIN conversation new)
@@ -58,6 +61,9 @@ function _forge_action_default() {
         return 0
     fi
     
+    # Ensure a provider is configured before sending the message
+    _forge_ensure_provider || return 0
+
     # Generate conversation ID if needed (don't track previous for auto-generation)
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
         local new_id=$($_FORGE_BIN conversation new)

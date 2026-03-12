@@ -2,6 +2,43 @@
 
 # Core action handlers for basic forge operations
 
+# Ensure a provider is configured before sending a chat message.
+# If no provider is active, runs the shell-native provider selection and auth
+# flow (_forge_action_provider) instead of letting the Rust CLI fall back to
+# its interactive ForgeSelect prompts (which crash on Windows Git Bash).
+# Returns 0 if a provider is ready, 1 if the user cancelled or auth failed.
+function _forge_ensure_provider() {
+    local provider auth_info configured
+    provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null </dev/null)
+    if [[ -z "$provider" || "$provider" == "Provider: Not set" ]]; then
+        # No provider in config at all — run full provider selection + auth
+        _forge_log info "No provider configured. Please select one."
+        _forge_action_provider ""
+        # Re-check after the selection flow
+        provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null </dev/null)
+        if [[ -z "$provider" || "$provider" == "Provider: Not set" ]]; then
+            return 1
+        fi
+        return 0
+    fi
+
+    # Provider is in config — check if credentials are valid (not logged out)
+    auth_info=$($_FORGE_BIN provider auth-info "$provider" 2>/dev/null </dev/null)
+    configured=$(echo "$auth_info" | awk -F= '/^configured=/{print $2}')
+    if [[ "$configured" != "yes" ]]; then
+        # Provider set but no valid credentials — run auth for this provider
+        _forge_log info "Provider '$provider' is not authenticated. Please log in."
+        _forge_provider_auth "$provider"
+        # Re-check
+        auth_info=$($_FORGE_BIN provider auth-info "$provider" 2>/dev/null </dev/null)
+        configured=$(echo "$auth_info" | awk -F= '/^configured=/{print $2}')
+        if [[ "$configured" != "yes" ]]; then
+            return 1
+        fi
+    fi
+    return 0
+}
+
 # Action handler: Start a new conversation
 function _forge_action_new() {
     local input_text="$1"
@@ -14,6 +51,9 @@ function _forge_action_new() {
     
     # If input_text is provided, send it to the new conversation
     if [[ -n "$input_text" ]]; then
+        # Ensure a provider is configured before sending the message
+        _forge_ensure_provider || return 0
+
         # Generate new conversation ID and switch to it
         local new_id=$($_FORGE_BIN conversation new)
         _forge_switch_conversation "$new_id"
