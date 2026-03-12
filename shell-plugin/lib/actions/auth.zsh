@@ -9,7 +9,7 @@ function _forge_provider_auth() {
     
     # Get auth info from the CLI
     local auth_info
-    auth_info=$(_forge_exec provider auth-info "$provider_id" 2>&1)
+    auth_info=$(_forge_exec provider auth-info "$provider_id" 2>&1 </dev/null)
     
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to get auth info for provider '$provider_id'" >&2
@@ -25,7 +25,7 @@ function _forge_provider_auth() {
             url_params) url_params="$value" ;;
             configured) configured="$value" ;;
             existing_api_key) existing_api_key="$value" ;;
-            existing_params) exis ting_params="$value" ;;
+            existing_params) existing_params="$value" ;;
         esac
     done <<< "$auth_info"
     

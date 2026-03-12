@@ -91,7 +91,7 @@ function _forge_action_provider() {
         # control back to the Rust CLI's interactive ForgeSelect prompts
         # (which crash on Windows Git Bash / mintty).
         local auth_info configured
-        auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null)
+        auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null </dev/null)
         configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
 
         if [[ "$configured" != "yes" ]]; then
@@ -179,7 +179,7 @@ function _forge_action_model() {
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
                 # Check if the target provider is configured before switching
                 local auth_info configured
-                auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null)
+                auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null </dev/null)
                 configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
                 if [[ "$configured" != "yes" ]]; then
                     _forge_provider_auth "$provider_id" || return 1
