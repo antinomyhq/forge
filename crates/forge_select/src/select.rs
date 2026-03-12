@@ -514,10 +514,16 @@ impl<T> MultiSelectBuilder<T> {
                 let selected_items: Vec<T> = output
                     .lines()
                     .filter(|l| !l.trim().is_empty())
-                    .filter_map(|line| parse_fzf_index(line).and_then(|i| self.options.get(i).cloned()))
+                    .filter_map(|line| {
+                        parse_fzf_index(line).and_then(|i| self.options.get(i).cloned())
+                    })
                     .collect();
 
-                if selected_items.is_empty() { Ok(None) } else { Ok(Some(selected_items)) }
+                if selected_items.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(selected_items))
+                }
             }
         }
     }
@@ -584,7 +590,11 @@ mod tests {
 
     #[test]
     fn test_indexed_items() {
-        let display = vec!["Apple".to_string(), "Apple".to_string(), "Banana".to_string()];
+        let display = vec![
+            "Apple".to_string(),
+            "Apple".to_string(),
+            "Banana".to_string(),
+        ];
         let actual = indexed_items(&display);
         let expected = vec!["0\tApple", "1\tApple", "2\tBanana"];
         assert_eq!(actual, expected);
