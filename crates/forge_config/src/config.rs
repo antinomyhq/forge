@@ -21,7 +21,11 @@ pub struct ForgeConfig {
     pub banner: Option<String>,
 
     /// Maximum percentage of the context that can be summarized during compaction.
-    #[serde(default, skip_serializing_if = "Option::is_none", deserialize_with = "deserialize_optional_percentage")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_percentage"
+    )]
     pub compact_eviction_window: Option<f64>,
 
     /// Maximum number of tokens to keep after compaction.
@@ -39,10 +43,6 @@ pub struct ForgeConfig {
     /// Number of most recent messages to preserve during compaction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact_retention_window: Option<usize>,
-
-    /// Optional tag name to extract content from when summarizing.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_summary_tag: Option<SummaryTag>,
 
     /// Maximum number of tokens before triggering compaction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -82,7 +82,7 @@ pub struct ForgeConfig {
 
     /// Base URL for Forge's backend APIs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub forge_api_url: Option<String>,
+    pub api_url: Option<String>,
 
     /// Accept invalid TLS certificates. Use with caution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -152,9 +152,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_extensions: Option<usize>,
 
-    /// Maximum number of files that can be read in a single batch operation.
+    /// Maximum number of files that can be open in a single batch operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_file_read_batch_size: Option<usize>,
+    pub max_file_open: Option<usize>,
 
     /// Maximum file size in bytes for operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -166,11 +166,11 @@ pub struct ForgeConfig {
 
     /// Maximum characters per line for file read operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub file_max_line_length: Option<usize>,
+    pub max_file_line_length: Option<usize>,
 
     /// Maximum number of lines to read from a file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_read_size: Option<u64>,
+    pub max_file_lines: Option<u64>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
@@ -195,11 +195,7 @@ pub struct ForgeConfig {
 
     /// Identifier of the default provider that hosts the model (e.g. `"openai"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub model_provider_id: Option<String>,
-
-    /// Maximum number of files read concurrently in parallel operations.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub parallel_file_reads: Option<usize>,
+    pub provider_id: Option<String>,
 
     /// Backoff multiplication factor applied on each successive retry attempt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -261,7 +257,7 @@ pub struct ForgeConfig {
     pub temperature: Option<f32>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub templates: Option<String>,
+    pub templates_dir: Option<String>,
 
     /// Maximum execution time in seconds for a single tool call.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -275,15 +271,11 @@ pub struct ForgeConfig {
 
     /// Whether to automatically apply updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub updates_auto: Option<bool>,
+    pub update: Option<bool>,
 
     /// How often to check for updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub updates_frequency: Option<UpdateFrequency>,
-
-    /// URL for the workspace indexing server.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub workspace_server_url: Option<String>,
+    pub update_frequency: Option<UpdateFrequency>,
 }
 
 impl ForgeConfig {
