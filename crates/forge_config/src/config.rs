@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Root configuration type for the forge_config crate.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Config {
+pub struct ForgeConfig {
     /// Format for automatically creating a dump when a task is completed.
     /// Set to "json" (or "true"/"1"/"yes") for JSON, "html" for HTML, or
     /// omit to disable.
