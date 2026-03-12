@@ -2,6 +2,7 @@ use gh_workflow::generate::Generate;
 use gh_workflow::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
+use crate::release_matrix::ReleaseMatrix;
 use crate::steps::setup_protoc;
 
 /// Generate the main CI workflow
@@ -114,6 +115,7 @@ pub fn generate_ci_workflow() {
         ReleaseBuilderJob::new("${{ needs.draft_release_pr.outputs.crate_release_name }}")
             .upload_artifact(true)
             .debug(true)
+            .matrix(ReleaseMatrix::pr())
             .into_job()
             .add_needs("draft_release_pr")
             .cond(Expression::new(

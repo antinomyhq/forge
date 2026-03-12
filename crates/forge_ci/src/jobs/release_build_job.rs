@@ -18,6 +18,9 @@ pub struct ReleaseBuilderJob {
 
     /// When true, builds a debug binary instead of a release binary
     pub debug: Option<bool>,
+
+    /// Override the build matrix; defaults to the full release matrix
+    pub matrix: Option<ReleaseMatrix>,
 }
 
 impl ReleaseBuilderJob {
@@ -27,6 +30,7 @@ impl ReleaseBuilderJob {
             release_id: None,
             upload_artifact: None,
             debug: None,
+            matrix: None,
         }
     }
 
@@ -44,11 +48,12 @@ impl From<ReleaseBuilderJob> for Job {
             ("build --release", "${{ matrix.binary_path }}")
         };
 
+        let matrix = value.matrix.unwrap_or_default();
         let mut job = Job::new("build-release")
             .strategy(Strategy {
                 fail_fast: None,
                 max_parallel: None,
-                matrix: Some(ReleaseMatrix::default().into()),
+                matrix: Some(matrix.into()),
             })
             .runs_on("${{ matrix.os }}")
             .permissions(
