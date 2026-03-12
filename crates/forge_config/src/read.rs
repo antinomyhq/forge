@@ -1,4 +1,4 @@
-use config::{builder::AsyncState, ConfigBuilder, Environment, File, FileFormat};
+use config::{ConfigBuilder, Environment, File, FileFormat, builder::AsyncState};
 use serde::de::DeserializeOwned;
 
 use crate::config::ForgeConfig;
@@ -40,7 +40,7 @@ pub async fn read_as<T: DeserializeOwned>(path: &str) -> Result<T, Error> {
     let cfg = ConfigBuilder::<AsyncState>::default()
         .add_source(File::new(&format!("{path}.yaml"), FileFormat::Yaml).required(false))
         .add_source(File::new(&format!("{path}.json"), FileFormat::Json).required(false))
-        .add_source(Environment::default())
+        .add_source(Environment::with_prefix("FORGE"))
         .build()
         .await?;
 
