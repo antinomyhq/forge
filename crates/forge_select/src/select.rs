@@ -15,6 +15,7 @@ pub struct ForgeSelect;
 pub struct SelectBuilder<T> {
     message: String,
     options: Vec<T>,
+    starting_cursor: Option<usize>,
     default: Option<bool>,
     help_message: Option<&'static str>,
     initial_text: Option<String>,
@@ -24,6 +25,7 @@ pub struct SelectBuilder<T> {
 pub struct SelectBuilderOwned<T> {
     message: String,
     options: Vec<T>,
+    starting_cursor: Option<usize>,
     initial_text: Option<String>,
 }
 
@@ -33,6 +35,7 @@ impl ForgeSelect {
         SelectBuilder {
             message: message.into(),
             options,
+            starting_cursor: None,
             default: None,
             help_message: None,
             initial_text: None,
@@ -42,7 +45,7 @@ impl ForgeSelect {
     /// Entry point for select operations with owned values (doesn't require
     /// Clone).
     pub fn select_owned<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilderOwned<T> {
-        SelectBuilderOwned { message: message.into(), options, initial_text: None }
+        SelectBuilderOwned { message: message.into(), options, starting_cursor: None, initial_text: None }
     }
 
     /// Convenience method for confirm (yes/no).
@@ -50,6 +53,7 @@ impl ForgeSelect {
         SelectBuilder {
             message: message.into(),
             options: vec![true, false],
+            starting_cursor: None,
             default: None,
             help_message: None,
             initial_text: None,
@@ -78,7 +82,15 @@ impl ForgeSelect {
 /// rather than switching to the alternate screen buffer. Without this flag fzf
 /// uses full-screen mode which enters the alternate screen (`\033[?1049h`),
 /// making it appear as though the terminal is cleared.
-fn build_fzf(header: &str, help_message: Option<&str>, initial_text: Option<&str>) -> Fzf {
+///
+/// When `starting_cursor` is provided, `--bind="start:pos(N)"` is added so fzf
+/// pre-positions the cursor on the Nth item (1-based in fzf's `pos()` action).
+fn build_fzf(
+    header: &str,
+    help_message: Option<&str>,
+    initial_text: Option<&str>,
+    starting_cursor: Option<usize>,
+) -> Fzf {
     let mut builder = Fzf::builder();
     builder.layout(Layout::Reverse);
 
@@ -95,6 +107,10 @@ fn build_fzf(header: &str, help_message: Option<&str>, initial_text: Option<&str
     if let Some(query) = initial_text {
         args.push(format!("--query={}", query));
     }
+    // fzf's pos() action is 1-based; our starting_cursor is 0-based.
+    if let Some(cursor) = starting_cursor {
+        args.push(format!("--bind=start:pos({})", cursor + 1));
+    }
     builder.custom_args(args);
 
     builder
@@ -103,6 +119,12 @@ fn build_fzf(header: &str, help_message: Option<&str>, initial_text: Option<&str
 }
 
 impl<T: 'static> SelectBuilder<T> {
+    /// Set starting cursor position.
+    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
+        self.starting_cursor = Some(cursor);
+        self
+    }
+
     /// Set default for confirm (only works with bool options).
     pub fn with_default(mut self, default: bool) -> Self {
         self.default = Some(default);
@@ -157,6 +179,7 @@ impl<T: 'static> SelectBuilder<T> {
             &self.message,
             self.help_message,
             self.initial_text.as_deref(),
+            self.starting_cursor,
         );
 
         let selected = run_with_output(fzf, display_options.iter().map(|s| s.as_str()));
@@ -174,10 +197,8 @@ impl<T: 'static> SelectBuilder<T> {
 
 impl<T> SelectBuilderOwned<T> {
     /// Set starting cursor position.
-    ///
-    /// Note: This is a no-op with fzf backend. fzf does not support
-    /// pre-selecting a specific item by index.
-    pub fn with_starting_cursor(self, _cursor: usize) -> Self {
+    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
+        self.starting_cursor = Some(cursor);
         self
     }
 
@@ -214,7 +235,7 @@ impl<T> SelectBuilderOwned<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).trim().to_string())
             .collect();
 
-        let fzf = build_fzf(&self.message, None, self.initial_text.as_deref());
+        let fzf = build_fzf(&self.message, None, self.initial_text.as_deref(), self.starting_cursor);
 
         let selected = run_with_output(fzf, display_options.iter().map(|s| s.as_str()));
 
@@ -242,7 +263,7 @@ fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> R
         vec!["Yes", "No"]
     };
 
-    let fzf = build_fzf(message, None, None);
+    let fzf = build_fzf(message, None, None, None);
     let selected = run_with_output(fzf, items.iter().copied());
 
     let result: Option<bool> = match selected.as_deref().map(str::trim) {
@@ -549,11 +570,9 @@ mod tests {
     }
 
     #[test]
-    fn test_with_starting_cursor_is_noop() {
-        // with_starting_cursor should be a no-op and not panic
+    fn test_with_starting_cursor() {
         let builder = ForgeSelect::select("Test", vec!["a", "b", "c"]).with_starting_cursor(2);
-        assert_eq!(builder.message, "Test");
-        assert_eq!(builder.options, vec!["a", "b", "c"]);
+        assert_eq!(builder.starting_cursor, Some(2));
     }
 
     #[test]
