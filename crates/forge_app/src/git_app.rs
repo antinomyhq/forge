@@ -323,7 +323,7 @@ where
                             Ok(provider) => (provider, commit_model),
                             Err(err) => {
                                 tracing::warn!(
-                                    error = %err,
+                                    error = ?err,
                                     "Failed to refresh credentials for configured commit provider. Falling back to the active provider."
                                 );
                                 self.resolve_agent_provider_and_model(
@@ -336,7 +336,7 @@ where
                     }
                     Err(err) => {
                         tracing::warn!(
-                            error = %err,
+                            error = ?err,
                             "Configured commit provider unavailable. Falling back to the active provider."
                         );
                         self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
