@@ -276,8 +276,9 @@ fn parse_email(text: String) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     static TRACKER: LazyLock<Tracker> = LazyLock::new(Tracker::default);
 
