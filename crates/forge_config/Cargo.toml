@@ -8,3 +8,7 @@ rust-version.workspace = true
 config = { version = "0.14", features = ["async"] }
 serde.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+tokio.workspace = true
