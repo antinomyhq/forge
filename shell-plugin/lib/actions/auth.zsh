@@ -38,7 +38,7 @@ function _forge_provider_auth() {
         selected_auth_method="${auth_methods_array[1]}"
     elif [[ ${#auth_methods_array[@]} -gt 1 ]]; then
         echo "Select authentication method for $provider_id:" >/dev/tty
-        selected_auth_method=$(printf '%s\n' "${auth_methods_array[@]}" | fzf --height=10 --prompt="Auth method: " </dev/tty >/dev/tty)
+        selected_auth_method=$(printf '%s\n' "${auth_methods_array[@]}" | fzf --height=10 --prompt="Auth method: " </dev/tty 2>/dev/tty)
         if [[ -z "$selected_auth_method" ]]; then
             echo "Cancelled" >&2
             return 1
