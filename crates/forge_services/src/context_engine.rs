@@ -315,7 +315,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 emit(counter.sync_progress()).await;
             }
             Err(e) => {
-                warn!(workspace_id = %workspace_id, error = %e,"Failed to delete files during sync");
+                warn!(workspace_id = %workspace_id, error = ?e,"Failed to delete files during sync");
                 failed_files += files_to_delete.len();
             }
         }
@@ -332,7 +332,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                     emit(counter.sync_progress()).await;
                 }
                 Err(e) => {
-                    warn!(workspace_id = %workspace_id, error = %e, "Failed to upload file during sync");
+                    warn!(workspace_id = %workspace_id, error = ?e, "Failed to upload file during sync");
                     failed_files += 1;
                     // Continue processing remaining uploads
                 }
