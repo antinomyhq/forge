@@ -33,7 +33,7 @@ pub struct ForgeConfig {
 
     /// Maximum characters for fetch content truncation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fetch_truncation_limit: Option<usize>,
+    pub max_fetch_truncation: Option<usize>,
 
     /// Base URL for Forge's backend APIs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -80,7 +80,7 @@ pub struct ForgeConfig {
 
     /// Maximum bytes allowed for search results.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_search_result_bytes: Option<usize>,
+    pub max_search_result_size: Option<usize>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<u64>,
@@ -98,7 +98,7 @@ pub struct ForgeConfig {
 
     /// Configuration for the retry mechanism.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_config: Option<RetryConfig>,
+    pub retry: Option<RetryConfig>,
 
     /// Maximum number of results to return from initial vector search.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -114,11 +114,11 @@ pub struct ForgeConfig {
 
     /// Maximum lines for shell output prefix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stdout_max_prefix_length: Option<usize>,
+    pub stdout_max_prefix_lines: Option<usize>,
 
     /// Maximum lines for shell output suffix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub stdout_max_suffix_length: Option<usize>,
+    pub stdout_max_suffix_lines: Option<usize>,
 
     /// Model configuration for code suggestion generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -267,13 +267,13 @@ pub struct SummaryTag(pub String);
 /// Configuration for the HTTP retry mechanism.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RetryConfig {
-    /// Initial backoff delay in milliseconds for retry operations.
+    /// Backoff multiplication factor applied on each successive retry attempt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backoff_factor: Option<u64>,
 
     /// Initial backoff delay in milliseconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub initial_backoff_ms: Option<u64>,
+    pub initial_backoff: Option<u64>,
 
     /// Maximum delay between retries in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -285,7 +285,7 @@ pub struct RetryConfig {
 
     /// Minimum delay in milliseconds between retry attempts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub min_delay_ms: Option<u64>,
+    pub min_delay: Option<u64>,
 
     /// HTTP status codes that should trigger retries (e.g., 429, 500, 502).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -339,11 +339,11 @@ pub struct HttpConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_tls_version: Option<TlsVersion>,
 
-    /// Maximum idle connections per host in the connection pool.
+    /// Pool idle timeout in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pool_idle_timeout: Option<u64>,
 
-    /// Pool idle timeout in seconds.
+    /// Maximum number of idle connections per host in the connection pool.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pool_max_idle_per_host: Option<usize>,
 
