@@ -9,7 +9,8 @@ pub trait LineNumbers {
 }
 
 impl<T: AsRef<str>> LineNumbers for T {
-    // FIXME: Create a newtype - `NumberedContent` and use it in return type instead of String
+    // FIXME: Create a newtype - `NumberedContent` and use it in return type instead
+    // of String
     fn to_numbered_from(&self, start: usize) -> String {
         let text = self.as_ref();
         let lines: Vec<&str> = text.lines().collect();

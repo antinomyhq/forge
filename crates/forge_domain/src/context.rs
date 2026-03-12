@@ -461,7 +461,13 @@ impl Context {
         attachments.into_iter().fold(self, |ctx, attachment| {
             ctx.add_message(match attachment.content {
                 AttachmentContent::Image(image) => ContextMessage::Image(image),
-                AttachmentContent::FileContent { content, start_line, end_line, total_lines, .. } => {
+                AttachmentContent::FileContent {
+                    content,
+                    start_line,
+                    end_line,
+                    total_lines,
+                    ..
+                } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
                         .attr("start_line", start_line)

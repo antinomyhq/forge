@@ -6,13 +6,15 @@ use crate::Image;
 /// A file or directory attachment included in a chat message.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct Attachment {
-    /// The resolved content of the attachment (image, file text, or directory listing).
+    /// The resolved content of the attachment (image, file text, or directory
+    /// listing).
     pub content: AttachmentContent,
     /// The original path or URL string used to reference this attachment.
     pub path: String,
 }
 
-/// The resolved content of an attachment, discriminated by the type of resource it represents.
+/// The resolved content of an attachment, discriminated by the type of resource
+/// it represents.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AttachmentContent {
     /// A binary image file encoded for inline display.
