@@ -1337,12 +1337,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|m| m.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
+        let suggest_config = self.api.get_suggest_config().await.ok().flatten();
+        let suggest_provider = suggest_config
+            .as_ref()
+            .map(|c| c.provider.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+        let suggest_model = suggest_config
+            .as_ref()
+            .map(|c| c.model.as_str().to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
         let info = Info::new()
             .add_title("CONFIGURATION")
             .add_key_value("Default Model", model)
             .add_key_value("Default Provider", provider)
             .add_key_value("Commit Provider", commit_provider)
-            .add_key_value("Commit Model", commit_model);
+            .add_key_value("Commit Model", commit_model)
+            .add_key_value("Suggest Provider", suggest_provider)
+            .add_key_value("Suggest Model", suggest_model);
 
         if porcelain {
             self.writeln(
@@ -3561,6 +3573,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .sub_title(format!("is now the commit model for provider '{provider}'")),
                 )?;
             }
+            ConfigSetField::Suggest { provider, model } => {
+                // Validate provider exists and model belongs to that specific provider
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let suggest_config = forge_domain::SuggestConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api.set_suggest_config(suggest_config).await?;
+                self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
+                    format!("is now the suggest model for provider '{provider}'"),
+                ))?;
+            }
         }
 
         Ok(())
@@ -3600,7 +3624,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     Some(config) => {
                         let provider = config
                             .provider
-                            .map(|p| p.to_string())
+                            .map(|p| p.as_ref().to_string())
                             .unwrap_or_else(|| "Not set".to_string());
                         let model = config
                             .model
@@ -3610,6 +3634,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(model)?;
                     }
                     None => self.writeln("Commit: Not set")?,
+                }
+            }
+            ConfigGetField::Suggest => {
+                let suggest_config = self.api.get_suggest_config().await?;
+                match suggest_config {
+                    Some(config) => {
+                        self.writeln(config.provider.as_ref())?;
+                        self.writeln(config.model.as_str().to_string())?;
+                    }
+                    None => self.writeln("Suggest: Not set")?,
                 }
             }
         }
@@ -3963,6 +3997,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .iter()
                     .filter(|s| s.status == SyncStatus::Deleted)
                     .count();
+                let failed = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::Failed)
+                    .count();
 
                 // Add sync status section
                 info = info.add_title("Sync Status");
@@ -3978,6 +4016,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 if deleted > 0 {
                     info = info.add_key_value("Deleted", deleted.to_string());
+                }
+                if failed > 0 {
+                    info = info.add_key_value("Failed", failed.to_string());
                 }
 
                 self.writeln(info)
@@ -4055,6 +4096,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 s.status == SyncStatus::Modified
                     || s.status == SyncStatus::New
                     || s.status == SyncStatus::Deleted
+                    || s.status == SyncStatus::Failed
             })
             .count();
 
@@ -4087,6 +4129,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SyncStatus::Modified => Some((status, "modified")),
             SyncStatus::New => Some((status, "added")),
             SyncStatus::Deleted => Some((status, "deleted")),
+            SyncStatus::Failed => Some((status, "failed")),
         }) {
             info = info.add_key_value(&status.path, label);
         }

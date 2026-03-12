@@ -558,6 +558,13 @@ pub enum ConfigSetField {
         /// Model ID to use for commit message generation.
         model: ModelId,
     },
+    /// Set the provider and model for command suggestion generation.
+    Suggest {
+        /// Provider ID to use for command suggestion generation.
+        provider: ProviderId,
+        /// Model ID to use for command suggestion generation.
+        model: ModelId,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -569,6 +576,8 @@ pub enum ConfigGetField {
     Provider,
     /// Get the commit message generation config.
     Commit,
+    /// Get the command suggestion generation config.
+    Suggest,
 }
 
 /// Command group for conversation management.
