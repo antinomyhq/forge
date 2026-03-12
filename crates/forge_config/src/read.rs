@@ -38,26 +38,29 @@ fn load_dot_env(cwd: &Path) {
 /// 1. `.env` files loaded from the current working directory upward
 /// 2. Embedded `default.yaml` (compiled into the binary)
 /// 3. A YAML file at `~/forge/forge.yaml` (optional — skipped if the file does not exist)
-/// 4. A JSON file at `~/forge/forge.json` (optional — skipped if the file does not exist)
+/// 4. A YAML file at `<cwd>/.forge/forge.yaml` (optional — skipped if the file does not exist)
 /// 5. Environment variables (always active)
 ///
-/// # Errors
-///
-/// Returns [`Error`] if any source fails to parse or if deserialization into `T` fails.
+/// CWD-level config files take precedence over home-level ones.
 pub async fn read<T: DeserializeOwned>() -> Result<T, Error> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     load_dot_env(&cwd);
 
-    let base = dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("forge")
-        .join("forge");
-    let path = base.to_string_lossy();
+    let home_base = dirs::home_dir()
+        .map(|a| a.join("forge"))
+        .unwrap_or(PathBuf::from(".").join("forge"));
+    let home_path = home_base.join("forge");
+    let home = home_path.to_string_lossy();
+
+    let project_path = cwd.join(".forge").join("forge");
+    let project = project_path.to_string_lossy();
 
     let cfg = ConfigBuilder::<AsyncState>::default()
         .add_source(File::from_str(DEFAULT_CONFIG, FileFormat::Yaml))
-        .add_source(File::new(&format!("{path}.yaml"), FileFormat::Yaml).required(false))
-        .add_source(File::new(&format!("{path}.json"), FileFormat::Json).required(false))
+        // Home-level config (lower priority)
+        .add_source(File::new(&format!("{home}.yaml"), FileFormat::Yaml).required(false))
+        // Project-level config (higher priority, overrides home)
+        .add_source(File::new(&format!("{project}.yaml"), FileFormat::Yaml).required(false))
         .add_source(
             Environment::with_prefix("FORGE")
                 .prefix_separator("_")
@@ -152,7 +155,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_currency_conversion_rate() {
-        let config = read_env("FORGE_CURRENCY_CONVERSION_RATE=1.5").await.unwrap();
+        let config = read_env("FORGE_CURRENCY_CONVERSION_RATE=1.5")
+            .await
+            .unwrap();
         let actual = config.currency_conversion_rate;
         let expected = Some(1.5f64);
 
