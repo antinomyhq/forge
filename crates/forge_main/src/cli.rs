@@ -5,10 +5,42 @@
 //! remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
 //! shell completion and command shortcuts that depend on the CLI structure.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ConversationId, ModelId, ProviderId};
+use clap::builder::Str;
+use clap::{Parser, Subcommand, ValueEnum, builder::PossibleValue};
+use derive_more::Into;
+use forge_domain::{AgentId, AuthMethodKind, ConversationId, ModelId, ProviderId};
+use lazy_static::lazy_static;
+use strum::IntoEnumIterator as _;
+
+lazy_static! {
+    static ref AUTH_METHOD_NAMES: HashMap<CliAuthMethod, String> = {
+        AuthMethodKind::iter()
+            .map(|k| (CliAuthMethod(k), k.to_string()))
+            .collect()
+    };
+    static ref AUTH_METHOD_KINDS: Vec<CliAuthMethod> = AuthMethodKind::iter()
+        .map(CliAuthMethod)
+        .collect::<Vec<_>>();
+}
+
+/// Thin CLI wrapper around [`AuthMethodKind`] that implements [`ValueEnum`].
+#[derive(Into, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CliAuthMethod(AuthMethodKind);
+
+impl ValueEnum for CliAuthMethod {
+    fn value_variants<'a>() -> &'a [Self] {
+        &AUTH_METHOD_KINDS
+    }
+
+    fn to_possible_value(&self) -> Option<PossibleValue> {
+        AUTH_METHOD_NAMES
+            .get(&self)
+            .map(|s| PossibleValue::new(Str::from(s.as_str())))
+    }
+}
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -694,8 +726,8 @@ pub enum ProviderCommand {
         params: Vec<String>,
 
         /// Pre-select authentication method.
-        #[arg(long, value_parser = ["api-key", "oauth-device", "oauth-code", "google-adc", "codex-device"])]
-        auth_method: Option<String>,
+        #[arg(long)]
+        auth_method: Option<CliAuthMethod>,
 
         /// Automatically set as active provider without confirmation.
         #[arg(long)]

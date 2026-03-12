@@ -1951,6 +1951,7 @@ dependencies = [
  "colored",
  "console 0.16.2",
  "convert_case",
+ "derive_more",
  "derive_setters",
  "fake",
  "forge_api",

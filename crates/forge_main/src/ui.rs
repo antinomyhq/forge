@@ -17,7 +17,8 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
+    AuthMethod, AuthMethodKind, ChatResponseContent, ConsoleWriter, ContextMessage, Role,
+    TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -29,7 +30,8 @@ use tokio_stream::StreamExt;
 use url::Url;
 
 use crate::cli::{
-    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, TopLevelCommand,
+    CliAuthMethod, Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand,
+    TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
@@ -843,7 +845,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: Option<&ProviderId>,
         api_key: Option<String>,
         params: Vec<String>,
-        auth_method: Option<String>,
+        auth_method: Option<CliAuthMethod>,
         set_active: bool,
         auth_code: Option<String>,
         init_only: bool,
@@ -898,7 +900,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 any_provider.auth_methods().to_vec(),
                 api_key,
                 params,
-                auth_method,
+                auth_method.map(AuthMethodKind::from),
                 auth_code,
                 set_active_option,
             )
@@ -2497,7 +2499,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
         api_key: Option<String>,
         params: Vec<String>,
-        auth_method_str: Option<String>,
+        auth_method_kind: Option<AuthMethodKind>,
         auth_code: Option<String>,
         set_active: Option<bool>,
     ) -> Result<Option<Provider<Url>>> {
@@ -2507,29 +2509,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Select auth method (or use the pre-supplied one, or the only one available)
-        let auth_method = if let Some(method_str) = auth_method_str {
-            // Pre-supplied auth method from CLI (kebab-case format like "api-key")
-            // Convert to lowercase and normalize for comparison
-            let normalized_input = method_str.to_lowercase().replace('-', "_");
-
+        let auth_method = if let Some(kind) = auth_method_kind {
+            // Pre-supplied auth method from CLI — find the matching AuthMethod variant
+            // (which carries the OAuth config payload) in the provider's supported list.
             auth_methods
                 .iter()
-                .find(|m| {
-                    // Convert AuthMethod to a comparable string format
-                    let method_name = match m {
-                        forge_domain::AuthMethod::ApiKey => "api_key",
-                        forge_domain::AuthMethod::OAuthDevice(_) => "oauth_device",
-                        forge_domain::AuthMethod::OAuthCode(_) => "oauth_code",
-                        forge_domain::AuthMethod::GoogleAdc => "google_adc",
-                        forge_domain::AuthMethod::CodexDevice(_) => "codex_device",
-                    };
-                    method_name == normalized_input
-                })
+                .find(|m| AuthMethodKind::from(*m as &AuthMethod) == kind)
                 .cloned()
                 .ok_or_else(|| {
                     anyhow::anyhow!(
-                        "Invalid auth method '{}' for provider '{}'",
-                        method_str,
+                        "Auth method '{}' is not supported by provider '{}'",
+                        kind,
                         provider_id
                     )
                 })?

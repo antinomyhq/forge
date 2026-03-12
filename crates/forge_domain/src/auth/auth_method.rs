@@ -1,10 +1,18 @@
 use serde::{Deserialize, Serialize};
+use strum_macros::{Display, EnumDiscriminants, EnumIter, EnumString};
 
 use super::OAuthConfig;
 
 /// Authentication method configuration
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// The companion discriminant enum [`AuthMethodDiscriminants`] is derived
+/// automatically via `EnumDiscriminants` and carries `EnumString`, `Display`,
+/// and `EnumIter` with kebab-case serialisation (e.g. `"api-key"`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumDiscriminants)]
 #[serde(rename_all = "snake_case")]
+#[strum_discriminants(derive(Display, EnumString, EnumIter, Hash))]
+#[strum_discriminants(strum(serialize_all = "kebab-case"))]
+#[strum_discriminants(name(AuthMethodKind))]
 pub enum AuthMethod {
     ApiKey,
     #[serde(rename = "oauth_device")]
