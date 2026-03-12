@@ -3,7 +3,7 @@ use std::sync::Arc;
 use forge_app::domain::{
     Attachment, AttachmentContent, DirectoryEntry, FileTag, Image, LineNumbers,
 };
-use forge_app::utils::format_display_path;
+use forge_app::utils::{compute_hash, format_display_path};
 use forge_app::{
     AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
 };
@@ -93,11 +93,16 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
                     .range_read_utf8(&path, start_line, end_line)
                     .await?;
 
+                // Hash the raw content before line-numbering so it matches
+                // what the external-change detector reads back from disk.
+                let content_hash = compute_hash(&file_content);
+
                 AttachmentContent::FileContent {
                     content: file_content.to_numbered_from(file_info.start_line as usize),
                     start_line: file_info.start_line,
                     end_line: file_info.end_line,
                     total_lines: file_info.total_lines,
+                    content_hash,
                 }
             }
         };
@@ -127,6 +132,7 @@ pub mod tests {
     use base64::Engine;
     use bytes::Bytes;
     use forge_app::domain::{AttachmentContent, Environment};
+    use forge_app::utils::compute_hash;
     use forge_app::{
         AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
@@ -770,6 +776,7 @@ pub mod tests {
                 start_line: 2,
                 end_line: 2,
                 total_lines: 5,
+                content_hash: compute_hash("Line 2"),
             }
         );
     }
@@ -799,6 +806,7 @@ pub mod tests {
                 start_line: 2,
                 end_line: 4,
                 total_lines: 6,
+                content_hash: compute_hash("Line 2\nLine 3\nLine 4"),
             }
         );
     }
@@ -824,6 +832,7 @@ pub mod tests {
                 start_line: 1,
                 end_line: 2,
                 total_lines: 4,
+                content_hash: compute_hash("First\nSecond"),
             }
         );
     }
@@ -849,6 +858,7 @@ pub mod tests {
                 start_line: 3,
                 end_line: 5,
                 total_lines: 5,
+                content_hash: compute_hash("Gamma\nDelta\nEpsilon"),
             }
         );
     }
@@ -874,6 +884,7 @@ pub mod tests {
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
+                content_hash: compute_hash("Only line"),
             }
         );
     }
@@ -902,6 +913,7 @@ pub mod tests {
                 start_line: 1,
                 end_line: 2,
                 total_lines: 3,
+                content_hash: compute_hash("A1\nA2"),
             }
         );
         assert_eq!(
@@ -911,6 +923,7 @@ pub mod tests {
                 start_line: 3,
                 end_line: 4,
                 total_lines: 4,
+                content_hash: compute_hash("B3\nB4"),
             }
         );
     }
@@ -939,6 +952,7 @@ pub mod tests {
                 start_line: 3,
                 end_line: 5,
                 total_lines: 7,
+                content_hash: compute_hash("Meta3\nMeta4\nMeta5"),
             }
         );
     }
@@ -968,6 +982,7 @@ pub mod tests {
             attachments_full[0].content,
             AttachmentContent::FileContent {
                 content: "1:Full1\n2:Full2\n3:Full3\n4:Full4\n5:Full5".to_string(),
+                content_hash: compute_hash("Full1\nFull2\nFull3\nFull4\nFull5"),
                 start_line: 1,
                 end_line: 5,
                 total_lines: 5,
@@ -979,6 +994,7 @@ pub mod tests {
             attachments_range[0].content,
             AttachmentContent::FileContent {
                 content: "2:Full2\n3:Full3\n4:Full4".to_string(),
+                content_hash: compute_hash("Full2\nFull3\nFull4"),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 5,
@@ -990,6 +1006,7 @@ pub mod tests {
             attachments_range_start[0].content,
             AttachmentContent::FileContent {
                 content: "2:Full2\n3:Full3\n4:Full4\n5:Full5".to_string(),
+                content_hash: compute_hash("Full2\nFull3\nFull4\nFull5"),
                 start_line: 2,
                 end_line: 5,
                 total_lines: 5,

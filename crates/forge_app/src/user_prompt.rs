@@ -218,12 +218,14 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         // Track file attachments as read operations in metrics
         let mut metrics = conversation.metrics.clone();
         for attachment in &attachments {
-            // Only track file content attachments (not images or directory listings)
-            if let AttachmentContent::FileContent { content, .. } = &attachment.content {
-                let content_hash = crate::utils::compute_hash(content);
+            // Only track file content attachments (not images or directory listings).
+            // Use the raw content_hash (computed before line-numbering) so that the
+            // external-change detector, which hashes the raw file on disk, sees a
+            // matching hash and does not raise a false "modified externally" warning.
+            if let AttachmentContent::FileContent { content_hash, .. } = &attachment.content {
                 metrics = metrics.insert(
                     attachment.path.clone(),
-                    FileOperation::new(ToolKind::Read).content_hash(Some(content_hash)),
+                    FileOperation::new(ToolKind::Read).content_hash(Some(content_hash.clone())),
                 );
             }
         }
@@ -391,6 +393,7 @@ mod tests {
                             start_line: 1,
                             end_line: 1,
                             total_lines: 1,
+                            content_hash: "hash1".to_string(),
                         },
                     },
                     Attachment {
@@ -400,6 +403,7 @@ mod tests {
                             start_line: 1,
                             end_line: 1,
                             total_lines: 1,
+                            content_hash: "hash2".to_string(),
                         },
                     },
                 ])
