@@ -113,8 +113,12 @@ fn build_fzf(
         args.push(format!("--query={}", query));
     }
     // fzf's pos() action is 1-based; our starting_cursor is 0-based.
+    // Use the `load` event (not `start`) because items are written to fzf's
+    // stdin after the process starts — `start` fires before items arrive so
+    // pos() has nothing to move to, while `load` fires once all items are
+    // available.
     if let Some(cursor) = starting_cursor {
-        args.push(format!("--bind=start:pos({})", cursor + 1));
+        args.push(format!("--bind=load:pos({})", cursor + 1));
     }
     builder.custom_args(args);
 
