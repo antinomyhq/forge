@@ -49,16 +49,6 @@ pre-build = [
     "chmod +x /usr/local/bin/protoc",
 ]
 
-[target.x86_64-pc-windows-msvc]
-# Custom image built from Dockerfile.x86_64-pc-windows-msvc.
-# Based on messense/cargo-xwin which uses clang-cl + lld-link to cross-compile
-# for Windows MSVC targets from Linux. The Dockerfile pre-caches the MSVC CRT
-# and Windows SDK (downloaded from Microsoft) and sets all required env vars.
-# Build the image once with:
-#   docker build -f Dockerfile.x86_64-pc-windows-msvc -t cross-windows-msvc:local .
-dockerfile = "./Dockerfile.x86_64-pc-windows-msvc"
-image = "cross-windows-msvc:local"
-
 [target.aarch64-linux-android]
 image = "ghcr.io/cross-rs/aarch64-linux-android:edge"
 pre-build = [
