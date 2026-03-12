@@ -33,15 +33,14 @@ clap = { version = "4.5.59", features = ["derive"] }
 clap_complete = "4.5.66"
 colored = "3.1.1"
 console = "0.16.0"
-dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
 convert_case = "0.10.0"
 
-crossterm = "0.29.0"
 derive_more = { version = "2.1.1", features = ["from", "display", "debug", "deref", "as_ref"] }
 derive_setters = "0.1.9"
 dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenvy = "0.15.7"
+fzf-wrapped = "0.1.4"
 futures = "0.3.32"
 gh-workflow = "0.8.1"
 glob = "0.3.3"
