@@ -28,6 +28,7 @@ function _forge_action_default() {
             local command_type=$(echo "$command_row" | awk '{print $2}')
             # Case-insensitive comparison using :l (lowercase) modifier
             if [[ "${command_type:l}" == "custom" ]]; then
+                echo
                 # Ensure a provider is configured before running the command
                 _forge_ensure_provider || return 0
 
@@ -38,7 +39,6 @@ function _forge_action_default() {
                     _FORGE_CONVERSATION_ID="$new_id"
                 fi
                 
-                echo
                 # Execute custom command with execute subcommand
                 if [[ -n "$input_text" ]]; then
                     _forge_exec cmd execute --cid "$_FORGE_CONVERSATION_ID" "$user_action" "$input_text"
@@ -61,6 +61,8 @@ function _forge_action_default() {
         return 0
     fi
     
+    echo
+
     # Ensure a provider is configured before sending the message
     _forge_ensure_provider || return 0
 
@@ -71,7 +73,6 @@ function _forge_action_default() {
         _FORGE_CONVERSATION_ID="$new_id"
     fi
     
-    echo
     
     # Only set the agent if user explicitly specified one
     if [[ -n "$user_action" ]]; then
