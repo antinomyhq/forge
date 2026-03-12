@@ -280,9 +280,7 @@ impl AnyProvider {
     pub fn url(&self) -> Option<Url> {
         match self {
             AnyProvider::Url(p) => Some(p.url().clone()),
-            AnyProvider::Template(t) if t.url_params.is_empty() => {
-                Url::parse(&t.url.template).ok()
-            }
+            AnyProvider::Template(t) if t.url_params.is_empty() => Url::parse(&t.url.template).ok(),
             AnyProvider::Template(_) => None,
         }
     }
