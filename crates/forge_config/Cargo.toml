@@ -5,3 +5,5 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+config = "0.14"
+serde.workspace = true
