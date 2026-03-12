@@ -26,6 +26,8 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+const TRACKING_ENV_VAR_NAME: &str = "FORGE_TRACKER";
+
 // Cached system information that doesn't change during application lifetime
 static CACHED_CORES: LazyLock<usize> = LazyLock::new(|| System::physical_core_count().unwrap_or(0));
 static CACHED_CLIENT_ID: LazyLock<String> = LazyLock::new(|| {
@@ -161,8 +163,18 @@ impl Tracker {
     }
 }
 
+fn tracking_enabled() -> bool {
+    std::env::var(TRACKING_ENV_VAR_NAME)
+        .map(|value| !value.eq_ignore_ascii_case("false"))
+        .unwrap_or(true)
+}
+
 // Get the email address
 async fn email() -> HashSet<String> {
+    if !tracking_enabled() {
+        return HashSet::new();
+    }
+
     fn parse(output: Output) -> Option<String> {
         if output.status.success() {
             let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -265,8 +277,44 @@ fn parse_email(text: String) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     static TRACKER: LazyLock<Tracker> = LazyLock::new(Tracker::default);
+
+    #[test]
+    fn test_tracking_fixture() {
+        unsafe {
+            std::env::remove_var(TRACKING_ENV_VAR_NAME);
+        }
+        let actual = tracking_enabled();
+        let expected = true;
+        assert_eq!(actual, expected);
+
+        unsafe {
+            std::env::set_var(TRACKING_ENV_VAR_NAME, "false");
+        }
+        let actual = tracking_enabled();
+        let expected = false;
+        assert_eq!(actual, expected);
+
+        unsafe {
+            std::env::set_var(TRACKING_ENV_VAR_NAME, "FALSE");
+        }
+        let actual = tracking_enabled();
+        let expected = false;
+        assert_eq!(actual, expected);
+
+        unsafe {
+            std::env::set_var(TRACKING_ENV_VAR_NAME, "true");
+        }
+        let actual = tracking_enabled();
+        let expected = true;
+        assert_eq!(actual, expected);
+
+        unsafe {
+            std::env::remove_var(TRACKING_ENV_VAR_NAME);
+        }
+    }
 
     #[tokio::test]
     async fn test_tracker() {
