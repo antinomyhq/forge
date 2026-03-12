@@ -919,8 +919,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Set as default; skip interactive model selection since the shell
         // handles model selection via :model after login.
-        self.finalize_provider_activation(provider, true)
-            .await
+        self.finalize_provider_activation(provider, true).await
     }
 
     async fn handle_provider_logout(
@@ -2689,8 +2688,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection (REPL interactive path)
-        self.finalize_provider_activation(provider, false)
-            .await
+        self.finalize_provider_activation(provider, false).await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
