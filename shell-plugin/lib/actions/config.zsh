@@ -91,7 +91,7 @@ function _forge_action_provider() {
         # control back to the Rust CLI's interactive ForgeSelect prompts
         # (which crash on Windows Git Bash / mintty).
         local auth_info configured
-        auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null </dev/null)
+        auth_info=$($_FORGE_BIN provider auth-info "$provider_id" 2>/dev/null </dev/null)
         configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
 
         if [[ "$configured" != "yes" ]]; then
@@ -188,14 +188,15 @@ function _forge_action_model() {
             provider_id=${provider_id//[[:space:]]/}
             provider_display=${provider_display//[[:space:]]/}
 
-            # Switch provider first if it differs from the current one
-            # config get provider returns the display name, so compare against that
+            # Switch provider first if it differs from the current one.
+            # Use $_FORGE_BIN directly (not _forge_exec) so we get the raw
+            # provider ID from config even when credentials are missing.
             local current_provider
-            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
-            if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
+            current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null </dev/null)
+            if [[ -n "$provider_id" && "$provider_id" != "$current_provider" ]]; then
                 # Check if the target provider is configured before switching
                 local auth_info configured
-                auth_info=$(_forge_exec provider auth-info "$provider_id" 2>/dev/null </dev/null)
+                auth_info=$($_FORGE_BIN provider auth-info "$provider_id" 2>/dev/null </dev/null)
                 configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
                 if [[ "$configured" != "yes" ]]; then
                     _forge_provider_auth "$provider_id" || return 1

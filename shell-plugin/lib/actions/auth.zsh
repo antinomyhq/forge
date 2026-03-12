@@ -7,13 +7,13 @@
 function _forge_provider_auth() {
     local provider_id="$1"
     
-    # Get auth info from the CLI
+    # Get auth info from the CLI — use $_FORGE_BIN directly (not _forge_exec)
+    # to avoid the --agent prefix which is irrelevant for this utility call.
     local auth_info
-    auth_info=$(_forge_exec provider auth-info "$provider_id" 2>&1 </dev/null)
+    auth_info=$($_FORGE_BIN provider auth-info "$provider_id" 2>/dev/null </dev/null)
     
     if [[ $? -ne 0 ]]; then
         echo "Error: Failed to get auth info for provider '$provider_id'" >&2
-        echo "$auth_info" >&2
         return 1
     fi
     

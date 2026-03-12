@@ -421,6 +421,10 @@ impl<
         self.services.get_provider(provider_id).await
     }
 
+    async fn get_default_provider_id(&self) -> Result<Option<ProviderId>> {
+        Ok(self.services.get_default_provider().await.ok())
+    }
+
     fn hydrate_channel(&self) -> Result<()> {
         self.infra.hydrate();
         Ok(())

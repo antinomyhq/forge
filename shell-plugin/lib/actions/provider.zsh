@@ -55,8 +55,8 @@ function _forge_select_provider() {
     
     # Position cursor on current provider if available
     if [[ -n "$current_provider" ]]; then
-        # For providers, compare against the first field (display name)
-        local index=$(_forge_find_index "$output" "$current_provider" 1)
+        # Compare against field 2 (provider_id, the raw snake_case ID)
+        local index=$(_forge_find_index "$output" "$current_provider" 2)
         fzf_args+=(--bind="start:pos($index)")
     fi
     

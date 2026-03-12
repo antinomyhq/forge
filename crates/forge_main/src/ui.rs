@@ -3403,14 +3403,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ConfigGetField::Provider => {
-                let provider = self
-                    .api
-                    .get_default_provider()
-                    .await
-                    .ok()
-                    .map(|p| p.id.to_string());
+                let provider = self.api.get_default_provider_id().await?.map(|p| (&**p).to_owned());
                 match provider {
-                    Some(v) => self.writeln(v.to_string())?,
+                    Some(v) => self.writeln(v)?,
                     None => self.writeln("Provider: Not set")?,
                 }
             }
