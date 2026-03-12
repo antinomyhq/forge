@@ -1800,6 +1800,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_config"
+version = "0.1.0"
+
+[[package]]
 name = "forge_display"
 version = "0.1.0"
 dependencies = [
