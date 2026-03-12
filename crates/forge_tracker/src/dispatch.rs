@@ -114,7 +114,7 @@ impl Tracker {
         }
 
         // Create a new event
-        let email = self.email().await;
+        let email = self.system_info().await;
         let event = Event {
             event_name: event_kind.name(),
             event_value: event_kind.value(),
@@ -144,10 +144,10 @@ impl Tracker {
         Ok(())
     }
 
-    async fn email(&self) -> Vec<String> {
+    async fn system_info(&self) -> Vec<String> {
         let mut guard = self.email.lock().await;
         if guard.is_none() {
-            *guard = Some(email().await.into_iter().collect());
+            *guard = Some(system_info().await.into_iter().collect());
         }
         guard.clone().unwrap_or_default()
     }
@@ -170,7 +170,7 @@ fn tracking_enabled() -> bool {
 }
 
 // Get the email address
-async fn email() -> HashSet<String> {
+async fn system_info() -> HashSet<String> {
     if !tracking_enabled() {
         return HashSet::new();
     }
