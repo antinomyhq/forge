@@ -19,6 +19,10 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<CompactConfig>,
 
+    /// Model configuration for commit message generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<ModelConfig>,
+
     /// Custom history file path. If omitted, uses the default history path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_history_path: Option<String>,
@@ -84,6 +88,10 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
+    /// Default model configuration used when no task-specific model is set.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelConfig>,
+
     /// Maximum number of files read concurrently in parallel operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parallel_file_reads: Option<usize>,
@@ -111,6 +119,10 @@ pub struct ForgeConfig {
     /// Maximum lines for shell output suffix.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stdout_max_suffix_length: Option<usize>,
+
+    /// Model configuration for code suggestion generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggest: Option<ModelConfig>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -172,6 +184,18 @@ pub enum UpdateFrequency {
     Weekly,
     #[default]
     Always,
+}
+
+/// Model selection configuration specifying a provider and model identifier.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ModelConfig {
+    /// Identifier of the model to use (e.g. `"gpt-4o"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+
+    /// Identifier of the provider that hosts the model (e.g. `"openai"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
