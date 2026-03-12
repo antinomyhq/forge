@@ -137,12 +137,13 @@ pub struct ForgeConfig {
 }
 
 impl ForgeConfig {
-    /// Reads a [`ForgeConfig`] from YAML, JSON, and environment variable sources.
+    /// Reads a [`ForgeConfig`] from YAML, JSON, and environment variable
+    /// sources.
     ///
     /// # Arguments
     ///
-    /// * `path` - Base file path without extension. `.yaml` and `.json` variants are probed
-    ///   automatically.
+    /// * `path` - Base file path without extension. `.yaml` and `.json`
+    ///   variants are probed automatically.
     ///
     /// # Errors
     ///
@@ -187,7 +188,8 @@ pub enum AutoDumpFormat {
 /// Configuration for automatic context compaction.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CompactConfig {
-    /// Maximum percentage of the context that can be summarized during compaction.
+    /// Maximum percentage of the context that can be summarized during
+    /// compaction.
     #[serde(default, deserialize_with = "deserialize_percentage")]
     pub eviction_window: f64,
 
