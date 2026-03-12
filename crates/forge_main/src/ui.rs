@@ -2106,7 +2106,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 key_str.to_string()
             } else {
                 // For other providers, show the existing key as default (autofill)
-                let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                let input = ForgeSelect::input(format!("Enter your {provider_id} API key"))
                     .with_default(key_str);
                 let api_key = input.prompt()?.context("API key input cancelled")?;
                 let api_key_str = api_key.trim();
@@ -2115,7 +2115,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         } else {
             // Prompt for API key input (no existing key)
-            let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"));
+            let input = ForgeSelect::input(format!("Enter your {provider_id} API key"));
             let api_key = input.prompt()?.context("API key input cancelled")?;
             let api_key_str = api_key.trim();
             anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
