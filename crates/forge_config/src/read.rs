@@ -24,7 +24,8 @@ pub async fn read<T: DeserializeOwned>(path: &str) -> Result<T, Error> {
         .add_source(File::new(&format!("{path}.json"), FileFormat::Json).required(false))
         .add_source(
             Environment::with_prefix("FORGE")
-                .separator("_")
+                .prefix_separator("_")
+                .separator("__")
                 .try_parsing(true),
         )
         .build()
@@ -57,18 +58,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_deeply_nested_env_var() {
-        // The `_` separator splits env var names into nested config paths.
-        //
-        // Works — neither the struct field nor the nested key contains `_`:
-        //   FORGE_HTTP_HICKORY      -> http.hickory
-        //   FORGE_HTTP_ADAPTIVE_WINDOW -> ambiguous: could be http.adaptive.window or http.adaptive_window
-        //
-        // Does NOT work — field names that contain `_` are indistinguishable from nesting:
-        //   FORGE_HTTP_CONNECT_TIMEOUT  -> resolves as http.connect.timeout, not http.connect_timeout
-        //   FORGE_HTTP_MAX_REDIRECTS    -> resolves as http.max.redirects, not http.max_redirects
-        let config = read_env("FORGE_HTTP_HICKORY=true").await.unwrap();
+        let config = read_env("FORGE_HTTP__HICKORY=true").await.unwrap();
         let actual = config.http.as_ref().and_then(|h| h.hickory);
         let expected = Some(true);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_deeply_nested_env_var_with_underscore_field() {
+        let config = read_env("FORGE_HTTP__CONNECT_TIMEOUT=42").await.unwrap();
+        let actual = config.http.as_ref().and_then(|h| h.connect_timeout);
+        let expected = Some(42u64);
 
         assert_eq!(actual, expected);
     }
