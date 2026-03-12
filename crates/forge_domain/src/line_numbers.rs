@@ -18,7 +18,7 @@ impl<'a> Display for NumberedContent<'a> {
         let width = max_line_number.to_string().len();
         let start = self.start;
         for (i, line) in lines.into_iter().enumerate() {
-            write!(f, "{:>width$}:{}\n", start + i, line, width = width)?;
+            writeln!(f, "{:>width$}:{}", start + i, line, width = width)?;
         }
 
         Ok(())
