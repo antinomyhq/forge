@@ -105,9 +105,29 @@ function _forge_action_provider() {
             _forge_exec config set provider "$provider_id"
         fi
 
-        # Shell-native model selection: let the user pick a model for the new
-        # provider via fzf, replacing the Rust CLI's ForgeSelect prompt.
-        _forge_action_model ""
+        # Replicate REPL's finalize_provider_activation logic exactly:
+        #   get_default_model() → local config read (no network)
+        #   get_models()        → models for the newly-activated provider
+        # Prompt for model selection only when:
+        #   (a) no model is currently configured, OR
+        #   (b) the current model is not in the new provider's model list
+        local current_model
+        current_model=$(_forge_exec config get model --porcelain 2>/dev/null </dev/null)
+        if [[ -z "$current_model" ]]; then
+            # No model configured — must pick one (mirrors REPL's else branch)
+            _forge_action_model ""
+        else
+            # Check if current model is offered by the new provider.
+            # forge list models --porcelain uses a local registry (no network).
+            # Field 1 = model_id, field 4 = raw provider_id.
+            local provider_models
+            provider_models=$($_FORGE_BIN list models --porcelain 2>/dev/null </dev/null)
+            if ! echo "$provider_models" | awk -F '  +' -v m="$current_model" -v p="$provider_id" \
+                'NR>1 && $1==m && $4==p {found=1} END {exit !found}'; then
+                # Current model not available for this provider — pick a new one
+                _forge_action_model ""
+            fi
+        fi
     fi
 }
 
