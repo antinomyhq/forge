@@ -1,22 +1,6 @@
 #!/usr/bin/env zsh
 
-# Helper: read a line from /dev/tty with echo enabled and bracketed paste disabled.
-# Usage: _forge_read_tty <varname> <prompt>
-function _forge_read_tty() {
-    local varname="$1"
-    local prompt="$2"
-    local saved_stty
-    saved_stty=$(stty -g </dev/tty 2>/dev/null)
-    stty echo </dev/tty 2>/dev/null
-    # Disable bracketed paste mode (set by ZLE) so pasted text isn't wrapped in ^[[200~...^[[201~
-    printf '\e[?2004l' >/dev/tty
-    echo -n "$prompt" >/dev/tty
-    read -r "$varname" </dev/tty
-    # Re-enable bracketed paste mode and restore terminal state
-    printf '\e[?2004h' >/dev/tty
-    stty "$saved_stty" </dev/tty 2>/dev/null
-}
-
+# Authentication action handlers
 
 # Shell-native provider authentication helper
 # Discovers auth requirements, prompts via fzf/read, calls CLI with args
@@ -74,8 +58,12 @@ function _forge_provider_auth() {
     # Handle different auth methods
     case "$selected_auth_method" in
         api_key)
+            # Prompt for API key — must use /dev/tty explicitly because this
+            # runs inside a ZLE widget where ZLE owns stdin in raw mode.
             local api_key
-            _forge_read_tty api_key "Enter your $provider_id API key: "
+            echo -n "Enter your $provider_id API key: " >/dev/tty
+            read -rs api_key </dev/tty
+            echo >/dev/tty  # newline after hidden input
 
             if [[ -z "$api_key" ]]; then
                 echo "Error: API key cannot be empty" >&2
@@ -88,7 +76,8 @@ function _forge_provider_auth() {
             for param in "${url_params_array[@]}"; do
                 [[ -z "$param" ]] && continue
                 local param_value
-                _forge_read_tty param_value "Enter $param: "
+                echo -n "Enter $param: " >/dev/tty
+                read -r param_value </dev/tty
                 if [[ -z "$param_value" ]]; then
                     echo "Error: $param cannot be empty" >&2
                     return 1
@@ -102,7 +91,8 @@ function _forge_provider_auth() {
             for param in "${url_params_array[@]}"; do
                 [[ -z "$param" ]] && continue
                 local param_value
-                _forge_read_tty param_value "Enter $param: "
+                echo -n "Enter $param: " >/dev/tty
+                read -r param_value </dev/tty
                 if [[ -z "$param_value" ]]; then
                     echo "Error: $param cannot be empty" >&2
                     return 1
