@@ -39,8 +39,8 @@ function _forge_provider_auth() {
     if [[ ${#auth_methods_array[@]} -eq 1 ]]; then
         selected_auth_method="${auth_methods_array[1]}"
     elif [[ ${#auth_methods_array[@]} -gt 1 ]]; then
-        echo "Select authentication method for $provider_id:" >&2
-        selected_auth_method=$(printf '%s\n' "${auth_methods_array[@]}" | fzf --height=10 --prompt="Auth method: ")
+        echo "Select authentication method for $provider_id:" >/dev/tty
+        selected_auth_method=$(printf '%s\n' "${auth_methods_array[@]}" | fzf --height=10 --prompt="Auth method: " </dev/tty >/dev/tty)
         if [[ -z "$selected_auth_method" ]]; then
             echo "Cancelled" >&2
             return 1
@@ -60,11 +60,12 @@ function _forge_provider_auth() {
     # Handle different auth methods
     case "$selected_auth_method" in
         api_key)
-            # Prompt for API key
+            # Prompt for API key — must use /dev/tty explicitly because this
+            # runs inside a ZLE widget where ZLE owns stdin in raw mode.
             local api_key
-            echo -n "Enter your $provider_id API key: " >&2
-            read -rs api_key
-            echo >&2  # newline after hidden input
+            echo -n "Enter your $provider_id API key: " >/dev/tty
+            read -rs api_key </dev/tty
+            echo >/dev/tty  # newline after hidden input
 
             if [[ -z "$api_key" ]]; then
                 echo "Error: API key cannot be empty" >&2
@@ -77,8 +78,8 @@ function _forge_provider_auth() {
             for param in "${url_params_array[@]}"; do
                 [[ -z "$param" ]] && continue
                 local param_value
-                echo -n "Enter $param: " >&2
-                read -r param_value
+                echo -n "Enter $param: " >/dev/tty
+                read -r param_value </dev/tty
                 if [[ -z "$param_value" ]]; then
                     echo "Error: $param cannot be empty" >&2
                     return 1
@@ -92,8 +93,8 @@ function _forge_provider_auth() {
             for param in "${url_params_array[@]}"; do
                 [[ -z "$param" ]] && continue
                 local param_value
-                echo -n "Enter $param: " >&2
-                read -r param_value
+                echo -n "Enter $param: " >/dev/tty
+                read -r param_value </dev/tty
                 if [[ -z "$param_value" ]]; then
                     echo "Error: $param cannot be empty" >&2
                     return 1
