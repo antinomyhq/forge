@@ -76,9 +76,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_requests: Option<String>,
 
-    /// Maximum characters for fetch content truncation.
+    /// Maximum characters for fetch content.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_fetch_truncation: Option<usize>,
+    pub max_fetch_length: Option<usize>,
 
     /// Base URL for Forge's backend APIs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -166,7 +166,7 @@ pub struct ForgeConfig {
 
     /// Maximum characters per line for file read operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_line_length: Option<usize>,
+    pub file_max_line_length: Option<usize>,
 
     /// Maximum number of lines to read from a file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -205,9 +205,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_backoff_factor: Option<u64>,
 
-    /// Initial backoff delay in milliseconds.
+    /// Initial delay in milliseconds before the first retry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_initial_backoff: Option<u64>,
+    pub retry_initial_delay: Option<u64>,
 
     /// Maximum delay between retries in seconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -215,7 +215,7 @@ pub struct ForgeConfig {
 
     /// Maximum number of retry attempts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_max_retry_attempts: Option<usize>,
+    pub retry_max_attempts: Option<usize>,
 
     /// Minimum delay in milliseconds between retry attempts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -227,7 +227,7 @@ pub struct ForgeConfig {
 
     /// Whether to suppress retry error logging and events.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_suppress_retry_errors: Option<bool>,
+    pub retry_suppress_errors: Option<bool>,
 
     /// Maximum number of results to return from initial vector search.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -275,7 +275,7 @@ pub struct ForgeConfig {
 
     /// Whether to automatically apply updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub updates_auto_update: Option<bool>,
+    pub updates_auto: Option<bool>,
 
     /// How often to check for updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
