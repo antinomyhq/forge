@@ -1,3 +1,2 @@
-updates:
-  frequency: "daily"
-  auto_update: false
+updates_frequency: "daily"
+updates_auto_update: false

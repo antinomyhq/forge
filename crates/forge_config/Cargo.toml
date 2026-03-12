@@ -6,6 +6,8 @@ rust-version.workspace = true
 
 [dependencies]
 config = { version = "0.14", features = ["async"] }
+dirs.workspace = true
+dotenvy.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 

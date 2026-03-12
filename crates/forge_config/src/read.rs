@@ -1,3 +1,5 @@
+use std::path::{Path, PathBuf};
+
 use config::{ConfigBuilder, Environment, File, FileFormat, builder::AsyncState};
 use serde::de::DeserializeOwned;
 
@@ -6,18 +8,52 @@ use crate::error::Error;
 /// Embedded default configuration, compiled into the binary.
 const DEFAULT_CONFIG: &str = include_str!("config.yaml");
 
+/// Loads all `.env` files found from the filesystem root down to `cwd`, giving
+/// priority to files closer to `cwd` (they are loaded last and thus win on
+/// conflicts). Already-set environment variables are never overwritten.
+fn load_dot_env(cwd: &Path) {
+    let mut paths = vec![];
+    let mut current = PathBuf::new();
+
+    for component in cwd.components() {
+        current.push(component);
+        paths.push(current.clone());
+    }
+
+    // Reverse so that the root is loaded first and the closest directory last,
+    // giving higher priority to `.env` files nearer to the working directory.
+    paths.reverse();
+
+    for path in paths {
+        let env_file = path.join(".env");
+        if env_file.is_file() {
+            dotenvy::from_path(&env_file).ok();
+        }
+    }
+}
+
 /// Reads and deserializes any `T: DeserializeOwned` from the following sources, in increasing
 /// priority order:
 ///
-/// 1. Embedded `default.yaml` (compiled into the binary)
-/// 2. A YAML file at `{path}.yaml` (optional — skipped if the file does not exist)
-/// 3. A JSON file at `{path}.json` (optional — skipped if the file does not exist)
-/// 4. Environment variables (always active)
+/// 1. `.env` files loaded from the current working directory upward
+/// 2. Embedded `default.yaml` (compiled into the binary)
+/// 3. A YAML file at `~/forge/forge.yaml` (optional — skipped if the file does not exist)
+/// 4. A JSON file at `~/forge/forge.json` (optional — skipped if the file does not exist)
+/// 5. Environment variables (always active)
 ///
 /// # Errors
 ///
 /// Returns [`Error`] if any source fails to parse or if deserialization into `T` fails.
-pub async fn read<T: DeserializeOwned>(path: &str) -> Result<T, Error> {
+pub async fn read<T: DeserializeOwned>() -> Result<T, Error> {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    load_dot_env(&cwd);
+
+    let base = dirs::home_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("forge")
+        .join("forge");
+    let path = base.to_string_lossy();
+
     let cfg = ConfigBuilder::<AsyncState>::default()
         .add_source(File::from_str(DEFAULT_CONFIG, FileFormat::Yaml))
         .add_source(File::new(&format!("{path}.yaml"), FileFormat::Yaml).required(false))
@@ -28,7 +64,7 @@ pub async fn read<T: DeserializeOwned>(path: &str) -> Result<T, Error> {
                 .separator("__")
                 .try_parsing(true)
                 .list_separator(",")
-                .with_list_parse_key("retry.retry_status_codes"),
+                .with_list_parse_key("retry_status_codes"),
         )
         .build()
         .await?;
@@ -52,7 +88,7 @@ mod tests {
         // SAFETY: tests using this helper run on tokio's single-threaded runtime;
         // no other thread reads or writes this variable concurrently.
         unsafe { std::env::set_var(key, value) };
-        let result = read("").await;
+        let result = read().await;
         unsafe { std::env::remove_var(key) };
 
         result
@@ -60,8 +96,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_deeply_nested_env_var() {
-        let config = read_env("FORGE_HTTP__HICKORY=true").await.unwrap();
-        let actual = config.http.as_ref().and_then(|h| h.hickory);
+        let config = read_env("FORGE_HTTP_HICKORY=true").await.unwrap();
+        let actual = config.http_hickory;
         let expected = Some(true);
 
         assert_eq!(actual, expected);
@@ -69,8 +105,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_deeply_nested_env_var_with_underscore_field() {
-        let config = read_env("FORGE_HTTP__CONNECT_TIMEOUT=42").await.unwrap();
-        let actual = config.http.as_ref().and_then(|h| h.connect_timeout);
+        let config = read_env("FORGE_HTTP_CONNECT_TIMEOUT=42").await.unwrap();
+        let actual = config.http_connect_timeout;
         let expected = Some(42u64);
 
         assert_eq!(actual, expected);
@@ -78,8 +114,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_keep_alive_interval() {
-        let config = read_env("FORGE_HTTP__KEEP_ALIVE_INTERVAL=30").await.unwrap();
-        let actual = config.http.as_ref().and_then(|h| h.keep_alive_interval);
+        let config = read_env("FORGE_HTTP_KEEP_ALIVE_INTERVAL=30").await.unwrap();
+        let actual = config.http_keep_alive_interval;
         let expected = Some(30u64);
 
         assert_eq!(actual, expected);
@@ -87,13 +123,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_status_codes() {
-        let config = read_env("FORGE_RETRY__RETRY_STATUS_CODES=429,500,502")
+        let config = read_env("FORGE_RETRY_STATUS_CODES=429,500,502")
             .await
             .unwrap();
-        let actual = config
-            .retry
-            .as_ref()
-            .and_then(|r| r.retry_status_codes.clone());
+        let actual = config.retry_status_codes.clone();
         let expected = Some(vec![429u16, 500u16, 502u16]);
 
         assert_eq!(actual, expected);

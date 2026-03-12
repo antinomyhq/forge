@@ -1879,6 +1879,8 @@ name = "forge_config"
 version = "0.1.0"
 dependencies = [
  "config",
+ "dirs",
+ "dotenvy",
  "pretty_assertions",
  "serde",
  "thiserror 2.0.18",
