@@ -59,7 +59,7 @@ impl ToolCallContext {
         f(&mut metrics)
     }
 
-    /// Returns a cloned snapshot of current todos from metrics.
+    /// Returns all known todos (active and historical completed todos).
     ///
     /// # Errors
     ///
@@ -68,7 +68,7 @@ impl ToolCallContext {
         self.with_metrics(|metrics| metrics.get_todos().to_vec())
     }
 
-    /// Replaces todos in metrics and returns the updated todo list.
+    /// Replaces active todos in metrics and returns only active todos.
     ///
     /// # Arguments
     ///
