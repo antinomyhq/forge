@@ -95,13 +95,15 @@ function _forge_action_provider() {
         configured=$(echo "$auth_info" | grep "^configured=" | cut -d= -f2)
 
         if [[ "$configured" != "yes" ]]; then
-            # Provider not logged in — authenticate first via shell-native flow
+            # Provider not logged in — authenticate first via shell-native flow.
+            # _forge_provider_auth calls `forge provider login ... --set-active`
+            # which already activates the provider, so no need to call
+            # `config set provider` afterward.
             _forge_provider_auth "$provider_id" || return 1
+        else
+            # Already configured — just switch to it.
+            _forge_exec config set provider "$provider_id"
         fi
-
-        # Now set it as the active provider (credentials are already stored).
-        # The Rust CLI skips interactive model selection when called from CLI.
-        _forge_exec config set provider "$provider_id"
 
         # Shell-native model selection: let the user pick a model for the new
         # provider via fzf, replacing the Rust CLI's ForgeSelect prompt.

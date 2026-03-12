@@ -18,14 +18,12 @@ function _forge_provider_auth() {
     fi
     
     # Parse the auth info output (key=value format)
-    local auth_methods url_params configured existing_api_key existing_params
+    local auth_methods url_params configured
     while IFS='=' read -r key value; do
         case "$key" in
             auth_methods) auth_methods="$value" ;;
             url_params) url_params="$value" ;;
             configured) configured="$value" ;;
-            existing_api_key) existing_api_key="$value" ;;
-            existing_params) existing_params="$value" ;;
         esac
     done <<< "$auth_info"
     

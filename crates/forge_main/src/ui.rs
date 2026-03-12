@@ -919,7 +919,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Set as default; skip interactive model selection since the shell
         // handles model selection via :model after login.
-        self.finalize_provider_activation(provider, None, true)
+        self.finalize_provider_activation(provider, true)
             .await
     }
 
@@ -1005,42 +1005,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Check if configured
         let configured = provider.is_configured();
 
-        // Get existing credential if available (only for configured providers)
-        let (existing_api_key, existing_params) = if configured {
-            // For configured providers, we need to convert to Provider<Url>
-            if let Some(configured_provider) = provider.clone().into_configured() {
-                let api_key = configured_provider
-                    .api_key()
-                    .map(|key| {
-                        let key_str = key.as_ref();
-                        // Mask the key: show first 3 and last 3 chars
-                        if key_str.len() > 10 {
-                            format!("{}...{}", &key_str[..3], &key_str[key_str.len() - 3..])
-                        } else {
-                            "***".to_string()
-                        }
-                    })
-                    .unwrap_or_default();
-
-                let params: Vec<String> = if let Some(credential) = &configured_provider.credential
-                {
-                    credential
-                        .url_params
-                        .iter()
-                        .map(|(k, v)| format!("{}={}", k, v.as_str()))
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-
-                (api_key, params)
-            } else {
-                (String::new(), Vec::new())
-            }
-        } else {
-            (String::new(), Vec::new())
-        };
-
         // Output in key=value format for easy shell parsing
         self.writeln(format!("auth_methods={}", auth_methods.join(",")))?;
         self.writeln(format!("url_params={}", url_params.join(",")))?;
@@ -1048,12 +1012,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "configured={}",
             if configured { "yes" } else { "no" }
         ))?;
-        if !existing_api_key.is_empty() {
-            self.writeln(format!("existing_api_key={existing_api_key}"))?;
-        }
-        if !existing_params.is_empty() {
-            self.writeln(format!("existing_params={}", existing_params.join(",")))?;
-        }
 
         Ok(())
     }
@@ -2731,7 +2689,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection (REPL interactive path)
-        self.finalize_provider_activation(provider, None, false)
+        self.finalize_provider_activation(provider, false)
             .await
     }
 
@@ -2745,7 +2703,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn finalize_provider_activation(
         &mut self,
         provider: Provider<Url>,
-        preset_model: Option<ModelId>,
         skip_model_selection: bool,
     ) -> Result<()> {
         // Set the provider via API
@@ -2755,19 +2712,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::action(format!("{}", provider.id))
                 .sub_title("is now the default provider"),
         )?;
-
-        // If a model was pre-supplied (e.g. from --model CLI arg), set it directly
-        if let Some(model) = preset_model {
-            let model_id = self
-                .validate_model(model.as_str(), Some(&provider.id))
-                .await?;
-            self.api.set_default_model(model_id.clone()).await?;
-            self.update_model(Some(model_id.clone()));
-            self.writeln_title(TitleFormat::action(format!(
-                "Switched to model: {model_id}"
-            )))?;
-            return Ok(());
-        }
 
         // Skip interactive model selection when called from non-REPL CLI paths
         if skip_model_selection {
@@ -3411,7 +3355,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider, model } => {
+            ConfigSetField::Provider { provider } => {
                 let any_provider = self.api.get_provider(&provider).await?;
                 // For CLI/shell-native paths, skip interactive model selection.
                 // The shell handles model selection via :model separately.
@@ -3425,7 +3369,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let configured_provider = any_provider.into_configured().ok_or_else(|| {
                     anyhow::anyhow!("Failed to get configured provider '{}'", provider)
                 })?;
-                self.finalize_provider_activation(configured_provider, model, true)
+                self.finalize_provider_activation(configured_provider, true)
                     .await?;
             }
             ConfigSetField::Model { model } => {

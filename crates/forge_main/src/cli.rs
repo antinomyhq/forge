@@ -545,12 +545,6 @@ pub enum ConfigSetField {
     Provider {
         /// Provider ID to set as default.
         provider: ProviderId,
-        /// Model ID to set as default for this provider.
-        ///
-        /// When provided, sets this model as the default without interactive
-        /// selection. Used by shell plugins to avoid crossterm/TTY dependency.
-        #[arg(long)]
-        model: Option<ModelId>,
     },
     /// Set the provider and model for commit message generation.
     Commit {
@@ -904,7 +898,7 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
                 ConfigCommand::Set(args) => match args.field {
-                    ConfigSetField::Provider { provider, .. } => Some(provider.to_string()),
+                    ConfigSetField::Provider { provider } => Some(provider.to_string()),
                     _ => None,
                 },
                 _ => None,
