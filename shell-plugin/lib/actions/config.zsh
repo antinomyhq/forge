@@ -105,28 +105,22 @@ function _forge_action_provider() {
             _forge_exec config set provider "$provider_id"
         fi
 
-        # Replicate REPL's finalize_provider_activation logic exactly:
-        #   get_default_model() → local config read (no network)
-        #   get_models()        → models for the newly-activated provider
-        # Prompt for model selection only when:
-        #   (a) no model is currently configured, OR
-        #   (b) the current model is not in the new provider's model list
+        # Replicate REPL's finalize_provider_activation logic exactly.
+        #
+        # The REPL calls get_default_model() which reads config.model[provider_id]
+        # — the model stored per-provider. At this point the new provider is already
+        # active, so forge config get model returns that provider's stored model (or
+        # "Model: Not set" when none is stored).
+        #
+        # Prompt for model selection only when no model is configured for this
+        # provider. If a model was previously stored for it, keep it — matching
+        # the REPL's behaviour of only prompting when get_default_model() is None.
         local current_model
         current_model=$(_forge_exec config get model --porcelain 2>/dev/null </dev/null)
-        if [[ -z "$current_model" ]]; then
-            # No model configured — must pick one (mirrors REPL's else branch)
+        # "Model: Not set" is the CLI's output when config.model[provider_id] is
+        # absent. Treat that (or an empty string) as "no model configured".
+        if [[ -z "$current_model" || "$current_model" == "Model: Not set" ]]; then
             _forge_action_model ""
-        else
-            # Check if current model is offered by the new provider.
-            # forge list models --porcelain uses a local registry (no network).
-            # Field 1 = model_id, field 4 = raw provider_id.
-            local provider_models
-            provider_models=$($_FORGE_BIN list models --porcelain 2>/dev/null </dev/null)
-            if ! echo "$provider_models" | awk -F '  +' -v m="$current_model" -v p="$provider_id" \
-                'NR>1 && $1==m && $4==p {found=1} END {exit !found}'; then
-                # Current model not available for this provider — pick a new one
-                _forge_action_model ""
-            fi
         fi
     fi
 }
