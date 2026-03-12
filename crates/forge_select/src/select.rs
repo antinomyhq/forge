@@ -45,7 +45,12 @@ impl ForgeSelect {
     /// Entry point for select operations with owned values (doesn't require
     /// Clone).
     pub fn select_owned<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilderOwned<T> {
-        SelectBuilderOwned { message: message.into(), options, starting_cursor: None, initial_text: None }
+        SelectBuilderOwned {
+            message: message.into(),
+            options,
+            starting_cursor: None,
+            initial_text: None,
+        }
     }
 
     /// Convenience method for confirm (yes/no).
@@ -235,7 +240,12 @@ impl<T> SelectBuilderOwned<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).trim().to_string())
             .collect();
 
-        let fzf = build_fzf(&self.message, None, self.initial_text.as_deref(), self.starting_cursor);
+        let fzf = build_fzf(
+            &self.message,
+            None,
+            self.initial_text.as_deref(),
+            self.starting_cursor,
+        );
 
         let selected = run_with_output(fzf, display_options.iter().map(|s| s.as_str()));
 
