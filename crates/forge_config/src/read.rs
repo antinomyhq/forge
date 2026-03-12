@@ -1,15 +1,8 @@
-use config::{ConfigBuilder, Environment, File, FileFormat, builder::AsyncState};
+use config::{builder::AsyncState, ConfigBuilder, Environment, File, FileFormat};
 use serde::de::DeserializeOwned;
 
 use crate::config::ForgeConfig;
-
-/// Errors that can occur when reading configuration.
-#[derive(Debug, thiserror::Error)]
-pub enum ConfigReadError {
-    /// The configuration source failed to load or a value could not be deserialized.
-    #[error(transparent)]
-    Config(#[from] config::ConfigError),
-}
+use crate::error::Error;
 
 /// Reads and deserializes a [`ForgeConfig`] from the following sources, in increasing priority
 /// order:
@@ -24,9 +17,8 @@ pub enum ConfigReadError {
 ///
 /// # Errors
 ///
-/// Returns [`ConfigReadError`] if any source fails to parse or if deserialization into
-/// [`ForgeConfig`] fails.
-pub async fn read(path: &str) -> Result<ForgeConfig, ConfigReadError> {
+/// Returns [`Error`] if any source fails to parse or if deserialization into [`ForgeConfig`] fails.
+pub async fn read(path: &str) -> Result<ForgeConfig, Error> {
     read_as::<ForgeConfig>(path).await
 }
 
@@ -43,8 +35,8 @@ pub async fn read(path: &str) -> Result<ForgeConfig, ConfigReadError> {
 ///
 /// # Errors
 ///
-/// Returns [`ConfigReadError`] if any source fails to parse or if deserialization into `T` fails.
-pub async fn read_as<T: DeserializeOwned>(path: &str) -> Result<T, ConfigReadError> {
+/// Returns [`Error`] if any source fails to parse or if deserialization into `T` fails.
+pub async fn read_as<T: DeserializeOwned>(path: &str) -> Result<T, Error> {
     let cfg = ConfigBuilder::<AsyncState>::default()
         .add_source(File::new(&format!("{path}.yaml"), FileFormat::Yaml).required(false))
         .add_source(File::new(&format!("{path}.json"), FileFormat::Json).required(false))

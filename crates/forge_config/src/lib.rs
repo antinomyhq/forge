@@ -1,5 +1,6 @@
 mod config;
+mod error;
 mod read;
 
-pub use config::{AutoDumpFormat, CompactConfig, ForgeConfig, SummaryTag, UpdateConfig, UpdateFrequency};
-pub use read::{read, read_as, ConfigReadError};
+pub use config::*;
+pub use error::*;

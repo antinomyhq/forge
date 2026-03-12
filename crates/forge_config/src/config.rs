@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 
+use crate::error::Error;
+use crate::read::read;
+
 /// Root configuration type for the forge_config crate.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ForgeConfig {
@@ -27,6 +30,14 @@ pub struct ForgeConfig {
     /// Maximum characters for fetch content truncation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fetch_truncation_limit: Option<usize>,
+
+    /// Base URL for Forge's backend APIs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forge_api_url: Option<String>,
+
+    /// HTTP client configuration (timeouts, TLS, connection pooling).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub http: Option<HttpConfig>,
 
     /// Maximum number of conversations to show in list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -77,6 +88,10 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parallel_file_reads: Option<usize>,
 
+    /// Configuration for the retry mechanism.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_config: Option<RetryConfig>,
+
     /// Maximum number of results to return from initial vector search.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sem_search_limit: Option<usize>,
@@ -119,6 +134,22 @@ pub struct ForgeConfig {
     /// URL for the workspace indexing server.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace_server_url: Option<String>,
+}
+
+impl ForgeConfig {
+    /// Reads a [`ForgeConfig`] from YAML, JSON, and environment variable sources.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Base file path without extension. `.yaml` and `.json` variants are probed
+    ///   automatically.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`Error`] if any source fails to parse or deserialization fails.
+    pub async fn read(path: &str) -> Result<Self, Error> {
+        read(path).await
+    }
 }
 
 /// Configuration for automatic update checks.
@@ -208,3 +239,122 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SummaryTag(pub String);
+
+/// Configuration for the HTTP retry mechanism.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct RetryConfig {
+    /// Initial backoff delay in milliseconds for retry operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backoff_factor: Option<u64>,
+
+    /// Initial backoff delay in milliseconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_backoff_ms: Option<u64>,
+
+    /// Maximum delay between retries in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_delay: Option<u64>,
+
+    /// Maximum number of retry attempts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_retry_attempts: Option<usize>,
+
+    /// Minimum delay in milliseconds between retry attempts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_delay_ms: Option<u64>,
+
+    /// HTTP status codes that should trigger retries (e.g., 429, 500, 502).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_status_codes: Option<Vec<u16>>,
+
+    /// Whether to suppress retry error logging and events.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suppress_retry_errors: Option<bool>,
+}
+
+/// HTTP client configuration (timeouts, connection pooling, TLS, HTTP/2).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct HttpConfig {
+    /// Accept invalid TLS certificates. Use with caution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accept_invalid_certs: Option<bool>,
+
+    /// Enable HTTP/2 adaptive window sizing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adaptive_window: Option<bool>,
+
+    /// Connection timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connect_timeout: Option<u64>,
+
+    /// Use Hickory DNS resolver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hickory: Option<bool>,
+
+    /// Keep-alive interval in seconds. Set to `null` to disable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_interval: Option<u64>,
+
+    /// Keep-alive timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_timeout: Option<u64>,
+
+    /// Keep-alive while connection is idle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_while_idle: Option<bool>,
+
+    /// Maximum number of redirects to follow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_redirects: Option<usize>,
+
+    /// Maximum TLS protocol version to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tls_version: Option<TlsVersion>,
+
+    /// Minimum TLS protocol version to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_tls_version: Option<TlsVersion>,
+
+    /// Maximum idle connections per host in the connection pool.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool_idle_timeout: Option<u64>,
+
+    /// Pool idle timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool_max_idle_per_host: Option<usize>,
+
+    /// Read timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_timeout: Option<u64>,
+
+    /// Paths to root certificate files (PEM, CRT, CER format).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_cert_paths: Option<Vec<String>>,
+
+    /// TLS backend to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tls_backend: Option<TlsBackend>,
+}
+
+/// TLS backend selection for HTTP connections.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TlsBackend {
+    #[default]
+    Default,
+    Rustls,
+}
+
+/// TLS protocol version constraint.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub enum TlsVersion {
+    #[serde(rename = "1.0")]
+    V1_0,
+    #[serde(rename = "1.1")]
+    V1_1,
+    #[serde(rename = "1.2")]
+    V1_2,
+    #[default]
+    #[serde(rename = "1.3")]
+    V1_3,
+}
