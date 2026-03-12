@@ -103,15 +103,6 @@ fn build_fzf(header: &str, help_message: Option<&str>, initial_text: Option<&str
 }
 
 impl<T: 'static> SelectBuilder<T> {
-    /// Set starting cursor position.
-    ///
-    /// Note: This is a no-op with fzf backend. fzf does not support
-    /// pre-selecting a specific item by index. Users can use fuzzy search
-    /// to quickly find items.
-    pub fn with_starting_cursor(self, _cursor: usize) -> Self {
-        self
-    }
-
     /// Set default for confirm (only works with bool options).
     pub fn with_default(mut self, default: bool) -> Self {
         self.default = Some(default);
