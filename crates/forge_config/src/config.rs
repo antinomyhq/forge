@@ -9,6 +9,10 @@ use crate::read::read;
 /// Root configuration type for the forge_config crate.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ForgeConfig {
+    /// Per-agent configuration overrides, keyed by agent identifier.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub agents: HashMap<AgentId, AgentConfig>,
+
     /// Base URL for Forge's backend APIs.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub api_url: Option<String>,
@@ -303,6 +307,11 @@ where
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct PresetId(String);
+
+/// Unique identifier for a named agent.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct AgentId(pub String);
 
 /// TLS backend selection for HTTP connections.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
