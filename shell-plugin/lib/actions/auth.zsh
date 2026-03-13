@@ -12,7 +12,10 @@ function _forge_action_login() {
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID)
         local provider=$(echo "$selected" | awk '{print $2}')
-        _forge_exec provider login "$provider"
+        # Run with /dev/tty for stdin and stdout so interactive prompts work
+        # correctly when called from inside a ZLE widget (where the terminal
+        # is owned by ZLE and not inherited by child processes).
+        _forge_exec provider login "$provider" </dev/tty >/dev/tty
     fi
 }
 
