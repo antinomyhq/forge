@@ -32,20 +32,15 @@ impl ConfirmBuilder {
     /// - `Err(...)` - If the prompt fails
     pub fn prompt(self) -> Result<Option<bool>> {
         let hint = match self.default {
-            Some(true) => Some("Y/n".to_string()),
-            Some(false) => Some("y/N".to_string()),
-            None => Some("y/n".to_string()),
+            Some(true) => "Y/n".to_string(),
+            Some(false) => "y/N".to_string(),
+            None => "y/n".to_string(),
         };
 
-        let prompt_str = format!(
-            "{} {} {}: ",
-            "?".yellow().bold(),
-            self.message.bold(),
-            hint.unwrap().dimmed(),
-        );
+        let message_with_hint = format!("{} {}", self.message, hint.dimmed());
 
         let input_builder = InputBuilder {
-            message: prompt_str,
+            message: message_with_hint,
             allow_empty: true,
             default: None,
             default_display: None,
