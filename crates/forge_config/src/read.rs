@@ -163,4 +163,15 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[tokio::test]
+    async fn test_compaction_config() {
+        let config = read_env("FORGE_COMPACTION__TURN_THRESHOLD=10")
+            .await
+            .unwrap();
+        let actual = config.compaction.unwrap().turn_threshold;
+        let expected = Some(10usize);
+
+        assert_eq!(actual, expected);
+    }
 }

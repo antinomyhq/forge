@@ -27,37 +27,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub banner: Option<String>,
 
-    /// Maximum percentage of the context that can be summarized during compaction.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_optional_percentage"
-    )]
-    pub compact_eviction_window: Option<f64>,
-
-    /// Maximum number of tokens to keep after compaction.
+    /// Compaction settings controlling when and how conversation history is summarized.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_max_tokens: Option<usize>,
-
-    /// Maximum number of messages before triggering compaction.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_message_threshold: Option<usize>,
-
-    /// Whether to trigger compaction when the last message is from a user.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_on_turn_end: Option<bool>,
-
-    /// Number of most recent messages to preserve during compaction.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_retention_window: Option<usize>,
-
-    /// Maximum number of tokens before triggering compaction.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_token_threshold: Option<usize>,
-
-    /// Maximum number of conversation turns before triggering compaction.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub compact_turn_threshold: Option<usize>,
+    pub compaction: Option<CompactionConfig>,
 
     /// Model identifier for commit message generation (e.g. `"gpt-4o"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -419,4 +391,65 @@ pub struct BodyParam {
     pub path: Vec<String>,
     /// The value to insert at the given path.
     pub value: Value,
+}
+
+/// Controls when and how conversation history is compacted to stay within context limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CompactionConfig {
+    /// Maximum percentage of the context that can be summarized during compaction.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_optional_percentage"
+    )]
+    pub eviction_window: Option<f64>,
+
+    /// Maximum number of tokens to keep after compaction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<usize>,
+
+    /// Maximum number of messages before triggering compaction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message_threshold: Option<usize>,
+
+    /// Whether to trigger compaction when the last message is from a user.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub on_turn_end: Option<bool>,
+
+    /// Number of most recent messages to preserve during compaction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retention_window: Option<usize>,
+
+    /// Maximum number of tokens before triggering compaction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_threshold: Option<usize>,
+
+    /// Maximum number of conversation turns before triggering compaction.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_threshold: Option<usize>,
+}
+
+/// Per-agent configuration overriding global defaults for model selection,
+/// compaction behaviour, and turn limits.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentConfig {
+    /// Compaction settings for this agent, overriding the global compaction config.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compaction: Option<CompactionConfig>,
+
+    /// Maximum number of agentic turns before the agent stops.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_turns: Option<usize>,
+
+    /// Model identifier to use for this agent (e.g. `"gpt-4o"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_id: Option<String>,
+
+    /// Preset to apply for this agent, overriding the global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset_id: Option<PresetId>,
+
+    /// Provider identifier to use for this agent (e.g. `"openai"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<String>,
 }
