@@ -2179,7 +2179,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let mut input = ForgeSelect::input(format!("Enter {param}:"));
+                let mut input = ForgeSelect::input(format!("Enter {param}"));
 
                 // Add default value if it exists in the credential
                 if let Some(params) = existing_url_params

@@ -342,7 +342,7 @@ impl<T> SelectBuilderOwned<T> {
 /// Returns `Ok(Some(true))` for Yes, `Ok(Some(false))` for No, and `Ok(None)`
 /// if cancelled.
 fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> Result<Option<T>> {
-    let items = ["Yes", "No"];
+    let items = vec!["Yes".to_string(), "No".to_string()];
 
     // Pre-position cursor on the default option: "Yes" is index 0, "No" is index 1.
     let starting_cursor = if default == Some(false) {
@@ -352,12 +352,19 @@ fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> R
     };
 
     let fzf = build_fzf(message, None, None, starting_cursor, 0);
-    let selected = run_with_output(fzf, items.iter().copied());
+    // Use indexed_items so items are formatted as "0\tYes" / "1\tNo" —
+    // build_fzf adds --delimiter=\t --with-nth=2.. which requires the tab
+    // prefix, otherwise fzf shows blank lines.
+    let selected = run_with_output(fzf, indexed_items(&items));
 
-    let result: Option<bool> = match selected.as_deref().map(str::trim) {
-        Some("Yes") => Some(true),
-        Some("No") => Some(false),
-        _ => None,
+    let result: Option<bool> = match selected {
+        None => None,
+        Some(s) if s.trim().is_empty() => None,
+        Some(s) => match parse_fzf_index(&s) {
+            Some(0) => Some(true),
+            Some(1) => Some(false),
+            _ => None,
+        },
     };
 
     // Safe cast: caller guarantees T is bool (checked via TypeId at call site)
