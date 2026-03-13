@@ -1,5 +1,6 @@
 use derive_setters::Setters;
 use gh_workflow::*;
+use serde_json::json;
 
 use crate::release_matrix::ReleaseMatrix;
 use crate::steps::setup_protoc;
@@ -10,13 +11,16 @@ pub struct ReleaseBuilderJob {
     // Required to burn into the binary
     pub version: String,
 
-    // When provide the generated release will be uploaded
+    // When provided the generated release will be uploaded
     pub release_id: Option<String>,
+
+    // When true, upload built binaries as GitHub Actions artifacts
+    pub upload_artifact: Option<bool>,
 }
 
 impl ReleaseBuilderJob {
     pub fn new(version: impl AsRef<str>) -> Self {
-        Self { version: version.as_ref().to_string(), release_id: None }
+        Self { version: version.as_ref().to_string(), release_id: None, upload_artifact: None }
     }
 
     pub fn into_job(self) -> Job {
@@ -95,6 +99,25 @@ impl From<ReleaseBuilderJob> for Job {
                         .add_with(("release_id", release_id))
                         .add_with(("file", "${{ matrix.binary_name }}"))
                         .add_with(("overwrite", "true")),
+                );
+        }
+
+        if value.upload_artifact == Some(true) {
+            job = job
+                // Rename binary to target name for artifact upload
+                .add_step(
+                    Step::new("Copy Binary")
+                        .run("cp ${{ matrix.binary_path }} ${{ matrix.binary_name }}"),
+                )
+                // Upload as GitHub Actions artifact
+                .add_step(
+                    Step::new("Upload Artifact")
+                        .uses("actions", "upload-artifact", "v4")
+                        .with(Input::from(indexmap::indexmap! {
+                            "name".to_string() => json!("${{ matrix.binary_name }}"),
+                            "path".to_string() => json!("${{ matrix.binary_name }}"),
+                            "retention-days".to_string() => json!(7),
+                        })),
                 );
         }
 
