@@ -1706,7 +1706,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(TitleFormat::info(format!("fzf {} found", version)))?;
                 } else {
                     self.writeln_title(TitleFormat::info(format!(
-                        "fzf {} found (upgrade recommended, need >= 0.36.0)",
+                        "fzf {} found (outdated, need >= 0.36.0)",
                         version
                     )))?;
                 }
@@ -1721,7 +1721,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let status_msg = if *meets_minimum {
                     format!("bat {} found", version)
                 } else {
-                    format!("bat {} found (outdated, will upgrade)", version)
+                    format!("bat {} found (outdated, need >= 0.20.0)", version)
                 };
                 self.writeln_title(TitleFormat::info(status_msg))?;
             }
@@ -1735,7 +1735,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let status_msg = if *meets_minimum {
                     format!("fd {} found", version)
                 } else {
-                    format!("fd {} found (outdated, will upgrade)", version)
+                    format!("fd {} found (outdated, need >= 10.0.0)", version)
                 };
                 self.writeln_title(TitleFormat::info(status_msg))?;
             }
