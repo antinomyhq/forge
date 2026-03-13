@@ -684,6 +684,15 @@
     ]
   },
   {
+    "id": "openai_responses_compatible",
+    "api_key_vars": "OPENAI_API_KEY",
+    "url_param_vars": ["OPENAI_URL"],
+    "response_type": "OpenAIResponses",
+    "url": "{{OPENAI_URL}}/responses",
+    "models": "{{OPENAI_URL}}/models",
+    "auth_methods": ["api_key"]
+  },
+  {
     "id": "anthropic",
     "api_key_vars": "ANTHROPIC_API_KEY",
     "url_param_vars": [
@@ -1225,6 +1234,16 @@
     "response_type": "Google",
     "url": "https://{{#if (eq LOCATION \"global\")}}aiplatform.googleapis.com{{else}}{{LOCATION}}-aiplatform.googleapis.com{{/if}}/v1beta1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/google",
     "models": [
+      {
+        "id": "gemini-3.1-flash-lite-preview",
+        "name": "Gemini 3.1 Flash Lite Preview",
+        "description": "Google's most cost-efficient Gemini model, optimized for low latency use cases for high-volume, cost-sensitive LLM traffic.",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
       {
         "id": "gemini-3.1-pro-preview",
         "name": "Gemini 3.1 Pro Preview",

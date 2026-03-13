@@ -80,6 +80,36 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         })
         .await
     }
+
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.commit)
+    }
+
+    async fn set_commit_config(
+        &self,
+        commit_config: forge_domain::CommitConfig,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.commit = Some(commit_config);
+        })
+        .await
+    }
+
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.suggest)
+    }
+
+    async fn set_suggest_config(
+        &self,
+        suggest_config: forge_domain::SuggestConfig,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.suggest = Some(suggest_config);
+        })
+        .await
+    }
 }
 
 #[cfg(test)]

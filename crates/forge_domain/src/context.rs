@@ -452,7 +452,6 @@ impl Context {
 
     pub fn add_entry(mut self, content: impl Into<MessageEntry>) -> Self {
         let content = content.into();
-        debug!(content = ?content, "Adding message to context");
         self.messages.push(content);
 
         self
@@ -462,7 +461,13 @@ impl Context {
         attachments.into_iter().fold(self, |ctx, attachment| {
             ctx.add_message(match attachment.content {
                 AttachmentContent::Image(image) => ContextMessage::Image(image),
-                AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
+                AttachmentContent::FileContent {
+                    content,
+                    start_line,
+                    end_line,
+                    total_lines,
+                    ..
+                } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
                         .attr("start_line", start_line)
@@ -1132,6 +1137,7 @@ mod tests {
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
+                content_hash: "hash".to_string(),
             },
         }];
 
@@ -1184,6 +1190,7 @@ mod tests {
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,
+                    content_hash: "hash1".to_string(),
                 },
             },
             Attachment {
@@ -1193,6 +1200,7 @@ mod tests {
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,
+                    content_hash: "hash2".to_string(),
                 },
             },
         ];
