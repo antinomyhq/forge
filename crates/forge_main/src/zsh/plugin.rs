@@ -61,6 +61,19 @@ pub fn generate_zsh_theme() -> Result<String> {
     Ok(content)
 }
 
+/// Creates a temporary zsh script file for Windows execution
+fn create_temp_zsh_script(script_content: &str) -> Result<(tempfile::TempDir, PathBuf)> {
+    use std::io::Write;
+
+    let temp_dir = tempfile::tempdir().context("Failed to create temp directory")?;
+    let script_path = temp_dir.path().join("forge_script.zsh");
+    let mut file = fs::File::create(&script_path).context("Failed to create temp script file")?;
+    file.write_all(script_content.as_bytes())
+        .context("Failed to write temp script")?;
+
+    Ok((temp_dir, script_path))
+}
+
 /// Executes a ZSH script with streaming output
 ///
 /// # Arguments
@@ -78,36 +91,30 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
     // On Unix, pass script via `zsh -c` -- Command::arg() uses execve which
     // passes arguments directly without shell interpretation, so embedded
     // quotes are safe.
-    // On Windows, pipe script via stdin to avoid CreateProcess mangling
-    // embedded double-quote characters in command-line arguments.
-    let mut child = if cfg!(windows) {
-        std::process::Command::new("zsh")
-            .stdin(Stdio::piped())
+    // On Windows, write script to temp file and execute it with -f (no rc files)
+    // This avoids CreateProcess quote mangling AND prevents ~/.zshrc loading
+    let (_temp_dir, mut child) = if cfg!(windows) {
+        let (temp_dir, script_path) = create_temp_zsh_script(&script_content)?;
+        let child = std::process::Command::new("zsh")
+            // -f: don't load ~/.zshrc (prevents theme loading during doctor)
+            .arg("-f")
+            .arg(script_path.to_string_lossy().as_ref())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .context(format!("Failed to execute zsh {} script", script_name))?
+            .context(format!("Failed to execute zsh {} script", script_name))?;
+        // Keep temp_dir alive by boxing it in the tuple
+        (Some(temp_dir), child)
     } else {
-        std::process::Command::new("zsh")
+        let child = std::process::Command::new("zsh")
             .arg("-c")
             .arg(&script_content)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .context(format!("Failed to execute zsh {} script", script_name))?
+            .context(format!("Failed to execute zsh {} script", script_name))?;
+        (None, child)
     };
-
-    // On Windows, write script to stdin then close the pipe
-    if cfg!(windows) {
-        use std::io::Write;
-        let mut stdin = child.stdin.take().context("Failed to open stdin")?;
-        stdin.write_all(script_content.as_bytes()).context(format!(
-            "Failed to write zsh {} script to stdin",
-            script_name
-        ))?;
-        stdin.flush().context("Failed to flush stdin")?;
-        drop(stdin);
-    }
 
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
