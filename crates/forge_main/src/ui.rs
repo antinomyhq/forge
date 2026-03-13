@@ -1661,89 +1661,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         // Display detection results
-        match &deps.zsh {
-            ZshStatus::Functional { version, path } => {
-                self.writeln_title(TitleFormat::info(format!(
-                    "zsh {} found at {}",
-                    version, path
-                )))?;
-            }
-            ZshStatus::Broken { path } => {
-                self.writeln_title(TitleFormat::info(format!(
-                    "zsh found at {} but modules are broken",
-                    path
-                )))?;
-            }
-            ZshStatus::NotFound => {
-                self.writeln_title(TitleFormat::info("zsh not found"))?;
-            }
-        }
-
-        match &deps.oh_my_zsh {
-            OmzStatus::Installed => {
-                self.writeln_title(TitleFormat::info("Oh My Zsh installed"))?;
-            }
-            OmzStatus::NotInstalled => {
-                self.writeln_title(TitleFormat::info("Oh My Zsh not found"))?;
-            }
-        }
-
-        if deps.autosuggestions == crate::zsh::PluginStatus::Installed {
-            self.writeln_title(TitleFormat::info("zsh-autosuggestions installed"))?;
-        } else {
-            self.writeln_title(TitleFormat::info("zsh-autosuggestions not found"))?;
-        }
-
-        if deps.syntax_highlighting == crate::zsh::PluginStatus::Installed {
-            self.writeln_title(TitleFormat::info("zsh-syntax-highlighting installed"))?;
-        } else {
-            self.writeln_title(TitleFormat::info("zsh-syntax-highlighting not found"))?;
-        }
-
-        match &deps.fzf {
-            FzfStatus::Found { version, meets_minimum } => {
-                if *meets_minimum {
-                    self.writeln_title(TitleFormat::info(format!("fzf {} found", version)))?;
-                } else {
-                    self.writeln_title(TitleFormat::info(format!(
-                        "fzf {} found (outdated, need >= 0.36.0)",
-                        version
-                    )))?;
-                }
-            }
-            FzfStatus::NotFound => {
-                self.writeln_title(TitleFormat::info("fzf not found"))?;
-            }
-        }
-
-        match &deps.bat {
-            crate::zsh::BatStatus::Installed { version, meets_minimum } => {
-                let status_msg = if *meets_minimum {
-                    format!("bat {} found", version)
-                } else {
-                    format!("bat {} found (outdated, need >= 0.20.0)", version)
-                };
-                self.writeln_title(TitleFormat::info(status_msg))?;
-            }
-            crate::zsh::BatStatus::NotFound => {
-                self.writeln_title(TitleFormat::info("bat not found"))?;
-            }
-        }
-
-        match &deps.fd {
-            crate::zsh::FdStatus::Installed { version, meets_minimum } => {
-                let status_msg = if *meets_minimum {
-                    format!("fd {} found", version)
-                } else {
-                    format!("fd {} found (outdated, need >= 10.0.0)", version)
-                };
-                self.writeln_title(TitleFormat::info(status_msg))?;
-            }
-            crate::zsh::FdStatus::NotFound => {
-                self.writeln_title(TitleFormat::info("fd not found"))?;
-            }
-        }
-
+        self.log_dependency_status(&deps)?;
         println!();
 
         // Step C & D: Install missing dependencies if needed
@@ -2117,6 +2035,98 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         Ok(())
     }
+
+    /// Logs the detected status of each zsh setup dependency to the UI.
+    fn log_dependency_status(
+        &mut self,
+        deps: &zsh::DependencyStatus,
+    ) -> anyhow::Result<()> {
+        match &deps.zsh {
+            ZshStatus::Functional { version, path } => {
+                self.writeln_title(TitleFormat::info(format!(
+                    "zsh {} found at {}",
+                    version, path
+                )))?;
+            }
+            ZshStatus::Broken { path } => {
+                self.writeln_title(TitleFormat::info(format!(
+                    "zsh found at {} but modules are broken",
+                    path
+                )))?;
+            }
+            ZshStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("zsh not found"))?;
+            }
+        }
+
+        match &deps.oh_my_zsh {
+            OmzStatus::Installed => {
+                self.writeln_title(TitleFormat::info("Oh My Zsh installed"))?;
+            }
+            OmzStatus::NotInstalled => {
+                self.writeln_title(TitleFormat::info("Oh My Zsh not found"))?;
+            }
+        }
+
+        if deps.autosuggestions == crate::zsh::PluginStatus::Installed {
+            self.writeln_title(TitleFormat::info("zsh-autosuggestions installed"))?;
+        } else {
+            self.writeln_title(TitleFormat::info("zsh-autosuggestions not found"))?;
+        }
+
+        if deps.syntax_highlighting == crate::zsh::PluginStatus::Installed {
+            self.writeln_title(TitleFormat::info("zsh-syntax-highlighting installed"))?;
+        } else {
+            self.writeln_title(TitleFormat::info("zsh-syntax-highlighting not found"))?;
+        }
+
+        match &deps.fzf {
+            FzfStatus::Found { version, meets_minimum } => {
+                if *meets_minimum {
+                    self.writeln_title(TitleFormat::info(format!("fzf {} found", version)))?;
+                } else {
+                    self.writeln_title(TitleFormat::info(format!(
+                        "fzf {} found (outdated, need >= 0.36.0)",
+                        version
+                    )))?;
+                }
+            }
+            FzfStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("fzf not found"))?;
+            }
+        }
+
+        match &deps.bat {
+            crate::zsh::BatStatus::Installed { version, meets_minimum } => {
+                let status_msg = if *meets_minimum {
+                    format!("bat {} found", version)
+                } else {
+                    format!("bat {} found (outdated, need >= 0.20.0)", version)
+                };
+                self.writeln_title(TitleFormat::info(status_msg))?;
+            }
+            crate::zsh::BatStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("bat not found"))?;
+            }
+        }
+
+        match &deps.fd {
+            crate::zsh::FdStatus::Installed { version, meets_minimum } => {
+                let status_msg = if *meets_minimum {
+                    format!("fd {} found", version)
+                } else {
+                    format!("fd {} found (outdated, need >= 10.0.0)", version)
+                };
+                self.writeln_title(TitleFormat::info(status_msg))?;
+            }
+            crate::zsh::FdStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("fd not found"))?;
+            }
+        }
+
+        Ok(())
+    }
+
     /// Handle the cmd command - generates shell command from natural language
     async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
         self.spinner.start(Some("Generating"))?;
