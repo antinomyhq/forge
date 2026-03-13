@@ -531,7 +531,7 @@ mod test {
             &self,
             _batch_size: usize,
             _paths: Vec<PathBuf>,
-        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
             futures::stream::empty()
         }
 
