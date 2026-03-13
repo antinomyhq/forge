@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use serde_json::Value;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::error::Error;
 use crate::read::read;
@@ -197,6 +197,14 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_id: Option<String>,
 
+    /// Named presets keyed by preset identifier, each bundling model and sampling settings.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub presets: HashMap<PresetId, PresetConfig>,
+
+    /// Identifier of the preset to activate by default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset_id: Option<PresetId>,
+
     /// Backoff multiplication factor applied on each successive retry attempt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry_backoff_factor: Option<u64>,
@@ -323,6 +331,11 @@ where
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct SummaryTag(pub String);
+
+/// Unique identifier for a named preset.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct PresetId(String);
 
 /// TLS backend selection for HTTP connections.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
