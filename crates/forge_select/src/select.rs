@@ -2,6 +2,7 @@ use std::io::{self, Write};
 use std::process::{Command, Stdio};
 
 use anyhow::Result;
+use colored::Colorize;
 use console::strip_ansi_codes;
 use fzf_wrapped::{Fzf, Layout, run_with_output};
 
@@ -436,8 +437,13 @@ impl InputBuilder {
         loop {
             // Build the prompt string shown to the user
             let prompt_str = match &hint {
-                Some(h) => format!("{} [{}]: ", self.message, h),
-                None => format!("{}: ", self.message),
+                Some(h) => format!(
+                    "{} {} {}: ",
+                    "?".yellow().bold(),
+                    self.message.bold(),
+                    format!("({})", h).dimmed(),
+                ),
+                None => format!("{} {}: ", "?".yellow().bold(), self.message.bold()),
             };
 
             // Use shell-native `read` to collect input from /dev/tty.

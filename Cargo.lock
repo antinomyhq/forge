@@ -2129,6 +2129,7 @@ name = "forge_select"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "colored",
  "console 0.16.2",
  "fzf-wrapped",
  "pretty_assertions",
