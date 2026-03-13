@@ -3,8 +3,6 @@
 //! Pure data types representing the installation status of each dependency
 //! (zsh, Oh My Zsh, plugins, fzf, bat, fd) and related capability enums.
 
-use std::path::PathBuf;
-
 /// Status of the zsh shell installation.
 #[derive(Debug, Clone)]
 pub enum ZshStatus {
@@ -30,11 +28,7 @@ pub enum OmzStatus {
     /// Oh My Zsh is not installed.
     NotInstalled,
     /// Oh My Zsh is installed at the given path.
-    Installed {
-        /// Path to the Oh My Zsh directory
-        #[allow(dead_code)]
-        path: PathBuf,
-    },
+    Installed,
 }
 
 /// Status of a zsh plugin (autosuggestions or syntax-highlighting).
@@ -310,7 +304,7 @@ mod tests {
     fn test_all_installed_when_everything_present() {
         let fixture = DependencyStatus {
             zsh: ZshStatus::Functional { version: "5.9".into(), path: "/usr/bin/zsh".into() },
-            oh_my_zsh: OmzStatus::Installed { path: PathBuf::from("/home/user/.oh-my-zsh") },
+            oh_my_zsh: OmzStatus::Installed,
             autosuggestions: PluginStatus::Installed,
             syntax_highlighting: PluginStatus::Installed,
             fzf: FzfStatus::Found { version: "0.54.0".into(), meets_minimum: true },
@@ -327,7 +321,7 @@ mod tests {
     fn test_all_installed_false_when_zsh_missing() {
         let fixture = DependencyStatus {
             zsh: ZshStatus::NotFound,
-            oh_my_zsh: OmzStatus::Installed { path: PathBuf::from("/home/user/.oh-my-zsh") },
+            oh_my_zsh: OmzStatus::Installed,
             autosuggestions: PluginStatus::Installed,
             syntax_highlighting: PluginStatus::Installed,
             fzf: FzfStatus::NotFound,
@@ -378,7 +372,7 @@ mod tests {
     fn test_missing_items_partial() {
         let fixture = DependencyStatus {
             zsh: ZshStatus::Functional { version: "5.9".into(), path: "/usr/bin/zsh".into() },
-            oh_my_zsh: OmzStatus::Installed { path: PathBuf::from("/home/user/.oh-my-zsh") },
+            oh_my_zsh: OmzStatus::Installed,
             autosuggestions: PluginStatus::NotInstalled,
             syntax_highlighting: PluginStatus::Installed,
             fzf: FzfStatus::NotFound,

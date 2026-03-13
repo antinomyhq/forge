@@ -1680,7 +1680,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         match &deps.oh_my_zsh {
-            OmzStatus::Installed { .. } => {
+            OmzStatus::Installed => {
                 self.writeln_title(TitleFormat::info("Oh My Zsh installed"))?;
             }
             OmzStatus::NotInstalled => {

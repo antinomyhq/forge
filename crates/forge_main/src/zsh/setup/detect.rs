@@ -106,7 +106,7 @@ pub async fn detect_oh_my_zsh() -> OmzStatus {
     };
     let omz_path = PathBuf::from(&home).join(".oh-my-zsh");
     if omz_path.is_dir() {
-        OmzStatus::Installed { path: omz_path }
+        OmzStatus::Installed
     } else {
         OmzStatus::NotInstalled
     }
