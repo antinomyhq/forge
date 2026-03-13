@@ -264,6 +264,13 @@ impl ForgeConfig {
     pub async fn read() -> Result<Self, Error> {
         read().await
     }
+
+    /// Returns all configurable fields as `(env_var, description)` tuples derived from the JSON
+    /// Schema. Nested structs (e.g. `compaction`) are expanded using the `FORGE_PARENT__CHILD`
+    /// double-underscore separator convention used by the environment variable reader.
+    pub fn env_vars() -> Vec<(String, String)> {
+        crate::read::env_vars()
+    }
 }
 
 /// Frequency at which update checks are performed.

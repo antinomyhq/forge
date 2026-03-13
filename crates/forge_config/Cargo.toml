@@ -14,5 +14,6 @@ schemars.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+insta.workspace = true
 pretty_assertions.workspace = true
 tokio.workspace = true

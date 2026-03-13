@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use config::{ConfigBuilder, Environment, File, FileFormat, builder::AsyncState};
 use serde::de::DeserializeOwned;
 
+use crate::config::ForgeConfig;
 use crate::error::Error;
 
 /// Embedded default configuration, compiled into the binary.
@@ -73,6 +74,91 @@ pub async fn read<T: DeserializeOwned>() -> Result<T, Error> {
         .await?;
 
     Ok(cfg.try_deserialize::<T>()?)
+}
+
+/// Returns all configurable fields of [`ForgeConfig`] as `(env_var, description)` tuples derived
+/// from the JSON Schema. Nested structs (e.g. `compaction`) are expanded with the
+/// `FORGE_PARENT__CHILD` double-underscore separator convention used by the environment variable
+/// reader.
+pub fn env_vars() -> Vec<(String, String)> {
+    use schemars::SchemaGenerator;
+    use serde_json::Value;
+
+    let schema = SchemaGenerator::default().into_root_schema_for::<ForgeConfig>();
+    let root = schema.as_value();
+
+    let defs = root
+        .get("$defs")
+        .and_then(Value::as_object)
+        .cloned()
+        .unwrap_or_default();
+
+    let properties = match root.get("properties").and_then(Value::as_object) {
+        Some(p) => p,
+        None => return vec![],
+    };
+
+    let mut result = Vec::new();
+
+    for (field_name, field_schema) in properties {
+        let env_prefix = format!("FORGE_{}", field_name.to_uppercase());
+
+        // Resolve the actual schema object, unwrapping anyOf wrappers for Option<T>
+        let resolved = resolve_schema(field_schema, &defs);
+
+        if let Some(nested_props) = resolved
+            .as_ref()
+            .and_then(|s| s.get("properties"))
+            .and_then(Value::as_object)
+        {
+            // Nested struct — expand each child field with the double-underscore separator
+            for (child_name, child_schema) in nested_props {
+                let env_var = format!("{}__{}", env_prefix, child_name.to_uppercase());
+                let description = child_schema
+                    .get("description")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                result.push((env_var, description));
+            }
+        } else {
+            // Flat field
+            let description = field_schema
+                .get("description")
+                .or_else(|| resolved.as_ref().and_then(|s| s.get("description")))
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            result.push((env_prefix, description));
+        }
+    }
+
+    result
+}
+
+/// Resolves a field schema to its concrete object schema, following `$ref` pointers and
+/// unwrapping `anyOf` wrappers that schemars emits for `Option<T>` fields.
+fn resolve_schema<'a>(
+    schema: &'a serde_json::Value,
+    defs: &'a serde_json::Map<String, serde_json::Value>,
+) -> Option<&'a serde_json::Value> {
+    // Direct $ref
+    if let Some(ref_str) = schema.get("$ref").and_then(serde_json::Value::as_str) {
+        let def_name = ref_str.strip_prefix("#/$defs/")?;
+        return defs.get(def_name);
+    }
+
+    // anyOf: schemars wraps Option<T> as anyOf: [{$ref: ...}, {type: null}]
+    if let Some(any_of) = schema.get("anyOf").and_then(serde_json::Value::as_array) {
+        for candidate in any_of {
+            if candidate.get("type").and_then(serde_json::Value::as_str) == Some("null") {
+                continue;
+            }
+            return resolve_schema(candidate, defs);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -173,5 +259,19 @@ mod tests {
         let expected = Some(10usize);
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_env_var_field_names() {
+        let mut vars = env_vars();
+        vars.sort_by(|a, b| a.0.cmp(&b.0));
+
+        let output = vars
+            .into_iter()
+            .map(|(k, desc)| format!("# {desc}\n{k}\n"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        insta::assert_snapshot!(output);
     }
 }
