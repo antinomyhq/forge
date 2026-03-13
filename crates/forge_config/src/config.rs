@@ -327,11 +327,6 @@ where
     Ok(value)
 }
 
-/// Tag name to extract content from during summarization.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-pub struct SummaryTag(pub String);
-
 /// Unique identifier for a named preset.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(transparent)]
