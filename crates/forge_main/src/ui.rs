@@ -861,7 +861,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(true);
         }
 
-        // Fetch and filter configured providers (like shell :logout filters to status [yes])
+        // Fetch and filter configured providers (like shell :logout filters to status
+        // [yes])
         let configured_providers: Vec<AnyProvider> = self
             .api
             .get_providers()
@@ -1906,8 +1907,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 // Convert to porcelain format matching shell plugin's :agent
                 // Shell uses --with-nth="1,2,4,5,6" hiding Location (col 3).
-                // Original cols: 0=Title, 1=Id, 2=Title, 3=Location, 4=Provider, 5=Model, 6=Reasoning
-                // Drop cols 0 (title) and 3 (location)
+                // Original cols: 0=Title, 1=Id, 2=Title, 3=Location, 4=Provider, 5=Model,
+                // 6=Reasoning Drop cols 0 (title) and 3 (location)
                 let porcelain_output = Porcelain::from(&info)
                     .drop_cols(&[0, 3])
                     .truncate(3, 30)
@@ -1940,23 +1941,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let starting_cursor = current_agent
                     .and_then(|current| {
                         // Skip header row (index 0) when searching
-                        all_lines
-                            .iter()
-                            .skip(1)
-                            .position(|line| {
-                                line.split_whitespace()
-                                    .next()
-                                    .map(|id| id == current.as_str())
-                                    .unwrap_or(false)
-                            })
+                        all_lines.iter().skip(1).position(|line| {
+                            line.split_whitespace()
+                                .next()
+                                .map(|id| id == current.as_str())
+                                .unwrap_or(false)
+                        })
                     })
                     .unwrap_or(0);
 
-                if let Some(selected_agent) =
-                    ForgeSelect::select("Agent", display_agents)
-                        .with_starting_cursor(starting_cursor)
-                        .with_header_lines(1)
-                        .prompt()?
+                if let Some(selected_agent) = ForgeSelect::select("Agent", display_agents)
+                    .with_starting_cursor(starting_cursor)
+                    .with_header_lines(1)
+                    .prompt()?
                 {
                     self.on_agent_change(selected_agent.id).await?;
                 }
@@ -2529,7 +2526,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Sort providers alphabetically by display name
         let mut sorted = providers;
-        sorted.sort_by(|a, b| a.id().to_string().cmp(&b.id().to_string()));
+        sorted.sort_by_key(|a| a.id().to_string());
 
         // Build Info structure (same as on_show_providers)
         let mut info = Info::new();
@@ -2582,10 +2579,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         rows.push(ProviderRow { provider: None, display: all_lines[0].to_string() });
         // Data rows
         for (i, line) in all_lines.iter().skip(1).enumerate() {
-            rows.push(ProviderRow {
-                provider: sorted.get(i).cloned(),
-                display: line.to_string(),
-            });
+            rows.push(ProviderRow { provider: sorted.get(i).cloned(), display: line.to_string() });
         }
 
         // Find starting cursor for the current provider

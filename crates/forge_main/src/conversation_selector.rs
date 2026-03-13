@@ -103,11 +103,7 @@ impl ConversationSelector {
 
         // Find starting cursor for the current conversation
         let starting_cursor = current_conversation_id
-            .and_then(|current| {
-                valid_conversations
-                    .iter()
-                    .position(|c| c.id == current)
-            })
+            .and_then(|current| valid_conversations.iter().position(|c| c.id == current))
             .unwrap_or(0);
 
         if let Some(selected) = tokio::task::spawn_blocking(move || {
