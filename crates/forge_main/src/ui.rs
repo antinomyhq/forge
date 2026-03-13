@@ -35,7 +35,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
+use crate::model::{ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -150,16 +150,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(agent_id) => self.api.get_agent_model(agent_id).await,
             None => self.api.get_default_model().await,
         }
-    }
-
-    /// Filters providers to return only configured ones
-    fn get_configured_providers(&self, providers: Vec<AnyProvider>) -> Vec<CliProvider> {
-        use crate::model::CliProvider;
-        providers
-            .into_iter()
-            .filter(|p| p.is_configured())
-            .map(CliProvider)
-            .collect()
     }
 
     /// Displays banner only if user is in interactive mode.
@@ -822,32 +812,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<()> {
-        use crate::model::CliProvider;
-
         // Get the provider to login to
         let any_provider = if let Some(id) = provider_id {
             // Specific provider requested
             self.api.get_provider(id).await?
         } else {
-            // Fetch all providers for selection
-            let providers = self
-                .api
-                .get_providers()
-                .await?
-                .into_iter()
-                .map(CliProvider)
-                .collect::<Vec<_>>();
+            // Fetch all providers for selection (no type filter, like shell :login)
+            let providers = self.api.get_providers().await?;
 
-            // Sort the providers by their display names
-            let mut sorted_providers = providers;
-            sorted_providers.sort_by_key(|a| a.to_string());
-
-            // Use the centralized select module
-            match ForgeSelect::select("Select a provider to login:", sorted_providers)
-                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-                .prompt()?
-            {
-                Some(provider) => provider.0,
+            match self.select_provider_from_list(providers, "Provider", None)? {
+                Some(provider) => provider,
                 None => {
                     self.writeln_title(TitleFormat::info("Cancelled"))?;
                     return Ok(());
@@ -887,25 +861,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(true);
         }
 
-        // Fetch and filter configured providers
-        let configured_providers = self.get_configured_providers(self.api.get_providers().await?);
+        // Fetch and filter configured providers (like shell :logout filters to status
+        // [yes])
+        let configured_providers: Vec<AnyProvider> = self
+            .api
+            .get_providers()
+            .await?
+            .into_iter()
+            .filter(|p| p.is_configured())
+            .collect();
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
             return Ok(false);
         }
 
-        // Sort the providers by their display names
-        let mut sorted_providers = configured_providers;
-        sorted_providers.sort_by_key(|a| a.to_string());
-
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider to logout:", sorted_providers)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        {
+        match self.select_provider_from_list(configured_providers, "Provider", None)? {
             Some(provider) => {
-                let provider_id = provider.0.id();
+                let provider_id = provider.id();
                 self.api.remove_provider(&provider_id).await?;
                 self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
@@ -1754,7 +1727,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if let Some(conversation) =
-            ConversationSelector::select_conversation(&conversations).await?
+            ConversationSelector::select_conversation(&conversations, self.state.conversation_id)
+                .await?
         {
             let conversation_id = conversation.id;
             self.state.conversation_id = Some(conversation_id);
@@ -1931,33 +1905,55 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Reuse the same Info building logic as list agents
                 let info = self.build_agents_info(false).await?;
 
-                // Convert to porcelain format (same as list agents --porcelain)
+                // Convert to porcelain format matching shell plugin's :agent
+                // Shell uses --with-nth="1,2,4,5,6" hiding Location (col 3).
+                // Original cols: 0=Title, 1=Id, 2=Title, 3=Location, 4=Provider, 5=Model,
+                // 6=Reasoning Drop cols 0 (title) and 3 (location)
                 let porcelain_output = Porcelain::from(&info)
-                    .drop_col(0)
+                    .drop_cols(&[0, 3])
                     .truncate(3, 30)
                     .uppercase_headers();
+                let porcelain_str = porcelain_output.to_string();
 
-                // Split the porcelain output into lines and create agents
-                let porcelain_lines: Vec<String> = porcelain_output
-                    .to_string()
-                    .lines()
-                    .skip(1) // Skip header row
-                    .map(|s| s.to_string())
-                    .collect();
+                let all_lines: Vec<&str> = porcelain_str.lines().collect();
+                if all_lines.is_empty() {
+                    return Ok(false);
+                }
 
                 let mut display_agents = Vec::new();
-                for line in porcelain_lines {
-                    // Extract agent id from the beginning of the line
+                // Header row (non-selectable via header_lines=1)
+                display_agents.push(Agent {
+                    id: AgentId::new("__header__".to_string()),
+                    label: all_lines[0].to_string(),
+                });
+                // Data rows
+                for line in all_lines.iter().skip(1) {
                     if let Some(id_str) = line.split_whitespace().next() {
                         display_agents.push(Agent {
-                            label: line.clone(),
+                            label: line.to_string(),
                             id: AgentId::new(id_str.to_string()),
                         });
                     }
                 }
 
-                if let Some(selected_agent) =
-                    ForgeSelect::select("Select an agent", display_agents.clone()).prompt()?
+                // Find starting cursor for the current agent
+                let current_agent = self.api.get_active_agent().await;
+                let starting_cursor = current_agent
+                    .and_then(|current| {
+                        // Skip header row (index 0) when searching
+                        all_lines.iter().skip(1).position(|line| {
+                            line.split_whitespace()
+                                .next()
+                                .map(|id| id == current.as_str())
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(0);
+
+                if let Some(selected_agent) = ForgeSelect::select("Agent", display_agents)
+                    .with_starting_cursor(starting_cursor)
+                    .with_header_lines(1)
+                    .prompt()?
                 {
                     self.on_agent_change(selected_agent.id).await?;
                 }
@@ -2012,9 +2008,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Select a model from the available models
-    /// Returns Some(ModelId) if a model was selected, or None if selection was
-    /// canceled
+    /// Select a model from all configured providers using porcelain-style
+    /// tabular display matching the shell plugin's `:model` UI.
+    ///
+    /// Shows columns: MODEL, PROVIDER, CONTEXT WINDOW, TOOL SUPPORTED, IMAGE
+    /// with a non-selectable header row.
+    ///
+    /// # Returns
+    /// - `Ok(Some(ModelId))` if a model was selected
+    /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
@@ -2029,33 +2031,134 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Fetch available models
-        let mut models = self
-            .get_models()
-            .await?
-            .into_iter()
-            .map(CliModel)
-            .collect::<Vec<_>>();
+        // Fetch models from ALL configured providers (matches shell plugin's
+        // `forge list models --porcelain`)
+        self.spinner.start(Some("Loading"))?;
+        let mut all_provider_models = self.api.get_all_provider_models().await?;
+        self.spinner.stop(None)?;
 
-        // Sort the models by their names in ascending order
-        models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+        if all_provider_models.is_empty() {
+            return Ok(None);
+        }
 
-        // Find the index of the current model
+        // Sort models and providers (same as on_show_models)
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
+
+        // Build the same Info structure as on_show_models, then convert to
+        // Porcelain for tabular display.
+        let mut info = Info::new();
+        for pm in &all_provider_models {
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
+                info = info
+                    .add_title(&id)
+                    .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Provider", &provider_display);
+
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
+                } else {
+                    info = info.add_key_value("Context Window", markers::EMPTY);
+                }
+
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    );
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY);
+                }
+
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
+                info = info.add_key_value(
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
+            }
+        }
+
+        // Convert to porcelain format (same as on_show_models --porcelain)
+        let porcelain_output = Porcelain::from(&info)
+            .drop_col(0)
+            .truncate(0, 40)
+            .uppercase_headers();
+        let porcelain_str = porcelain_output.to_string();
+
+        // Split into header + data lines
+        let all_lines: Vec<&str> = porcelain_str.lines().collect();
+        if all_lines.is_empty() {
+            return Ok(None);
+        }
+
+        // Build a flat list of (ModelId, display_line) for the data rows.
+        // The first line is the header; data rows follow in the same order as
+        // the Info entries (sorted by provider, then model within provider).
+        let mut model_ids: Vec<ModelId> = Vec::new();
+        for pm in &all_provider_models {
+            for model in &pm.models {
+                model_ids.push(model.id.clone());
+            }
+        }
+
+        // Create display items: header line first, then data lines paired with
+        // model IDs.
+        #[derive(Clone)]
+        struct ModelRow {
+            model_id: Option<ModelId>,
+            display: String,
+        }
+        impl std::fmt::Display for ModelRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.display)
+            }
+        }
+
+        let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
+        // Header row (non-selectable via header_lines=1)
+        rows.push(ModelRow { model_id: None, display: all_lines[0].to_string() });
+        // Data rows
+        for (i, line) in all_lines.iter().skip(1).enumerate() {
+            rows.push(ModelRow {
+                model_id: model_ids.get(i).cloned(),
+                display: line.to_string(),
+            });
+        }
+
+        // Find starting cursor position for the current model.
+        // The cursor position is relative to the data rows (header is excluded
+        // by fzf's --header-lines), so index 0 = first data row.
         let current_model = self
             .get_agent_model(self.api.get_active_agent().await)
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| models.iter().position(|m| &m.0.id == current))
+            .and_then(|current| model_ids.iter().position(|id| id == current))
             .unwrap_or(0);
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a model:", models)
+        match ForgeSelect::select("Model", rows)
             .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .with_header_lines(1)
             .prompt()?
         {
-            Some(model) => Ok(Some(model.0.id)),
+            Some(row) => Ok(row.model_id),
             None => Ok(None),
         }
     }
@@ -2104,7 +2207,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 key_str.to_string()
             } else {
                 // For other providers, show the existing key as default (autofill)
-                let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                let input = ForgeSelect::input(format!("Enter your {provider_id} API key"))
                     .with_default(key_str);
                 let api_key = input.prompt()?.context("API key input cancelled")?;
                 let api_key_str = api_key.trim();
@@ -2113,7 +2216,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         } else {
             // Prompt for API key input (no existing key)
-            let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"));
+            let input = ForgeSelect::input(format!("Enter your {provider_id} API key"));
             let api_key = input.prompt()?.context("API key input cancelled")?;
             let api_key_str = api_key.trim();
             anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
@@ -2406,10 +2509,97 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(provider.into_configured())
     }
 
+    /// Builds a porcelain-style provider selection list from a set of
+    /// providers, displays it in fzf, and returns the selected provider.
+    ///
+    /// The display matches the shell plugin's `_forge_select_provider`:
+    /// columns NAME, HOST, TYPE, LOGGED IN (hiding the raw ID column).
+    fn select_provider_from_list(
+        &self,
+        providers: Vec<AnyProvider>,
+        prompt: &str,
+        current_provider_id: Option<ProviderId>,
+    ) -> Result<Option<AnyProvider>> {
+        if providers.is_empty() {
+            return Ok(None);
+        }
+
+        // Sort providers alphabetically by display name
+        let mut sorted = providers;
+        sorted.sort_by_key(|a| a.id().to_string());
+
+        // Build Info structure (same as on_show_providers)
+        let mut info = Info::new();
+        for provider in &sorted {
+            let id: &str = &provider.id();
+            let display_name = provider.id().to_string();
+            let domain = if let Some(url) = provider.url() {
+                url.domain().map(|d| d.to_string()).unwrap_or_default()
+            } else {
+                markers::EMPTY.to_string()
+            };
+            let provider_type = provider.provider_type().to_string();
+            let configured = provider.is_configured();
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("name", display_name)
+                .add_key_value("id", id)
+                .add_key_value("host", domain)
+                .add_key_value("type", provider_type);
+            if configured {
+                info = info.add_key_value("logged in", status::YES);
+            }
+        }
+
+        // Convert to porcelain, drop title (col 0) and raw id (col 2)
+        let porcelain_output = Porcelain::from(&info)
+            .drop_cols(&[0, 2])
+            .uppercase_headers();
+        let porcelain_str = porcelain_output.to_string();
+
+        let all_lines: Vec<&str> = porcelain_str.lines().collect();
+        if all_lines.is_empty() {
+            return Ok(None);
+        }
+
+        // Build display rows: header + data
+        #[derive(Clone)]
+        struct ProviderRow {
+            provider: Option<AnyProvider>,
+            display: String,
+        }
+        impl std::fmt::Display for ProviderRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.display)
+            }
+        }
+
+        let mut rows: Vec<ProviderRow> = Vec::with_capacity(all_lines.len());
+        // Header row (non-selectable via header_lines=1)
+        rows.push(ProviderRow { provider: None, display: all_lines[0].to_string() });
+        // Data rows
+        for (i, line) in all_lines.iter().skip(1).enumerate() {
+            rows.push(ProviderRow { provider: sorted.get(i).cloned(), display: line.to_string() });
+        }
+
+        // Find starting cursor for the current provider
+        let starting_cursor = current_provider_id
+            .and_then(|current| sorted.iter().position(|p| p.id() == current))
+            .unwrap_or(0);
+
+        match ForgeSelect::select(prompt, rows)
+            .with_starting_cursor(starting_cursor)
+            .with_header_lines(1)
+            .prompt()?
+        {
+            Some(row) => Ok(row.provider),
+            None => Ok(None),
+        }
+    }
+
     /// Selects a provider, optionally configuring it if not already configured.
     async fn select_provider(&mut self) -> Result<Option<AnyProvider>> {
-        // Fetch and sort available providers
-        let mut providers = self
+        let providers: Vec<AnyProvider> = self
             .api
             .get_providers()
             .await?
@@ -2421,33 +2611,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     AnyProvider::Template(provider) => provider.provider_type == filter,
                 }
             })
-            .map(CliProvider)
-            .collect::<Vec<_>>();
+            .collect();
 
         if providers.is_empty() {
             return Err(anyhow::anyhow!("No AI provider API keys configured"));
         }
 
-        providers.sort_by_key(|a| a.to_string());
-
-        // Find starting cursor position
-        let starting_cursor = self
+        let current_provider_id = self
             .get_provider(self.api.get_active_agent().await)
             .await
             .ok()
-            .and_then(|current| providers.iter().position(|p| p.0.id() == current.id))
-            .unwrap_or(0);
+            .map(|p| p.id);
 
-        // Prompt user to select a provider
-        let Some(provider) = ForgeSelect::select("Select a provider:", providers)
-            .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(provider.0))
+        self.select_provider_from_list(providers, "Provider", current_provider_id)
     }
 
     // Helper method to handle model selection and update the conversation
