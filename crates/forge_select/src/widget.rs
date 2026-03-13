@@ -9,7 +9,7 @@ use crate::multi::MultiSelectBuilder;
 ///
 /// All interactive selection is delegated to the external `fzf` binary.
 /// Requires `fzf` to be installed on the system.
-pub struct ForgeSelect;
+pub struct ForgeWidget;
 
 /// Builder for select prompts with fuzzy search.
 pub struct SelectBuilder<T> {
@@ -22,7 +22,7 @@ pub struct SelectBuilder<T> {
     header_lines: usize,
 }
 
-impl ForgeSelect {
+impl ForgeWidget {
     /// Entry point for select operations with fuzzy search.
     pub fn select<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilder<T> {
         SelectBuilder {
@@ -294,14 +294,14 @@ mod tests {
 
     #[test]
     fn test_select_builder_creates() {
-        let builder = ForgeSelect::select("Test", vec!["a", "b", "c"]);
+        let builder = ForgeWidget::select("Test", vec!["a", "b", "c"]);
         assert_eq!(builder.message, "Test");
         assert_eq!(builder.options, vec!["a", "b", "c"]);
     }
 
     #[test]
     fn test_confirm_builder_creates() {
-        let builder = ForgeSelect::confirm("Confirm?");
+        let builder = ForgeWidget::confirm("Confirm?");
         assert_eq!(builder.message, "Confirm?");
         assert_eq!(builder.options, vec![true, false]);
     }
@@ -309,14 +309,14 @@ mod tests {
     #[test]
     fn test_select_builder_with_initial_text() {
         let builder =
-            ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("app");
+            ForgeWidget::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("app");
         assert_eq!(builder.initial_text, Some("app".to_string()));
     }
 
     #[test]
     fn test_select_owned_builder_with_initial_text() {
         let builder =
-            ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("ban");
+            ForgeWidget::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("ban");
         assert_eq!(builder.initial_text, Some("ban".to_string()));
     }
 
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn test_with_starting_cursor() {
-        let builder = ForgeSelect::select("Test", vec!["a", "b", "c"]).with_starting_cursor(2);
+        let builder = ForgeWidget::select("Test", vec!["a", "b", "c"]).with_starting_cursor(2);
         assert_eq!(builder.starting_cursor, Some(2));
     }
 }

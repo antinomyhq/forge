@@ -1,6 +1,6 @@
 use anyhow::Result;
 use forge_app::UserInfra;
-use forge_select::ForgeSelect;
+use forge_select::ForgeWidget;
 
 pub struct ForgeInquire;
 
@@ -28,7 +28,7 @@ impl ForgeInquire {
 impl UserInfra for ForgeInquire {
     async fn prompt_question(&self, question: &str) -> Result<Option<String>> {
         let question = question.to_string();
-        self.prompt(move || ForgeSelect::input(&question).allow_empty(true).prompt())
+        self.prompt(move || ForgeWidget::input(&question).allow_empty(true).prompt())
             .await
     }
 
@@ -42,7 +42,7 @@ impl UserInfra for ForgeInquire {
         }
 
         let message = message.to_string();
-        self.prompt(move || ForgeSelect::select(&message, options).prompt())
+        self.prompt(move || ForgeWidget::select(&message, options).prompt())
             .await
     }
 
@@ -56,7 +56,7 @@ impl UserInfra for ForgeInquire {
         }
 
         let message = message.to_string();
-        self.prompt(move || ForgeSelect::multi_select(&message, options).prompt())
+        self.prompt(move || ForgeWidget::multi_select(&message, options).prompt())
             .await
     }
 }

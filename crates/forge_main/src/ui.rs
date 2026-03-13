@@ -20,7 +20,7 @@ use forge_domain::{
     AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
-use forge_select::ForgeSelect;
+use forge_select::ForgeWidget;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use futures::future;
@@ -1602,7 +1602,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         );
 
         let can_see_nerd_fonts =
-            ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
+            ForgeWidget::confirm("Can you see all the icons clearly without any overlap?")
                 .with_default(true)
                 .prompt()?;
 
@@ -1647,7 +1647,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "Skip - I'll configure it later",
         ];
 
-        let selected_editor = ForgeSelect::select(
+        let selected_editor = ForgeWidget::select(
             "Which editor would you like to use for editing prompts?",
             editor_options,
         )
@@ -1950,7 +1950,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     })
                     .unwrap_or(0);
 
-                if let Some(selected_agent) = ForgeSelect::select("Agent", display_agents)
+                if let Some(selected_agent) = ForgeWidget::select("Agent", display_agents)
                     .with_starting_cursor(starting_cursor)
                     .with_header_lines(1)
                     .prompt()?
@@ -2153,7 +2153,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .and_then(|current| model_ids.iter().position(|id| id == current))
             .unwrap_or(0);
 
-        match ForgeSelect::select("Model", rows)
+        match ForgeWidget::select("Model", rows)
             .with_starting_cursor(starting_cursor)
             .with_header_lines(1)
             .prompt()?
@@ -2179,7 +2179,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let mut input = ForgeSelect::input(format!("Enter {param}:"));
+                let mut input = ForgeWidget::input(format!("Enter {param}:"));
 
                 // Add default value if it exists in the credential
                 if let Some(params) = existing_url_params
@@ -2207,7 +2207,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 key_str.to_string()
             } else {
                 // For other providers, show the existing key as default (autofill)
-                let input = ForgeSelect::input(format!("Enter your {provider_id} API key"))
+                let input = ForgeWidget::input(format!("Enter your {provider_id} API key"))
                     .with_default(key_str);
                 let api_key = input.prompt()?.context("API key input cancelled")?;
                 let api_key_str = api_key.trim();
@@ -2216,7 +2216,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         } else {
             // Prompt for API key input (no existing key)
-            let input = ForgeSelect::input(format!("Enter your {provider_id} API key"));
+            let input = ForgeWidget::input(format!("Enter your {provider_id} API key"));
             let api_key = input.prompt()?.context("API key input cancelled")?;
             let api_key_str = api_key.trim();
             anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
@@ -2329,7 +2329,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         )))?;
 
         // Prompt user to set as active provider
-        let should_set_active = ForgeSelect::confirm(format!(
+        let should_set_active = ForgeWidget::confirm(format!(
             "Would you like to set {provider_id} as the active provider?"
         ))
         .with_default(true)
@@ -2367,7 +2367,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Prompt user to paste authorization code
-        let code = ForgeSelect::input("Paste the authorization code:")
+        let code = ForgeWidget::input("Paste the authorization code:")
             .prompt()?
             .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
@@ -2428,7 +2428,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect();
 
-        match ForgeSelect::select("Select authentication method:", method_names.clone())
+        match ForgeWidget::select("Select authentication method:", method_names.clone())
             .with_help_message("Use arrow keys to navigate and Enter to select")
             .prompt()?
         {
@@ -2587,7 +2587,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .and_then(|current| sorted.iter().position(|p| p.id() == current))
             .unwrap_or(0);
 
-        match ForgeSelect::select(prompt, rows)
+        match ForgeWidget::select(prompt, rows)
             .with_starting_cursor(starting_cursor)
             .with_header_lines(1)
             .prompt()?
@@ -3135,7 +3135,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn should_continue(&mut self) -> anyhow::Result<()> {
-        let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
+        let should_continue = ForgeWidget::confirm("Do you want to continue anyway?")
             .with_default(true)
             .prompt()?;
 

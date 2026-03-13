@@ -4,4 +4,4 @@ mod widget;
 
 pub use input::InputBuilder;
 pub use multi::MultiSelectBuilder;
-pub use widget::{ForgeSelect, SelectBuilder};
+pub use widget::{ForgeWidget, SelectBuilder};

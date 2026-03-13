@@ -133,24 +133,24 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::ForgeSelect;
+    use crate::ForgeWidget;
 
     #[test]
     fn test_input_builder_creates() {
-        let builder = ForgeSelect::input("Enter name:");
+        let builder = ForgeWidget::input("Enter name:");
         assert_eq!(builder.message, "Enter name:");
         assert_eq!(builder.allow_empty, false);
     }
 
     #[test]
     fn test_input_builder_with_default() {
-        let builder = ForgeSelect::input("Enter key:").with_default("mykey");
+        let builder = ForgeWidget::input("Enter key:").with_default("mykey");
         assert_eq!(builder.default, Some("mykey".to_string()));
     }
 
     #[test]
     fn test_input_builder_allow_empty() {
-        let builder = ForgeSelect::input("Enter:").allow_empty(true);
+        let builder = ForgeWidget::input("Enter:").allow_empty(true);
         assert_eq!(builder.allow_empty, true);
     }
 

@@ -91,11 +91,11 @@ fn build_multi_fzf(message: &str) -> Fzf {
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::ForgeSelect;
+    use crate::ForgeWidget;
 
     #[test]
     fn test_multi_select_builder_creates() {
-        let builder = ForgeSelect::multi_select("Select options:", vec!["a", "b", "c"]);
+        let builder = ForgeWidget::multi_select("Select options:", vec!["a", "b", "c"]);
         assert_eq!(builder.message, "Select options:");
         assert_eq!(builder.options, vec!["a", "b", "c"]);
     }
