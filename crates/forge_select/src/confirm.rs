@@ -37,7 +37,7 @@ impl ConfirmBuilder {
             None => "y/n".to_string(),
         };
 
-        let message_with_hint = format!("{} {}", self.message, hint.dimmed());
+        let message_with_hint = format!("{} {}", self.message, hint.yellow());
 
         let input_builder = InputBuilder {
             message: message_with_hint,
@@ -47,6 +47,8 @@ impl ConfirmBuilder {
         };
 
         let result = input_builder.prompt()?;
+
+        println!("");
 
         // User cancelled (Ctrl+C or EOF)
         if result.is_none() {
