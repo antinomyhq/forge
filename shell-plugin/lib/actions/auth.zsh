@@ -12,8 +12,6 @@ function _forge_action_login() {
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID)
         local provider=$(echo "$selected" | awk '{print $2}')
-        # Run interactively so prompts work correctly when called from inside
-        # a ZLE widget.
         _forge_exec_interactive provider login "$provider"
     fi
 }

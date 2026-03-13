@@ -25,10 +25,11 @@ function _forge_exec() {
     "${cmd[@]}"
 }
 
-# Helper function to execute forge commands that require interactive terminal
-# access. Redirects stdin and stdout through /dev/tty so prompts and streaming
-# output work correctly when called from inside a ZLE widget (where the
-# terminal is owned by ZLE and not inherited by child processes).
+# Like _forge_exec but connects stdin/stdout to /dev/tty so that interactive
+# prompts (rustyline, fzf, etc.) work correctly when forge is launched as a
+# child of a ZLE widget. ZLE owns the terminal and replaces the process's
+# stdin/stdout with its own pipes, so without this redirect any readline
+# library would see a non-tty stdin and return EOF immediately.
 # Do NOT use inside $(...) command substitutions - use _forge_exec instead.
 function _forge_exec_interactive() {
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"

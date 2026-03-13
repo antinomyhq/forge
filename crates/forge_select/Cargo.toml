@@ -10,6 +10,7 @@ colored.workspace = true
 console.workspace = true
 fzf-wrapped.workspace = true
 rustyline.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

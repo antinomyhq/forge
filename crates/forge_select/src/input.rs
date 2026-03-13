@@ -1,6 +1,7 @@
 use anyhow::Result;
 use colored::Colorize;
 use rustyline::DefaultEditor;
+use tracing::debug;
 
 /// Strips bracketed-paste escape sequences from a string.
 ///
@@ -39,51 +40,50 @@ impl InputBuilder {
 
     /// Execute input prompt using rustyline.
     ///
-    /// Uses `rustyline::DefaultEditor` which opens `/dev/tty` directly,
-    /// manages terminal mode, and provides full line editing (backspace,
-    /// arrow keys, Ctrl+A/E, history, etc.) regardless of how the process's
-    /// stdin/stdout are wired up. When `allow_empty` is false and no default
+    /// Uses `rustyline::DefaultEditor` to provide full line editing (backspace,
+    /// arrow keys, Ctrl+A/E, etc.). Requires stdin to be a real tty — the
+    /// caller is responsible for ensuring this (e.g. via `</dev/tty` when
+    /// launched from a ZLE widget). When `allow_empty` is false and no default
     /// is set, re-prompts until non-empty input is provided.
     ///
     /// # Returns
     ///
     /// - `Ok(Some(String))` - User provided input
-    /// - `Ok(None)` - User cancelled (EOF / Ctrl+D)
+    /// - `Ok(None)` - User cancelled (EOF / Ctrl+D / Ctrl+C)
     ///
     /// # Errors
     ///
     /// Returns an error if rustyline fails to initialise or read input.
     pub fn prompt(self) -> Result<Option<String>> {
         let mut rl = DefaultEditor::new()?;
-        loop {
-            let prompt_str = format!("{} {}: ", "?".yellow().bold(), self.message.bold());
 
-            let initial = self.default.as_deref().unwrap_or("");
-            let readline = rl.readline_with_initial(&prompt_str, (initial, ""));
+        let prompt_str = format!("{} {}: ", "?".yellow().bold(), self.message.bold());
 
-            let line = match readline {
-                Ok(s) => s,
-                Err(rustyline::error::ReadlineError::Eof)
-                | Err(rustyline::error::ReadlineError::Interrupted) => return Ok(None),
-                Err(e) => return Err(e.into()),
-            };
+        let initial = self.default.as_deref().unwrap_or("");
+        let readline = rl.readline_with_initial(&prompt_str, (initial, ""));
+        debug!(output = ?readline, "Readline input");
+        let line = match readline {
+            Ok(s) => s,
+            Err(rustyline::error::ReadlineError::Eof)
+            | Err(rustyline::error::ReadlineError::Interrupted) => return Ok(None),
+            Err(e) => return Err(e.into()),
+        };
 
-            let value = strip_bracketed_paste(&line);
-            let trimmed = value.trim();
+        let value = strip_bracketed_paste(&line);
+        let trimmed = value.trim();
 
-            if trimmed.is_empty() {
-                if let Some(ref default_val) = self.default {
-                    return Ok(Some(default_val.clone()));
-                }
-                if self.allow_empty {
-                    return Ok(Some(String::new()));
-                }
-                eprintln!("Input cannot be empty. Please try again.");
-                continue;
+        if trimmed.is_empty() {
+            if let Some(ref default_val) = self.default {
+                return Ok(Some(default_val.clone()));
             }
-
-            return Ok(Some(trimmed.to_string()));
+            if self.allow_empty {
+                return Ok(Some(String::new()));
+            }
+            eprintln!("Input cannot be empty. Please try again.");
+            return Ok(None);
         }
+
+        return Ok(Some(trimmed.to_string()));
     }
 }
 

@@ -2146,6 +2146,7 @@ dependencies = [
  "fzf-wrapped",
  "pretty_assertions",
  "rustyline",
+ "tracing",
 ]
 
 [[package]]
