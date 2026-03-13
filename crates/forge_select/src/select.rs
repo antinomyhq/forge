@@ -448,12 +448,17 @@ impl InputBuilder {
             };
 
             // Use shell-native `read` to collect input from /dev/tty.
-            // The prompt is printed to stderr (fd 2) so the user sees it even
-            // when stdout is captured. `read -r` reads from /dev/tty directly,
-            // bypassing any stdin buffering or terminal mode issues left by fzf.
-            // The value is printed to stdout so we can capture it.
+            // `stty sane` resets the terminal to a known-good state before
+            // reading — fzf puts the terminal into raw/no-echo mode for its
+            // TUI and while it restores on clean exit, the parent process
+            // may not fully inherit the restored state (especially when
+            // fzf's stdout is piped, as fzf-wrapped does). Without this
+            // reset, typed characters are invisible in a normal terminal
+            // (tmux is unaffected because each pane has its own pty).
+            // The prompt is printed to stderr (fd 2) so the user sees it
+            // even when stdout is captured.
             let script = format!(
-                "printf '%s' {prompt} >&2; read -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\"",
+                "stty sane </dev/tty 2>/dev/null; printf '%s' {prompt} >&2; read -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\"",
                 prompt = shell_escape(&prompt_str),
             );
 
