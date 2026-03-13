@@ -1,0 +1,78 @@
+use anyhow::Result;
+use colored::Colorize;
+
+use crate::input::InputBuilder;
+
+/// Builder for confirm (yes/no) prompts.
+pub struct ConfirmBuilder {
+    pub(crate) message: String,
+    pub(crate) default: Option<bool>,
+}
+
+impl ConfirmBuilder {
+    /// Set the default value for the confirm prompt.
+    ///
+    /// If the user presses Enter without typing anything, this default will be
+    /// used.
+    pub fn with_default(mut self, default: bool) -> Self {
+        self.default = Some(default);
+        self
+    }
+
+    /// Execute the confirm prompt.
+    ///
+    /// Prompts the user with the message and expects Y/y/yes or N/no.
+    /// If the user enters an empty response and a default is set, the default
+    /// is used.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(true)` - User confirmed (Y, y, yes, YES, etc.)
+    /// - `Ok(false)` - User denied (N, n, no, NO, etc.)
+    /// - `Err(...)` - If the prompt fails
+    pub fn prompt(self) -> Result<Option<bool>> {
+        let hint = match self.default {
+            Some(true) => Some("Y/n".to_string()),
+            Some(false) => Some("y/N".to_string()),
+            None => Some("y/n".to_string()),
+        };
+
+        let prompt_str = format!(
+            "{} {} {}: ",
+            "?".yellow().bold(),
+            self.message.bold(),
+            hint.unwrap().dimmed(),
+        );
+
+        let input_builder = InputBuilder {
+            message: prompt_str,
+            allow_empty: true,
+            default: None,
+            default_display: None,
+        };
+
+        let result = input_builder.prompt()?;
+
+        // User cancelled (Ctrl+C or EOF)
+        if result.is_none() {
+            return Ok(Some(false));
+        }
+
+        let input = result.unwrap().trim().to_lowercase();
+
+        // Empty input - use default
+        if input.is_empty() {
+            return Ok(Some(self.default.unwrap_or(false)));
+        }
+
+        // Parse Y/N response
+        if input == "y" || input == "yes" {
+            return Ok(Some(true));
+        }
+        if input == "n" || input == "no" {
+            return Ok(Some(false));
+        }
+
+        return Ok(None);
+    }
+}

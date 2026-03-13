@@ -1,3 +1,4 @@
+use crate::confirm::ConfirmBuilder;
 use crate::input::InputBuilder;
 use crate::multi::MultiSelectBuilder;
 use crate::select::SelectBuilder;
@@ -23,16 +24,8 @@ impl ForgeWidget {
     }
 
     /// Convenience method for confirm (yes/no).
-    pub fn confirm(message: impl Into<String>) -> SelectBuilder<bool> {
-        SelectBuilder {
-            message: message.into(),
-            options: vec![true, false],
-            starting_cursor: None,
-            default: None,
-            help_message: None,
-            initial_text: None,
-            header_lines: 0,
-        }
+    pub fn confirm(message: impl Into<String>) -> ConfirmBuilder {
+        ConfirmBuilder { message: message.into(), default: None }
     }
 
     /// Prompt a question and get text input.

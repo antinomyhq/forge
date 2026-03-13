@@ -1,3 +1,4 @@
+mod confirm;
 mod input;
 mod multi;
 mod select;

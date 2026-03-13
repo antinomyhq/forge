@@ -227,7 +227,6 @@ mod tests {
     fn test_confirm_builder_creates() {
         let builder = ForgeWidget::confirm("Confirm?");
         assert_eq!(builder.message, "Confirm?");
-        assert_eq!(builder.options, vec![true, false]);
     }
 
     #[test]
