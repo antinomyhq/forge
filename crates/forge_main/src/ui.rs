@@ -45,7 +45,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
-use crate::zsh::{FzfStatus, OmzStatus, Platform, ZshRPrompt, ZshStatus};
+use crate::zsh::{FzfStatus, Installation, OmzStatus, Platform, ZshRPrompt, ZshStatus};
 use crate::{TRACKER, banner, tracker, zsh};
 
 // File-specific constants
@@ -1677,7 +1677,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if deps.needs_zsh() {
                 let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
                 self.spinner.start(Some("Installing zsh"))?;
-                match zsh::install_zsh(platform, &sudo, reinstall).await {
+                let mut installer = zsh::InstallZsh::new(platform, sudo);
+                if reinstall { installer = installer.reinstall(); }
+                match installer.install().await {
                     Ok(()) => {
                         self.spinner.stop(None)?;
                         self.writeln_title(TitleFormat::info("zsh installed successfully"))?;
@@ -1697,7 +1699,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if deps.needs_omz() {
                 self.spinner.start(Some("Installing Oh My Zsh"))?;
                 self.spinner.stop(None)?; // Stop spinner before interactive script
-                match zsh::install_oh_my_zsh().await {
+                match zsh::InstallOhMyZsh::new().install().await {
                     Ok(()) => {
                         self.writeln_title(TitleFormat::info("Oh My Zsh installed successfully"))?;
                     }
@@ -1719,14 +1721,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let (auto_result, syntax_result) = tokio::join!(
                     async {
                         if deps.autosuggestions == crate::zsh::PluginStatus::NotInstalled {
-                            zsh::install_autosuggestions().await
+                            zsh::InstallAutosuggestions::new().install().await
                         } else {
                             Ok(())
                         }
                     },
                     async {
                         if deps.syntax_highlighting == crate::zsh::PluginStatus::NotInstalled {
-                            zsh::install_syntax_highlighting().await
+                            zsh::InstallSyntaxHighlighting::new().install().await
                         } else {
                             Ok(())
                         }
@@ -1759,7 +1761,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.spinner.start(Some("Installing tools"))?;
 
                 if matches!(deps.fzf, FzfStatus::NotFound) {
-                    zsh::install_fzf(platform, &sudo).await.map_err(|e| {
+                    zsh::InstallFzf::new(platform, sudo).install().await.map_err(|e| {
                         let _ = self.spinner.stop(None);
                         let _ = self.writeln_title(TitleFormat::error(format!(
                             "Failed to install fzf: {}",
@@ -1770,7 +1772,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
-                    zsh::install_bat(platform, &sudo).await.map_err(|e| {
+                    zsh::InstallBat::new(platform, sudo).install().await.map_err(|e| {
                         let _ = self.spinner.stop(None);
                         let _ = self.writeln_title(TitleFormat::error(format!(
                             "Failed to install bat: {}",
@@ -1781,7 +1783,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
-                    zsh::install_fd(platform, &sudo).await.map_err(|e| {
+                    zsh::InstallFd::new(platform, sudo).install().await.map_err(|e| {
                         let _ = self.spinner.stop(None);
                         let _ = self.writeln_title(TitleFormat::error(format!(
                             "Failed to install fd: {}",
@@ -1804,12 +1806,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Step E: Windows bash_profile auto-start
         if platform == Platform::Windows {
             self.spinner.start(Some("Configuring Git Bash"))?;
-            match zsh::configure_bash_profile_autostart().await {
-                Ok(bashrc_result) => {
+            match zsh::ConfigureBashProfile::new().install().await {
+                Ok(()) => {
                     self.spinner.stop(None)?;
-                    if let Some(warning) = bashrc_result.warning {
-                        self.writeln_title(TitleFormat::warning(warning))?;
-                    }
                     self.writeln_title(TitleFormat::info(
                         "Configured ~/.bash_profile to auto-start zsh",
                     ))?;

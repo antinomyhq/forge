@@ -281,19 +281,6 @@ pub enum SudoCapability {
     NoneAvailable,
 }
 
-/// Result of configuring `~/.bashrc` auto-start.
-///
-/// Contains an optional warning message for cases where the existing
-/// `.bashrc` content required recovery (e.g., an incomplete block was
-/// removed). The caller should surface this warning to the user.
-#[derive(Debug, Default)]
-pub struct BashrcConfigResult {
-    /// A warning message to display to the user, if any non-fatal issue was
-    /// encountered and automatically recovered (e.g., a corrupt auto-start
-    /// block was removed).
-    pub warning: Option<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;

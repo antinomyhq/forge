@@ -1944,6 +1944,7 @@ dependencies = [
  "anyhow",
  "arboard",
  "async-recursion",
+ "async-trait",
  "atty",
  "chrono",
  "clap",

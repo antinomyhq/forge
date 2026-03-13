@@ -14,21 +14,44 @@ use super::types::SudoCapability;
 use super::util::*;
 use super::{MSYS2_BASE, MSYS2_PKGS};
 
-/// Installs zsh using the appropriate method for the detected platform.
+/// Installs zsh using the platform-appropriate method.
 ///
-/// When `reinstall` is true, forces a reinstallation (e.g., for broken
-/// modules).
-///
-/// # Errors
-///
-/// Returns error if no supported package manager is found or installation
-/// fails.
-pub async fn install_zsh(platform: Platform, sudo: &SudoCapability, reinstall: bool) -> Result<()> {
-    match platform {
-        Platform::MacOS => install_zsh_macos(sudo).await,
-        Platform::Linux => install_zsh_linux(sudo, reinstall).await,
-        Platform::Android => install_zsh_android().await,
-        Platform::Windows => install_zsh_windows().await,
+/// Set `reinstall` to `true` to force re-extraction of package files when zsh
+/// is present but its modules are broken.
+pub struct InstallZsh {
+    /// Target platform.
+    pub platform: Platform,
+    /// Available privilege level.
+    pub sudo: SudoCapability,
+    /// When `true`, forces a full reinstall (e.g., to repair broken modules).
+    pub reinstall: bool,
+}
+
+impl InstallZsh {
+    /// Creates a new `InstallZsh` for a fresh installation (not a reinstall).
+    pub fn new(platform: Platform, sudo: SudoCapability) -> Self {
+        Self { platform, sudo, reinstall: false }
+    }
+
+    /// Marks this as a reinstall, forcing re-extraction of package files.
+    pub fn reinstall(mut self) -> Self {
+        self.reinstall = true;
+        self
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallZsh {
+    async fn install(&self) -> anyhow::Result<()> {
+        let platform = self.platform;
+        let sudo = &self.sudo;
+        let reinstall = self.reinstall;
+        match platform {
+            Platform::MacOS => install_zsh_macos(sudo).await,
+            Platform::Linux => install_zsh_linux(sudo, reinstall).await,
+            Platform::Android => install_zsh_android().await,
+            Platform::Windows => install_zsh_windows().await,
+        }
     }
 }
 

@@ -16,12 +16,78 @@ use super::types::*;
 use super::util::*;
 use super::{BAT_MIN_VERSION, FD_MIN_VERSION, FZF_MIN_VERSION};
 
+/// Installs fzf using the platform's package manager or GitHub releases.
+pub struct InstallFzf {
+    /// Target platform.
+    pub platform: Platform,
+    /// Available privilege level.
+    pub sudo: SudoCapability,
+}
+
+impl InstallFzf {
+    /// Creates a new `InstallFzf`.
+    pub fn new(platform: Platform, sudo: SudoCapability) -> Self {
+        Self { platform, sudo }
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallFzf {
+    async fn install(&self) -> anyhow::Result<()> {
+        install_fzf(self.platform, &self.sudo).await
+    }
+}
+
+/// Installs bat using the platform's package manager or GitHub releases.
+pub struct InstallBat {
+    /// Target platform.
+    pub platform: Platform,
+    /// Available privilege level.
+    pub sudo: SudoCapability,
+}
+
+impl InstallBat {
+    /// Creates a new `InstallBat`.
+    pub fn new(platform: Platform, sudo: SudoCapability) -> Self {
+        Self { platform, sudo }
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallBat {
+    async fn install(&self) -> anyhow::Result<()> {
+        install_bat(self.platform, &self.sudo).await
+    }
+}
+
+/// Installs fd using the platform's package manager or GitHub releases.
+pub struct InstallFd {
+    /// Target platform.
+    pub platform: Platform,
+    /// Available privilege level.
+    pub sudo: SudoCapability,
+}
+
+impl InstallFd {
+    /// Creates a new `InstallFd`.
+    pub fn new(platform: Platform, sudo: SudoCapability) -> Self {
+        Self { platform, sudo }
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallFd {
+    async fn install(&self) -> anyhow::Result<()> {
+        install_fd(self.platform, &self.sudo).await
+    }
+}
+
 /// Installs fzf (fuzzy finder) using package manager or GitHub releases.
 ///
 /// Tries package manager first (which checks version requirements before
 /// installing). Falls back to GitHub releases if package manager unavailable or
 /// version too old.
-pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()> {
+pub(super) async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
     // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
     // preventing the GitHub release fallback below from running.
@@ -44,7 +110,7 @@ pub async fn install_fzf(platform: Platform, sudo: &SudoCapability) -> Result<()
 /// Tries package manager first (which checks version requirements before
 /// installing). Falls back to GitHub releases if package manager unavailable or
 /// version too old.
-pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()> {
+pub(super) async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
     // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
     // preventing the GitHub release fallback below from running.
@@ -67,7 +133,7 @@ pub async fn install_bat(platform: Platform, sudo: &SudoCapability) -> Result<()
 /// Tries package manager first (which checks version requirements before
 /// installing). Falls back to GitHub releases if package manager unavailable or
 /// version too old.
-pub async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()> {
+pub(super) async fn install_fd(platform: Platform, sudo: &SudoCapability) -> Result<()> {
     // Try package manager first (version is checked before installing)
     // NOTE: Use Err() not bail!() — bail! returns from the function immediately,
     // preventing the GitHub release fallback below from running.

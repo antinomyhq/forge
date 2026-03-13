@@ -10,8 +10,75 @@ use tokio::process::Command;
 
 use super::OMZ_INSTALL_URL;
 use super::detect::zsh_custom_dir;
-use super::types::BashrcConfigResult;
 use super::util::{path_str, resolve_zsh_path};
+
+/// Installs Oh My Zsh by downloading and running the official install script.
+pub struct InstallOhMyZsh;
+
+impl InstallOhMyZsh {
+    /// Creates a new `InstallOhMyZsh`.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallOhMyZsh {
+    async fn install(&self) -> anyhow::Result<()> {
+        install_oh_my_zsh().await
+    }
+}
+
+/// Installs the zsh-autosuggestions plugin via git clone.
+pub struct InstallAutosuggestions;
+
+impl InstallAutosuggestions {
+    /// Creates a new `InstallAutosuggestions`.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallAutosuggestions {
+    async fn install(&self) -> anyhow::Result<()> {
+        install_autosuggestions().await
+    }
+}
+
+/// Installs the zsh-syntax-highlighting plugin via git clone.
+pub struct InstallSyntaxHighlighting;
+
+impl InstallSyntaxHighlighting {
+    /// Creates a new `InstallSyntaxHighlighting`.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for InstallSyntaxHighlighting {
+    async fn install(&self) -> anyhow::Result<()> {
+        install_syntax_highlighting().await
+    }
+}
+
+/// Configures `~/.bash_profile` to auto-start zsh on Windows (Git Bash).
+pub struct ConfigureBashProfile;
+
+impl ConfigureBashProfile {
+    /// Creates a new `ConfigureBashProfile`.
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+#[async_trait::async_trait]
+impl super::installer::Installation for ConfigureBashProfile {
+    async fn install(&self) -> anyhow::Result<()> {
+        configure_bash_profile_autostart().await.map(|_| ())
+    }
+}
 
 /// Installs Oh My Zsh by downloading and executing the official install script.
 ///
@@ -22,7 +89,7 @@ use super::util::{path_str, resolve_zsh_path};
 ///
 /// Returns error if the download fails or the install script exits with
 /// non-zero.
-pub async fn install_oh_my_zsh() -> Result<()> {
+pub(super) async fn install_oh_my_zsh() -> Result<()> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(60))
         .build()
@@ -121,7 +188,7 @@ async fn configure_omz_defaults() -> Result<()> {
 /// # Errors
 ///
 /// Returns error if git clone fails.
-pub async fn install_autosuggestions() -> Result<()> {
+pub(super) async fn install_autosuggestions() -> Result<()> {
     let dest = zsh_custom_dir()
         .context("Could not determine ZSH_CUSTOM directory")?
         .join("plugins")
@@ -156,7 +223,7 @@ pub async fn install_autosuggestions() -> Result<()> {
 /// # Errors
 ///
 /// Returns error if git clone fails.
-pub async fn install_syntax_highlighting() -> Result<()> {
+pub(super) async fn install_syntax_highlighting() -> Result<()> {
     let dest = zsh_custom_dir()
         .context("Could not determine ZSH_CUSTOM directory")?
         .join("plugins")
@@ -186,28 +253,7 @@ pub async fn install_syntax_highlighting() -> Result<()> {
 }
 
 /// Configures `~/.bashrc` to auto-start zsh on Windows (Git Bash).
-///
-/// Creates necessary startup files if they don't exist, removes any previous
-/// auto-start block, and appends a new one.
-///
-/// Returns a `BashrcConfigResult` which may contain a warning if an incomplete
-/// Configures `~/.bash_profile` to auto-start zsh on Git Bash login.
-///
-/// Git Bash runs as a login shell and reads `~/.bash_profile` (not
-/// `~/.bashrc`). The generated block sources `~/.bashrc` for user
-/// customizations, then execs into zsh for interactive sessions.
-///
-/// Also cleans up any legacy auto-start blocks from `~/.bashrc` left by
-/// previous versions of the installer.
-///
-/// Returns a `BashrcConfigResult` which may contain a warning if an incomplete
-/// or malformed auto-start block was found and removed.
-///
-/// # Errors
-///
-/// Returns error if HOME is not set or file operations fail.
-pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
-    let mut result = BashrcConfigResult::default();
+pub(super) async fn configure_bash_profile_autostart() -> Result<()> {
     let home = std::env::var("HOME").context("HOME not set")?;
     let home_path = PathBuf::from(&home);
 
@@ -226,7 +272,7 @@ pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
         && let Ok(mut bashrc) = tokio::fs::read_to_string(&bashrc_path).await
     {
         let original = bashrc.clone();
-        remove_autostart_blocks(&mut bashrc, &mut result);
+        remove_autostart_blocks(&mut bashrc);
         if bashrc != original {
             let _ = tokio::fs::write(&bashrc_path, &bashrc).await;
         }
@@ -244,7 +290,7 @@ pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
     };
 
     // Remove any previous auto-start blocks
-    remove_autostart_blocks(&mut content, &mut result);
+    remove_autostart_blocks(&mut content);
 
     // Resolve zsh path
     let zsh_path = resolve_zsh_path().await;
@@ -259,20 +305,14 @@ pub async fn configure_bash_profile_autostart() -> Result<BashrcConfigResult> {
         .await
         .context("Failed to write ~/.bash_profile")?;
 
-    Ok(result)
+    Ok(())
 }
 
 /// End-of-block sentinel used by the new multi-line block format.
 const END_MARKER: &str = "# End forge zsh setup";
 
 /// Removes all auto-start blocks (old and new markers) from the given content.
-///
-/// Supports both the new `# End forge zsh setup` sentinel and the legacy
-/// single-`fi` closing format (from older installer versions).
-///
-/// Mutates `content` in place and may set a warning on `result` if an
-/// incomplete block is found.
-fn remove_autostart_blocks(content: &mut String, result: &mut BashrcConfigResult) {
+fn remove_autostart_blocks(content: &mut String) {
     loop {
         let mut found = false;
         for marker in &["# Added by zsh installer", "# Added by forge zsh setup"] {
@@ -305,12 +345,6 @@ fn remove_autostart_blocks(content: &mut String, result: &mut BashrcConfigResult
                     let end = start + fi_offset + 3;
                     content.replace_range(actual_start..end, "");
                 } else {
-                    // Incomplete block: marker found but no closing sentinel or fi
-                    result.warning = Some(
-                        "Found incomplete auto-start block (marker without closing sentinel). \
-                         Removing incomplete block to prevent shell config corruption."
-                            .to_string(),
-                    );
                     content.truncate(actual_start);
                 }
                 break; // Process one marker at a time, then restart search
@@ -327,7 +361,7 @@ mod tests {
 
     /// Runs `configure_bash_profile_autostart()` with HOME set to the given
     /// temp directory, then restores the original HOME.
-    async fn run_with_home(temp: &tempfile::TempDir) -> Result<BashrcConfigResult> {
+    async fn run_with_home(temp: &tempfile::TempDir) -> Result<()> {
         let original_home = std::env::var("HOME").ok();
         unsafe { std::env::set_var("HOME", temp.path()) };
         let result = configure_bash_profile_autostart().await;

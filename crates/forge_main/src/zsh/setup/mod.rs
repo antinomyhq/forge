@@ -26,7 +26,7 @@ mod libc;
 mod platform;
 mod types;
 mod util;
-
+mod installer;
 // ── Constants (shared across submodules) ─────────────────────────────────────
 
 /// Base URL for MSYS2 package repository.
@@ -62,11 +62,11 @@ pub(super) const FD_MIN_VERSION: &str = "10.0.0";
 
 pub use detect::{detect_all_dependencies, detect_git, detect_sudo};
 pub use install_plugins::{
-    configure_bash_profile_autostart, install_autosuggestions, install_oh_my_zsh,
-    install_syntax_highlighting,
+    ConfigureBashProfile, InstallAutosuggestions, InstallOhMyZsh, InstallSyntaxHighlighting,
 };
-pub use install_tools::{install_bat, install_fd, install_fzf};
-pub use install_zsh::install_zsh;
+pub use install_tools::{InstallBat, InstallFd, InstallFzf};
+pub use install_zsh::InstallZsh;
+pub use installer::Installation;
 pub use platform::{Platform, detect_platform};
 pub use types::{
     BatStatus, DependencyStatus, FdStatus, FzfStatus, OmzStatus, PluginStatus, ZshStatus,
