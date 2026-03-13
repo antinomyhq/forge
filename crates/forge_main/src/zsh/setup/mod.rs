@@ -66,9 +66,10 @@ pub use install_plugins::{
 };
 pub use install_tools::{InstallBat, InstallFd, InstallFzf};
 pub use install_zsh::InstallZsh;
-pub use installer::Installation;
+pub use installer::{Group, Installation, Installer, Noop, Task};
 pub use platform::{Platform, detect_platform};
 pub use types::{
-    BatStatus, DependencyStatus, FdStatus, FzfStatus, OmzStatus, PluginStatus, ZshStatus,
+    BatStatus, DependencyStatus, FdStatus, FzfStatus, OmzStatus, PluginStatus, SudoCapability,
+    ZshStatus,
 };
 pub use util::resolve_command_path;

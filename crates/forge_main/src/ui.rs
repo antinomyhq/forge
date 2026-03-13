@@ -45,7 +45,9 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
-use crate::zsh::{FzfStatus, Installation, OmzStatus, Platform, ZshRPrompt, ZshStatus};
+use crate::zsh::{
+    FzfStatus, Group, Installation, Installer, OmzStatus, Platform, Task, ZshRPrompt, ZshStatus,
+};
 use crate::{TRACKER, banner, tracker, zsh};
 
 // File-specific constants
@@ -1673,128 +1675,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             println!();
 
-            // Phase 1: Install zsh (must be first -- all later phases depend on it)
-            if deps.needs_zsh() {
-                let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
-                self.spinner.start(Some("Installing zsh"))?;
-                let mut installer = zsh::InstallZsh::new(platform, sudo);
-                if reinstall { installer = installer.reinstall(); }
-                match installer.install().await {
-                    Ok(()) => {
-                        self.spinner.stop(None)?;
-                        self.writeln_title(TitleFormat::info("zsh installed successfully"))?;
-                    }
-                    Err(e) => {
-                        self.spinner.stop(None)?;
-                        self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install zsh: {}. Setup cannot continue.",
-                            e
-                        )))?;
-                        return Ok(());
-                    }
-                }
-            }
+            let mut installer = Installer::default();
+            installer = self.setup_install_zsh(installer, &deps, platform, sudo);
+            installer = self.setup_install_omz(installer, &deps);
+            installer = self.setup_install_plugins(installer, &deps);
+            installer = self.setup_install_tools(installer, &deps, platform, sudo);
 
-            // Phase 2: Install Oh My Zsh (depends on zsh)
-            if deps.needs_omz() {
-                self.spinner.start(Some("Installing Oh My Zsh"))?;
-                self.spinner.stop(None)?; // Stop spinner before interactive script
-                match zsh::InstallOhMyZsh::new().install().await {
-                    Ok(()) => {
-                        self.writeln_title(TitleFormat::info("Oh My Zsh installed successfully"))?;
-                    }
-                    Err(e) => {
-                        self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install Oh My Zsh: {}. Setup cannot continue.",
-                            e
-                        )))?;
-                        return Ok(());
-                    }
-                }
-            }
-
-            // Phase 3: Install plugins in parallel (depend on Oh My Zsh)
-            if deps.needs_plugins() {
-                self.spinner.start(Some("Installing plugins"))?;
-                self.spinner.stop(None)?; // Stop spinner before git clone output
-
-                let (auto_result, syntax_result) = tokio::join!(
-                    async {
-                        if deps.autosuggestions == crate::zsh::PluginStatus::NotInstalled {
-                            zsh::InstallAutosuggestions::new().install().await
-                        } else {
-                            Ok(())
-                        }
-                    },
-                    async {
-                        if deps.syntax_highlighting == crate::zsh::PluginStatus::NotInstalled {
-                            zsh::InstallSyntaxHighlighting::new().install().await
-                        } else {
-                            Ok(())
-                        }
-                    }
-                );
-
-                if let Err(e) = auto_result {
-                    self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install zsh-autosuggestions: {}. Setup cannot continue.",
-                        e
-                    )))?;
-                    return Ok(());
-                }
-                if let Err(e) = syntax_result {
-                    self.writeln_title(TitleFormat::error(format!(
-                        "Failed to install zsh-syntax-highlighting: {}. Setup cannot continue.",
-                        e
-                    )))?;
-                    return Ok(());
-                }
-
-                self.writeln_title(TitleFormat::info("Plugins installed"))?;
-            }
-
-            // Phase 4: Install tools (fzf, bat, fd) - sequential to avoid
-            // package manager locks. Package managers like apt-get maintain
-            // exclusive locks, so parallel installation causes "Could not get
-            // lock" errors.
-            if deps.needs_tools() {
-                self.spinner.start(Some("Installing tools"))?;
-
-                if matches!(deps.fzf, FzfStatus::NotFound) {
-                    zsh::InstallFzf::new(platform, sudo).install().await.map_err(|e| {
-                        let _ = self.spinner.stop(None);
-                        let _ = self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install fzf: {}",
-                            e
-                        )));
-                        e
-                    })?;
-                }
-
-                if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
-                    zsh::InstallBat::new(platform, sudo).install().await.map_err(|e| {
-                        let _ = self.spinner.stop(None);
-                        let _ = self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install bat: {}",
-                            e
-                        )));
-                        e
-                    })?;
-                }
-
-                if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
-                    zsh::InstallFd::new(platform, sudo).install().await.map_err(|e| {
-                        let _ = self.spinner.stop(None);
-                        let _ = self.writeln_title(TitleFormat::error(format!(
-                            "Failed to install fd: {}",
-                            e
-                        )));
-                        e
-                    })?;
-                }
-
+            // Execute all installation phases sequentially
+            if let Err(e) = installer.execute().await {
                 self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::info("Tools installed (fzf, bat, fd)"))?;
+                tracing::error!(error = ?e, "Installation failed");
+                return Ok(());
             }
 
             println!();
@@ -2121,6 +2012,226 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         Ok(())
+    }
+
+    /// Adds a zsh installation task to the installer if zsh is missing or
+    /// broken.
+    fn setup_install_zsh(
+        &self,
+        installer: Installer,
+        deps: &zsh::DependencyStatus,
+        platform: Platform,
+        sudo: zsh::SudoCapability,
+    ) -> Installer {
+        if !deps.needs_zsh() {
+            return installer;
+        }
+        let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
+        let mut install_zsh = zsh::InstallZsh::new(platform, sudo);
+        if reinstall {
+            install_zsh = install_zsh.reinstall();
+        }
+        let sp = self.spinner.clone();
+        let sp2 = self.spinner.clone();
+        installer.add(
+            Task::new(
+                install_zsh,
+                move || {
+                    sp.stop(None)?;
+                    sp.write_ln(TitleFormat::info("zsh installed successfully").display())
+                },
+                move |e| {
+                    let _ = sp2.stop(None);
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!(
+                            "Failed to install zsh: {e}. Setup cannot continue."
+                        ))
+                        .display(),
+                    );
+                    Err(e)
+                },
+            )
+            .into_group(),
+        )
+    }
+
+    /// Adds an Oh My Zsh installation task to the installer if it is missing.
+    fn setup_install_omz(&self, installer: Installer, deps: &zsh::DependencyStatus) -> Installer {
+        if !deps.needs_omz() {
+            return installer;
+        }
+        let sp = self.spinner.clone();
+        let sp2 = self.spinner.clone();
+        installer.add(
+            Task::new(
+                zsh::InstallOhMyZsh::new(),
+                move || {
+                    sp.write_ln(TitleFormat::info("Oh My Zsh installed successfully").display())
+                },
+                move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!(
+                            "Failed to install Oh My Zsh: {e}. Setup cannot continue."
+                        ))
+                        .display(),
+                    );
+                    Err(e)
+                },
+            )
+            .into_group(),
+        )
+    }
+
+    /// Adds plugin installation tasks (autosuggestions + syntax-highlighting)
+    /// to the installer, running them in parallel.
+    fn setup_install_plugins(
+        &self,
+        installer: Installer,
+        deps: &zsh::DependencyStatus,
+    ) -> Installer {
+        if !deps.needs_plugins() {
+            return installer;
+        }
+
+        let mut group: Option<Group> = None;
+
+        if deps.autosuggestions == crate::zsh::PluginStatus::NotInstalled {
+            let sp = self.spinner.clone();
+            let task = Task::new(
+                zsh::InstallAutosuggestions::new(),
+                || Ok(()),
+                move |e| {
+                    let _ = sp.write_ln(
+                        TitleFormat::error(format!(
+                            "Failed to install zsh-autosuggestions: {e}. Setup cannot continue."
+                        ))
+                        .display(),
+                    );
+                    Err(e)
+                },
+            );
+            group = Some(task.into_group());
+        }
+
+        if deps.syntax_highlighting == crate::zsh::PluginStatus::NotInstalled {
+            let sp = self.spinner.clone();
+            let task = Task::new(
+                zsh::InstallSyntaxHighlighting::new(),
+                || Ok(()),
+                move |e| {
+                    let _ = sp.write_ln(
+                        TitleFormat::error(format!(
+                            "Failed to install zsh-syntax-highlighting: {e}. Setup cannot continue."
+                        ))
+                        .display(),
+                    );
+                    Err(e)
+                },
+            );
+            group = Some(match group {
+                Some(g) => g.alongside(task),
+                None => task.into_group(),
+            });
+        }
+
+        match group {
+            Some(group) => {
+                let sp = self.spinner.clone();
+                let done = Task::new(
+                    zsh::Noop,
+                    move || sp.write_ln(TitleFormat::info("Plugins installed").display()),
+                    |e| Err(e),
+                );
+                installer.add(group.then(done))
+            }
+            None => installer,
+        }
+    }
+
+    /// Adds tool installation tasks (fzf, bat, fd) to the installer,
+    /// running them in parallel.
+    fn setup_install_tools(
+        &self,
+        installer: Installer,
+        deps: &zsh::DependencyStatus,
+        platform: Platform,
+        sudo: zsh::SudoCapability,
+    ) -> Installer {
+        if !deps.needs_tools() {
+            return installer;
+        }
+
+        let mut group: Option<Group> = None;
+
+        if matches!(deps.fzf, FzfStatus::NotFound) {
+            let sp = self.spinner.clone();
+            let task = Task::new(
+                zsh::InstallFzf::new(platform, sudo),
+                || Ok(()),
+                move |e| {
+                    let _ = sp.stop(None);
+                    let _ = sp.write_ln(
+                        TitleFormat::error(format!("Failed to install fzf: {e}")).display(),
+                    );
+                    Err(e)
+                },
+            );
+            group = Some(task.into_group());
+        }
+
+        if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
+            let sp = self.spinner.clone();
+            let task = Task::new(
+                zsh::InstallBat::new(platform, sudo),
+                || Ok(()),
+                move |e| {
+                    let _ = sp.stop(None);
+                    let _ = sp.write_ln(
+                        TitleFormat::error(format!("Failed to install bat: {e}")).display(),
+                    );
+                    Err(e)
+                },
+            );
+            group = Some(match group {
+                Some(g) => g.alongside(task),
+                None => task.into_group(),
+            });
+        }
+
+        if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
+            let sp = self.spinner.clone();
+            let task = Task::new(
+                zsh::InstallFd::new(platform, sudo),
+                || Ok(()),
+                move |e| {
+                    let _ = sp.stop(None);
+                    let _ = sp.write_ln(
+                        TitleFormat::error(format!("Failed to install fd: {e}")).display(),
+                    );
+                    Err(e)
+                },
+            );
+            group = Some(match group {
+                Some(g) => g.alongside(task),
+                None => task.into_group(),
+            });
+        }
+
+        match group {
+            Some(group) => {
+                let sp = self.spinner.clone();
+                let done = Task::new(
+                    zsh::Noop,
+                    move || {
+                        sp.stop(None)?;
+                        sp.write_ln(TitleFormat::info("Tools installed (fzf, bat, fd)").display())
+                    },
+                    |e| Err(e),
+                );
+                installer.add(group.then(done))
+            }
+            None => installer,
+        }
     }
 
     /// Handle the cmd command - generates shell command from natural language
