@@ -1,7 +1,7 @@
 mod input;
 mod multi;
-mod select;
+mod widget;
 
 pub use input::InputBuilder;
 pub use multi::MultiSelectBuilder;
-pub use select::{ForgeSelect, SelectBuilder};
+pub use widget::{ForgeSelect, SelectBuilder};

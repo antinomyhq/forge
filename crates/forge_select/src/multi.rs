@@ -2,7 +2,7 @@ use anyhow::Result;
 use console::strip_ansi_codes;
 use fzf_wrapped::{Fzf, Layout};
 
-use crate::select::{indexed_items, parse_fzf_index};
+use crate::widget::{indexed_items, parse_fzf_index};
 
 /// Builder for multi-select prompts.
 pub struct MultiSelectBuilder<T> {
