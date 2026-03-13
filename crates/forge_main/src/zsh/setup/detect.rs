@@ -316,7 +316,7 @@ mod tests {
             }
         }
 
-        assert!(matches!(actual, OmzStatus::Installed { .. }));
+        assert!(matches!(actual, OmzStatus::Installed));
     }
 
     #[tokio::test]

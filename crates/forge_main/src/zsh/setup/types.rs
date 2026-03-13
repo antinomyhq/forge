@@ -190,7 +190,7 @@ impl DependencyStatus {
     /// Returns true if all required dependencies are installed and functional.
     pub fn all_installed(&self) -> bool {
         matches!(self.zsh, ZshStatus::Functional { .. })
-            && matches!(self.oh_my_zsh, OmzStatus::Installed { .. })
+            && matches!(self.oh_my_zsh, OmzStatus::Installed)
             && self.autosuggestions == PluginStatus::Installed
             && self.syntax_highlighting == PluginStatus::Installed
     }
@@ -201,7 +201,7 @@ impl DependencyStatus {
         if !matches!(self.zsh, ZshStatus::Functional { .. }) {
             items.push(MissingItem::new(Dependency::Zsh, ItemReason::Missing));
         }
-        if !matches!(self.oh_my_zsh, OmzStatus::Installed { .. }) {
+        if !matches!(self.oh_my_zsh, OmzStatus::Installed) {
             items.push(MissingItem::new(Dependency::OhMyZsh, ItemReason::Missing));
         }
         if self.autosuggestions == PluginStatus::NotInstalled {
@@ -251,7 +251,7 @@ impl DependencyStatus {
 
     /// Returns true if Oh My Zsh needs to be installed.
     pub fn needs_omz(&self) -> bool {
-        !matches!(self.oh_my_zsh, OmzStatus::Installed { .. })
+        !matches!(self.oh_my_zsh, OmzStatus::Installed)
     }
 
     /// Returns true if any plugins need to be installed.
