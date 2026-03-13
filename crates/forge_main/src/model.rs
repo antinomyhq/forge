@@ -1,92 +1,11 @@
-use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
-use colored::Colorize;
-use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
+use forge_api::{Agent, Model, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
-use crate::display_constants::markers;
 use crate::info::Info;
-
-/// Wrapper for displaying models in selection menus
-///
-/// This component provides consistent formatting for model selection across
-/// the application, showing model ID with contextual information like
-/// context length and tools support.
-#[derive(Clone)]
-pub struct CliModel(pub Model);
-
-impl Display for CliModel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0.id)?;
-
-        let mut info_parts = Vec::new();
-
-        // Add context length if available
-        if let Some(limit) = self.0.context_length {
-            if limit >= 1_000_000 {
-                info_parts.push(format!("{}M", limit / 1_000_000));
-            } else if limit >= 1000 {
-                info_parts.push(format!("{}k", limit / 1000));
-            } else {
-                info_parts.push(format!("{limit}"));
-            }
-        }
-
-        // Add tools support indicator if explicitly supported
-        if self.0.tools_supported == Some(true) {
-            info_parts.push("🛠️".to_string());
-        }
-
-        // Only show brackets if we have info to display
-        if !info_parts.is_empty() {
-            let info = format!("[ {} ]", info_parts.join(" "));
-            write!(f, " {}", info.dimmed())?;
-        }
-
-        Ok(())
-    }
-}
-
-/// Wrapper for displaying providers in selection menus
-///
-/// This component provides consistent formatting for provider selection across
-/// the application, showing provider ID with domain information.
-#[derive(Clone)]
-pub struct CliProvider(pub AnyProvider);
-
-impl Display for CliProvider {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Use fixed width for alignment
-        // Format: "✓ " + name_padded + " [" + domain + "]"
-        // Longest built-in provider display name is "AnthropicCompatible" (20 chars)
-        // But we use 19 to account for the space before "["
-        let name_width = ProviderId::built_in_providers()
-            .iter()
-            .map(|id| id.to_string().len())
-            .max()
-            .unwrap_or(10);
-
-        let name = self.0.id().to_string();
-
-        match &self.0 {
-            AnyProvider::Url(provider) => {
-                write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
-                if let Some(domain) = provider.url.domain() {
-                    write!(f, " [{domain}]")?;
-                } else {
-                    write!(f, " {}", markers::EMPTY)?;
-                }
-            }
-            AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
-            }
-        }
-        Ok(())
-    }
-}
 
 /// Result of agent command registration
 #[derive(Debug, Clone)]
@@ -561,13 +480,83 @@ impl SlashCommand {
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Display;
+
+    use colored::Colorize;
     use console::strip_ansi_codes;
-    use forge_api::{InputModality, ModelId, ModelSource, ProviderId, ProviderResponse};
-    use forge_domain::{AnyProvider, Provider};
+    use forge_api::{
+        AnyProvider, InputModality, Model, ModelId, ModelSource, ProviderId, ProviderResponse,
+    };
+    use forge_domain::Provider;
     use pretty_assertions::assert_eq;
     use url::Url;
 
     use super::*;
+    use crate::display_constants::markers;
+
+    /// Test-only wrapper for displaying models in selection menus
+    #[derive(Clone)]
+    struct CliModel(Model);
+
+    impl Display for CliModel {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{}", self.0.id)?;
+
+            let mut info_parts = Vec::new();
+
+            if let Some(limit) = self.0.context_length {
+                if limit >= 1_000_000 {
+                    info_parts.push(format!("{}M", limit / 1_000_000));
+                } else if limit >= 1000 {
+                    info_parts.push(format!("{}k", limit / 1000));
+                } else {
+                    info_parts.push(format!("{limit}"));
+                }
+            }
+
+            if self.0.tools_supported == Some(true) {
+                info_parts.push("🛠️".to_string());
+            }
+
+            if !info_parts.is_empty() {
+                let info = format!("[ {} ]", info_parts.join(" "));
+                write!(f, " {}", info.dimmed())?;
+            }
+
+            Ok(())
+        }
+    }
+
+    /// Test-only wrapper for displaying providers in selection menus
+    #[derive(Clone)]
+    struct CliProvider(AnyProvider);
+
+    impl Display for CliProvider {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            let name_width = ProviderId::built_in_providers()
+                .iter()
+                .map(|id| id.to_string().len())
+                .max()
+                .unwrap_or(10);
+
+            let name = self.0.id().to_string();
+
+            match &self.0 {
+                AnyProvider::Url(provider) => {
+                    write!(f, "{} {:<width$}", "✓".green(), name, width = name_width)?;
+                    if let Some(domain) = provider.url.domain() {
+                        write!(f, " [{domain}]")?;
+                    } else {
+                        write!(f, " {}", markers::EMPTY)?;
+                    }
+                }
+                AnyProvider::Template(_) => {
+                    write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
+                }
+            }
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_extract_command_value_with_provided_value() {
