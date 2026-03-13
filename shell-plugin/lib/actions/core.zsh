@@ -19,7 +19,7 @@ function _forge_action_new() {
         _forge_switch_conversation "$new_id"
         
         # Execute the forge command with the input text
-        _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+        _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
         
         # Start background sync job if enabled and not already running
         _forge_start_background_sync
