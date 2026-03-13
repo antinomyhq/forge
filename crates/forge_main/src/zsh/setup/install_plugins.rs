@@ -24,7 +24,7 @@ impl InstallOhMyZsh {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallOhMyZsh {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         install_oh_my_zsh().await
     }
 }
@@ -41,7 +41,7 @@ impl InstallAutosuggestions {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallAutosuggestions {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         install_autosuggestions().await
     }
 }
@@ -58,7 +58,7 @@ impl InstallSyntaxHighlighting {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallSyntaxHighlighting {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         install_syntax_highlighting().await
     }
 }
@@ -75,7 +75,7 @@ impl ConfigureBashProfile {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for ConfigureBashProfile {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         configure_bash_profile_autostart().await.map(|_| ())
     }
 }

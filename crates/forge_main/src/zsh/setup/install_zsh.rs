@@ -42,13 +42,10 @@ impl InstallZsh {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallZsh {
-    async fn install(&self) -> anyhow::Result<()> {
-        let platform = self.platform;
-        let sudo = &self.sudo;
-        let reinstall = self.reinstall;
-        match platform {
-            Platform::MacOS => install_zsh_macos(sudo).await,
-            Platform::Linux => install_zsh_linux(sudo, reinstall).await,
+    async fn install(self) -> anyhow::Result<()> {
+        match self.platform {
+            Platform::MacOS => install_zsh_macos(&self.sudo).await,
+            Platform::Linux => install_zsh_linux(&self.sudo, self.reinstall).await,
             Platform::Android => install_zsh_android().await,
             Platform::Windows => install_zsh_windows().await,
         }

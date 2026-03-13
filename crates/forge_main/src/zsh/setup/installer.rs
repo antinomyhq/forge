@@ -3,8 +3,8 @@ use std::pin::Pin;
 
 /// A unit of installation work.
 #[async_trait::async_trait]
-pub trait Installation: Send + Sync {
-    async fn install(&self) -> anyhow::Result<()>;
+pub trait Installation: Send {
+    async fn install(self) -> anyhow::Result<()>;
 }
 
 /// A no-op installation that always succeeds.
@@ -15,7 +15,7 @@ pub struct Noop;
 
 #[async_trait::async_trait]
 impl Installation for Noop {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -26,20 +26,21 @@ impl Installation for Noop {
 /// `on_err` is invoked with the error when it fails. Both callbacks
 /// return `anyhow::Result<()>` so the caller can decide whether to
 /// propagate or swallow the error.
-pub struct Task<Ok, Fail> {
-    installation: Box<dyn Installation>,
+pub struct Task<I, Ok, Fail> {
+    installation: I,
     on_ok: Ok,
     on_err: Fail,
 }
 
-impl<Ok, Fail> Task<Ok, Fail>
+impl<I, Ok, Fail> Task<I, Ok, Fail>
 where
+    I: Installation + 'static,
     Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
     Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
 {
     /// Creates a new `Task` wrapping the given installation with callbacks.
-    pub fn new(installation: impl Installation + 'static, on_ok: Ok, on_err: Fail) -> Self {
-        Self { installation: Box::new(installation), on_ok, on_err }
+    pub fn new(installation: I, on_ok: Ok, on_err: Fail) -> Self {
+        Self { installation, on_ok, on_err }
     }
 
     /// Runs the installation, then dispatches to the appropriate callback.
@@ -83,8 +84,9 @@ pub enum Group {
 
 impl Group {
     /// Creates a `Group::Unit` from a `Task` with callbacks.
-    pub fn task<Ok, Fail>(task: Task<Ok, Fail>) -> Self
+    pub fn task<I, Ok, Fail>(task: Task<I, Ok, Fail>) -> Self
     where
+        I: Installation + 'static,
         Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
         Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
     {
@@ -92,8 +94,9 @@ impl Group {
     }
 
     /// Appends a task to run after this group completes.
-    pub fn then<Ok, Fail>(self, task: Task<Ok, Fail>) -> Self
+    pub fn then<I, Ok, Fail>(self, task: Task<I, Ok, Fail>) -> Self
     where
+        I: Installation + 'static,
         Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
         Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
     {
@@ -101,8 +104,9 @@ impl Group {
     }
 
     /// Appends a task to run concurrently with this group.
-    pub fn alongside<Ok, Fail>(self, task: Task<Ok, Fail>) -> Self
+    pub fn alongside<I, Ok, Fail>(self, task: Task<I, Ok, Fail>) -> Self
     where
+        I: Installation + 'static,
         Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
         Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
     {
@@ -127,8 +131,9 @@ impl Group {
     }
 
     /// Type-erases a `Task` into a `BoxedTask` closure.
-    fn boxed_task<Ok, Fail>(task: Task<Ok, Fail>) -> BoxedTask
+    fn boxed_task<I, Ok, Fail>(task: Task<I, Ok, Fail>) -> BoxedTask
     where
+        I: Installation + 'static,
         Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
         Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
     {
@@ -136,12 +141,13 @@ impl Group {
     }
 }
 
-impl<Ok, Fail> From<Task<Ok, Fail>> for Group
+impl<I, Ok, Fail> From<Task<I, Ok, Fail>> for Group
 where
+    I: Installation + 'static,
     Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
     Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
 {
-    fn from(task: Task<Ok, Fail>) -> Self {
+    fn from(task: Task<I, Ok, Fail>) -> Self {
         Group::task(task)
     }
 }

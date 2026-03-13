@@ -33,7 +33,7 @@ impl InstallFzf {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallFzf {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         install_fzf(self.platform, &self.sudo).await
     }
 }
@@ -55,7 +55,7 @@ impl InstallBat {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallBat {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         install_bat(self.platform, &self.sudo).await
     }
 }
@@ -77,7 +77,7 @@ impl InstallFd {
 
 #[async_trait::async_trait]
 impl super::installer::Installation for InstallFd {
-    async fn install(&self) -> anyhow::Result<()> {
+    async fn install(self) -> anyhow::Result<()> {
         install_fd(self.platform, &self.sudo).await
     }
 }
