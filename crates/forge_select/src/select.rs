@@ -19,6 +19,7 @@ pub struct SelectBuilder<T> {
     default: Option<bool>,
     help_message: Option<&'static str>,
     initial_text: Option<String>,
+    header_lines: usize,
 }
 
 /// Builder for select prompts that takes ownership (doesn't require Clone).
@@ -39,6 +40,7 @@ impl ForgeSelect {
             default: None,
             help_message: None,
             initial_text: None,
+            header_lines: 0,
         }
     }
 
@@ -62,6 +64,7 @@ impl ForgeSelect {
             default: None,
             help_message: None,
             initial_text: None,
+            header_lines: 0,
         }
     }
 
@@ -83,10 +86,11 @@ impl ForgeSelect {
 
 /// Builds an `Fzf` instance with standard layout and an optional header.
 ///
-/// `--height=40%` is always added so fzf runs inline (below the current cursor)
+/// `--height=80%` is always added so fzf runs inline (below the current cursor)
 /// rather than switching to the alternate screen buffer. Without this flag fzf
 /// uses full-screen mode which enters the alternate screen (`\033[?1049h`),
-/// making it appear as though the terminal is cleared.
+/// making it appear as though the terminal is cleared. 80% matches the shell
+/// plugin's `_forge_fzf` wrapper for a consistent UI.
 ///
 /// Items are always passed as `"{idx}\t{display}"` and fzf is configured with
 /// `--delimiter=\t --with-nth=2..` so only the display portion is shown. The
@@ -98,26 +102,52 @@ impl ForgeSelect {
 /// pre-positions the cursor on the Nth item (1-based in fzf's `pos()` action).
 /// The `load` event is used instead of `start` because items are written to
 /// fzf's stdin after the process starts.
+///
+/// The flags `--exact`, `--cycle`, `--select-1`, `--no-scrollbar`, and
+/// `--color=dark,header:bold` mirror the shell plugin's `_forge_fzf` wrapper
+/// for a consistent user experience across both entry points.
+///
+/// The `message` is used as the fzf `--prompt` so the prompt line reads
+/// `"Select a model: "` instead of the default `"> "`, placing the question
+/// inline with the search cursor (e.g. `Select a model: ❯`). If a
+/// `help_message` is provided it is shown as a `--header` above the list.
 fn build_fzf(
-    header: &str,
+    message: &str,
     help_message: Option<&str>,
     initial_text: Option<&str>,
     starting_cursor: Option<usize>,
+    header_lines: usize,
 ) -> Fzf {
     let mut builder = Fzf::builder();
     builder.layout(Layout::Reverse);
+    builder.no_scrollbar(true);
 
-    let full_header = match help_message {
-        Some(help) => format!("{}\n{}", header, help),
-        None => header.to_string(),
-    };
-    builder.header(full_header);
-    builder.header_first(true);
+    // Place the message on the prompt line: "Select a model: ❯ [search]"
+    builder.prompt(format!("{} ❯ ", message));
+
+    // Show optional help text as a header above the list.
+    if let Some(help) = help_message {
+        builder.header(help);
+    }
 
     // Combine all custom args in a single call — custom_args() replaces (not
     // appends).
+    // Flags mirror the shell plugin's `_forge_fzf` wrapper:
+    //   --height=80%        inline display at 80% terminal height
+    //   --exact             exact (non-fuzzy) matching
+    //   --cycle             cursor wraps at top/bottom
+    //   --select-1          auto-select when only one match remains
+    //   --color=dark,header:bold  bold header text (extends the default dark theme)
+    //   --delimiter=\t / --with-nth=2..  index-based item lookup
     let mut args = vec![
-        "--height=40%".to_string(),
+        "--height=80%".to_string(),
+        "--exact".to_string(),
+        "--cycle".to_string(),
+        "--select-1".to_string(),
+        "--color=dark,header:bold".to_string(),
+        // Use fzf 0.70's default pointer (▌) — fzf-wrapped hardcodes ">" which
+        // differs from the shell plugin that omits --pointer and gets ▌.
+        "--pointer=▌".to_string(),
         "--delimiter=\t".to_string(),
         "--with-nth=2..".to_string(),
     ];
@@ -131,6 +161,9 @@ fn build_fzf(
     // available.
     if let Some(cursor) = starting_cursor {
         args.push(format!("--bind=load:pos({})", cursor + 1));
+    }
+    if header_lines > 0 {
+        args.push(format!("--header-lines={}", header_lines));
     }
     builder.custom_args(args);
 
@@ -183,6 +216,17 @@ impl<T: 'static> SelectBuilder<T> {
         self
     }
 
+    /// Set the number of header lines (non-selectable) at the top of the list.
+    ///
+    /// When set to `n`, the first `n` items are displayed as a fixed header
+    /// that is always visible but cannot be selected. Mirrors fzf's
+    /// `--header-lines` flag, matching the shell plugin's porcelain output
+    /// where the first line contains column headings.
+    pub fn with_header_lines(mut self, n: usize) -> Self {
+        self.header_lines = n;
+        self
+    }
+
     /// Execute select prompt with fuzzy search.
     ///
     /// # Returns
@@ -219,6 +263,7 @@ impl<T: 'static> SelectBuilder<T> {
             self.help_message,
             self.initial_text.as_deref(),
             self.starting_cursor,
+            self.header_lines,
         );
 
         // Prefix each item with its index so fzf's output can be mapped back
@@ -277,6 +322,7 @@ impl<T> SelectBuilderOwned<T> {
             None,
             self.initial_text.as_deref(),
             self.starting_cursor,
+            0,
         );
 
         // Prefix each item with its index so fzf's output can be mapped back
@@ -305,7 +351,7 @@ fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> R
         Some(0)
     };
 
-    let fzf = build_fzf(message, None, None, starting_cursor);
+    let fzf = build_fzf(message, None, None, starting_cursor, 0);
     let selected = run_with_output(fzf, items.iter().copied());
 
     let result: Option<bool> = match selected.as_deref().map(str::trim) {
@@ -479,15 +525,20 @@ impl<T> MultiSelectBuilder<T> {
             .collect();
 
         // Use fzf --multi for multi-selection; Tab selects items.
-        // --height=40% keeps fzf inline (no alternate screen / no apparent clear).
+        // Flags mirror the shell plugin's `_forge_fzf` wrapper for consistent UI.
         // --delimiter and --with-nth enable index-based lookup (same as single-select).
+        // The message is placed on the prompt line (same as single-select).
         let fzf = {
             let mut builder = Fzf::builder();
             builder.layout(Layout::Reverse);
-            builder.header(self.message.as_str());
-            builder.header_first(true);
+            builder.no_scrollbar(true);
+            builder.prompt(format!("{} ❯ ", self.message));
             builder.custom_args(vec![
-                "--height=40%".to_string(),
+                "--height=80%".to_string(),
+                "--exact".to_string(),
+                "--cycle".to_string(),
+                "--color=dark,header:bold".to_string(),
+                "--pointer=▌".to_string(),
                 "--delimiter=\t".to_string(),
                 "--with-nth=2..".to_string(),
                 "--multi".to_string(),
