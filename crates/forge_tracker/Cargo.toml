@@ -37,3 +37,4 @@ uuid.workspace = true
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 lazy_static.workspace = true
+pretty_assertions.workspace = true

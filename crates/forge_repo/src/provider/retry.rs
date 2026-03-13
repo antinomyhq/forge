@@ -95,7 +95,7 @@ fn is_empty_error(error: &anyhow::Error) -> bool {
 fn is_req_transport_error(error: &anyhow::Error) -> bool {
     error
         .downcast_ref::<reqwest::Error>()
-        .is_some_and(|e| e.is_timeout() || e.is_connect())
+        .is_some_and(|e| e.is_timeout() || e.is_connect() || e.is_request())
 }
 
 fn is_event_transport_error(error: &anyhow::Error) -> bool {
@@ -292,5 +292,25 @@ mod tests {
         assert!(get_api_status_code(&error).is_none());
         assert!(get_req_status_code(&error).is_none());
         assert!(get_event_req_status_code(&error).is_none());
+    }
+
+    #[tokio::test]
+    async fn test_incomplete_message_is_retryable() {
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+        });
+
+        let req_err = reqwest::Client::new()
+            .get(format!("http://{addr}"))
+            .send()
+            .await
+            .unwrap_err();
+
+        let retry_config = fixture_retry_config(vec![]);
+        assert!(is_retryable(into_retry(req_err.into(), &retry_config)));
     }
 }
