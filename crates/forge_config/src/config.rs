@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+use serde_json::Value;
 use serde::{Deserialize, Serialize};
 
 use crate::error::Error;
@@ -184,9 +187,6 @@ pub struct ForgeConfig {
     pub max_search_result_size: Option<usize>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_tokens: Option<u64>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
     /// Identifier of the default model to use (e.g. `"gpt-4o"`).
@@ -254,20 +254,11 @@ pub struct ForgeConfig {
     pub suggest_provider_id: Option<String>,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub templates_dir: Option<String>,
 
     /// Maximum execution time in seconds for a single tool call.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_timeout: Option<u64>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_k: Option<u32>,
-
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<f32>,
 
     /// Whether to automatically apply updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -354,4 +345,70 @@ pub enum TlsVersion {
     #[default]
     #[serde(rename = "1.3")]
     V1_3,
+}
+
+/// Model preset configuration that bundles sampling parameters, prompts,
+/// tool selections, and custom request overrides into a reusable profile.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PresetConfig {
+    /// Sampling temperature controlling randomness (0.0 = deterministic, higher = more random).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
+
+    /// Nucleus sampling threshold; only tokens whose cumulative probability
+    /// reaches this value are considered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
+
+    /// Limits sampling to the top-k most probable tokens.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
+
+    /// Maximum number of tokens the model may generate in a single response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<u32>,
+
+    /// Hint for models that support variable reasoning depth.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<ReasoningEffort>,
+
+    /// System prompt prepended to every conversation using this preset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub system_prompt: Option<String>,
+
+    /// User prompt template injected at the start of a conversation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub user_prompt: Option<String>,
+
+    /// List of tool names enabled for this preset.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
+
+    /// Extra HTTP headers merged into every request made with this preset.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub request_headers: HashMap<String, String>,
+
+    /// JSON body overrides applied to outgoing requests via JSON-pointer paths.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub request_body: Vec<BodyParam>,
+}
+
+/// Hint controlling how much internal reasoning a model should perform.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReasoningEffort {
+    Low,
+    Medium,
+    High,
+    /// Provider-specific or free-form reasoning effort value.
+    Custom(String),
+}
+
+/// A single JSON body override targeting a specific path in the request payload.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BodyParam {
+    /// JSON-pointer segments identifying where to set the value (e.g. `["parameters", "stop"]`).
+    pub path: Vec<String>,
+    /// The value to insert at the given path.
+    pub value: Value,
 }
