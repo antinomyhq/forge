@@ -1001,7 +1001,12 @@ impl JsonRepairParser {
             .nth(index)
             .map_or(text.len(), |(i, _)| i);
 
-        format!("{}{}{}", &text[..byte_index], text_to_insert, &text[byte_index..])
+        format!(
+            "{}{}{}",
+            &text[..byte_index],
+            text_to_insert,
+            &text[byte_index..]
+        )
     }
 
     fn remove_at_index(&self, start: usize, count: usize) -> String {
