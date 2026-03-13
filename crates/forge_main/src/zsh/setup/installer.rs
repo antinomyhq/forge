@@ -9,8 +9,8 @@ pub trait Installation: Send {
 
 /// A no-op installation that always succeeds.
 ///
-/// Useful as a placeholder in `Task` when you only need the callbacks
-/// (e.g., to append a success message after a `Group` completes).
+/// Useful as a placeholder when you need a `Group` that does nothing
+/// (e.g., as the seed for a builder chain).
 pub struct Noop;
 
 #[async_trait::async_trait]
@@ -20,114 +20,93 @@ impl Installation for Noop {
     }
 }
 
-/// A task that wraps an `Installation` with success and failure callbacks.
-///
-/// The `on_ok` callback is invoked when the installation succeeds, and
-/// `on_err` is invoked with the error when it fails. Both callbacks
-/// return `anyhow::Result<()>` so the caller can decide whether to
-/// propagate or swallow the error.
-pub struct Task<I, Ok, Fail> {
-    installation: I,
-    on_ok: Ok,
-    on_err: Fail,
-}
-
-impl<I, Ok, Fail> Task<I, Ok, Fail>
-where
-    I: Installation + 'static,
-    Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-    Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-{
-    /// Creates a new `Task` wrapping the given installation with callbacks.
-    pub fn new(installation: I, on_ok: Ok, on_err: Fail) -> Self {
-        Self { installation, on_ok, on_err }
-    }
-
-    /// Converts this task into a type-erased `Group::Unit`.
-    pub fn into_group(self) -> Group {
-        Group::task(self)
-    }
-}
-
-#[async_trait::async_trait]
-impl<I, Ok, Fail> Installation for Task<I, Ok, Fail>
-where
-    I: Installation + 'static,
-    Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-    Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-{
-    async fn install(self) -> anyhow::Result<()> {
-        match self.installation.install().await {
-            Result::Ok(()) => (self.on_ok)(),
-            Err(e) => (self.on_err)(e),
-        }
-    }
-}
-
-/// Type alias for the boxed closure stored inside `Group::Unit`.
-type BoxedTask =
+/// Type alias for a type-erased, boxed installation closure.
+type BoxedInstall =
     Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> + Send>;
 
+/// Type alias for the success callback.
+type OnOk = Box<dyn FnOnce() -> anyhow::Result<()> + Send>;
+
+/// Type alias for the failure callback.
+type OnErr = Box<dyn FnOnce(anyhow::Error) -> anyhow::Result<()> + Send>;
+
 /// A composable group of installation tasks that can be executed
-/// sequentially or in parallel.
-///
-/// The structure is left-associative: `Sequential` and `Parallel` always
-/// chain an existing `Group` (left) with a single new `Task` (right).
-/// This naturally maps to a builder pattern:
+/// sequentially, in parallel, conditionally, or with result callbacks.
 ///
 /// ```ignore
-/// task_a.into_group()
-///     .then(task_b)       // Sequential(Unit(a), b)
-///     .alongside(task_c)  // Parallel(Sequential(Unit(a), b), c)
+/// Group::unit(install_a)
+///     .notify_ok(|| println!("a done"))
+///     .notify_err(|e| { eprintln!("a failed: {e}"); Err(e) })
+///     .then(Group::unit(install_b))
+///     .alongside(Group::unit(install_c))
 /// ```
 pub enum Group {
-    /// A single task (type-erased `Task` with its callbacks).
-    Unit(BoxedTask),
-    /// Run the group first, then run the task.
-    Sequential(Box<Group>, BoxedTask),
-    /// Run the group and the task concurrently.
-    Parallel(Box<Group>, BoxedTask),
+    /// A single type-erased installation.
+    Unit(BoxedInstall),
+    /// Run the left group first, then run the right group.
+    Sequential(Box<Group>, Box<Group>),
+    /// Run both groups concurrently.
+    Parallel(Box<Group>, Box<Group>),
+    /// Run the inner group only if the condition is true; otherwise no-op.
+    When(bool, Box<Group>),
+    /// Run the inner group, then dispatch to callbacks based on the result.
+    Notify {
+        inner: Box<Group>,
+        on_ok: Option<OnOk>,
+        on_err: Option<OnErr>,
+    },
 }
 
 impl Group {
-    /// Creates a `Group::Unit` from a `Task` with callbacks.
-    pub fn task<I, Ok, Fail>(task: Task<I, Ok, Fail>) -> Self
-    where
-        I: Installation + 'static,
-        Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-        Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-    {
-        Group::Unit(Box::new(|| Box::pin(task.install())))
+    /// Creates a `Group::Unit` from any `Installation` implementor.
+    pub fn unit(installation: impl Installation + 'static) -> Self {
+        Group::Unit(Box::new(|| Box::pin(installation.install())))
     }
 
-    /// Appends a task to run after this group completes.
-    pub fn then<I, Ok, Fail>(self, task: Task<I, Ok, Fail>) -> Self
-    where
-        I: Installation + 'static,
-        Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-        Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-    {
-        Group::Sequential(Box::new(self), Self::boxed_task(task))
+    /// Creates a conditional group that only runs if `condition` is true.
+    pub fn when(condition: bool, group: Group) -> Self {
+        Group::When(condition, Box::new(group))
     }
 
-    /// Appends a task to run concurrently with this group.
-    pub fn alongside<I, Ok, Fail>(self, task: Task<I, Ok, Fail>) -> Self
-    where
-        I: Installation + 'static,
-        Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-        Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-    {
-        Group::Parallel(Box::new(self), Self::boxed_task(task))
+    /// Appends another group to run after this one completes.
+    pub fn then(self, next: Group) -> Self {
+        Group::Sequential(Box::new(self), Box::new(next))
     }
 
-    /// Type-erases a `Task` into a `BoxedTask` closure.
-    fn boxed_task<I, Ok, Fail>(task: Task<I, Ok, Fail>) -> BoxedTask
-    where
-        I: Installation + 'static,
-        Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-        Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-    {
-        Box::new(|| Box::pin(task.install()))
+    /// Appends another group to run concurrently with this one.
+    pub fn alongside(self, other: Group) -> Self {
+        Group::Parallel(Box::new(self), Box::new(other))
+    }
+
+    /// Attaches a success callback to this group.
+    pub fn notify_ok(self, on_ok: impl FnOnce() -> anyhow::Result<()> + Send + 'static) -> Self {
+        match self {
+            Group::Notify { inner, on_ok: _, on_err } => {
+                Group::Notify { inner, on_ok: Some(Box::new(on_ok)), on_err }
+            }
+            other => Group::Notify {
+                inner: Box::new(other),
+                on_ok: Some(Box::new(on_ok)),
+                on_err: None,
+            },
+        }
+    }
+
+    /// Attaches a failure callback to this group.
+    pub fn notify_err(
+        self,
+        on_err: impl FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
+    ) -> Self {
+        match self {
+            Group::Notify { inner, on_ok, on_err: _ } => {
+                Group::Notify { inner, on_ok, on_err: Some(Box::new(on_err)) }
+            }
+            other => Group::Notify {
+                inner: Box::new(other),
+                on_ok: None,
+                on_err: Some(Box::new(on_err)),
+            },
+        }
     }
 }
 
@@ -135,48 +114,32 @@ impl Group {
 impl Installation for Group {
     async fn install(self) -> anyhow::Result<()> {
         match self {
-            Group::Unit(task_fn) => task_fn().await,
-            Group::Sequential(group, task_fn) => {
-                group.install().await?;
-                task_fn().await
+            Group::Unit(f) => f().await,
+            Group::Sequential(left, right) => {
+                left.install().await?;
+                right.install().await
             }
-            Group::Parallel(group, task_fn) => {
-                let (l, r) = tokio::join!(group.install(), task_fn());
+            Group::Parallel(left, right) => {
+                let (l, r) = tokio::join!(left.install(), right.install());
                 l.and(r)
             }
+            Group::When(condition, inner) => {
+                if condition {
+                    inner.install().await
+                } else {
+                    Ok(())
+                }
+            }
+            Group::Notify { inner, on_ok, on_err } => match inner.install().await {
+                Ok(()) => match on_ok {
+                    Some(f) => f(),
+                    None => Ok(()),
+                },
+                Err(e) => match on_err {
+                    Some(f) => f(e),
+                    None => Err(e),
+                },
+            },
         }
-    }
-}
-
-impl<I, Ok, Fail> From<Task<I, Ok, Fail>> for Group
-where
-    I: Installation + 'static,
-    Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
-    Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
-{
-    fn from(task: Task<I, Ok, Fail>) -> Self {
-        Group::task(task)
-    }
-}
-
-#[derive(Default)]
-pub struct Installer {
-    groups: Vec<Group>,
-}
-
-impl Installer {
-    pub fn add(mut self, group: Group) -> Self {
-        self.groups.push(group);
-        self
-    }
-}
-
-#[async_trait::async_trait]
-impl Installation for Installer {
-    async fn install(self) -> anyhow::Result<()> {
-        for group in self.groups {
-            group.install().await?;
-        }
-        Ok(())
     }
 }

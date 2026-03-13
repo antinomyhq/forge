@@ -45,9 +45,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
-use crate::zsh::{
-    FzfStatus, Group, Installation, Installer, OmzStatus, Platform, Task, ZshRPrompt, ZshStatus,
-};
+use crate::zsh::{FzfStatus, Group, Installation, OmzStatus, Platform, ZshRPrompt, ZshStatus};
 use crate::{TRACKER, banner, tracker, zsh};
 
 // File-specific constants
@@ -1637,53 +1635,73 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.log_dependency_status(&deps)?;
         println!();
 
-        // Step C & D: Install missing dependencies if needed
-        if !deps.all_installed() || deps.needs_tools() {
+        // Step C–E: Install missing dependencies + Windows bash_profile
+        let needs_install = !deps.all_installed() || deps.needs_tools();
+        if needs_install {
             let missing = deps.missing_items();
             self.writeln_title(TitleFormat::info("The following will be installed:"))?;
-            for item in &missing {
+            missing.into_iter().for_each(|item| {
                 println!("   {} ({})", item.to_string().dimmed(), item.kind());
-            }
-            println!();
-
-            let mut installer = Installer::default();
-            installer = self.setup_install_zsh(installer, &deps, platform, sudo);
-            installer = self.setup_install_omz(installer, &deps);
-            installer = self.setup_install_plugins(installer, &deps);
-            installer = self.setup_install_tools(installer, &deps, platform, sudo);
-
-            // Execute all installation phases sequentially
-            if let Err(e) = installer.install().await {
-                self.spinner.stop(None)?;
-                tracing::error!(error = ?e, "Installation failed");
-                return Ok(());
-            }
-
+            });
             println!();
         } else {
             self.writeln_title(TitleFormat::info("All dependencies already installed"))?;
             println!();
         }
 
-        // Step E: Windows bash_profile auto-start
-        if platform == Platform::Windows {
-            self.spinner.start(Some("Configuring Git Bash"))?;
-            match zsh::ConfigureBashProfile::new().install().await {
-                Ok(()) => {
-                    self.spinner.stop(None)?;
-                    self.writeln_title(TitleFormat::info(
-                        "Configured ~/.bash_profile to auto-start zsh",
-                    ))?;
-                }
-                Err(e) => {
-                    setup_fully_successful = false;
-                    self.spinner.stop(None)?;
-                    self.writeln_title(TitleFormat::error(format!(
-                        "Failed to configure bash_profile: {}",
-                        e
-                    )))?;
-                }
-            }
+        let install_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let fail_flag = install_failed.clone();
+        let sp = self.spinner.clone();
+
+        let bp_ok_sp = self.spinner.clone();
+        let bp_err_sp = self.spinner.clone();
+        let bp_success = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let bp_flag = bp_success.clone();
+
+        Group::when(
+            needs_install,
+            self.setup_install_zsh(&deps, platform, sudo)
+                .then(self.setup_install_omz(&deps))
+                .then(self.setup_install_plugins(&deps))
+                .then(self.setup_install_tools(&deps, platform, sudo))
+                .notify_err(move |e| {
+                    let _ = sp.stop(None);
+                    tracing::error!(error = ?e, "Installation failed");
+                    fail_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                    Ok(())
+                }),
+        )
+        .then(Group::when(
+            platform == Platform::Windows
+                && !install_failed.load(std::sync::atomic::Ordering::Relaxed),
+            self.setup_bash_profile()
+                .notify_ok(move || {
+                    bp_ok_sp.stop(None)?;
+                    bp_ok_sp.write_ln(
+                        TitleFormat::info("Configured ~/.bash_profile to auto-start zsh").display(),
+                    )
+                })
+                .notify_err(move |e| {
+                    let _ = bp_err_sp.stop(None);
+                    let _ = bp_err_sp.write_ln(
+                        TitleFormat::error(format!("Failed to configure bash_profile: {}", e))
+                            .display(),
+                    );
+                    bp_flag.store(false, std::sync::atomic::Ordering::Relaxed);
+                    Ok(())
+                }),
+        ))
+        .install()
+        .await?;
+
+        if install_failed.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
+        if !bp_success.load(std::sync::atomic::Ordering::Relaxed) {
+            setup_fully_successful = false;
+        }
+        if needs_install {
+            println!();
         }
 
         // Step F & G: Nerd Font check and Editor selection
@@ -1881,13 +1899,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Step K: Summary
         println!();
         if setup_fully_successful {
-            if platform == Platform::Windows {
-                self.writeln_title(TitleFormat::info(
-                    "Setup complete! Open a new Git Bash window to start zsh.",
-                ))?;
-            } else {
-                self.writeln_title(TitleFormat::info("Setup complete!"))?;
-            }
+            self.writeln_title(TitleFormat::info(
+                "Setup complete! Open a new Git Bash window to start zsh.",
+            ))?;
         } else {
             self.writeln_title(TitleFormat::warning(
                 "Setup completed with some errors. Please review the messages above.",
@@ -1985,17 +1999,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Adds a zsh installation task to the installer if zsh is missing or
-    /// broken.
+    /// Builds a group that installs zsh if it is missing or broken.
     fn setup_install_zsh(
         &self,
-        installer: Installer,
         deps: &zsh::DependencyStatus,
         platform: Platform,
         sudo: zsh::SudoCapability,
-    ) -> Installer {
+    ) -> Group {
         if !deps.needs_zsh() {
-            return installer;
+            return Group::unit(zsh::Noop);
         }
         let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
         let mut install_zsh = zsh::InstallZsh::new(platform, sudo);
@@ -2004,205 +2016,163 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
         let sp = self.spinner.clone();
         let sp2 = self.spinner.clone();
-        installer.add(
-            Task::new(
-                install_zsh,
-                move || {
-                    sp.stop(None)?;
-                    sp.write_ln(TitleFormat::info("zsh installed successfully").display())
-                },
-                move |e| {
-                    let _ = sp2.stop(None);
-                    let _ = sp2.write_ln(
-                        TitleFormat::error(format!(
-                            "Failed to install zsh: {e}. Setup cannot continue."
-                        ))
-                        .display(),
-                    );
-                    Err(e)
-                },
-            )
-            .into_group(),
-        )
+        Group::unit(install_zsh)
+            .notify_ok(move || {
+                sp.stop(None)?;
+                sp.write_ln(TitleFormat::info("zsh installed successfully").display())
+            })
+            .notify_err(move |e| {
+                let _ = sp2.stop(None);
+                let _ = sp2.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install zsh: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            })
     }
 
-    /// Adds an Oh My Zsh installation task to the installer if it is missing.
-    fn setup_install_omz(&self, installer: Installer, deps: &zsh::DependencyStatus) -> Installer {
+    /// Builds a group that installs Oh My Zsh if it is missing.
+    fn setup_install_omz(&self, deps: &zsh::DependencyStatus) -> Group {
         if !deps.needs_omz() {
-            return installer;
+            return Group::unit(zsh::Noop);
         }
         let sp = self.spinner.clone();
         let sp2 = self.spinner.clone();
-        installer.add(
-            Task::new(
-                zsh::InstallOhMyZsh::new(),
-                move || {
-                    sp.write_ln(TitleFormat::info("Oh My Zsh installed successfully").display())
-                },
-                move |e| {
-                    let _ = sp2.write_ln(
-                        TitleFormat::error(format!(
-                            "Failed to install Oh My Zsh: {e}. Setup cannot continue."
-                        ))
-                        .display(),
-                    );
-                    Err(e)
-                },
-            )
-            .into_group(),
-        )
+        Group::unit(zsh::InstallOhMyZsh::new())
+            .notify_ok(move || {
+                sp.write_ln(TitleFormat::info("Oh My Zsh installed successfully").display())
+            })
+            .notify_err(move |e| {
+                let _ = sp2.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install Oh My Zsh: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            })
     }
 
-    /// Adds plugin installation tasks (autosuggestions + syntax-highlighting)
-    /// to the installer, running them in parallel.
-    fn setup_install_plugins(
-        &self,
-        installer: Installer,
-        deps: &zsh::DependencyStatus,
-    ) -> Installer {
+    /// Builds a group that installs plugins (autosuggestions +
+    /// syntax-highlighting) in parallel.
+    fn setup_install_plugins(&self, deps: &zsh::DependencyStatus) -> Group {
         if !deps.needs_plugins() {
-            return installer;
+            return Group::unit(zsh::Noop);
         }
 
         let mut group: Option<Group> = None;
 
         if deps.autosuggestions == crate::zsh::PluginStatus::NotInstalled {
             let sp = self.spinner.clone();
-            let task = Task::new(
-                zsh::InstallAutosuggestions::new(),
-                || Ok(()),
-                move |e| {
-                    let _ = sp.write_ln(
-                        TitleFormat::error(format!(
-                            "Failed to install zsh-autosuggestions: {e}. Setup cannot continue."
-                        ))
-                        .display(),
-                    );
-                    Err(e)
-                },
-            );
-            group = Some(task.into_group());
+            let task = Group::unit(zsh::InstallAutosuggestions::new()).notify_err(move |e| {
+                let _ = sp.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install zsh-autosuggestions: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            });
+            group = Some(task);
         }
 
         if deps.syntax_highlighting == crate::zsh::PluginStatus::NotInstalled {
             let sp = self.spinner.clone();
-            let task = Task::new(
-                zsh::InstallSyntaxHighlighting::new(),
-                || Ok(()),
-                move |e| {
-                    let _ = sp.write_ln(
-                        TitleFormat::error(format!(
-                            "Failed to install zsh-syntax-highlighting: {e}. Setup cannot continue."
-                        ))
-                        .display(),
-                    );
-                    Err(e)
-                },
-            );
+            let task = Group::unit(zsh::InstallSyntaxHighlighting::new()).notify_err(move |e| {
+                let _ = sp.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install zsh-syntax-highlighting: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            });
             group = Some(match group {
                 Some(g) => g.alongside(task),
-                None => task.into_group(),
+                None => task,
             });
         }
 
         match group {
             Some(group) => {
                 let sp = self.spinner.clone();
-                let done = Task::new(
-                    zsh::Noop,
-                    move || sp.write_ln(TitleFormat::info("Plugins installed").display()),
-                    Err,
-                );
-                installer.add(group.then(done))
+                group.notify_ok(move || {
+                    sp.write_ln(TitleFormat::info("Plugins installed").display())
+                })
             }
-            None => installer,
+            None => Group::unit(zsh::Noop),
         }
     }
 
-    /// Adds tool installation tasks (fzf, bat, fd) to the installer,
-    /// running them in parallel.
+    /// Builds a group that installs tools (fzf, bat, fd) in parallel.
     fn setup_install_tools(
         &self,
-        installer: Installer,
         deps: &zsh::DependencyStatus,
         platform: Platform,
         sudo: zsh::SudoCapability,
-    ) -> Installer {
+    ) -> Group {
         if !deps.needs_tools() {
-            return installer;
+            return Group::unit(zsh::Noop);
         }
 
         let mut group: Option<Group> = None;
 
         if matches!(deps.fzf, FzfStatus::NotFound) {
             let sp = self.spinner.clone();
-            let task = Task::new(
-                zsh::InstallFzf::new(platform, sudo),
-                || Ok(()),
-                move |e| {
-                    let _ = sp.stop(None);
-                    let _ = sp.write_ln(
-                        TitleFormat::error(format!("Failed to install fzf: {e}")).display(),
-                    );
-                    Err(e)
-                },
-            );
-            group = Some(task.into_group());
+            let task = Group::unit(zsh::InstallFzf::new(platform, sudo)).notify_err(move |e| {
+                let _ = sp.stop(None);
+                let _ = sp
+                    .write_ln(TitleFormat::error(format!("Failed to install fzf: {e}")).display());
+                Err(e)
+            });
+            group = Some(task);
         }
 
         if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
             let sp = self.spinner.clone();
-            let task = Task::new(
-                zsh::InstallBat::new(platform, sudo),
-                || Ok(()),
-                move |e| {
-                    let _ = sp.stop(None);
-                    let _ = sp.write_ln(
-                        TitleFormat::error(format!("Failed to install bat: {e}")).display(),
-                    );
-                    Err(e)
-                },
-            );
+            let task = Group::unit(zsh::InstallBat::new(platform, sudo)).notify_err(move |e| {
+                let _ = sp.stop(None);
+                let _ = sp
+                    .write_ln(TitleFormat::error(format!("Failed to install bat: {e}")).display());
+                Err(e)
+            });
             group = Some(match group {
                 Some(g) => g.alongside(task),
-                None => task.into_group(),
+                None => task,
             });
         }
 
         if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
             let sp = self.spinner.clone();
-            let task = Task::new(
-                zsh::InstallFd::new(platform, sudo),
-                || Ok(()),
-                move |e| {
-                    let _ = sp.stop(None);
-                    let _ = sp.write_ln(
-                        TitleFormat::error(format!("Failed to install fd: {e}")).display(),
-                    );
-                    Err(e)
-                },
-            );
+            let task = Group::unit(zsh::InstallFd::new(platform, sudo)).notify_err(move |e| {
+                let _ = sp.stop(None);
+                let _ =
+                    sp.write_ln(TitleFormat::error(format!("Failed to install fd: {e}")).display());
+                Err(e)
+            });
             group = Some(match group {
                 Some(g) => g.alongside(task),
-                None => task.into_group(),
+                None => task,
             });
         }
 
         match group {
             Some(group) => {
                 let sp = self.spinner.clone();
-                let done = Task::new(
-                    zsh::Noop,
-                    move || {
-                        sp.stop(None)?;
-                        sp.write_ln(TitleFormat::info("Tools installed (fzf, bat, fd)").display())
-                    },
-                    Err,
-                );
-                installer.add(group.then(done))
+                group.notify_ok(move || {
+                    sp.stop(None)?;
+                    sp.write_ln(TitleFormat::info("Tools installed (fzf, bat, fd)").display())
+                })
             }
-            None => installer,
+            None => Group::unit(zsh::Noop),
         }
+    }
+
+    /// Builds a group that configures `~/.bash_profile` for zsh auto-start.
+    fn setup_bash_profile(&self) -> Group {
+        Group::unit(zsh::ConfigureBashProfile::new())
     }
 
     /// Handle the cmd command - generates shell command from natural language
