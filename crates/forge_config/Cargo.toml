@@ -1,0 +1,10 @@
+[package]
+name = "forge_config"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+config = { version = "0.14", features = ["async"] }
+serde.workspace = true
+thiserror.workspace = true
