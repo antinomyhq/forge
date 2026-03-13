@@ -25,12 +25,25 @@ struct Anthropic<T> {
     http: Arc<T>,
     provider: Provider<Url>,
     anthropic_version: String,
-    use_oauth: bool,
+    preserve_claude_code_semantics: bool,
+    use_bearer_auth: bool,
 }
 
 impl<H: HttpInfra> Anthropic<H> {
-    pub fn new(http: Arc<H>, provider: Provider<Url>, version: String, use_oauth: bool) -> Self {
-        Self { http, provider, anthropic_version: version, use_oauth }
+    pub fn new(
+        http: Arc<H>,
+        provider: Provider<Url>,
+        version: String,
+        preserve_claude_code_semantics: bool,
+        use_bearer_auth: bool,
+    ) -> Self {
+        Self {
+            http,
+            provider,
+            anthropic_version: version,
+            preserve_claude_code_semantics,
+            use_bearer_auth,
+        }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -53,10 +66,10 @@ impl<H: HttpInfra> Anthropic<H> {
             });
 
         if let Some(api_key) = api_key {
-            // For Vertex AI, use Authorization: Bearer with Google ADC token
-            // For OAuth, use Authorization: Bearer
-            // For API key, use x-api-key header
-            if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC || self.use_oauth {
+            // For Vertex AI, use Authorization: Bearer with Google ADC token.
+            // Claude Code BYOK preserves request semantics but still authenticates
+            // as a standard API key against the enterprise gateway.
+            if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC || self.use_bearer_auth {
                 headers.push(("authorization".to_string(), format!("Bearer {}", api_key)));
             } else {
                 headers.push(("x-api-key".to_string(), api_key.to_string()));
@@ -65,7 +78,7 @@ impl<H: HttpInfra> Anthropic<H> {
 
         // Add beta flags (not needed for Vertex AI)
         if self.provider.id != ProviderId::VERTEX_AI_ANTHROPIC {
-            if self.use_oauth {
+            if self.preserve_claude_code_semantics {
                 // OAuth requires multiple beta flags including structured outputs
                 headers.push((
                     "anthropic-beta".to_string(),
@@ -104,7 +117,7 @@ impl<T: HttpInfra> Anthropic<T> {
         }
 
         let pipeline = AuthSystemMessage::default()
-            .when(|_| self.use_oauth)
+            .when(|_| self.preserve_claude_code_semantics)
             .pipe(CapitalizeToolNames)
             .pipe(DropInvalidToolUse)
             .pipe(SanitizeToolIds);
@@ -291,6 +304,7 @@ mod tests {
             provider,
             "2023-06-01".to_string(),
             false,
+            false,
         ))
     }
 
@@ -357,6 +371,7 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             provider.clone(),
             "v1".to_string(),
+            false,
             false,
         );
         match &anthropic.provider.models {
@@ -496,7 +511,8 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             provider,
             "2023-06-01".to_string(),
-            false, // API key auth (not OAuth)
+            false,
+            false, // Standard API key auth
         );
 
         let actual = fixture.get_headers();
@@ -534,17 +550,17 @@ mod tests {
     }
 
     #[test]
-    fn test_get_headers_with_oauth_includes_beta_flags() {
+    fn test_get_headers_with_claude_code_oauth_includes_beta_flags() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
 
         let provider = Provider {
-            id: forge_app::domain::ProviderId::ANTHROPIC,
+            id: forge_app::domain::ProviderId::CLAUDE_CODE,
             provider_type: forge_domain::ProviderType::Llm,
             response: Some(forge_app::domain::ProviderResponse::Anthropic),
             url: chat_url,
             credential: Some(forge_domain::AuthCredential {
-                id: forge_app::domain::ProviderId::ANTHROPIC,
+                id: forge_app::domain::ProviderId::CLAUDE_CODE,
                 auth_details: forge_domain::AuthDetails::OAuth {
                     tokens: forge_domain::OAuthTokens::new(
                         "oauth-token",
@@ -565,7 +581,19 @@ mod tests {
                 },
                 url_params: std::collections::HashMap::new(),
             }),
-            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            auth_methods: vec![forge_domain::AuthMethod::OAuthCode(
+                forge_domain::OAuthConfig {
+                    auth_url: reqwest::Url::parse("https://example.com/auth").unwrap(),
+                    token_url: reqwest::Url::parse("https://example.com/token").unwrap(),
+                    client_id: forge_domain::ClientId::from("client-id".to_string()),
+                    scopes: vec![],
+                    redirect_uri: None,
+                    use_pkce: false,
+                    token_refresh_url: None,
+                    custom_headers: None,
+                    extra_auth_params: None,
+                },
+            )],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
         };
@@ -574,41 +602,89 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             provider,
             "2023-06-01".to_string(),
-            true, // OAuth auth
+            true,
+            true,
         );
 
         let actual = fixture.get_headers();
 
-        // Should contain anthropic-version header
-        assert!(
-            actual
-                .iter()
-                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
-        );
-
-        // Should contain authorization header (not x-api-key)
         assert!(
             actual
                 .iter()
                 .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token")
         );
 
-        // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
         assert!(
             beta_header.is_some(),
-            "anthropic-beta header should be present for OAuth"
+            "anthropic-beta header should be present"
         );
 
         let (_, beta_value) = beta_header.unwrap();
-        assert!(
-            beta_value.contains("structured-outputs-2025-11-13"),
-            "Beta header should include structured-outputs flag"
+        assert!(beta_value.contains("claude-code-20250219"));
+        assert!(beta_value.contains("oauth-2025-04-20"));
+    }
+
+    #[test]
+    fn test_get_headers_with_claude_code_byok_preserves_special_beta_flags() {
+        let chat_url = Url::parse("https://gateway.example.com/messages").unwrap();
+        let model_url = Url::parse("https://gateway.example.com/models").unwrap();
+
+        let provider = Provider {
+            id: forge_app::domain::ProviderId::CLAUDE_CODE,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::Anthropic),
+            url: chat_url,
+            credential: Some(forge_domain::AuthCredential {
+                id: forge_app::domain::ProviderId::CLAUDE_CODE,
+                auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "gateway-key".to_string(),
+                )),
+                url_params: std::collections::HashMap::new(),
+            }),
+            auth_methods: vec![forge_domain::AuthMethod::OAuthCode(
+                forge_domain::OAuthConfig {
+                    auth_url: reqwest::Url::parse("https://example.com/auth").unwrap(),
+                    token_url: reqwest::Url::parse("https://example.com/token").unwrap(),
+                    client_id: forge_domain::ClientId::from("client-id".to_string()),
+                    scopes: vec![],
+                    redirect_uri: None,
+                    use_pkce: false,
+                    token_refresh_url: None,
+                    custom_headers: None,
+                    extra_auth_params: None,
+                },
+            )],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Url(model_url)),
+        };
+
+        let fixture = Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            provider,
+            "2023-06-01".to_string(),
+            true,
+            false,
         );
+
+        let actual = fixture.get_headers();
+
         assert!(
-            beta_value.contains("oauth-2025-04-20"),
-            "Beta header should include oauth flag for OAuth auth"
+            actual
+                .iter()
+                .any(|(k, v)| k == "x-api-key" && v == "gateway-key")
         );
+        assert!(!actual.iter().any(|(k, _)| k == "authorization"));
+
+        let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
+        assert!(
+            beta_header.is_some(),
+            "anthropic-beta header should be present"
+        );
+
+        let (_, beta_value) = beta_header.unwrap();
+        assert!(beta_value.contains("claude-code-20250219"));
+        assert!(beta_value.contains("oauth-2025-04-20"));
     }
 
     #[test]
@@ -651,6 +727,7 @@ mod tests {
             provider,
             "vertex-2023-10-16".to_string(),
             false,
+            true,
         );
 
         // Create a context with response_format (which would normally add
@@ -714,11 +791,18 @@ impl<F: HttpInfra> AnthropicResponseRepository<F> {
             .as_ref()
             .context("Anthropic provider requires credentials")?;
 
-        // Determine OAuth usage based on auth details
-        let is_oauth = provider
+        let preserve_claude_code_semantics = provider.id == ProviderId::CLAUDE_CODE;
+        let use_bearer_auth = provider
             .credential
             .as_ref()
-            .map(|c| matches!(c.auth_details, forge_domain::AuthDetails::OAuth { .. }))
+            .map(|credential| {
+                matches!(
+                    credential.auth_details,
+                    forge_domain::AuthDetails::OAuth { .. }
+                        | forge_domain::AuthDetails::OAuthWithApiKey { .. }
+                        | forge_domain::AuthDetails::GoogleAdc(_)
+                )
+            })
             .unwrap_or(false);
 
         // Use different API version for Vertex AI
@@ -732,7 +816,8 @@ impl<F: HttpInfra> AnthropicResponseRepository<F> {
             self.infra.clone(),
             provider,
             version,
-            is_oauth,
+            preserve_claude_code_semantics,
+            use_bearer_auth,
         ))
     }
 }

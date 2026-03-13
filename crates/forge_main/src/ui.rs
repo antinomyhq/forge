@@ -17,7 +17,8 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
+    ApiKey, AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat,
+    URLParam, URLParameters, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -58,6 +59,12 @@ struct ConversationDump {
     related_conversations: Vec<Conversation>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SetupMode {
+    Recommended,
+    Advanced,
+}
+
 /// Formats an MCP server config for display, redacting sensitive information.
 /// Returns the command/URL string only.
 fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
@@ -74,6 +81,168 @@ fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
         }
         forge_domain::McpServerConfig::Http(http) => http.url.clone(),
     }
+}
+
+fn official_endpoint_baseline(
+    provider_id: &ProviderId,
+) -> Option<&'static [(&'static str, &'static str)]> {
+    if provider_id == &ProviderId::CODEX {
+        Some(&[("CODEX_BASE_URL", "https://chatgpt.com/backend-api/codex")])
+    } else if provider_id == &ProviderId::CLAUDE_CODE {
+        Some(&[("CLAUDE_CODE_BASE_URL", "https://api.anthropic.com/v1")])
+    } else {
+        None
+    }
+}
+
+fn normalize_endpoint_for_comparison(value: &str) -> String {
+    let trimmed = value.trim();
+
+    match Url::parse(trimmed) {
+        Ok(mut url) => {
+            if matches!(
+                (url.scheme(), url.port()),
+                ("http", Some(80)) | ("https", Some(443))
+            ) {
+                let _ = url.set_port(None);
+            }
+
+            let normalized_path = match url.path() {
+                "/" => "/".to_string(),
+                path => path.trim_end_matches('/').to_string(),
+            };
+            if normalized_path != url.path() {
+                url.set_path(&normalized_path);
+            }
+
+            url.set_fragment(None);
+            url.as_str().trim_end_matches('/').to_string()
+        }
+        Err(_) => trimmed.trim_end_matches('/').to_string(),
+    }
+}
+
+fn uses_custom_endpoint(provider_id: &ProviderId, url_params: &HashMap<String, String>) -> bool {
+    let Some(official_baseline) = official_endpoint_baseline(provider_id) else {
+        return false;
+    };
+
+    official_baseline.iter().any(|(param, official_value)| {
+        url_params.get(*param).is_some_and(|current_value| {
+            normalize_endpoint_for_comparison(current_value)
+                != normalize_endpoint_for_comparison(official_value)
+        })
+    })
+}
+
+fn auth_method_label(method: &AuthMethod) -> &'static str {
+    match method {
+        AuthMethod::ApiKey => "API Key",
+        AuthMethod::OAuthDevice(_) => "OAuth Device Flow",
+        AuthMethod::OAuthCode(_) => "OAuth Authorization Code",
+        AuthMethod::GoogleAdc => "Google Application Default Credentials (ADC)",
+        AuthMethod::CodexDevice(_) => "OpenAI Codex Device Flow",
+    }
+}
+
+fn auth_method_priority(method: &AuthMethod) -> usize {
+    match method {
+        AuthMethod::CodexDevice(_) => 0,
+        AuthMethod::OAuthCode(_) => 1,
+        AuthMethod::OAuthDevice(_) => 2,
+        AuthMethod::GoogleAdc => 3,
+        AuthMethod::ApiKey => 4,
+    }
+}
+
+fn recommended_auth_method(auth_methods: &[AuthMethod]) -> anyhow::Result<AuthMethod> {
+    auth_methods
+        .iter()
+        .min_by_key(|method| auth_method_priority(method))
+        .cloned()
+        .ok_or_else(|| anyhow::anyhow!("No authentication methods available"))
+}
+
+fn auth_request_url_param_config(
+    auth_request: &AuthContextRequest,
+) -> (&[URLParam], Option<&URLParameters>, Option<&URLParameters>) {
+    match auth_request {
+        AuthContextRequest::ApiKey(request) => (
+            &request.required_params,
+            request.default_params.as_ref(),
+            request.existing_params.as_ref(),
+        ),
+        AuthContextRequest::Code(request) => (
+            &request.required_params,
+            request.default_params.as_ref(),
+            request.existing_params.as_ref(),
+        ),
+        AuthContextRequest::DeviceCode(request) => (
+            &request.required_params,
+            request.default_params.as_ref(),
+            request.existing_params.as_ref(),
+        ),
+    }
+}
+
+fn can_use_saved_or_default_url_params(
+    required_params: &[URLParam],
+    default_params: Option<&URLParameters>,
+    existing_params: Option<&URLParameters>,
+) -> bool {
+    required_params.iter().all(|param| {
+        existing_params
+            .and_then(|params| params.get(param))
+            .or_else(|| default_params.and_then(|params| params.get(param)))
+            .is_some()
+    })
+}
+
+fn resolve_url_params(
+    required_params: &[URLParam],
+    default_params: Option<&URLParameters>,
+    existing_params: Option<&URLParameters>,
+) -> anyhow::Result<HashMap<String, String>> {
+    required_params
+        .iter()
+        .map(|param| {
+            let value = existing_params
+                .and_then(|params| params.get(param))
+                .or_else(|| default_params.and_then(|params| params.get(param)))
+                .ok_or_else(|| anyhow::anyhow!("Missing value for {param}"))?;
+
+            Ok((param.to_string(), value.as_str().to_string()))
+        })
+        .collect()
+}
+
+fn has_nondefault_connection_settings(
+    provider_id: &ProviderId,
+    required_params: &[URLParam],
+    default_params: Option<&URLParameters>,
+    existing_params: Option<&URLParameters>,
+) -> bool {
+    let Ok(current_params) = resolve_url_params(required_params, default_params, existing_params)
+    else {
+        return false;
+    };
+
+    if current_params.is_empty() {
+        return false;
+    }
+
+    if provider_id == &ProviderId::CODEX || provider_id == &ProviderId::CLAUDE_CODE {
+        return uses_custom_endpoint(provider_id, &current_params);
+    }
+
+    required_params.iter().any(|param| {
+        let Some(default_value) = default_params.and_then(|params| params.get(param)) else {
+            return false;
+        };
+        current_params
+            .get(param.as_str())
+            .is_some_and(|current_value| current_value != default_value.as_str())
+    })
 }
 
 /// Formats HTTP headers for display, redacting values.
@@ -831,10 +1000,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // For login, always configure (even if already configured) to allow
         // re-authentication
-        let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
-            .await?
-        {
+        let provider = match self.configure_provider(any_provider.clone()).await? {
             Some(provider) => provider,
             None => return Ok(()),
         };
@@ -2163,78 +2329,142 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    async fn handle_api_key_input(
+    fn collect_url_params(
         &mut self,
-        provider_id: ProviderId,
-        request: &ApiKeyRequest,
-    ) -> anyhow::Result<()> {
+        required_params: &[forge_domain::URLParam],
+        default_params: Option<&URLParameters>,
+        existing_params: Option<&URLParameters>,
+    ) -> anyhow::Result<HashMap<String, String>> {
         use anyhow::Context;
-        self.spinner.stop(None)?;
 
-        // Extract existing API key and URL params for prefilling
-        let existing_url_params = request.existing_params.as_ref();
-
-        // Collect URL parameters if required
-        let url_params = request
-            .required_params
+        required_params
             .iter()
             .map(|param| {
                 let mut input = ForgeSelect::input(format!("Enter {param}:"));
 
-                // Add default value if it exists in the credential
-                if let Some(params) = existing_url_params
+                if let Some(params) = existing_params
+                    && let Some(existing_value) = params.get(param)
+                {
+                    input = input.with_default(existing_value.as_str());
+                } else if let Some(params) = default_params
                     && let Some(default_value) = params.get(param)
                 {
                     input = input.with_default(default_value.as_str());
                 }
 
                 let param_value = input.prompt()?.context("Parameter input cancelled")?;
+                let param_value = param_value.trim();
+                anyhow::ensure!(!param_value.is_empty(), "{param} cannot be empty");
 
-                anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
-
-                Ok((param.to_string(), param_value))
+                Ok((param.to_string(), param_value.to_string()))
             })
-            .collect::<anyhow::Result<HashMap<_, _>>>()?;
+            .collect()
+    }
 
-        // Check if API key is already provided
-        // For Google ADC, we use a marker to skip prompting
-        // For other providers, we use the existing key as a default value (autofill)
-        let api_key_str = if let Some(default_key) = &request.api_key {
-            let key_str = default_key.as_ref();
+    fn resolve_url_params_for_setup(
+        &mut self,
+        setup_mode: SetupMode,
+        required_params: &[URLParam],
+        default_params: Option<&URLParameters>,
+        existing_params: Option<&URLParameters>,
+    ) -> anyhow::Result<HashMap<String, String>> {
+        if required_params.is_empty() {
+            return Ok(HashMap::new());
+        }
 
-            // Skip prompting only for Google ADC marker
-            if key_str == "google_adc_marker" {
-                key_str.to_string()
-            } else {
-                // For other providers, show the existing key as default (autofill)
-                let input = ForgeSelect::input(format!("Enter your {provider_id} API key"))
-                    .with_default(key_str);
-                let api_key = input.prompt()?.context("API key input cancelled")?;
-                let api_key_str = api_key.trim();
-                anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
-                api_key_str.to_string()
-            }
-        } else {
-            // Prompt for API key input (no existing key)
-            let input = ForgeSelect::input(format!("Enter your {provider_id} API key"));
-            let api_key = input.prompt()?.context("API key input cancelled")?;
-            let api_key_str = api_key.trim();
-            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
-            api_key_str.to_string()
-        };
+        if setup_mode == SetupMode::Recommended
+            && can_use_saved_or_default_url_params(required_params, default_params, existing_params)
+        {
+            return resolve_url_params(required_params, default_params, existing_params);
+        }
 
-        // Update the context with collected data
-        let response = AuthContextResponse::api_key(request.clone(), &api_key_str, url_params);
+        self.collect_url_params(required_params, default_params, existing_params)
+    }
+
+    fn provider_existing_api_key(provider: &AnyProvider) -> Option<ApiKey> {
+        match provider {
+            AnyProvider::Url(provider) => provider
+                .credential
+                .as_ref()
+                .and_then(|credential| credential.auth_details.api_key().cloned()),
+            AnyProvider::Template(_) => None,
+        }
+    }
+
+    async fn complete_api_key_auth(
+        &mut self,
+        provider_id: ProviderId,
+        api_key_str: &str,
+        url_params: HashMap<String, String>,
+    ) -> anyhow::Result<()> {
+        let response = AuthContextResponse::api_key(
+            ApiKeyRequest {
+                required_params: vec![],
+                default_params: None,
+                existing_params: None,
+                api_key: None,
+            },
+            api_key_str,
+            url_params,
+        );
 
         self.api
-            .complete_provider_auth(
-                provider_id,
-                response,
-                Duration::from_secs(0), // No timeout needed since we have the data
-            )
+            .complete_provider_auth(provider_id, response, Duration::from_secs(0))
             .await?;
 
         Ok(())
+    }
+
+    async fn prompt_api_key(
+        &mut self,
+        provider_id: &ProviderId,
+        default_key: Option<&ApiKey>,
+    ) -> anyhow::Result<String> {
+        use anyhow::Context;
+
+        if let Some(default_key) = default_key {
+            let key_str = default_key.as_ref();
+            if key_str == "google_adc_marker" {
+                return Ok(key_str.to_string());
+            }
+
+            let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                .with_default(key_str)
+                .prompt()?
+                .context("API key input cancelled")?;
+            let api_key_str = api_key.trim();
+            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+            Ok(api_key_str.to_string())
+        } else {
+            let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                .prompt()?
+                .context("API key input cancelled")?;
+            let api_key_str = api_key.trim();
+            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+            Ok(api_key_str.to_string())
+        }
+    }
+
+    async fn handle_api_key_input(
+        &mut self,
+        provider_id: ProviderId,
+        request: &ApiKeyRequest,
+        setup_mode: SetupMode,
+    ) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+
+        let url_params = self.resolve_url_params_for_setup(
+            setup_mode,
+            &request.required_params,
+            request.default_params.as_ref(),
+            request.existing_params.as_ref(),
+        )?;
+        let api_key_str = self
+            .prompt_api_key(&provider_id, request.api_key.as_ref())
+            .await?;
+
+        self.complete_api_key_auth(provider_id, &api_key_str, url_params)
+            .await
     }
 
     fn display_oauth_device_info_new(
@@ -2291,6 +2521,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &DeviceCodeRequest,
+        url_params: HashMap<String, String>,
     ) -> Result<()> {
         use std::time::Duration;
 
@@ -2309,7 +2540,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Step 2: Complete authentication (polls if needed for OAuth flows)
         self.spinner.start(Some("Completing authentication..."))?;
 
-        let response = AuthContextResponse::device_code(request.clone());
+        let response = AuthContextResponse::device_code(request.clone(), url_params);
 
         self.api
             .complete_provider_auth(provider_id, response, Duration::from_secs(600))
@@ -2342,6 +2573,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &CodeRequest,
+        url_params: HashMap<String, String>,
     ) -> anyhow::Result<()> {
         use colored::Colorize;
 
@@ -2378,7 +2610,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
-        let response = AuthContextResponse::code(request.clone(), &code);
+        let response = AuthContextResponse::code(request.clone(), &code, url_params);
 
         self.api
             .complete_provider_auth(
@@ -2419,13 +2651,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let method_names: Vec<String> = auth_methods
             .iter()
-            .map(|method| match method {
-                AuthMethod::ApiKey => "API Key".to_string(),
-                AuthMethod::OAuthDevice(_) => "OAuth Device Flow".to_string(),
-                AuthMethod::OAuthCode(_) => "OAuth Authorization Code".to_string(),
-                AuthMethod::GoogleAdc => "Google Application Default Credentials (ADC)".to_string(),
-                AuthMethod::CodexDevice(_) => "OpenAI Codex Device Flow".to_string(),
-            })
+            .map(|method| auth_method_label(method).to_string())
             .collect();
 
         match ForgeSelect::select("Select authentication method:", method_names.clone())
@@ -2433,13 +2659,82 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .prompt()?
         {
             Some(selected_name) => {
-                // Find the corresponding auth method
                 let index = method_names
                     .iter()
                     .position(|name| name == &selected_name)
                     .expect("Selected method should exist");
                 Ok(Some(auth_methods[index].clone()))
             }
+            None => Ok(None),
+        }
+    }
+
+    fn select_setup_mode(
+        &mut self,
+        provider_id: ProviderId,
+        auth_methods: &[AuthMethod],
+        auth_request: &AuthContextRequest,
+    ) -> Result<Option<SetupMode>> {
+        use colored::Colorize;
+
+        let (required_params, default_params, existing_params) =
+            auth_request_url_param_config(auth_request);
+        let has_hidden_connection_settings = !required_params.is_empty()
+            && can_use_saved_or_default_url_params(
+                required_params,
+                default_params,
+                existing_params,
+            );
+        let keeps_custom_connection_settings = has_hidden_connection_settings
+            && has_nondefault_connection_settings(
+                &provider_id,
+                required_params,
+                default_params,
+                existing_params,
+            );
+        let has_setup_choice = auth_methods.len() > 1 || has_hidden_connection_settings;
+
+        if !has_setup_choice {
+            return Ok(Some(SetupMode::Recommended));
+        }
+
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::action(format!("Configure {provider_id}")))?;
+
+        let guidance = if provider_id == ProviderId::CODEX && keeps_custom_connection_settings {
+            "Recommended setup keeps your current Codex gateway settings."
+        } else if provider_id == ProviderId::CODEX {
+            "Recommended setup uses the official Codex sign-in flow."
+        } else if provider_id == ProviderId::CLAUDE_CODE && keeps_custom_connection_settings {
+            "Recommended setup keeps your current Claude Code gateway settings."
+        } else if provider_id == ProviderId::CLAUDE_CODE {
+            "Recommended setup uses the official Claude Code sign-in flow."
+        } else if keeps_custom_connection_settings && auth_methods.len() > 1 {
+            "Recommended setup keeps your current connection settings and preferred sign-in flow."
+        } else if keeps_custom_connection_settings {
+            "Recommended setup keeps your current connection settings."
+        } else if has_hidden_connection_settings && auth_methods.len() > 1 {
+            "Recommended setup uses the default connection settings and preferred sign-in flow."
+        } else if has_hidden_connection_settings {
+            "Recommended setup uses the default connection settings."
+        } else {
+            "Recommended setup uses the preferred sign-in flow."
+        };
+        self.writeln(guidance.dimmed())?;
+
+        let options = vec![
+            "Continue with recommended setup (Recommended)".to_string(),
+            "Advanced setup".to_string(),
+        ];
+
+        match ForgeSelect::select("Choose setup mode:", options)
+            .with_help_message("Recommended setup hides custom endpoints and advanced options")
+            .prompt()?
+        {
+            Some(selected_mode) if selected_mode.contains("Advanced") => {
+                Ok(Some(SetupMode::Advanced))
+            }
+            Some(_) => Ok(Some(SetupMode::Recommended)),
             None => Ok(None),
         }
     }
@@ -2459,42 +2754,110 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
-        provider_id: ProviderId,
-        auth_methods: Vec<AuthMethod>,
+        any_provider: AnyProvider,
     ) -> Result<Option<Provider<Url>>> {
+        let provider_id = any_provider.id();
+        let auth_methods = any_provider.auth_methods().to_vec();
+        let existing_api_key = Self::provider_existing_api_key(&any_provider);
+
         if provider_id == ProviderId::FORGE_SERVICES {
             self.init_forge_services().await?;
             return Ok(None);
         }
-        // Select auth method (or use the only one available)
-        let auth_method = match self
-            .select_auth_method(provider_id.clone(), &auth_methods)
-            .await?
-        {
-            Some(method) => method,
-            None => return Ok(None), // User cancelled
-        };
+
+        let recommended_auth_method = recommended_auth_method(&auth_methods)?;
 
         self.spinner.start(Some("Initiating authentication..."))?;
-
-        // Initiate the authentication flow
-        let auth_request = self
+        let mut auth_method = recommended_auth_method.clone();
+        let mut auth_request = self
             .api
-            .init_provider_auth(provider_id.clone(), auth_method)
+            .init_provider_auth(provider_id.clone(), auth_method.clone())
             .await?;
 
-        // Handle the specific authentication flow based on the request type
+        let setup_mode =
+            match self.select_setup_mode(provider_id.clone(), &auth_methods, &auth_request)? {
+                Some(setup_mode) => setup_mode,
+                None => return Ok(None),
+            };
+
+        if setup_mode == SetupMode::Advanced && auth_methods.len() > 1 {
+            auth_method = match self
+                .select_auth_method(provider_id.clone(), &auth_methods)
+                .await?
+            {
+                Some(method) => method,
+                None => return Ok(None),
+            };
+
+            if auth_method != recommended_auth_method {
+                self.spinner.start(Some("Initiating authentication..."))?;
+                auth_request = self
+                    .api
+                    .init_provider_auth(provider_id.clone(), auth_method.clone())
+                    .await?;
+            }
+        }
+
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id.clone(), &request)
+                self.handle_api_key_input(provider_id.clone(), &request, setup_mode)
                     .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id.clone(), &request)
-                    .await?;
+                self.spinner.stop(None)?;
+                let url_params = self.resolve_url_params_for_setup(
+                    setup_mode,
+                    &request.required_params,
+                    request.default_params.as_ref(),
+                    request.existing_params.as_ref(),
+                )?;
+
+                if uses_custom_endpoint(&provider_id, &url_params) {
+                    self.spinner.stop(None)?;
+                    self.writeln(format!(
+                        "{}",
+                        format!(
+                            "Using API key authentication because {provider_id} is configured with a custom endpoint"
+                        )
+                        .dimmed()
+                    ))?;
+                    let api_key = self
+                        .prompt_api_key(&provider_id, existing_api_key.as_ref())
+                        .await?;
+                    self.complete_api_key_auth(provider_id.clone(), &api_key, url_params)
+                        .await?;
+                } else {
+                    self.handle_device_flow(provider_id.clone(), &request, url_params)
+                        .await?;
+                }
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id.clone(), &request).await?;
+                self.spinner.stop(None)?;
+                let url_params = self.resolve_url_params_for_setup(
+                    setup_mode,
+                    &request.required_params,
+                    request.default_params.as_ref(),
+                    request.existing_params.as_ref(),
+                )?;
+
+                if uses_custom_endpoint(&provider_id, &url_params) {
+                    self.spinner.stop(None)?;
+                    self.writeln(format!(
+                        "{}",
+                        format!(
+                            "Using API key authentication because {provider_id} is configured with a custom endpoint"
+                        )
+                        .dimmed()
+                    ))?;
+                    let api_key = self
+                        .prompt_api_key(&provider_id, existing_api_key.as_ref())
+                        .await?;
+                    self.complete_api_key_auth(provider_id.clone(), &api_key, url_params)
+                        .await?;
+                } else {
+                    self.handle_code_flow(provider_id.clone(), &request, url_params)
+                        .await?;
+                }
             }
         }
 
@@ -2665,10 +3028,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
-            match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
-                .await?
-            {
+            match self.configure_provider(any_provider.clone()).await? {
                 Some(provider) => provider,
                 None => return Ok(()),
             }
@@ -3995,6 +4355,141 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use forge_domain::{AuthMethod, ProviderId, URLParam, URLParamValue, URLParameters};
+    use pretty_assertions::assert_eq;
+    use url::Url;
+
+    use super::{
+        has_nondefault_connection_settings, normalize_endpoint_for_comparison,
+        recommended_auth_method, resolve_url_params, uses_custom_endpoint,
+    };
+
+    fn oauth_config_fixture() -> forge_domain::OAuthConfig {
+        forge_domain::OAuthConfig {
+            auth_url: Url::parse("https://example.com/auth").unwrap(),
+            token_url: Url::parse("https://example.com/token").unwrap(),
+            client_id: forge_domain::ClientId::from("client-id".to_string()),
+            scopes: vec![],
+            redirect_uri: None,
+            use_pkce: false,
+            token_refresh_url: None,
+            custom_headers: None,
+            extra_auth_params: None,
+        }
+    }
+
+    #[test]
+    fn test_normalize_endpoint_for_comparison_treats_equivalent_urls_as_equal() {
+        let fixture = "https://CHATGPT.com:443/backend-api/codex/";
+        let actual = normalize_endpoint_for_comparison(fixture);
+        let expected = normalize_endpoint_for_comparison("https://chatgpt.com/backend-api/codex");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_uses_custom_endpoint_treats_equivalent_official_codex_url_as_default() {
+        let fixture = HashMap::from([(
+            "CODEX_BASE_URL".to_string(),
+            "https://chatgpt.com:443/backend-api/codex/".to_string(),
+        )]);
+        let actual = uses_custom_endpoint(&ProviderId::CODEX, &fixture);
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_uses_custom_endpoint_compares_claude_code_against_official_baseline() {
+        let fixture = HashMap::from([(
+            "CLAUDE_CODE_BASE_URL".to_string(),
+            "https://gateway.example.com/v1".to_string(),
+        )]);
+        let actual = uses_custom_endpoint(&ProviderId::CLAUDE_CODE, &fixture);
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_recommended_auth_method_prefers_google_adc_over_api_key() {
+        let fixture = vec![AuthMethod::ApiKey, AuthMethod::GoogleAdc];
+        let actual = recommended_auth_method(&fixture).unwrap();
+        let expected = AuthMethod::GoogleAdc;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_recommended_auth_method_prefers_codex_device_over_api_key() {
+        let fixture = vec![
+            AuthMethod::ApiKey,
+            AuthMethod::CodexDevice(oauth_config_fixture()),
+        ];
+        let actual = recommended_auth_method(&fixture).unwrap();
+        let expected = AuthMethod::CodexDevice(oauth_config_fixture());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_resolve_url_params_prefers_existing_values_over_defaults() {
+        let fixture_required = vec![URLParam::from("OPENAI_BASE_URL".to_string())];
+        let fixture_default = URLParameters::from(HashMap::from([(
+            URLParam::from("OPENAI_BASE_URL".to_string()),
+            URLParamValue::from("https://api.openai.com/v1".to_string()),
+        )]));
+        let fixture_existing = URLParameters::from(HashMap::from([(
+            URLParam::from("OPENAI_BASE_URL".to_string()),
+            URLParamValue::from("https://gateway.example.com/v1".to_string()),
+        )]));
+
+        let actual = resolve_url_params(
+            &fixture_required,
+            Some(&fixture_default),
+            Some(&fixture_existing),
+        )
+        .unwrap();
+        let expected = HashMap::from([(
+            "OPENAI_BASE_URL".to_string(),
+            "https://gateway.example.com/v1".to_string(),
+        )]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_nondefault_connection_settings_detects_custom_codex_gateway() {
+        let fixture_required = vec![URLParam::from("CODEX_BASE_URL".to_string())];
+        let fixture_existing = URLParameters::from(HashMap::from([(
+            URLParam::from("CODEX_BASE_URL".to_string()),
+            URLParamValue::from("https://gateway.example.com/backend-api/codex".to_string()),
+        )]));
+
+        let actual = has_nondefault_connection_settings(
+            &ProviderId::CODEX,
+            &fixture_required,
+            None,
+            Some(&fixture_existing),
+        );
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_nondefault_connection_settings_uses_default_openai_connection_when_unchanged() {
+        let fixture_required = vec![URLParam::from("OPENAI_BASE_URL".to_string())];
+        let fixture_default = URLParameters::from(HashMap::from([(
+            URLParam::from("OPENAI_BASE_URL".to_string()),
+            URLParamValue::from("https://api.openai.com/v1".to_string()),
+        )]));
+
+        let actual = has_nondefault_connection_settings(
+            &ProviderId::OPENAI,
+            &fixture_required,
+            Some(&fixture_default),
+            None,
+        );
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
     // Note: Tests for confirm_delete_conversation are disabled because
     // ForgeSelect::confirm is not easily mockable in the current
     // architecture. The functionality is tested through integration tests

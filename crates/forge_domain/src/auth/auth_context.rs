@@ -17,6 +17,7 @@ pub struct URLParameters(HashMap<URLParam, URLParamValue>);
 #[derive(Debug, Clone)]
 pub struct ApiKeyRequest {
     pub required_params: Vec<URLParam>,
+    pub default_params: Option<URLParameters>,
     pub existing_params: Option<URLParameters>,
     pub api_key: Option<ApiKey>,
 }
@@ -41,12 +42,16 @@ pub struct CodeRequest {
     pub state: State,
     pub pkce_verifier: Option<PkceVerifier>,
     pub oauth_config: OAuthConfig,
+    pub required_params: Vec<URLParam>,
+    pub default_params: Option<URLParameters>,
+    pub existing_params: Option<URLParameters>,
 }
 
 /// Response containing authorization code
 #[derive(Debug, Clone)]
 pub struct CodeResponse {
     pub code: AuthorizationCode,
+    pub url_params: HashMap<URLParam, URLParamValue>,
 }
 
 // Device Code Flow
@@ -65,11 +70,16 @@ pub struct DeviceCodeRequest {
     pub expires_in: u64,
     pub interval: u64,
     pub oauth_config: OAuthConfig,
+    pub required_params: Vec<URLParam>,
+    pub default_params: Option<URLParameters>,
+    pub existing_params: Option<URLParameters>,
 }
 
 /// Response for device code flow
 #[derive(Debug, Clone)]
-pub struct DeviceCodeResponse;
+pub struct DeviceCodeResponse {
+    pub url_params: HashMap<URLParam, URLParamValue>,
+}
 
 /// Generic container that pairs a request with its corresponding response
 #[derive(Debug, Clone)]
@@ -114,15 +124,33 @@ impl AuthContextResponse {
     }
 
     /// Creates a device code authentication context
-    pub fn device_code(request: DeviceCodeRequest) -> Self {
-        Self::DeviceCode(AuthContext { request, response: DeviceCodeResponse })
+    pub fn device_code(request: DeviceCodeRequest, url_params: HashMap<String, String>) -> Self {
+        Self::DeviceCode(AuthContext {
+            request,
+            response: DeviceCodeResponse {
+                url_params: url_params
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
+            },
+        })
     }
 
     /// Creates an authorization code authentication context
-    pub fn code(request: CodeRequest, code: impl ToString) -> Self {
+    pub fn code(
+        request: CodeRequest,
+        code: impl ToString,
+        url_params: HashMap<String, String>,
+    ) -> Self {
         Self::Code(AuthContext {
             request,
-            response: CodeResponse { code: code.to_string().into() },
+            response: CodeResponse {
+                code: code.to_string().into(),
+                url_params: url_params
+                    .into_iter()
+                    .map(|(k, v)| (k.into(), v.into()))
+                    .collect(),
+            },
         })
     }
 }

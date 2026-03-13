@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 
 use bytes::Bytes;
@@ -31,8 +32,11 @@ struct ProviderConfig {
     #[merge(strategy = overwrite)]
     api_key_vars: Option<String>,
     #[serde(default)]
-    #[merge(strategy = merge::vec::append)]
+    #[merge(strategy = overwrite)]
     url_param_vars: Vec<String>,
+    #[serde(default)]
+    #[merge(strategy = overwrite)]
+    url_param_defaults: HashMap<String, String>,
     #[serde(default)]
     #[merge(strategy = overwrite)]
     response_type: Option<ProviderResponse>,
@@ -106,6 +110,19 @@ static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     &PROVIDER_CONFIGS
+}
+
+fn url_param_defaults(config: &ProviderConfig) -> HashMap<URLParam, URLParamValue> {
+    config
+        .url_param_defaults
+        .iter()
+        .map(|(key, value)| {
+            (
+                URLParam::from(key.clone()),
+                URLParamValue::from(value.clone()),
+            )
+        })
+        .collect()
 }
 
 pub struct ForgeProviderRepository<F> {
@@ -234,13 +251,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             String::new()
         };
 
-        // Check URL parameter environment variables
-        let mut url_params = std::collections::HashMap::new();
+        // Check URL parameter environment variables, falling back to built-in defaults
+        let mut url_params = url_param_defaults(config);
 
         for env_var in &config.url_param_vars {
             if let Some(value) = self.infra.get_env_var(env_var) {
                 url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
-            } else {
+            } else if !config.url_param_defaults.contains_key(env_var) {
                 return Err(Error::env_var_not_found(config.id.clone(), env_var).into());
             }
         }
@@ -283,6 +300,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
                     return Err(e.context("Failed to refresh Google ADC token. Please run 'gcloud auth application-default login' to set up credentials."));
                 }
             }
+        }
+
+        // Merge built-in URL param defaults so older credentials still render
+        // correctly.
+        for (key, value) in url_param_defaults(config) {
+            credential.url_params.entry(key).or_insert(value);
         }
 
         // Handle models - keep as templates
@@ -422,6 +445,18 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         self.provider_from_id(id).await
     }
 
+    async fn get_provider_url_param_defaults(
+        &self,
+        id: &ProviderId,
+    ) -> anyhow::Result<HashMap<URLParam, URLParamValue>> {
+        self.get_merged_configs()
+            .await
+            .into_iter()
+            .find(|config| &config.id == id)
+            .map(|config| url_param_defaults(&config))
+            .ok_or_else(|| Error::provider_not_available(id.clone()).into())
+    }
+
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
         let mut credentials = self.read_credentials().await;
         let id = credential.id.clone();
@@ -476,14 +511,24 @@ mod tests {
             openrouter_config.api_key_vars,
             Some("OPENROUTER_API_KEY".to_string())
         );
-        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
+        assert_eq!(
+            openrouter_config.url_param_vars,
+            vec!["OPEN_ROUTER_BASE_URL".to_string()]
+        );
+        assert_eq!(
+            openrouter_config.url_param_defaults,
+            HashMap::from([(
+                "OPEN_ROUTER_BASE_URL".to_string(),
+                "https://openrouter.ai/api/v1".to_string(),
+            ),])
+        );
         assert_eq!(
             openrouter_config.response_type,
             Some(ProviderResponse::OpenAI)
         );
         assert_eq!(
             openrouter_config.url.as_str(),
-            "https://openrouter.ai/api/v1/chat/completions"
+            "{{OPEN_ROUTER_BASE_URL}}/chat/completions"
         );
     }
 
@@ -608,11 +653,21 @@ mod tests {
             config.api_key_vars,
             Some("IO_INTELLIGENCE_API_KEY".to_string())
         );
-        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        assert_eq!(
+            config.url_param_vars,
+            vec!["IO_INTELLIGENCE_BASE_URL".to_string()]
+        );
+        assert_eq!(
+            config.url_param_defaults,
+            HashMap::from([(
+                "IO_INTELLIGENCE_BASE_URL".to_string(),
+                "https://api.intelligence.io.solutions/api/v1".to_string(),
+            ),])
+        );
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
         assert_eq!(
             config.url.as_str(),
-            "https://api.intelligence.io.solutions/api/v1/chat/completions"
+            "{{IO_INTELLIGENCE_BASE_URL}}/chat/completions"
         );
     }
 }
@@ -789,6 +844,13 @@ mod env_tests {
 
         async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<ProviderTemplate> {
             Err(anyhow::anyhow!("Provider not found"))
+        }
+
+        async fn get_provider_url_param_defaults(
+            &self,
+            _id: &ProviderId,
+        ) -> anyhow::Result<HashMap<URLParam, URLParamValue>> {
+            Ok(HashMap::new())
         }
 
         async fn upsert_credential(
@@ -1089,14 +1151,36 @@ mod env_tests {
             })
             .unwrap();
 
-        // Regular OpenAI and Anthropic providers return template URLs (not rendered)
+        // Regular OpenAI and Anthropic providers now retain template URLs and
+        // default endpoint params so the official endpoint remains prefilled.
         assert_eq!(
             openai_provider.url.template,
-            "https://api.openai.com/v1/chat/completions"
+            "{{OPENAI_BASE_URL}}/chat/completions"
         );
         assert_eq!(
             anthropic_provider.url.template,
-            "https://api.anthropic.com/v1/messages"
+            "{{ANTHROPIC_BASE_URL}}/messages"
+        );
+        assert_eq!(
+            openai_provider.credential.as_ref().and_then(|credential| {
+                credential
+                    .url_params
+                    .get(&URLParam::from("OPENAI_BASE_URL".to_string()))
+                    .map(|value| value.as_str())
+            }),
+            Some("https://api.openai.com/v1")
+        );
+        assert_eq!(
+            anthropic_provider
+                .credential
+                .as_ref()
+                .and_then(|credential| {
+                    credential
+                        .url_params
+                        .get(&URLParam::from("ANTHROPIC_BASE_URL".to_string()))
+                        .map(|value| value.as_str())
+                }),
+            Some("https://api.anthropic.com/v1")
         );
     }
 
@@ -1262,6 +1346,13 @@ mod env_tests {
 
             async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<ProviderTemplate> {
                 Err(anyhow::anyhow!("Provider not found"))
+            }
+
+            async fn get_provider_url_param_defaults(
+                &self,
+                _id: &ProviderId,
+            ) -> anyhow::Result<HashMap<URLParam, URLParamValue>> {
+                Ok(HashMap::new())
             }
 
             async fn upsert_credential(

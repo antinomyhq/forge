@@ -234,6 +234,15 @@ mod tests {
                 .collect())
         }
 
+        async fn get_provider_url_param_defaults(
+            &self,
+            _id: &ProviderId,
+        ) -> anyhow::Result<
+            std::collections::HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
+        > {
+            Ok(std::collections::HashMap::new())
+        }
+
         async fn get_provider(&self, id: ProviderId) -> anyhow::Result<ProviderTemplate> {
             // Convert Provider<Url> to Provider<Template<...>> for testing
             self.providers
