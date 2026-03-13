@@ -1,27 +1,6 @@
-use std::io::{self, Write};
-use std::process::{Command, Stdio};
-
 use anyhow::Result;
 use colored::Colorize;
-
-/// Escapes a string for safe embedding as a shell single-quoted argument.
-///
-/// Single-quotes in the input are replaced with `\'\''` (end quote, literal
-/// single-quote, reopen quote) so the entire result can be wrapped in `'...'`.
-fn shell_escape(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
-}
-
-/// Builds the shell script used by input prompts.
-///
-/// Uses Bash `read -e` so Readline handles cursor movement keys such as
-/// left/right arrows while still reading directly from `/dev/tty`.
-fn build_input_prompt_script(prompt: &str) -> String {
-    format!(
-        "printf '%s' {prompt} >&2; read -e -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\"",
-        prompt = shell_escape(prompt),
-    )
-}
+use rustyline::DefaultEditor;
 
 /// Strips bracketed-paste escape sequences from a string.
 ///
@@ -58,57 +37,38 @@ impl InputBuilder {
         self
     }
 
-    /// Execute input prompt using a shell-native `read` command.
+    /// Execute input prompt using rustyline.
     ///
-    /// Delegates to `bash -c 'read -e -r VAR ...'` via `/dev/tty` so Readline
-    /// handles cursor movement keys and terminal state issues caused by prior
-    /// fzf invocations (raw mode, SIGCHLD, etc.) do not affect input reading.
-    /// When `allow_empty` is false and no default is set, re-prompts until
-    /// non-empty input is provided.
+    /// Uses `rustyline::DefaultEditor` which opens `/dev/tty` directly,
+    /// manages terminal mode, and provides full line editing (backspace,
+    /// arrow keys, Ctrl+A/E, history, etc.) regardless of how the process's
+    /// stdin/stdout are wired up. When `allow_empty` is false and no default
+    /// is set, re-prompts until non-empty input is provided.
     ///
     /// # Returns
     ///
     /// - `Ok(Some(String))` - User provided input
-    /// - `Ok(None)` - User cancelled (Ctrl+C / EOF / shell error)
+    /// - `Ok(None)` - User cancelled (EOF / Ctrl+D)
     ///
     /// # Errors
     ///
-    /// Returns an error if spawning the shell subprocess fails.
+    /// Returns an error if rustyline fails to initialise or read input.
     pub fn prompt(self) -> Result<Option<String>> {
-        let hint = match (&self.default, &self.default_display) {
-            (Some(val), Some(display)) if val != display => Some(display.clone()),
-            (Some(val), _) => Some(val.clone()),
-            _ => None,
-        };
-
+        let mut rl = DefaultEditor::new()?;
         loop {
-            let prompt_str = match &hint {
-                Some(h) => format!(
-                    "{} {} {}: ",
-                    "?".yellow().bold(),
-                    self.message.bold(),
-                    format!("({})", h).dimmed(),
-                ),
-                None => format!("{} {}: ", "?".yellow().bold(), self.message.bold()),
+            let prompt_str = format!("{} {}: ", "?".yellow().bold(), self.message.bold());
+
+            let initial = self.default.as_deref().unwrap_or("");
+            let readline = rl.readline_with_initial(&prompt_str, (initial, ""));
+
+            let line = match readline {
+                Ok(s) => s,
+                Err(rustyline::error::ReadlineError::Eof)
+                | Err(rustyline::error::ReadlineError::Interrupted) => return Ok(None),
+                Err(e) => return Err(e.into()),
             };
 
-            let script = build_input_prompt_script(&prompt_str);
-
-            let output = Command::new("bash")
-                .arg("-c")
-                .arg(&script)
-                .stdin(Stdio::inherit())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::inherit())
-                .output()
-                .map_err(|e| anyhow::anyhow!("Failed to spawn shell for input: {e}"))?;
-
-            if !output.status.success() {
-                return Ok(None);
-            }
-
-            let raw = String::from_utf8_lossy(&output.stdout).to_string();
-            let value = strip_bracketed_paste(&raw);
+            let value = strip_bracketed_paste(&line);
             let trimmed = value.trim();
 
             if trimmed.is_empty() {
@@ -118,8 +78,7 @@ impl InputBuilder {
                 if self.allow_empty {
                     return Ok(Some(String::new()));
                 }
-                let mut out = io::stdout();
-                writeln!(out, "Input cannot be empty. Please try again.")?;
+                eprintln!("Input cannot be empty. Please try again.");
                 continue;
             }
 
@@ -152,25 +111,6 @@ mod tests {
     fn test_input_builder_allow_empty() {
         let builder = ForgeWidget::input("Enter:").allow_empty(true);
         assert_eq!(builder.allow_empty, true);
-    }
-
-    #[test]
-    fn test_build_input_prompt_script_uses_bash_readline() {
-        let fixture = "? Enter key: ";
-        let actual = build_input_prompt_script(fixture);
-        let expected =
-            "printf '%s' '? Enter key: ' >&2; read -e -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\""
-                .to_string();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_build_input_prompt_script_escapes_single_quotes() {
-        let fixture = "? Enter John's key: ";
-        let actual = build_input_prompt_script(fixture);
-        let expected = r##"printf '%s' '? Enter John'\''s key: ' >&2; read -e -r FORGE_INPUT </dev/tty && printf '%s' "$FORGE_INPUT""##
-            .to_string();
-        assert_eq!(actual, expected);
     }
 
     #[test]
