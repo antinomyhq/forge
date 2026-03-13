@@ -373,6 +373,17 @@ fn shell_escape(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
 
+/// Builds the shell script used by input prompts.
+///
+/// Uses Bash `read -e` so Readline handles cursor movement keys such as
+/// left/right arrows while still reading directly from `/dev/tty`.
+fn build_input_prompt_script(prompt: &str) -> String {
+    format!(
+        "printf '%s' {prompt} >&2; read -e -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\"",
+        prompt = shell_escape(prompt),
+    )
+}
+
 /// Strips bracketed-paste escape sequences from a string.
 ///
 /// When bracketed paste mode is active in the terminal, pasted text is wrapped
@@ -410,10 +421,11 @@ impl InputBuilder {
 
     /// Execute input prompt using a shell-native `read` command.
     ///
-    /// Delegates to `sh -c 'read -r VAR ...'` via `/dev/tty` so that terminal
-    /// state issues caused by prior fzf invocations (raw mode, SIGCHLD, etc.)
-    /// do not affect input reading. When `allow_empty` is false and no default
-    /// is set, re-prompts until non-empty input is provided.
+    /// Delegates to `bash -c 'read -e -r VAR ...'` via `/dev/tty` so Readline
+    /// handles cursor movement keys and terminal state issues caused by prior
+    /// fzf invocations (raw mode, SIGCHLD, etc.) do not affect input reading.
+    /// When `allow_empty` is false and no default is set, re-prompts until
+    /// non-empty input is provided.
     ///
     /// # Returns
     ///
@@ -448,15 +460,13 @@ impl InputBuilder {
 
             // Use shell-native `read` to collect input from /dev/tty.
             // The prompt is printed to stderr (fd 2) so the user sees it even
-            // when stdout is captured. `read -r` reads from /dev/tty directly,
-            // bypassing any stdin buffering or terminal mode issues left by fzf.
-            // The value is printed to stdout so we can capture it.
-            let script = format!(
-                "printf '%s' {prompt} >&2; read -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\"",
-                prompt = shell_escape(&prompt_str),
-            );
+            // when stdout is captured. Bash `read -e -r` enables Readline,
+            // restoring cursor movement keys such as left/right arrows while
+            // still bypassing any stdin buffering or terminal mode issues left
+            // by fzf. The value is printed to stdout so we can capture it.
+            let script = build_input_prompt_script(&prompt_str);
 
-            let output = Command::new("sh")
+            let output = Command::new("bash")
                 .arg("-c")
                 .arg(&script)
                 .stdin(Stdio::inherit())
@@ -702,6 +712,25 @@ mod tests {
     fn test_input_builder_allow_empty() {
         let builder = ForgeSelect::input("Enter:").allow_empty(true);
         assert_eq!(builder.allow_empty, true);
+    }
+
+    #[test]
+    fn test_build_input_prompt_script_uses_bash_readline() {
+        let fixture = "? Enter key: ";
+        let actual = build_input_prompt_script(fixture);
+        let expected =
+            "printf '%s' '? Enter key: ' >&2; read -e -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\""
+                .to_string();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_build_input_prompt_script_escapes_single_quotes() {
+        let fixture = "? Enter John's key: ";
+        let actual = build_input_prompt_script(fixture);
+        let expected = "printf '%s' '? Enter John'\\''s key: ' >&2; read -e -r FORGE_INPUT </dev/tty && printf '%s' \"$FORGE_INPUT\""
+            .to_string();
+        assert_eq!(actual, expected);
     }
 
     #[test]
