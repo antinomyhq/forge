@@ -455,26 +455,26 @@ run_verify_checks() {
     echo "CHECK_MARKER_UNIQUE=FAIL no .zshrc"
   fi
 
-  # --- Windows-specific: Verify .bashrc auto-start configuration ---
-  if [ -f "$HOME/.bashrc" ]; then
-    if grep -q '# Added by forge zsh setup' "$HOME/.bashrc" && \
-       grep -q 'exec.*zsh' "$HOME/.bashrc"; then
+  # --- Windows-specific: Verify .bash_profile auto-start configuration ---
+  if [ -f "$HOME/.bash_profile" ]; then
+    if grep -q '# Added by forge zsh setup' "$HOME/.bash_profile" && \
+       grep -q 'exec.*zsh' "$HOME/.bash_profile"; then
       echo "CHECK_BASHRC_AUTOSTART=PASS"
     else
-      echo "CHECK_BASHRC_AUTOSTART=FAIL (auto-start block not found in .bashrc)"
+      echo "CHECK_BASHRC_AUTOSTART=FAIL (auto-start block not found in .bash_profile)"
     fi
 
     # Check uniqueness of auto-start block
     local autostart_count
-    autostart_count=$(grep -c '# Added by forge zsh setup' "$HOME/.bashrc" 2>/dev/null || echo "0")
+    autostart_count=$(grep -c '# Added by forge zsh setup' "$HOME/.bash_profile" 2>/dev/null || echo "0")
     if [ "$autostart_count" -eq 1 ]; then
       echo "CHECK_BASHRC_MARKER_UNIQUE=PASS"
     else
       echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (found ${autostart_count} auto-start blocks)"
     fi
   else
-    echo "CHECK_BASHRC_AUTOSTART=FAIL (.bashrc not found)"
-    echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (.bashrc not found)"
+    echo "CHECK_BASHRC_AUTOSTART=FAIL (.bash_profile not found)"
+    echo "CHECK_BASHRC_MARKER_UNIQUE=FAIL (.bash_profile not found)"
   fi
 
   # Check suppression files created by forge
@@ -543,7 +543,7 @@ run_verify_checks() {
 
   # Windows-specific: check for Git Bash summary message.
   # When setup_fully_successful is true, the output contains "Git Bash" and
-  # "source ~/.bashrc". When tools (fzf/bat/fd) fail to install (common on
+  # "source ~/.bash_profile". When tools (fzf/bat/fd) fail to install (common on
   # Windows CI — "No package manager on Windows"), the warning message
   # "Setup completed with some errors" is shown instead. Accept either.
   if echo "$setup_output" | grep -qi "Git Bash\|source.*bashrc"; then
@@ -786,9 +786,9 @@ CHECK_EDGE_RERUN_MARKERS=FAIL (no .zshrc after re-run)"
     fi
 
     # Check bashrc auto-start block uniqueness after re-run (Windows-specific)
-    if [ -f "$temp_home/.bashrc" ]; then
+    if [ -f "$temp_home/.bash_profile" ]; then
       local autostart_count
-      autostart_count=$(grep -c '# Added by forge zsh setup' "$temp_home/.bashrc" 2>/dev/null || echo "0")
+      autostart_count=$(grep -c '# Added by forge zsh setup' "$temp_home/.bash_profile" 2>/dev/null || echo "0")
       if [ "$autostart_count" -eq 1 ]; then
         verify_output="${verify_output}
 CHECK_EDGE_RERUN_BASHRC=PASS (still exactly 1 auto-start block)"
@@ -798,7 +798,7 @@ CHECK_EDGE_RERUN_BASHRC=FAIL (found ${autostart_count} auto-start blocks)"
       fi
     else
       verify_output="${verify_output}
-CHECK_EDGE_RERUN_BASHRC=FAIL (no .bashrc after re-run)"
+CHECK_EDGE_RERUN_BASHRC=FAIL (no .bash_profile after re-run)"
     fi
 
     # Append second run output for debugging
