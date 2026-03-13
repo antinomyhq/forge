@@ -270,10 +270,17 @@ impl AnyProvider {
         }
     }
 
-    /// Gets the resolved URL if this is a configured provider
-    pub fn url(&self) -> Option<&Url> {
+    /// Gets the URL for this provider.
+    ///
+    /// For configured providers, returns the resolved URL. For template
+    /// providers with no URL parameters (i.e. a hardcoded default URL in
+    /// provider.json), parses and returns the template string as a URL.
+    /// Returns `None` for template providers that require user-supplied URL
+    /// parameters.
+    pub fn url(&self) -> Option<Url> {
         match self {
-            AnyProvider::Url(p) => Some(p.url()),
+            AnyProvider::Url(p) => Some(p.url().clone()),
+            AnyProvider::Template(t) if t.url_params.is_empty() => Url::parse(&t.url.template).ok(),
             AnyProvider::Template(_) => None,
         }
     }

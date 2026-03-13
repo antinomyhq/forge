@@ -957,30 +957,35 @@ impl JsonRepairParser {
     }
 
     fn insert_before_last_whitespace(&self, text_to_insert: &str) -> String {
-        let mut index = self.output.len();
+        let chars: Vec<char> = self.output.chars().collect();
+        let mut index = chars.len();
 
-        if index == 0
-            || !self.is_whitespace(self.output.chars().nth(index - 1).unwrap_or('\0'), true)
-        {
+        if index == 0 || !self.is_whitespace(chars[index - 1], true) {
             return format!("{}{}", self.output, text_to_insert);
         }
 
-        let chars: Vec<char> = self.output.chars().collect();
         while index > 0 && self.is_whitespace(chars[index - 1], true) {
             index -= 1;
         }
 
+        // Convert the char-based index back to a byte offset for string slicing.
+        let byte_index = self
+            .output
+            .char_indices()
+            .nth(index)
+            .map_or(self.output.len(), |(i, _)| i);
+
         format!(
             "{}{}{}",
-            &self.output[..index],
+            &self.output[..byte_index],
             text_to_insert,
-            &self.output[index..]
+            &self.output[byte_index..]
         )
     }
 
     fn insert_before_last_whitespace_str(&self, text: &str, text_to_insert: &str) -> String {
-        let mut index = text.len();
         let chars: Vec<char> = text.chars().collect();
+        let mut index = chars.len();
 
         if index == 0 || !self.is_whitespace(chars[index - 1], true) {
             return format!("{text}{text_to_insert}");
@@ -990,7 +995,18 @@ impl JsonRepairParser {
             index -= 1;
         }
 
-        format!("{}{}{}", &text[..index], text_to_insert, &text[index..])
+        // Convert the char-based index back to a byte offset for string slicing.
+        let byte_index = text
+            .char_indices()
+            .nth(index)
+            .map_or(text.len(), |(i, _)| i);
+
+        format!(
+            "{}{}{}",
+            &text[..byte_index],
+            text_to_insert,
+            &text[byte_index..]
+        )
     }
 
     fn remove_at_index(&self, start: usize, count: usize) -> String {
