@@ -2140,7 +2140,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let done = Task::new(
                     zsh::Noop,
                     move || sp.write_ln(TitleFormat::info("Plugins installed").display()),
-                    |e| Err(e),
+                    Err,
                 );
                 installer.add(group.then(done))
             }
@@ -2226,7 +2226,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         sp.stop(None)?;
                         sp.write_ln(TitleFormat::info("Tools installed (fzf, bat, fd)").display())
                     },
-                    |e| Err(e),
+                    Err,
                 );
                 installer.add(group.then(done))
             }

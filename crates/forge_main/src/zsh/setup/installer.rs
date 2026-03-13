@@ -39,11 +39,7 @@ where
 {
     /// Creates a new `Task` wrapping the given installation with callbacks.
     pub fn new(installation: impl Installation + 'static, on_ok: Ok, on_err: Fail) -> Self {
-        Self {
-            installation: Box::new(installation),
-            on_ok,
-            on_err,
-        }
+        Self { installation: Box::new(installation), on_ok, on_err }
     }
 
     /// Runs the installation, then dispatches to the appropriate callback.
@@ -61,7 +57,8 @@ where
 }
 
 /// Type alias for the boxed closure stored inside `Group::Unit`.
-type BoxedTask = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> + Send>;
+type BoxedTask =
+    Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> + Send>;
 
 /// A composable group of installation tasks that can be executed
 /// sequentially or in parallel.

@@ -22,11 +22,11 @@ mod detect;
 mod install_plugins;
 mod install_tools;
 mod install_zsh;
+mod installer;
 mod libc;
 mod platform;
 mod types;
 mod util;
-mod installer;
 // ── Constants (shared across submodules) ─────────────────────────────────────
 
 /// Base URL for MSYS2 package repository.
