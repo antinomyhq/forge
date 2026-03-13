@@ -32,7 +32,7 @@ impl UserInfra for ForgeInquire {
             .await
     }
 
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,
@@ -42,7 +42,7 @@ impl UserInfra for ForgeInquire {
         }
 
         let message = message.to_string();
-        self.prompt(move || ForgeSelect::select_owned(&message, options).prompt())
+        self.prompt(move || ForgeSelect::select(&message, options).prompt())
             .await
     }
 

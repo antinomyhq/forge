@@ -22,14 +22,6 @@ pub struct SelectBuilder<T> {
     header_lines: usize,
 }
 
-/// Builder for select prompts that takes ownership (doesn't require Clone).
-pub struct SelectBuilderOwned<T> {
-    message: String,
-    options: Vec<T>,
-    starting_cursor: Option<usize>,
-    initial_text: Option<String>,
-}
-
 impl ForgeSelect {
     /// Entry point for select operations with fuzzy search.
     pub fn select<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilder<T> {
@@ -41,17 +33,6 @@ impl ForgeSelect {
             help_message: None,
             initial_text: None,
             header_lines: 0,
-        }
-    }
-
-    /// Entry point for select operations with owned values (doesn't require
-    /// Clone).
-    pub fn select_owned<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilderOwned<T> {
-        SelectBuilderOwned {
-            message: message.into(),
-            options,
-            starting_cursor: None,
-            initial_text: None,
         }
     }
 
@@ -278,65 +259,6 @@ impl<T: 'static> SelectBuilder<T> {
     }
 }
 
-impl<T> SelectBuilderOwned<T> {
-    /// Set starting cursor position.
-    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
-        self.starting_cursor = Some(cursor);
-        self
-    }
-
-    /// Set initial search text for fuzzy search.
-    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
-        self.initial_text = Some(text.into());
-        self
-    }
-
-    /// Execute select prompt with fuzzy search and owned values.
-    ///
-    /// # Returns
-    ///
-    /// - `Ok(Some(T))` - User selected an option
-    /// - `Ok(None)` - No options available or user cancelled (ESC / Ctrl+C)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the fzf process fails to start or interact
-    pub fn prompt(self) -> Result<Option<T>>
-    where
-        T: std::fmt::Display,
-    {
-        if self.options.is_empty() {
-            return Ok(None);
-        }
-
-        // Strip ANSI codes and trim whitespace from display strings for fzf
-        // compatibility. Trimming is required because fzf trims its output.
-        let display_options: Vec<String> = self
-            .options
-            .iter()
-            .map(|item| strip_ansi_codes(&item.to_string()).trim().to_string())
-            .collect();
-
-        let fzf = build_fzf(
-            &self.message,
-            None,
-            self.initial_text.as_deref(),
-            self.starting_cursor,
-            0,
-        );
-
-        // Prefix each item with its index so fzf's output can be mapped back
-        // to the original item by position rather than by string matching.
-        let selected = run_with_output(fzf, indexed_items(&display_options));
-
-        match selected {
-            None => Ok(None),
-            Some(s) if s.trim().is_empty() => Ok(None),
-            Some(s) => Ok(parse_fzf_index(&s).and_then(|i| self.options.into_iter().nth(i))),
-        }
-    }
-}
-
 /// Runs a yes/no confirmation prompt via fzf.
 ///
 /// Returns `Ok(Some(true))` for Yes, `Ok(Some(false))` for No, and `Ok(None)`
@@ -393,8 +315,8 @@ mod tests {
 
     #[test]
     fn test_select_owned_builder_with_initial_text() {
-        let builder = ForgeSelect::select_owned("Test", vec!["apple", "banana", "cherry"])
-            .with_initial_text("ban");
+        let builder =
+            ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("ban");
         assert_eq!(builder.initial_text, Some("ban".to_string()));
     }
 

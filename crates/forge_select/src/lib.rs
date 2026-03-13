@@ -4,4 +4,4 @@ mod select;
 
 pub use input::InputBuilder;
 pub use multi::MultiSelectBuilder;
-pub use select::{ForgeSelect, SelectBuilder, SelectBuilderOwned};
+pub use select::{ForgeSelect, SelectBuilder};

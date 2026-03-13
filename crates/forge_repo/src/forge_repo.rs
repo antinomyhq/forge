@@ -407,7 +407,7 @@ where
         self.infra.prompt_question(question).await
     }
 
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,
@@ -417,7 +417,7 @@ where
 
     async fn select_one_enum<T>(&self, message: &str) -> anyhow::Result<Option<T>>
     where
-        T: std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
+        T: Clone + std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
         <T as std::str::FromStr>::Err: std::fmt::Debug,
     {
         self.infra.select_one_enum(message).await
