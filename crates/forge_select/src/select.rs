@@ -3,6 +3,7 @@ use console::strip_ansi_codes;
 use fzf_wrapped::{Fzf, Layout, run_with_output};
 
 use crate::input::InputBuilder;
+use crate::multi::MultiSelectBuilder;
 
 /// Centralized fzf-based select functionality with consistent error handling.
 ///
@@ -176,7 +177,7 @@ fn build_fzf(
 /// The index prefix lets us recover the original position from fzf's output
 /// without relying on string matching, which breaks when multiple items have
 /// the same display string.
-fn indexed_items(display_options: &[String]) -> Vec<String> {
+pub(crate) fn indexed_items(display_options: &[String]) -> Vec<String> {
     display_options
         .iter()
         .enumerate()
@@ -186,7 +187,7 @@ fn indexed_items(display_options: &[String]) -> Vec<String> {
 
 /// Parses the index from a line returned by fzf when items were formatted with
 /// `indexed_items`. Returns `None` if the line is malformed.
-fn parse_fzf_index(line: &str) -> Option<usize> {
+pub(crate) fn parse_fzf_index(line: &str) -> Option<usize> {
     line.split('\t').next()?.trim().parse().ok()
 }
 
@@ -363,95 +364,6 @@ fn prompt_confirm<T: 'static + Clone>(message: &str, default: Option<bool>) -> R
     Ok(result.map(|b| unsafe { std::mem::transmute_copy(&b) }))
 }
 
-/// Builder for multi-select prompts.
-pub struct MultiSelectBuilder<T> {
-    message: String,
-    options: Vec<T>,
-}
-
-impl<T> MultiSelectBuilder<T> {
-    /// Execute multi-select prompt.
-    ///
-    /// # Returns
-    ///
-    /// - `Ok(Some(Vec<T>))` - User selected one or more options
-    /// - `Ok(None)` - No options available or user cancelled (ESC / Ctrl+C)
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the fzf process fails to start or interact
-    pub fn prompt(self) -> Result<Option<Vec<T>>>
-    where
-        T: std::fmt::Display + Clone,
-    {
-        if self.options.is_empty() {
-            return Ok(None);
-        }
-
-        // Strip ANSI codes and trim whitespace from display strings for fzf
-        // compatibility. Trimming is required because fzf trims its output.
-        let display_options: Vec<String> = self
-            .options
-            .iter()
-            .map(|item| strip_ansi_codes(&item.to_string()).trim().to_string())
-            .collect();
-
-        // Use fzf --multi for multi-selection; Tab selects items.
-        // Flags mirror the shell plugin's `_forge_fzf` wrapper for consistent UI.
-        // --delimiter and --with-nth enable index-based lookup (same as single-select).
-        // The message is placed on the prompt line (same as single-select).
-        let fzf = {
-            let mut builder = Fzf::builder();
-            builder.layout(Layout::Reverse);
-            builder.no_scrollbar(true);
-            builder.prompt(format!("{} ❯ ", self.message));
-            builder.custom_args(vec![
-                "--height=80%".to_string(),
-                "--exact".to_string(),
-                "--cycle".to_string(),
-                "--color=dark,header:bold".to_string(),
-                "--pointer=▌".to_string(),
-                "--delimiter=\t".to_string(),
-                "--with-nth=2..".to_string(),
-                "--multi".to_string(),
-            ]);
-            builder
-                .build()
-                .expect("fzf builder should always succeed with default options")
-        };
-
-        let mut fzf = fzf;
-        fzf.run()
-            .map_err(|e| anyhow::anyhow!("Failed to start fzf: {e}"))?;
-        // Prefix each item with its index for position-based lookup on output.
-        fzf.add_items(indexed_items(&display_options))
-            .map_err(|e| anyhow::anyhow!("Failed to add items to fzf: {e}"))?;
-
-        // output() blocks until fzf exits; for --multi, the output contains
-        // newline-separated selections, each prefixed with the item index.
-        let raw_output = fzf.output();
-
-        match raw_output {
-            None => Ok(None),
-            Some(output) => {
-                let selected_items: Vec<T> = output
-                    .lines()
-                    .filter(|l| !l.trim().is_empty())
-                    .filter_map(|line| {
-                        parse_fzf_index(line).and_then(|i| self.options.get(i).cloned())
-                    })
-                    .collect();
-
-                if selected_items.is_empty() {
-                    Ok(None)
-                } else {
-                    Ok(Some(selected_items))
-                }
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -470,13 +382,6 @@ mod tests {
         let builder = ForgeSelect::confirm("Confirm?");
         assert_eq!(builder.message, "Confirm?");
         assert_eq!(builder.options, vec![true, false]);
-    }
-
-    #[test]
-    fn test_multi_select_builder_creates() {
-        let builder = ForgeSelect::multi_select("Select options:", vec!["a", "b", "c"]);
-        assert_eq!(builder.message, "Select options:");
-        assert_eq!(builder.options, vec!["a", "b", "c"]);
     }
 
     #[test]
@@ -551,4 +456,3 @@ mod tests {
         assert_eq!(builder.starting_cursor, Some(2));
     }
 }
-
