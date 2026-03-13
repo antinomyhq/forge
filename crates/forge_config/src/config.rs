@@ -2,12 +2,13 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use schemars::JsonSchema;
 
 use crate::error::Error;
 use crate::read::read;
 
 /// Root configuration type for the forge_config crate.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct ForgeConfig {
     /// Per-agent configuration overrides, keyed by agent identifier.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
@@ -266,7 +267,7 @@ impl ForgeConfig {
 }
 
 /// Frequency at which update checks are performed.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateFrequency {
     Daily,
@@ -276,7 +277,7 @@ pub enum UpdateFrequency {
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AutoDumpFormat {
     /// Dump as a JSON file.
@@ -304,17 +305,17 @@ where
 }
 
 /// Unique identifier for a named preset.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct PresetId(String);
 
 /// Unique identifier for a named agent.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct AgentId(pub String);
 
 /// TLS backend selection for HTTP connections.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum TlsBackend {
     #[default]
@@ -323,7 +324,7 @@ pub enum TlsBackend {
 }
 
 /// TLS protocol version constraint.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub enum TlsVersion {
     #[serde(rename = "1.0")]
     V1_0,
@@ -338,7 +339,7 @@ pub enum TlsVersion {
 
 /// Model preset configuration that bundles sampling parameters, prompts,
 /// tool selections, and custom request overrides into a reusable profile.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct PresetConfig {
     /// Sampling temperature controlling randomness (0.0 = deterministic, higher = more random).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -383,7 +384,7 @@ pub struct PresetConfig {
 }
 
 /// Hint controlling how much internal reasoning a model should perform.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ReasoningEffort {
     Low,
@@ -394,7 +395,7 @@ pub enum ReasoningEffort {
 }
 
 /// A single JSON body override targeting a specific path in the request payload.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BodyParam {
     /// JSON-pointer segments identifying where to set the value (e.g. `["parameters", "stop"]`).
     pub path: Vec<String>,
@@ -403,7 +404,7 @@ pub struct BodyParam {
 }
 
 /// Controls when and how conversation history is compacted to stay within context limits.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct CompactionConfig {
     /// Maximum percentage of the context that can be summarized during compaction.
     #[serde(
@@ -440,7 +441,7 @@ pub struct CompactionConfig {
 
 /// Per-agent configuration overriding global defaults for model selection,
 /// compaction behaviour, and turn limits.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct AgentConfig {
     /// Compaction settings for this agent, overriding the global compaction config.
     #[serde(default, skip_serializing_if = "Option::is_none")]
