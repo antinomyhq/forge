@@ -2037,10 +2037,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Logs the detected status of each zsh setup dependency to the UI.
-    fn log_dependency_status(
-        &mut self,
-        deps: &zsh::DependencyStatus,
-    ) -> anyhow::Result<()> {
+    fn log_dependency_status(&mut self, deps: &zsh::DependencyStatus) -> anyhow::Result<()> {
         match &deps.zsh {
             ZshStatus::Functional { version, path } => {
                 self.writeln_title(TitleFormat::info(format!(
