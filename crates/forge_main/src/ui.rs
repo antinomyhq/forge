@@ -1035,14 +1035,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             } else {
                 markers::EMPTY.to_string()
             };
-            let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("name", display_name)
                 .add_key_value("id", id)
-                .add_key_value("host", domain)
-                .add_key_value("type", provider_type);
+                .add_key_value("host", domain);
             if configured {
                 info = info.add_key_value("logged in", status::YES);
             };
