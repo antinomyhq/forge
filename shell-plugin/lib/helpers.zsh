@@ -17,12 +17,15 @@ function _forge_fzf() {
 }
 
 # Helper function to execute forge commands consistently
-# This ensures proper handling of special characters and consistent output
+# This ensures proper handling of special characters and consistent output.
+# Redirects stdin and stdout through /dev/tty so interactive prompts work
+# correctly when called from inside a ZLE widget (where the terminal is owned
+# by ZLE and not inherited by child processes).
 function _forge_exec() {
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     local -a cmd
     cmd=($_FORGE_BIN --agent "$agent_id" "$@")
-    "${cmd[@]}"
+    "${cmd[@]}" </dev/tty >/dev/tty
 }
 
 function _forge_reset() {
