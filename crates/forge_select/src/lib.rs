@@ -1,5 +1,5 @@
+mod input;
 mod select;
 
-pub use select::{
-    ForgeSelect, InputBuilder, MultiSelectBuilder, SelectBuilder, SelectBuilderOwned,
-};
+pub use input::InputBuilder;
+pub use select::{ForgeSelect, MultiSelectBuilder, SelectBuilder, SelectBuilderOwned};
