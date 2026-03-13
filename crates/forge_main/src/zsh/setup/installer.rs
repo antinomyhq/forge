@@ -43,17 +43,24 @@ where
         Self { installation, on_ok, on_err }
     }
 
-    /// Runs the installation, then dispatches to the appropriate callback.
-    pub async fn execute(self) -> anyhow::Result<()> {
+    /// Converts this task into a type-erased `Group::Unit`.
+    pub fn into_group(self) -> Group {
+        Group::task(self)
+    }
+}
+
+#[async_trait::async_trait]
+impl<I, Ok, Fail> Installation for Task<I, Ok, Fail>
+where
+    I: Installation + 'static,
+    Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
+    Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
+{
+    async fn install(self) -> anyhow::Result<()> {
         match self.installation.install().await {
             Result::Ok(()) => (self.on_ok)(),
             Err(e) => (self.on_err)(e),
         }
-    }
-
-    /// Converts this task into a type-erased `Group::Unit`.
-    pub fn into_group(self) -> Group {
-        Group::task(self)
     }
 }
 
@@ -90,7 +97,7 @@ impl Group {
         Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
         Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
     {
-        Group::Unit(Box::new(|| Box::pin(task.execute())))
+        Group::Unit(Box::new(|| Box::pin(task.install())))
     }
 
     /// Appends a task to run after this group completes.
@@ -113,23 +120,6 @@ impl Group {
         Group::Parallel(Box::new(self), Self::boxed_task(task))
     }
 
-    /// Executes the group, returning a pinned future.
-    pub fn execute(self) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send>> {
-        Box::pin(async move {
-            match self {
-                Group::Unit(task_fn) => task_fn().await,
-                Group::Sequential(group, task_fn) => {
-                    group.execute().await?;
-                    task_fn().await
-                }
-                Group::Parallel(group, task_fn) => {
-                    let (l, r) = tokio::join!(group.execute(), task_fn());
-                    l.and(r)
-                }
-            }
-        })
-    }
-
     /// Type-erases a `Task` into a `BoxedTask` closure.
     fn boxed_task<I, Ok, Fail>(task: Task<I, Ok, Fail>) -> BoxedTask
     where
@@ -137,7 +127,24 @@ impl Group {
         Ok: FnOnce() -> anyhow::Result<()> + Send + 'static,
         Fail: FnOnce(anyhow::Error) -> anyhow::Result<()> + Send + 'static,
     {
-        Box::new(|| Box::pin(task.execute()))
+        Box::new(|| Box::pin(task.install()))
+    }
+}
+
+#[async_trait::async_trait]
+impl Installation for Group {
+    async fn install(self) -> anyhow::Result<()> {
+        match self {
+            Group::Unit(task_fn) => task_fn().await,
+            Group::Sequential(group, task_fn) => {
+                group.install().await?;
+                task_fn().await
+            }
+            Group::Parallel(group, task_fn) => {
+                let (l, r) = tokio::join!(group.install(), task_fn());
+                l.and(r)
+            }
+        }
     }
 }
 
@@ -162,10 +169,13 @@ impl Installer {
         self.groups.push(group);
         self
     }
+}
 
-    pub async fn execute(self) -> anyhow::Result<()> {
+#[async_trait::async_trait]
+impl Installation for Installer {
+    async fn install(self) -> anyhow::Result<()> {
         for group in self.groups {
-            group.execute().await?;
+            group.install().await?;
         }
         Ok(())
     }

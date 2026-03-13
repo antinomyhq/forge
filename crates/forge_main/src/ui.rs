@@ -1653,7 +1653,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             installer = self.setup_install_tools(installer, &deps, platform, sudo);
 
             // Execute all installation phases sequentially
-            if let Err(e) = installer.execute().await {
+            if let Err(e) = installer.install().await {
                 self.spinner.stop(None)?;
                 tracing::error!(error = ?e, "Installation failed");
                 return Ok(());
