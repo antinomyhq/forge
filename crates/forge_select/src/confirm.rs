@@ -48,7 +48,7 @@ impl ConfirmBuilder {
 
         let result = input_builder.prompt()?;
 
-        println!("");
+        println!();
 
         // User cancelled (Ctrl+C or EOF)
         if result.is_none() {
@@ -70,6 +70,6 @@ impl ConfirmBuilder {
             return Ok(Some(false));
         }
 
-        return Ok(None);
+        Ok(None)
     }
 }
