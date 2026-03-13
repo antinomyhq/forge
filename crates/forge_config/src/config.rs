@@ -56,65 +56,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_requests: Option<String>,
 
-    /// Accept invalid TLS certificates. Use with caution.
+    /// HTTP client settings controlling timeouts, TLS, and connection pooling.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_accept_invalid_certs: Option<bool>,
-
-    /// Enable HTTP/2 adaptive window sizing.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_adaptive_window: Option<bool>,
-
-    /// Connection timeout in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_connect_timeout: Option<u64>,
-
-    /// Use Hickory DNS resolver.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_hickory: Option<bool>,
-
-    /// Keep-alive interval in seconds. Set to `null` to disable.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_keep_alive_interval: Option<u64>,
-
-    /// Keep-alive timeout in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_keep_alive_timeout: Option<u64>,
-
-    /// Keep-alive while connection is idle.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_keep_alive_while_idle: Option<bool>,
-
-    /// Maximum number of redirects to follow.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_max_redirects: Option<usize>,
-
-    /// Maximum TLS protocol version to use.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_max_tls_version: Option<TlsVersion>,
-
-    /// Minimum TLS protocol version to use.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_min_tls_version: Option<TlsVersion>,
-
-    /// Pool idle timeout in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_pool_idle_timeout: Option<u64>,
-
-    /// Maximum number of idle connections per host in the connection pool.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_pool_max_idle_per_host: Option<usize>,
-
-    /// Read timeout in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_read_timeout: Option<u64>,
-
-    /// Paths to root certificate files (PEM, CRT, CER format).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_root_cert_paths: Option<Vec<String>>,
-
-    /// TLS backend to use.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub http_tls_backend: Option<TlsBackend>,
+    pub http: Option<HttpConfig>,
 
     /// Maximum number of conversations to show in list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -148,6 +92,7 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_image_size: Option<u64>,
 
+    /// Maximum number of tool-calling requests the agent may make in a single turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
 
@@ -159,6 +104,7 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_search_result_size: Option<usize>,
 
+    /// Maximum number of consecutive tool failures allowed before the agent aborts the turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
@@ -178,33 +124,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub preset_id: Option<PresetId>,
 
-    /// Backoff multiplication factor applied on each successive retry attempt.
+    /// Retry behaviour for failed HTTP requests.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_backoff_factor: Option<u64>,
-
-    /// Initial delay in milliseconds before the first retry.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_initial_delay: Option<u64>,
-
-    /// Maximum number of retry attempts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_max_attempts: Option<usize>,
-
-    /// Maximum delay between retries in seconds.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_max_delay: Option<u64>,
-
-    /// Minimum delay in milliseconds between retry attempts.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_min_delay: Option<u64>,
-
-    /// HTTP status codes that should trigger retries (e.g., 429, 500, 502).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_status_codes: Option<Vec<u16>>,
-
-    /// Whether to suppress retry error logging and events.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub retry_suppress_errors: Option<bool>,
+    pub retry: Option<RetryConfig>,
 
     /// Maximum number of results to return from initial vector search.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -234,6 +156,7 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest_provider_id: Option<String>,
 
+    /// Directory path containing custom Handlebars prompt templates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub templates_dir: Option<String>,
 
@@ -241,13 +164,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_timeout: Option<u64>,
 
-    /// Whether to automatically apply updates.
+    /// Automatic update settings.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub update: Option<bool>,
-
-    /// How often to check for updates.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub update_frequency: Option<UpdateFrequency>,
+    pub update: Option<UpdateConfig>,
 }
 
 impl ForgeConfig {
@@ -452,6 +371,114 @@ pub struct CurrencyConfig {
     /// Currency symbol used for cost display (e.g. `"$"`, `"€"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub symbol: Option<String>,
+}
+
+/// HTTP client settings controlling timeouts, TLS, DNS, and connection pooling.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct HttpConfig {
+    /// Accept invalid TLS certificates. Use with caution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accept_invalid_certs: Option<bool>,
+
+    /// Enable HTTP/2 adaptive window sizing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub adaptive_window: Option<bool>,
+
+    /// Connection timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub connect_timeout: Option<u64>,
+
+    /// Use Hickory DNS resolver.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hickory: Option<bool>,
+
+    /// Keep-alive interval in seconds. Set to `null` to disable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_interval: Option<u64>,
+
+    /// Keep-alive timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_timeout: Option<u64>,
+
+    /// Keep-alive while connection is idle.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep_alive_while_idle: Option<bool>,
+
+    /// Maximum number of redirects to follow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_redirects: Option<usize>,
+
+    /// Maximum TLS protocol version to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tls_version: Option<TlsVersion>,
+
+    /// Minimum TLS protocol version to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_tls_version: Option<TlsVersion>,
+
+    /// Pool idle timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool_idle_timeout: Option<u64>,
+
+    /// Maximum number of idle connections per host in the connection pool.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pool_max_idle_per_host: Option<usize>,
+
+    /// Read timeout in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub read_timeout: Option<u64>,
+
+    /// Paths to root certificate files (PEM, CRT, CER format).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub root_cert_paths: Option<Vec<String>>,
+
+    /// TLS backend to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tls_backend: Option<TlsBackend>,
+}
+
+/// Retry behaviour for failed HTTP requests.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct RetryConfig {
+    /// Backoff multiplication factor applied on each successive retry attempt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backoff_factor: Option<u64>,
+
+    /// Initial delay in milliseconds before the first retry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_delay: Option<u64>,
+
+    /// Maximum number of retry attempts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attempts: Option<usize>,
+
+    /// Maximum delay between retries in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_delay: Option<u64>,
+
+    /// Minimum delay in milliseconds between retry attempts.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min_delay: Option<u64>,
+
+    /// HTTP status codes that should trigger retries (e.g., 429, 500, 502).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status_codes: Option<Vec<u16>>,
+
+    /// Whether to suppress retry error logging and events.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suppress_errors: Option<bool>,
+}
+
+/// Automatic update settings.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct UpdateConfig {
+    /// Whether to automatically apply updates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+
+    /// How often to check for updates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frequency: Option<UpdateFrequency>,
 }
 
 /// Per-agent configuration overriding global defaults for model selection,

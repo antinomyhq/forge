@@ -68,7 +68,7 @@ pub async fn read<T: DeserializeOwned>() -> Result<T, Error> {
                 .separator("__")
                 .try_parsing(true)
                 .list_separator(",")
-                .with_list_parse_key("retry_status_codes"),
+                .with_list_parse_key("retry.status_codes"),
         )
         .build()
         .await?;
@@ -185,8 +185,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_deeply_nested_env_var() {
-        let config = read_env("FORGE_HTTP_HICKORY=true").await.unwrap();
-        let actual = config.http_hickory;
+        let config = read_env("FORGE_HTTP__HICKORY=true").await.unwrap();
+        let actual = config.http.unwrap().hickory;
         let expected = Some(true);
 
         assert_eq!(actual, expected);
@@ -194,8 +194,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_deeply_nested_env_var_with_underscore_field() {
-        let config = read_env("FORGE_HTTP_CONNECT_TIMEOUT=42").await.unwrap();
-        let actual = config.http_connect_timeout;
+        let config = read_env("FORGE_HTTP__CONNECT_TIMEOUT=42").await.unwrap();
+        let actual = config.http.unwrap().connect_timeout;
         let expected = Some(42u64);
 
         assert_eq!(actual, expected);
@@ -203,8 +203,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_keep_alive_interval() {
-        let config = read_env("FORGE_HTTP_KEEP_ALIVE_INTERVAL=30").await.unwrap();
-        let actual = config.http_keep_alive_interval;
+        let config = read_env("FORGE_HTTP__KEEP_ALIVE_INTERVAL=30").await.unwrap();
+        let actual = config.http.unwrap().keep_alive_interval;
         let expected = Some(30u64);
 
         assert_eq!(actual, expected);
@@ -212,10 +212,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_retry_status_codes() {
-        let config = read_env("FORGE_RETRY_STATUS_CODES=429,500,502")
+        let config = read_env("FORGE_RETRY__STATUS_CODES=429,500,502")
             .await
             .unwrap();
-        let actual = config.retry_status_codes.clone();
+        let actual = config.retry.unwrap().status_codes.clone();
         let expected = Some(vec![429u16, 500u16, 502u16]);
 
         assert_eq!(actual, expected);
