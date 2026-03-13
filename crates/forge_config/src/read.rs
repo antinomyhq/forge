@@ -232,8 +232,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_currency_symbol() {
-        let config = read_env("FORGE_CURRENCY_SYMBOL=$").await.unwrap();
-        let actual = config.currency_symbol.clone();
+        let config = read_env("FORGE_CURRENCY__SYMBOL=$").await.unwrap();
+        let actual = config.currency.unwrap().symbol;
         let expected = Some("$".to_string());
 
         assert_eq!(actual, expected);
@@ -241,10 +241,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_currency_conversion_rate() {
-        let config = read_env("FORGE_CURRENCY_CONVERSION_RATE=1.5")
+        let config = read_env("FORGE_CURRENCY__CONVERSION_RATE=1.5")
             .await
             .unwrap();
-        let actual = config.currency_conversion_rate;
+        let actual = config.currency.unwrap().conversion_rate;
         let expected = Some(1.5f64);
 
         assert_eq!(actual, expected);

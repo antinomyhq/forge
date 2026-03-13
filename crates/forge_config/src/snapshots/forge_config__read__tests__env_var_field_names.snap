@@ -46,11 +46,11 @@ FORGE_COMPACTION__TOKEN_THRESHOLD
 # Maximum number of conversation turns before triggering compaction.
 FORGE_COMPACTION__TURN_THRESHOLD
 
-# Conversion rate applied to token costs for currency display in the ZSH theme.
-FORGE_CURRENCY_CONVERSION_RATE
+# Conversion rate applied to token costs for currency display.
+FORGE_CURRENCY__CONVERSION_RATE
 
-# Currency symbol used for cost display in the ZSH theme (e.g. `"$"`, `"€"`).
-FORGE_CURRENCY_SYMBOL
+# Currency symbol used for cost display (e.g. `"$"`, `"€"`).
+FORGE_CURRENCY__SYMBOL
 
 # Custom history file path. If omitted, uses the default history path.
 FORGE_CUSTOM_HISTORY_PATH

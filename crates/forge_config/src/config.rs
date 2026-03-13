@@ -44,13 +44,9 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit_provider_id: Option<String>,
 
-    /// Conversion rate applied to token costs for currency display in the ZSH theme.
+    /// Currency display settings for the ZSH theme.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub currency_conversion_rate: Option<f64>,
-
-    /// Currency symbol used for cost display in the ZSH theme (e.g. `"$"`, `"€"`).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub currency_symbol: Option<String>,
+    pub currency: Option<CurrencyConfig>,
 
     /// Custom history file path. If omitted, uses the default history path.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -444,6 +440,18 @@ pub struct CompactionConfig {
     /// Maximum number of conversation turns before triggering compaction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub turn_threshold: Option<usize>,
+}
+
+/// Currency display settings used in the ZSH theme.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+pub struct CurrencyConfig {
+    /// Conversion rate applied to token costs for currency display.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub conversion_rate: Option<f64>,
+
+    /// Currency symbol used for cost display (e.g. `"$"`, `"€"`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub symbol: Option<String>,
 }
 
 /// Per-agent configuration overriding global defaults for model selection,
