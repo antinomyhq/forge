@@ -788,6 +788,18 @@ For comprehensive documentation on all features and capabilities, please visit t
 
 ---
 
+## Installation
+
+```bash
+# YOLO
+curl -fsSL https://forgecode.dev/cli | sh
+
+# Package managers
+nix run github:antinomyhq/forge # for latest dev branch
+```
+
+---
+
 ## Community
 
 Join our vibrant Discord community to connect with other Forge users and contributors, get help with your projects, share ideas, and provide feedback!
