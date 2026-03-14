@@ -850,6 +850,39 @@ end
 # Action Handlers — Default (unknown commands, custom commands, bare prompts)
 # =============================================================================
 
+
+function _forge_action_fast --description "Toggle fast mode (priority + xhigh reasoning)"
+    if test "$_FORGE_FAST_MODE" = "1"
+        set -g _FORGE_FAST_MODE 0
+        echo "Fast mode OFF — using default inference and reasoning"
+    else
+        set -g _FORGE_FAST_MODE 1
+        echo "⚡ Fast mode ON — priority inference + xhigh reasoning (2x cost)"
+    end
+end
+
+function _forge_action_thinking --description "Set reasoning effort level"
+    set -l level $argv[1]
+    if test -z "$level"
+        # Interactive picker
+        set -l levels "none" "minimal" "low" "medium" "high" "xhigh"
+        set -l descriptions "none     — no reasoning" "minimal  — very light reasoning" "low      — light reasoning" "medium   — balanced (default)" "high     — thorough reasoning" "xhigh    — maximum reasoning"
+        set -l choice (printf '%s\n' $descriptions | fzf --prompt="Reasoning Effort > " --height=10 --reverse)
+        if test -n "$choice"
+            set level (echo $choice | awk '{print $1}')
+        else
+            return
+        end
+    end
+    switch $level
+        case none minimal low medium high xhigh
+            set -g _FORGE_REASONING_EFFORT $level
+            echo "Reasoning effort set to: $level"
+        case '*'
+            echo "Unknown level: $level. Use: none, minimal, low, medium, high, xhigh"
+    end
+end
+
 function _forge_action_default --description "Handle unknown/custom commands and agent switching"
     set -l user_action $argv[1]
     set -l input_text $argv[2]
@@ -1005,6 +1038,10 @@ function _forge_accept_line --description "Intercept Enter key for :command disp
                 _forge_action_doctor
             case keyboard-shortcuts kb
                 _forge_action_keyboard
+            case fast f
+                _forge_action_fast
+            case thinking th reasoning
+                _forge_action_thinking "$input_text"
             case '*'
                 _forge_action_default "$user_action" "$input_text"
         end
