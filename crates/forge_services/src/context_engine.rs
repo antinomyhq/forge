@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
     CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkedFile, Walker,
-    WalkerInfra, WorkspaceService, WorkspaceStatus, compute_hash,
+    WalkerInfra, WorkspaceService, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -27,6 +27,22 @@ struct FileReadError {
     path: PathBuf,
     #[source]
     source: anyhow::Error,
+}
+
+#[derive(Debug, Default)]
+struct SyncOperations {
+    added: usize,
+    deleted: usize,
+    modified: usize,
+    failed_files: usize,
+    files_to_delete: Vec<String>,
+    files_to_upload: Vec<PathBuf>,
+}
+
+impl SyncOperations {
+    fn total_file_changes(&self) -> usize {
+        self.added + self.deleted + self.modified
+    }
 }
 
 static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
@@ -51,6 +67,15 @@ fn has_allowed_extension(path: &Path) -> bool {
         allowed_extensions().contains(&ext)
     } else {
         false
+    }
+}
+
+fn absolutize_workspace_path(base_dir: &Path, path: &str) -> String {
+    let path = Path::new(path);
+    if path.is_absolute() {
+        path.to_string_lossy().into_owned()
+    } else {
+        base_dir.join(path).to_string_lossy().into_owned()
     }
 }
 
@@ -232,26 +257,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let total_file_count = file_paths.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        let hash_results: Vec<Result<FileHash>> = Self::read_file_hashes(
-            self.infra.clone(),
-            batch_size,
-            file_paths,
-        )
-        .collect()
-        .await;
-        let failed_statuses: Vec<forge_domain::FileStatus> = hash_results
-            .iter()
-            .filter_map(|r| r.as_ref().err())
-            .filter_map(|e| e.downcast_ref::<FileReadError>())
-            .map(|e| {
-                forge_domain::FileStatus::new(
-                    e.path.to_string_lossy().into_owned(),
-                    forge_domain::SyncStatus::Failed,
-                )
-            })
-            .collect();
-        let local_file_hashes: Vec<FileHash> = hash_results.into_iter().flatten().collect();
-
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
@@ -265,56 +270,33 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         })
         .await;
 
-        let plan = WorkspaceStatus::new(path.clone(), remote_files);
-        let mut statuses = plan.file_statuses(local_file_hashes);
-        statuses.extend(failed_statuses);
-
-        let added = statuses
-            .iter()
-            .filter(|s| s.status == forge_domain::SyncStatus::New)
-            .count();
-        let deleted = statuses
-            .iter()
-            .filter(|s| s.status == forge_domain::SyncStatus::Deleted)
-            .count();
-        let modified = statuses
-            .iter()
-            .filter(|s| s.status == forge_domain::SyncStatus::Modified)
-            .count();
-        let mut failed_files = statuses
-            .iter()
-            .filter(|s| s.status == forge_domain::SyncStatus::Failed)
-            .count();
-
-        let total_file_changes = added + deleted + modified;
+        let operations = self
+            .collect_sync_operations(&path, file_paths, remote_files)
+            .await;
+        let total_file_changes = operations.total_file_changes();
+        let mut failed_files = operations.failed_files;
 
         if total_file_changes > 0 {
-            emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
+            emit(SyncProgress::DiffComputed {
+                added: operations.added,
+                deleted: operations.deleted,
+                modified: operations.modified,
+            })
+            .await;
         }
 
-        let files_to_delete: Vec<String> = statuses
-            .iter()
-            .filter(|status| status.status == forge_domain::SyncStatus::Deleted)
-            .map(|status| status.path.clone())
-            .collect();
-        let files_to_upload: Vec<PathBuf> = statuses
-            .iter()
-            .filter(|status| {
-                matches!(
-                    status.status,
-                    forge_domain::SyncStatus::Modified | forge_domain::SyncStatus::New
-                )
-            })
-            .map(|status| PathBuf::from(&status.path))
-            .collect();
-
-        let total_operations = files_to_delete.len() + files_to_upload.len();
+        let total_operations = operations.files_to_delete.len() + operations.files_to_upload.len();
         let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
 
         emit(counter.sync_progress()).await;
 
         match self
-            .delete_files(&user_id, &workspace_id, &token, files_to_delete.clone())
+            .delete_files(
+                &user_id,
+                &workspace_id,
+                &token,
+                operations.files_to_delete.clone(),
+            )
             .await
         {
             Ok(deleted_count) => {
@@ -323,12 +305,17 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             }
             Err(e) => {
                 warn!(workspace_id = %workspace_id, error = ?e,"Failed to delete files during sync");
-                failed_files += files_to_delete.len();
+                failed_files += operations.files_to_delete.len();
             }
         }
 
-        let upload_stream =
-            self.upload_files(&user_id, &workspace_id, &token, files_to_upload, batch_size);
+        let upload_stream = self.upload_files(
+            &user_id,
+            &workspace_id,
+            &token,
+            operations.files_to_upload,
+            batch_size,
+        );
         futures::pin_mut!(upload_stream);
 
         // Process uploads as they complete, updating progress incrementally
@@ -365,6 +352,106 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         } else {
             Ok(())
         }
+    }
+
+    /// Collects sync operations without retaining per-file status objects for
+    /// the whole workspace.
+    async fn collect_sync_operations(
+        &self,
+        base_dir: &Path,
+        file_paths: Vec<PathBuf>,
+        remote_files: Vec<FileHash>,
+    ) -> SyncOperations
+    where
+        F: FileReaderInfra + EnvironmentInfra,
+    {
+        let batch_size = self.infra.get_environment().max_file_read_batch_size;
+        let mut remote_hashes: BTreeMap<String, String> = remote_files
+            .into_iter()
+            .map(|file| (absolutize_workspace_path(base_dir, &file.path), file.hash))
+            .collect();
+        let hash_stream = Self::read_file_hashes(self.infra.clone(), batch_size, file_paths);
+        futures::pin_mut!(hash_stream);
+
+        let mut operations = SyncOperations::default();
+
+        while let Some(result) = hash_stream.next().await {
+            match result {
+                Ok(file_hash) => match remote_hashes.remove(&file_hash.path) {
+                    Some(remote_hash) if remote_hash == file_hash.hash => {}
+                    Some(_) => {
+                        operations.modified += 1;
+                        operations.files_to_upload.push(PathBuf::from(file_hash.path));
+                    }
+                    None => {
+                        operations.added += 1;
+                        operations.files_to_upload.push(PathBuf::from(file_hash.path));
+                    }
+                },
+                Err(_) => {
+                    operations.failed_files += 1;
+                }
+            }
+        }
+
+        operations.deleted = remote_hashes.len();
+        operations.files_to_delete = remote_hashes.into_keys().collect();
+        operations.files_to_upload.sort();
+        operations
+    }
+
+    /// Collects workspace status entries while streaming local hashes, avoiding
+    /// an intermediate full hash/status plan in memory.
+    async fn collect_workspace_statuses(
+        &self,
+        base_dir: &Path,
+        file_paths: Vec<PathBuf>,
+        remote_files: Vec<FileHash>,
+    ) -> Vec<forge_domain::FileStatus>
+    where
+        F: FileReaderInfra + EnvironmentInfra,
+    {
+        let batch_size = self.infra.get_environment().max_file_read_batch_size;
+        let mut remote_hashes: BTreeMap<String, String> = remote_files
+            .into_iter()
+            .map(|file| (absolutize_workspace_path(base_dir, &file.path), file.hash))
+            .collect();
+        let capacity = file_paths.len() + remote_hashes.len();
+        let hash_stream = Self::read_file_hashes(self.infra.clone(), batch_size, file_paths);
+        futures::pin_mut!(hash_stream);
+
+        let mut statuses = Vec::with_capacity(capacity);
+
+        while let Some(result) = hash_stream.next().await {
+            match result {
+                Ok(file_hash) => {
+                    let status = match remote_hashes.remove(&file_hash.path) {
+                        Some(remote_hash) if remote_hash == file_hash.hash => {
+                            forge_domain::SyncStatus::InSync
+                        }
+                        Some(_) => forge_domain::SyncStatus::Modified,
+                        None => forge_domain::SyncStatus::New,
+                    };
+                    statuses.push(forge_domain::FileStatus::new(file_hash.path, status));
+                }
+                Err(error) => {
+                    if let Some(file_error) = error.downcast_ref::<FileReadError>() {
+                        statuses.push(forge_domain::FileStatus::new(
+                            file_error.path.to_string_lossy().into_owned(),
+                            forge_domain::SyncStatus::Failed,
+                        ));
+                    }
+                }
+            }
+        }
+
+        statuses.extend(
+            remote_hashes
+                .into_keys()
+                .map(|path| forge_domain::FileStatus::new(path, forge_domain::SyncStatus::Deleted)),
+        );
+        statuses.sort_by(|left, right| left.path.cmp(&right.path));
+        statuses
     }
 
     /// Gets the ForgeCode services credential and extracts workspace auth
@@ -813,41 +900,16 @@ impl<
         // Reuse the canonical path already stored in the workspace (resolved during
         // sync), avoiding a redundant canonicalize() IO call.
         let canonical_path = PathBuf::from(&workspace.working_dir);
-
-        let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let file_paths = self
             .discover_sync_file_paths(&canonical_path, &workspace.workspace_id)
             .await?;
-        let results: Vec<Result<FileHash>> = Self::read_file_hashes(
-            self.infra.clone(),
-            batch_size,
-            file_paths,
-        )
-        .collect()
-        .await;
-
-        let mut failed_statuses: Vec<forge_domain::FileStatus> = results
-            .iter()
-            .filter_map(|r| r.as_ref().err())
-            .filter_map(|e| e.downcast_ref::<FileReadError>())
-            .map(|e| {
-                forge_domain::FileStatus::new(
-                    e.path.to_string_lossy().into_owned(),
-                    forge_domain::SyncStatus::Failed,
-                )
-            })
-            .collect();
-
-        let local_file_hashes: Vec<FileHash> = results.into_iter().flatten().collect();
-
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
             .await?;
 
-        let plan = WorkspaceStatus::new(canonical_path, remote_files);
-        let mut statuses = plan.file_statuses(local_file_hashes);
-        statuses.append(&mut failed_statuses);
-        Ok(statuses)
+        Ok(self
+            .collect_workspace_statuses(&canonical_path, file_paths, remote_files)
+            .await)
     }
 
     async fn is_authenticated(&self) -> Result<bool> {

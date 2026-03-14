@@ -1,0 +1,3 @@
+- Stream `git ls-files`/walker discovery directly into hashing so workspace sync/status never materializes the full `Vec<PathBuf>` for very large repos.
+- Replace changed-file uploads with a `FileRead`-only reader so the second pass avoids recomputing/storing hashes it does not use.
+- Add an adaptive byte-budget concurrency policy (instead of a fixed sequential path) if real-world sync latency becomes too high after the memory reduction.
