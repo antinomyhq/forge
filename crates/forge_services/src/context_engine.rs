@@ -257,7 +257,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Initialize workspace (finds existing or creates new)
-        let (is_new_workspace, workspace_id) = self._init_workspace(path.clone()).await?;
+        let (is_new_workspace, workspace_id) =
+            self.init_workspace_for_canonical_path(path.clone()).await?;
 
         emit(SyncProgress::DiscoveringFiles {
             path: path.clone(),
@@ -538,29 +539,16 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
     }
 
-    /// Finds a workspace by path from remote server, checking for exact match
-    /// first, then ancestor workspaces.
-    ///
-    /// Business logic:
-    /// 1. First tries to find an exact match for the given path
-    /// 2. If not found, searches for ancestor workspaces
-    /// 3. Returns the closest ancestor (longest matching path prefix)
-    ///
-    /// # Errors
-    /// Returns an error if the path cannot be canonicalized or if there's a
-    /// server error. Returns Ok(None) if no workspace is found.
-    async fn find_workspace_by_path(
+    /// Finds a workspace by canonical path from the remote server, checking
+    /// for exact match first, then ancestor workspaces.
+    async fn find_workspace_by_canonical_path(
         &self,
-        path: PathBuf,
+        canonical_path: &Path,
         token: &forge_domain::ApiKey,
     ) -> Result<Option<forge_domain::WorkspaceInfo>>
     where
         F: WorkspaceIndexRepository,
     {
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-
         // Get all workspaces from remote server
         let workspaces = self.infra.list_workspaces(token).await?;
 
@@ -586,6 +574,31 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
 
         Ok(best_match.map(|(w, _)| w.clone()))
+    }
+
+    /// Finds a workspace by path from remote server, checking for exact match
+    /// first, then ancestor workspaces.
+    ///
+    /// Business logic:
+    /// 1. First tries to find an exact match for the given path
+    /// 2. If not found, searches for ancestor workspaces
+    /// 3. Returns the closest ancestor (longest matching path prefix)
+    ///
+    /// # Errors
+    /// Returns an error if the path cannot be canonicalized or if there's a
+    /// server error. Returns Ok(None) if no workspace is found.
+    async fn find_workspace_by_path(
+        &self,
+        path: PathBuf,
+        token: &forge_domain::ApiKey,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>>
+    where
+        F: WorkspaceIndexRepository,
+    {
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        self.find_workspace_by_canonical_path(&canonical_path, token).await
     }
     /// Runs `git ls-files` in `dir_path` and returns the tracked files as
     /// `WalkedFile` entries.
@@ -766,14 +779,11 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
     }
 
-    async fn _init_workspace(&self, path: PathBuf) -> Result<(bool, WorkspaceId)> {
+    async fn init_workspace_for_canonical_path(&self, path: PathBuf) -> Result<(bool, WorkspaceId)> {
         let (token, _user_id) = self.get_workspace_credentials().await?;
-        let path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Find workspace by exact match or ancestor from remote server
-        let workspace = self.find_workspace_by_path(path.clone(), &token).await?;
+        let workspace = self.find_workspace_by_canonical_path(&path, &token).await?;
 
         let (workspace_id, workspace_path, is_new_workspace) = match workspace {
             Some(workspace_info) => {
@@ -797,6 +807,13 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         };
 
         Ok((is_new_workspace, workspace_id))
+    }
+
+    async fn _init_workspace(&self, path: PathBuf) -> Result<(bool, WorkspaceId)> {
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        self.init_workspace_for_canonical_path(path).await
     }
 }
 

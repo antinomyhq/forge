@@ -19,3 +19,6 @@
 {"run":18,"commit":"db0c88f","metric":11.75,"metrics":{},"status":"discard","description":"shrink remote hash maps before sync/status comparison","timestamp":1773515043789,"segment":0}
 {"run":19,"commit":"db0c88f","metric":12.77,"metrics":{},"status":"discard","description":"store remote sync/status hash maps as boxed strings to trim String headers","timestamp":1773515163402,"segment":0}
 {"run":20,"commit":"db0c88f","metric":11.17,"metrics":{},"status":"discard","description":"reuse remote hash strings from the fetched vector via path-to-index maps","timestamp":1773515490198,"segment":0}
+{"run":21,"commit":"bb2cb37","metric":11.09,"metrics":{},"status":"keep","description":"short-circuit already-in-sync workspace syncs before empty delete/upload setup","timestamp":1773515712537,"segment":0}
+{"run":22,"commit":"bb2cb37","metric":11.09,"metrics":{},"status":"discard","description":"store discovered sync/status paths as relative strings instead of PathBuf values","timestamp":1773515826099,"segment":0}
+{"run":23,"commit":"bb2cb37","metric":11.34,"metrics":{},"status":"discard","description":"add a streaming UTF-8 hash API for hash-only workspace reads","timestamp":1773516155085,"segment":0}
