@@ -3,3 +3,4 @@
 {"run":2,"commit":"0a631f3","metric":70.03,"metrics":{},"status":"keep","description":"split workspace sync/status into hash-only planning plus selective rereads","timestamp":1773511759522,"segment":0}
 {"run":3,"commit":"a2e5f05","metric":28.95,"metrics":{},"status":"keep","description":"cap workspace file-read concurrency to bound sync/status memory","timestamp":1773511934728,"segment":0}
 {"run":4,"commit":"c231fad","metric":19.16,"metrics":{},"status":"keep","description":"lower workspace sync/status read cap from 16 to 8","timestamp":1773511999085,"segment":0}
+{"run":5,"commit":"69bde2c","metric":14.7,"metrics":{},"status":"keep","description":"lower workspace sync/status read cap from 8 to 4","timestamp":1773512072641,"segment":0}

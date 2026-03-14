@@ -41,3 +41,4 @@ The script builds and runs `crates/forge_services/examples/workspace_sync_memory
 - Next experiment: hard-cap workspace sync/status read concurrency so an oversized global file-read batch cannot balloon memory during hashing or uploads.
 - Tightened the concurrency cap further after measuring that the memory benchmark still benefits materially at lower limits.
 - Current tuning path: continue lowering the workspace read cap until improvements flatten out or the trade-off looks too severe.
+- The synthetic benchmark continues to improve as the cap drops, so the next probe is whether the absolute minimum concurrency is still meaningfully better.

@@ -40,7 +40,7 @@ static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
 
 /// Hard cap for concurrent workspace file reads to keep peak memory bounded
 /// even when the global read batch size is configured very high.
-const WORKSPACE_READ_BATCH_LIMIT: usize = 4;
+const WORKSPACE_READ_BATCH_LIMIT: usize = 2;
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
