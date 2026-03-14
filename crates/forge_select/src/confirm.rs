@@ -23,12 +23,14 @@ impl ConfirmBuilder {
     ///
     /// Prompts the user with the message and expects Y/y/yes or N/no.
     /// If the user enters an empty response and a default is set, the default
-    /// is used.
+    /// is used. If the input cannot be converted to yes/no, the prompt is
+    /// repeated in a loop until a valid response or cancellation is received.
     ///
     /// # Returns
     ///
-    /// - `Ok(true)` - User confirmed (Y, y, yes, YES, etc.)
-    /// - `Ok(false)` - User denied (N, n, no, NO, etc.)
+    /// - `Ok(Some(true))` - User confirmed (Y, y, yes, YES, etc.)
+    /// - `Ok(Some(false))` - User denied (N, n, no, NO, etc.)
+    /// - `Ok(None)` - User cancelled (EOF / Ctrl+D / Ctrl+C)
     /// - `Err(...)` - If the prompt fails
     pub fn prompt(self) -> Result<Option<bool>> {
         let hint = match self.default {
@@ -39,35 +41,35 @@ impl ConfirmBuilder {
 
         let message_with_hint = format!("{} {}", self.message, hint.yellow());
 
-        let input_builder = InputBuilder {
-            message: message_with_hint,
-            allow_empty: true,
-            default: None,
-            default_display: None,
-        };
+        loop {
+            let input_builder = InputBuilder {
+                message: message_with_hint.clone(),
+                allow_empty: true,
+                default: None,
+                default_display: None,
+            };
 
-        let result = input_builder.prompt()?;
+            let result = input_builder.prompt()?;
 
-        // User cancelled (Ctrl+C or EOF)
-        if result.is_none() {
-            return Ok(Some(false));
+            // User cancelled (Ctrl+C or EOF)
+            if result.is_none() {
+                return Ok(None);
+            }
+
+            let input = result.unwrap().trim().to_lowercase();
+
+            // Empty input - use default
+            if input.is_empty() {
+                return Ok(Some(self.default.unwrap_or(false)));
+            }
+
+            // Parse Y/N response
+            if input == "y" || input == "yes" {
+                return Ok(Some(true));
+            }
+            if input == "n" || input == "no" {
+                return Ok(Some(false));
+            }
         }
-
-        let input = result.unwrap().trim().to_lowercase();
-
-        // Empty input - use default
-        if input.is_empty() {
-            return Ok(Some(self.default.unwrap_or(false)));
-        }
-
-        // Parse Y/N response
-        if input == "y" || input == "yes" {
-            return Ok(Some(true));
-        }
-        if input == "n" || input == "no" {
-            return Ok(Some(false));
-        }
-
-        Ok(None)
     }
 }
