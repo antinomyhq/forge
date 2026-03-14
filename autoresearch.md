@@ -40,3 +40,4 @@ The script builds and runs `crates/forge_services/examples/workspace_sync_memory
 - Current experiment: split sync/status into a hash-only planning phase plus a second read only for files that are actually new/modified. This should preserve behavior while dropping full-content retention for in-sync files.
 - Next experiment: hard-cap workspace sync/status read concurrency so an oversized global file-read batch cannot balloon memory during hashing or uploads.
 - Tightened the concurrency cap further after measuring that the memory benchmark still benefits materially at lower limits.
+- Current tuning path: continue lowering the workspace read cap until improvements flatten out or the trade-off looks too severe.
