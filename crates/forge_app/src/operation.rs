@@ -259,7 +259,7 @@ impl ToolOperation {
                         "display_lines",
                         format!("{}-{}", output.start_line, output.end_line),
                     )
-                    .attr("total_lines", content.lines().count())
+                    .attr("total_lines", output.total_lines)
                     .cdata(content);
 
                 // Track read operations
