@@ -69,6 +69,17 @@
         }
       ]
     },
+    "reasoning_effort": {
+      "description": "Reasoning effort level used for all agents\n\nControls the reasoning effort for models that support variable thinking\nlevels (e.g., GPT-5.x). Sent as `reasoning_effort` in the API request.\n- `low` — minimal reasoning, fastest responses\n- `medium` — balanced reasoning effort\n- `high` — maximum reasoning, most thorough responses\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReasoningEffortLevel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "templates": {
       "description": "Path pattern for custom template files (supports glob patterns)",
       "type": [
@@ -225,6 +236,15 @@
       "description": "A newtype for temperature values with built-in validation\n\nTemperature controls the randomness in the model's output:\n- Lower values (e.g., 0.1) make responses more focused, deterministic, and\n  coherent\n- Higher values (e.g., 0.8) make responses more creative, diverse, and\n  exploratory\n- Valid range is 0.0 to 2.0",
       "type": "number",
       "format": "float"
+    },
+    "ReasoningEffortLevel": {
+      "description": "Controls the reasoning effort level for models that support variable thinking.\n\nThis parameter is sent directly as `reasoning_effort` in the OpenAI-compatible\nAPI request body. Models like GPT-5.x use this to control how much computation\nis spent on reasoning:\n- `low` — minimal reasoning, fastest responses\n- `medium` — balanced reasoning effort\n- `high` — maximum reasoning, most thorough responses",
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
     },
     "TopK": {
       "description": "A newtype for top_k values with built-in validation\n\nTop-k controls the number of highest probability vocabulary tokens to keep:\n- Lower values (e.g., 10) make responses more focused by considering only\n  the top K most likely tokens\n- Higher values (e.g., 100) make responses more diverse by considering more\n  token options\n- Valid range is 1 to 1000 (inclusive)",

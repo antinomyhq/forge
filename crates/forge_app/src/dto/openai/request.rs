@@ -396,7 +396,7 @@ impl From<Context> for Request {
             stream_options: Some(StreamOptions { include_usage: Some(true) }),
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
-            reasoning_effort: Default::default(),
+            reasoning_effort: context.reasoning_effort.map(|re| re.to_string()),
             max_completion_tokens: Default::default(),
             thinking: Default::default(),
         }

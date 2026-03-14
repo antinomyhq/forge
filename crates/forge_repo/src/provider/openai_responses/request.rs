@@ -331,6 +331,19 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
         if let Some(reasoning) = context.reasoning {
             let reasoning_config = oai::Reasoning::from_domain(reasoning)?;
             builder.reasoning(reasoning_config);
+        } else if let Some(reasoning_effort) = context.reasoning_effort {
+            // Apply standalone reasoning_effort when no reasoning config is set
+            let oai_effort = match reasoning_effort {
+                forge_domain::ReasoningEffortLevel::High => oai::ReasoningEffort::High,
+                forge_domain::ReasoningEffortLevel::Medium => oai::ReasoningEffort::Medium,
+                forge_domain::ReasoningEffortLevel::Low => oai::ReasoningEffort::Low,
+            };
+            let reasoning_config = oai::ReasoningArgs::default()
+                .effort(oai_effort)
+                .summary(oai::ReasoningSummary::Auto)
+                .build()
+                .map_err(anyhow::Error::from)?;
+            builder.reasoning(reasoning_config);
         }
 
         if let Some(prompt_cache_key) = prompt_cache_key {
