@@ -66,7 +66,7 @@ impl DatabasePool {
 
     pub fn get_connection(&self) -> Result<PooledSqliteConnection> {
         self.pool.get().map_err(|e| {
-            warn!(error = %e, "Failed to get connection from pool");
+            warn!(error = ?e, "Failed to get connection from pool");
             anyhow::anyhow!("Failed to get connection from pool: {e}")
         })
     }
@@ -123,7 +123,7 @@ impl TryFrom<PoolConfig> for DatabasePool {
         }
 
         let pool = builder.build(manager).map_err(|e| {
-            warn!(error = %e, "Failed to create connection pool");
+            warn!(error = ?e, "Failed to create connection pool");
             anyhow::anyhow!("Failed to create connection pool: {e}")
         })?;
 
@@ -133,7 +133,7 @@ impl TryFrom<PoolConfig> for DatabasePool {
             .map_err(|e| anyhow::anyhow!("Failed to get connection for migrations: {e}"))?;
 
         connection.run_pending_migrations(MIGRATIONS).map_err(|e| {
-            warn!(error = %e, "Failed to run database migrations");
+            warn!(error = ?e, "Failed to run database migrations");
             anyhow::anyhow!("Failed to run database migrations: {e}")
         })?;
 

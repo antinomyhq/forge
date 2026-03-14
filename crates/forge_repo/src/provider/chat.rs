@@ -97,11 +97,11 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
                 match router.models(provider).await {
                     Ok(models) => {
                         if let Err(err) = cache.cache_set(&key, &models).await {
-                            tracing::warn!(error = %err, "background refresh: failed to cache model list");
+                            tracing::warn!(error = ?err, "background refresh: failed to cache model list");
                         }
                     }
                     Err(err) => {
-                        tracing::warn!(error = %err, "background refresh: failed to fetch models");
+                        tracing::warn!(error = ?err, "background refresh: failed to fetch models");
                     }
                 }
             });
@@ -113,7 +113,7 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
         let models = self.router.models(provider).await?;
 
         if let Err(err) = self.model_cache.cache_set(&cache_key, &models).await {
-            tracing::warn!(error = %err, "failed to cache model list");
+            tracing::warn!(error = ?err, "failed to cache model list");
         }
 
         Ok(models)
