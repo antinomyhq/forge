@@ -872,7 +872,10 @@ EOF
       # Pre-install OMZ + plugins
       preinstall_omz
       preinstall_plugins
-      # Pre-install tools by running forge once (or they may already be on system)
+      # Pre-install tools via brew (fzf, bat, fd)
+      if [ -n "$BREW_PREFIX" ]; then
+        "$BREW_PREFIX/bin/brew" install fzf bat fd 2>/dev/null || true
+      fi
       ;;
     partial)
       # Pre-install OMZ only (no plugins)
