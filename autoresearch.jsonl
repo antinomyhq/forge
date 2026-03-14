@@ -10,3 +10,5 @@
 {"run":9,"commit":"fb4e5ec","metric":11.39,"metrics":{},"status":"keep","description":"stream sync/status comparison directly against remote hash maps","timestamp":1773513909017,"segment":0}
 {"run":10,"commit":"fb4e5ec","metric":11.8,"metrics":{},"status":"discard","description":"trim git path-discovery allocations by skipping file_name and extra filter vectors","timestamp":1773514006785,"segment":0}
 {"run":11,"commit":"fb4e5ec","metric":12.22,"metrics":{},"status":"discard","description":"replace remote hash maps with sorted merge-join planning for sync and status","timestamp":1773514182854,"segment":0}
+{"run":12,"commit":"6cd8532","metric":11.25,"metrics":{},"status":"keep","description":"switch remote hash planning from BTreeMap to HashMap plus final key sorting","timestamp":1773514272499,"segment":0}
+{"run":13,"commit":"6cd8532","metric":11.25,"metrics":{},"status":"discard","description":"hash local files from raw bytes with UTF-8 validation to avoid read_to_string allocations","timestamp":1773514387441,"segment":0}

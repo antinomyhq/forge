@@ -79,6 +79,18 @@ fn absolutize_workspace_path(base_dir: &Path, path: &str) -> String {
     }
 }
 
+fn normalize_workspace_path(base_dir: &Path, path: &str) -> String {
+    let path = Path::new(path);
+    if path.is_absolute() {
+        match path.strip_prefix(base_dir) {
+            Ok(relative_path) => relative_path.to_string_lossy().into_owned(),
+            Err(_) => path.to_string_lossy().into_owned(),
+        }
+    } else {
+        path.to_string_lossy().into_owned()
+    }
+}
+
 /// Service for indexing workspaces and performing semantic search
 pub struct ForgeWorkspaceService<F> {
     infra: Arc<F>,
@@ -368,9 +380,14 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let mut remote_hashes: HashMap<String, String> = remote_files
             .into_iter()
-            .map(|file| (absolutize_workspace_path(base_dir, &file.path), file.hash))
+            .map(|file| (normalize_workspace_path(base_dir, &file.path), file.hash))
             .collect();
-        let hash_stream = Self::read_file_hashes(self.infra.clone(), batch_size, file_paths);
+        let hash_stream = Self::read_file_hashes(
+            self.infra.clone(),
+            base_dir.to_path_buf(),
+            batch_size,
+            file_paths,
+        );
         futures::pin_mut!(hash_stream);
 
         let mut operations = SyncOperations::default();
@@ -381,11 +398,11 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                     Some(remote_hash) if remote_hash == file_hash.hash => {}
                     Some(_) => {
                         operations.modified += 1;
-                        operations.files_to_upload.push(PathBuf::from(file_hash.path));
+                        operations.files_to_upload.push(base_dir.join(&file_hash.path));
                     }
                     None => {
                         operations.added += 1;
-                        operations.files_to_upload.push(PathBuf::from(file_hash.path));
+                        operations.files_to_upload.push(base_dir.join(&file_hash.path));
                     }
                 },
                 Err(_) => {
@@ -395,7 +412,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
 
         operations.deleted = remote_hashes.len();
-        operations.files_to_delete = remote_hashes.into_keys().collect();
+        operations.files_to_delete = remote_hashes
+            .into_keys()
+            .map(|path| absolutize_workspace_path(base_dir, &path))
+            .collect();
         operations.files_to_delete.sort();
         operations.files_to_upload.sort();
         operations
@@ -415,10 +435,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let mut remote_hashes: HashMap<String, String> = remote_files
             .into_iter()
-            .map(|file| (absolutize_workspace_path(base_dir, &file.path), file.hash))
+            .map(|file| (normalize_workspace_path(base_dir, &file.path), file.hash))
             .collect();
         let capacity = file_paths.len() + remote_hashes.len();
-        let hash_stream = Self::read_file_hashes(self.infra.clone(), batch_size, file_paths);
+        let hash_stream = Self::read_file_hashes(
+            self.infra.clone(),
+            base_dir.to_path_buf(),
+            batch_size,
+            file_paths,
+        );
         futures::pin_mut!(hash_stream);
 
         let mut statuses = Vec::with_capacity(capacity);
@@ -433,7 +458,10 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                         Some(_) => forge_domain::SyncStatus::Modified,
                         None => forge_domain::SyncStatus::New,
                     };
-                    statuses.push(forge_domain::FileStatus::new(file_hash.path, status));
+                    statuses.push(forge_domain::FileStatus::new(
+                        absolutize_workspace_path(base_dir, &file_hash.path),
+                        status,
+                    ));
                 }
                 Err(error) => {
                     if let Some(file_error) = error.downcast_ref::<FileReadError>() {
@@ -446,11 +474,12 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             }
         }
 
-        statuses.extend(
-            remote_hashes
-                .into_keys()
-                .map(|path| forge_domain::FileStatus::new(path, forge_domain::SyncStatus::Deleted)),
-        );
+        statuses.extend(remote_hashes.into_keys().map(|path| {
+            forge_domain::FileStatus::new(
+                absolutize_workspace_path(base_dir, &path),
+                forge_domain::SyncStatus::Deleted,
+            )
+        }));
         statuses.sort_by(|left, right| left.path.cmp(&right.path));
         statuses
     }
@@ -642,11 +671,12 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             }
         };
 
-        let filtered_files: Vec<_> = walked_files
+        let filtered_files: Vec<PathBuf> = walked_files
             .into_iter()
-            .filter(|walked| {
-                let file_path = dir_path.join(&walked.path);
-                has_allowed_extension(&file_path)
+            .filter_map(|walked| {
+                let relative_path = PathBuf::from(&walked.path);
+                let absolute_path = dir_path.join(&relative_path);
+                has_allowed_extension(&absolute_path).then_some(relative_path)
             })
             .collect();
 
@@ -660,14 +690,12 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             return Err(ServiceError::NoSourceFilesFound.into());
         }
 
-        Ok(filtered_files
-            .iter()
-            .map(|walked| dir_path.join(&walked.path))
-            .collect())
+        Ok(filtered_files)
     }
 
     fn read_file_hashes(
         infra: Arc<F>,
+        base_dir: PathBuf,
         _batch_size: usize,
         file_paths: Vec<PathBuf>,
     ) -> impl Stream<Item = Result<FileHash>> + Send
@@ -675,11 +703,17 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         F: FileReaderInfra,
     {
         async_stream::stream! {
-            for absolute_path in file_paths {
+            for file_path in file_paths {
+                let absolute_path = if file_path.is_absolute() {
+                    file_path.clone()
+                } else {
+                    base_dir.join(&file_path)
+                };
+
                 match infra.read_utf8(&absolute_path).await {
                     Ok(content) => {
                         yield Ok(FileHash {
-                            path: absolute_path.to_string_lossy().to_string(),
+                            path: normalize_workspace_path(&base_dir, &file_path.to_string_lossy()),
                             hash: compute_hash(&content),
                         });
                     }
