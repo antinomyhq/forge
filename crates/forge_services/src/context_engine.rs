@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
@@ -366,7 +366,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         F: FileReaderInfra + EnvironmentInfra,
     {
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let mut remote_hashes: BTreeMap<String, String> = remote_files
+        let mut remote_hashes: HashMap<String, String> = remote_files
             .into_iter()
             .map(|file| (absolutize_workspace_path(base_dir, &file.path), file.hash))
             .collect();
@@ -396,6 +396,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         operations.deleted = remote_hashes.len();
         operations.files_to_delete = remote_hashes.into_keys().collect();
+        operations.files_to_delete.sort();
         operations.files_to_upload.sort();
         operations
     }
@@ -412,7 +413,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         F: FileReaderInfra + EnvironmentInfra,
     {
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let mut remote_hashes: BTreeMap<String, String> = remote_files
+        let mut remote_hashes: HashMap<String, String> = remote_files
             .into_iter()
             .map(|file| (absolutize_workspace_path(base_dir, &file.path), file.hash))
             .collect();
