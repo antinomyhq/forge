@@ -3113,7 +3113,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
 
                 self.writeln_title(TitleFormat::action(title))?;
-                self.should_continue().await?;
+                let continued = self.should_continue().await?;
+                if !continued {
+                    if let Some(conversation_id) = self.state.conversation_id {
+                        self.writeln_title(
+                            TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
+                        )?;
+                    }
+                }
             }
             ChatResponse::TaskReasoning { content } => {
                 writer.write_dimmed(&content)?;
@@ -3134,7 +3141,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn should_continue(&mut self) -> anyhow::Result<()> {
+    async fn should_continue(&mut self) -> anyhow::Result<bool> {
         let should_continue = ForgeWidget::confirm("Do you want to continue anyway?")
             .with_default(true)
             .prompt()?;
@@ -3142,9 +3149,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-
-        Ok(())
     }
 
     async fn on_show_conv_info(&mut self, conversation: Conversation) -> anyhow::Result<()> {
