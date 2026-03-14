@@ -457,7 +457,8 @@ run_verify_checks() {
 
   # --- Windows-specific: Verify .bash_profile auto-start configuration ---
   if [ -f "$HOME/.bash_profile" ]; then
-    if grep -q '# Added by forge zsh setup' "$HOME/.bash_profile" && \
+    if grep -q '# >>> forge initialize >>>' "$HOME/.bash_profile" && \
+       grep -q '# <<< forge initialize <<<' "$HOME/.bash_profile" && \
        grep -q 'exec.*zsh' "$HOME/.bash_profile"; then
       echo "CHECK_BASHRC_AUTOSTART=PASS"
     else
@@ -466,7 +467,7 @@ run_verify_checks() {
 
     # Check uniqueness of auto-start block
     local autostart_count
-    autostart_count=$(grep -c '# Added by forge zsh setup' "$HOME/.bash_profile" 2>/dev/null || echo "0")
+    autostart_count=$(grep -c '# >>> forge initialize >>>' "$HOME/.bash_profile" 2>/dev/null || echo "0")
     if [ "$autostart_count" -eq 1 ]; then
       echo "CHECK_BASHRC_MARKER_UNIQUE=PASS"
     else
@@ -788,7 +789,7 @@ CHECK_EDGE_RERUN_MARKERS=FAIL (no .zshrc after re-run)"
     # Check bashrc auto-start block uniqueness after re-run (Windows-specific)
     if [ -f "$temp_home/.bash_profile" ]; then
       local autostart_count
-      autostart_count=$(grep -c '# Added by forge zsh setup' "$temp_home/.bash_profile" 2>/dev/null || echo "0")
+      autostart_count=$(grep -c '# >>> forge initialize >>>' "$temp_home/.bash_profile" 2>/dev/null || echo "0")
       if [ "$autostart_count" -eq 1 ]; then
         verify_output="${verify_output}
 CHECK_EDGE_RERUN_BASHRC=PASS (still exactly 1 auto-start block)"

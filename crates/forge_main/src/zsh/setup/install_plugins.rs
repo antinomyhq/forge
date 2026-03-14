@@ -76,7 +76,7 @@ impl ConfigureBashProfile {
 #[async_trait::async_trait]
 impl super::installer::Installation for ConfigureBashProfile {
     async fn install(self) -> anyhow::Result<()> {
-        configure_bash_profile_autostart().await.map(|_| ())
+        configure_bash_profile_autostart().await
     }
 }
 
@@ -309,13 +309,13 @@ pub(super) async fn configure_bash_profile_autostart() -> Result<()> {
 }
 
 /// End-of-block sentinel used by the new multi-line block format.
-const END_MARKER: &str = "# End forge zsh setup";
+const END_MARKER: &str = "# <<< forge initialize <<<";
 
 /// Removes all auto-start blocks (old and new markers) from the given content.
 fn remove_autostart_blocks(content: &mut String) {
     loop {
         let mut found = false;
-        for marker in &["# Added by zsh installer", "# Added by forge zsh setup"] {
+        for marker in &["# >>> forge initialize >>>", "# Added by zsh installer", "# Added by forge zsh setup"] {
             if let Some(start) = content.find(marker) {
                 found = true;
                 // Check if there's a newline before the marker (added by our block format)
@@ -386,7 +386,8 @@ mod tests {
         let content = tokio::fs::read_to_string(&bash_profile).await.unwrap();
 
         // Should contain the auto-start block in .bash_profile
-        assert!(content.contains("# Added by forge zsh setup"));
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert!(content.contains("# <<< forge initialize <<<"));
         assert!(content.contains("source \"$HOME/.bashrc\""));
         assert!(content.contains("if [ -t 0 ] && [ -x"));
         assert!(content.contains("export SHELL="));
@@ -415,8 +416,8 @@ mod tests {
         assert!(content.contains("alias ll='ls -la'"));
 
         // Exactly one auto-start block
-        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
-        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# >>> forge initialize >>>").count(), 1);
+        assert_eq!(content.matches("# <<< forge initialize <<<").count(), 1);
     }
 
     #[tokio::test]
@@ -434,8 +435,8 @@ mod tests {
         let content = tokio::fs::read_to_string(&bash_profile_path).await.unwrap();
 
         assert!(!content.contains("# Added by zsh installer"));
-        assert!(content.contains("# Added by forge zsh setup"));
-        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert_eq!(content.matches("# >>> forge initialize >>>").count(), 1);
     }
 
     #[tokio::test]
@@ -453,7 +454,7 @@ mod tests {
 
         // .bashrc should have the forge block removed
         let bashrc = tokio::fs::read_to_string(&bashrc_path).await.unwrap();
-        assert!(!bashrc.contains("# Added by forge zsh setup"));
+        assert!(!bashrc.contains("# >>> forge initialize >>>"));
         assert!(bashrc.contains("# My bashrc"));
         assert!(bashrc.contains("alias ll='ls -la'"));
 
@@ -461,7 +462,7 @@ mod tests {
         let bash_profile = tokio::fs::read_to_string(temp.path().join(".bash_profile"))
             .await
             .unwrap();
-        assert!(bash_profile.contains("# Added by forge zsh setup"));
+        assert!(bash_profile.contains("# >>> forge initialize >>>"));
     }
 
     #[tokio::test]
@@ -483,8 +484,8 @@ mod tests {
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
 
         // Exactly one complete block
-        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
-        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# >>> forge initialize >>>").count(), 1);
+        assert_eq!(content.matches("# <<< forge initialize <<<").count(), 1);
         assert!(content.contains("if [ -t 0 ] && [ -x"));
         assert!(content.contains("export SHELL="));
         assert!(content.contains("exec"));
@@ -509,9 +510,9 @@ mod tests {
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
         assert!(!content.contains("alias ll='ls -la'")); // lost after truncation
 
-        assert!(content.contains("# Added by forge zsh setup"));
-        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
-        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert_eq!(content.matches("# >>> forge initialize >>>").count(), 1);
+        assert_eq!(content.matches("# <<< forge initialize <<<").count(), 1);
     }
 
     #[tokio::test]
@@ -530,7 +531,7 @@ mod tests {
 
         assert_eq!(content_first, content_second);
         assert_eq!(
-            content_second.matches("# Added by forge zsh setup").count(),
+            content_second.matches("# >>> forge initialize >>>").count(),
             1
         );
     }
@@ -551,7 +552,7 @@ mod tests {
 
         assert!(content.contains("# My bashrc"));
         assert!(content.contains("export PATH=$PATH:/usr/local/bin"));
-        assert_eq!(content.matches("# Added by forge zsh setup").count(), 1);
-        assert_eq!(content.matches("# End forge zsh setup").count(), 1);
+        assert_eq!(content.matches("# >>> forge initialize >>>").count(), 1);
+        assert_eq!(content.matches("# <<< forge initialize <<<").count(), 1);
     }
 }

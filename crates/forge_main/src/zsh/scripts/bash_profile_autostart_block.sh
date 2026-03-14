@@ -1,5 +1,5 @@
 
-# Added by forge zsh setup
+# >>> forge initialize >>>
 # Source ~/.bashrc for user customizations (aliases, functions, etc.)
 if [ -f "$HOME/.bashrc" ]; then
   source "$HOME/.bashrc"
@@ -9,4 +9,4 @@ if [ -t 0 ] && [ -x "{{zsh}}" ]; then
   export SHELL="{{zsh}}"
   exec "{{zsh}}"
 fi
-# End forge zsh setup
+# <<< forge initialize <<<
