@@ -107,6 +107,7 @@ impl ForgeCommandManager {
             .filter(|command| !matches!(command, SlashCommand::Custom(_)))
             .filter(|command| !matches!(command, SlashCommand::Shell(_)))
             .filter(|command| !matches!(command, SlashCommand::AgentSwitch(_)))
+            .filter(|command| !matches!(command, SlashCommand::ThinkingSet(_)))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -283,6 +284,13 @@ impl ForgeCommandManager {
             }
             "/index" => Ok(SlashCommand::Index),
             "/fast" | "/f" => Ok(SlashCommand::Fast),
+            "/thinking" | "/t" | "/reasoning" => {
+                if parameters.is_empty() {
+                    Ok(SlashCommand::Thinking)
+                } else {
+                    Ok(SlashCommand::ThinkingSet(parameters[0].to_string()))
+                }
+            }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -439,9 +447,17 @@ pub enum SlashCommand {
     #[strum(props(usage = "Index the current workspace for semantic search"))]
     Index,
 
-    /// Toggle fast mode (priority inference at 2x cost)
-    #[strum(props(usage = "Toggle fast mode (priority inference at 2x cost)"))]
+    /// Toggle fast mode (priority inference + xhigh reasoning at 2x cost)
+    #[strum(props(usage = "Toggle fast mode (priority + xhigh reasoning at 2x cost)"))]
     Fast,
+
+    /// Set reasoning effort level interactively
+    #[strum(props(usage = "Set reasoning effort level (none/minimal/low/medium/high/xhigh)"))]
+    Thinking,
+
+    /// Set reasoning effort to a specific level directly
+    #[strum(props(usage = "Set reasoning effort to a specific level"))]
+    ThinkingSet(String),
 }
 
 impl SlashCommand {
@@ -475,6 +491,8 @@ impl SlashCommand {
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
             SlashCommand::Fast => "fast",
+            SlashCommand::Thinking => "thinking",
+            SlashCommand::ThinkingSet(_) => "thinking",
         }
     }
 
