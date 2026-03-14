@@ -838,17 +838,10 @@ mod tests {
 
     #[test]
     fn test_into_sse_parse_error_keeps_utf8_errors_non_retryable() {
-<<<<<<< HEAD
-        let error = 
-            into_sse_parse_error(eventsource_stream::EventStreamError::<anyhow::Error>::Utf8(
-                String::from_utf8(vec![0xFF]).unwrap_err(),
-        ));
-=======
         let error =
             into_sse_parse_error(eventsource_stream::EventStreamError::<anyhow::Error>::Utf8(
                 String::from_utf8(vec![0xFF]).unwrap_err(),
             ));
->>>>>>> 9fa3d7d1d9541005dd72904a458d2ea790838ba2
 
         assert!(!is_retryable(&error));
         assert_eq!(
