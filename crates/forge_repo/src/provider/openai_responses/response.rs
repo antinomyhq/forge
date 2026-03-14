@@ -151,15 +151,18 @@ impl IntoDomain for oai::Response {
     }
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::From)]
+struct ToolCallIndex(u32);
+
 #[derive(Default)]
 struct CodexStreamState {
-    output_index_to_tool_call: HashMap<u32, (ToolCallId, ToolName)>,
-    /// Tracks output indices that have received at least one argument delta.
+    output_index_to_tool_call: HashMap<ToolCallIndex, (ToolCallId, ToolName)>,
+    /// Tracks output indices that have received at least one arguments delta.
     /// When arguments are streamed via deltas, the `done` event should be
     /// skipped to avoid duplication. When no deltas are received (e.g. the
     /// Spark model sends arguments only in the `done` event), we must emit
     /// them from the `done` handler.
-    output_indices_with_deltas: HashSet<u32>,
+    received_toolcall_deltas: HashSet<ToolCallIndex>,
 }
 
 impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
@@ -203,7 +206,7 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                         let tool_name = ToolName::new(call.name.clone());
 
                                         state.output_index_to_tool_call.insert(
-                                            added.output_index,
+                                            added.output_index.into(),
                                             (tool_call_id.clone(), tool_name.clone()),
                                         );
 
@@ -230,10 +233,12 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                 }
                             }
                             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta) => {
-                                state.output_indices_with_deltas.insert(delta.output_index);
+                                state
+                                    .received_toolcall_deltas
+                                    .insert(delta.output_index.into());
                                 let (call_id, name) = state
                                     .output_index_to_tool_call
-                                    .get(&delta.output_index)
+                                    .get(&(delta.output_index.into()))
                                     .cloned()
                                     .unwrap_or_else(|| {
                                         (
@@ -260,8 +265,8 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                 // If deltas were already streamed for this output index,
                                 // the arguments have already been emitted incrementally.
                                 if state
-                                    .output_indices_with_deltas
-                                    .contains(&done.output_index)
+                                    .received_toolcall_deltas
+                                    .contains(&(done.output_index.into()))
                                 {
                                     None
                                 } else {
@@ -270,7 +275,7 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                     // Emit the full tool call now.
                                     let (call_id, name) = state
                                         .output_index_to_tool_call
-                                        .get(&done.output_index)
+                                        .get(&(done.output_index.into()))
                                         .cloned()
                                         .unwrap_or_else(|| {
                                             (
