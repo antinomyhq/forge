@@ -2040,9 +2040,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let sp = self.spinner.clone();
         let sp2 = self.spinner.clone();
         Group::unit(zsh::InstallOhMyZsh::new())
-            .notify_ok(move || {
-                sp.write_ln(format!("  {} Oh My Zsh installed", "[OK]".green()))
-            })
+            .notify_ok(move || sp.write_ln(format!("  {} Oh My Zsh installed", "[OK]".green())))
             .notify_err(move |e| {
                 let _ = sp2.write_ln(
                     TitleFormat::error(format!(
@@ -2122,9 +2120,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let sp = self.spinner.clone();
             let sp2 = sp.clone();
             let task = Group::unit(zsh::InstallFzf::new(platform, sudo))
-                .notify_ok(move || {
-                    sp.write_ln(format!("  {} fzf installed", "[OK]".green()))
-                })
+                .notify_ok(move || sp.write_ln(format!("  {} fzf installed", "[OK]".green())))
                 .notify_err(move |e| {
                     let _ = sp2.write_ln(
                         TitleFormat::error(format!("Failed to install fzf: {e}")).display(),
@@ -2138,9 +2134,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let sp = self.spinner.clone();
             let sp2 = sp.clone();
             let task = Group::unit(zsh::InstallBat::new(platform, sudo))
-                .notify_ok(move || {
-                    sp.write_ln(format!("  {} bat installed", "[OK]".green()))
-                })
+                .notify_ok(move || sp.write_ln(format!("  {} bat installed", "[OK]".green())))
                 .notify_err(move |e| {
                     let _ = sp2.write_ln(
                         TitleFormat::error(format!("Failed to install bat: {e}")).display(),
@@ -2157,9 +2151,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let sp = self.spinner.clone();
             let sp2 = sp.clone();
             let task = Group::unit(zsh::InstallFd::new(platform, sudo))
-                .notify_ok(move || {
-                    sp.write_ln(format!("  {} fd installed", "[OK]".green()))
-                })
+                .notify_ok(move || sp.write_ln(format!("  {} fd installed", "[OK]".green())))
                 .notify_err(move |e| {
                     let _ = sp2.write_ln(
                         TitleFormat::error(format!("Failed to install fd: {e}")).display(),
