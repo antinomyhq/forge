@@ -42,3 +42,4 @@ The script builds and runs `crates/forge_services/examples/workspace_sync_memory
 - Tightened the concurrency cap further after measuring that the memory benchmark still benefits materially at lower limits.
 - Current tuning path: continue lowering the workspace read cap until improvements flatten out or the trade-off looks too severe.
 - The synthetic benchmark continues to improve as the cap drops, so the next probe is whether the absolute minimum concurrency is still meaningfully better.
+- Sequential workspace reads are marginally leaner than the capped batched stream on this workload, despite similar overall wall time.

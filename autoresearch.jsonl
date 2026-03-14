@@ -4,3 +4,5 @@
 {"run":3,"commit":"a2e5f05","metric":28.95,"metrics":{},"status":"keep","description":"cap workspace file-read concurrency to bound sync/status memory","timestamp":1773511934728,"segment":0}
 {"run":4,"commit":"c231fad","metric":19.16,"metrics":{},"status":"keep","description":"lower workspace sync/status read cap from 16 to 8","timestamp":1773511999085,"segment":0}
 {"run":5,"commit":"69bde2c","metric":14.7,"metrics":{},"status":"keep","description":"lower workspace sync/status read cap from 8 to 4","timestamp":1773512072641,"segment":0}
+{"run":6,"commit":"64bff0c","metric":11.58,"metrics":{},"status":"keep","description":"lower workspace sync/status read cap from 4 to 2","timestamp":1773512129528,"segment":0}
+{"run":7,"commit":"64bff0c","metric":13.06,"metrics":{},"status":"discard","description":"try a single-file workspace read cap","timestamp":1773512170989,"segment":0}

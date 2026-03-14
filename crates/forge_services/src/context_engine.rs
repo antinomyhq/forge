@@ -38,10 +38,6 @@ static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
         .collect()
 });
 
-/// Hard cap for concurrent workspace file reads to keep peak memory bounded
-/// even when the global read batch size is configured very high.
-const WORKSPACE_READ_BATCH_LIMIT: usize = 2;
-
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
     &ALLOWED_EXTENSIONS
@@ -584,20 +580,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
     fn read_file_hashes(
         infra: Arc<F>,
-        batch_size: usize,
+        _batch_size: usize,
         file_paths: Vec<PathBuf>,
     ) -> impl Stream<Item = Result<FileHash>> + Send
     where
         F: FileReaderInfra,
     {
-        let batch_size = batch_size.max(1).min(WORKSPACE_READ_BATCH_LIMIT);
-
         async_stream::stream! {
-            let stream = infra.read_batch_utf8(batch_size, file_paths);
-            futures::pin_mut!(stream);
-
-            while let Some((absolute_path, result)) = stream.next().await {
-                match result {
+            for absolute_path in file_paths {
+                match infra.read_utf8(&absolute_path).await {
                     Ok(content) => {
                         yield Ok(FileHash {
                             path: absolute_path.to_string_lossy().to_string(),
@@ -615,20 +606,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
     fn read_file_nodes(
         infra: Arc<F>,
-        batch_size: usize,
+        _batch_size: usize,
         file_paths: Vec<PathBuf>,
     ) -> impl Stream<Item = Result<FileNode>> + Send
     where
         F: FileReaderInfra,
     {
-        let batch_size = batch_size.max(1).min(WORKSPACE_READ_BATCH_LIMIT);
-
         async_stream::stream! {
-            let stream = infra.read_batch_utf8(batch_size, file_paths);
-            futures::pin_mut!(stream);
-
-            while let Some((absolute_path, result)) = stream.next().await {
-                match result {
+            for absolute_path in file_paths {
+                match infra.read_utf8(&absolute_path).await {
                     Ok(content) => {
                         let hash = compute_hash(&content);
                         let absolute_path_str = absolute_path.to_string_lossy().to_string();
