@@ -1651,7 +1651,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let install_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let fail_flag = install_failed.clone();
-        let sp = self.spinner.clone();
 
         let bp_ok_sp = self.spinner.clone();
         let bp_err_sp = self.spinner.clone();
@@ -1665,7 +1664,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .then(self.setup_install_plugins(&deps))
                 .then(self.setup_install_tools(&deps, platform, sudo))
                 .notify_err(move |e| {
-                    let _ = sp.stop(None);
                     tracing::error!(error = ?e, "Installation failed");
                     fail_flag.store(true, std::sync::atomic::Ordering::Relaxed);
                     Ok(())
@@ -1677,9 +1675,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.setup_bash_profile()
                 .notify_ok(move || {
                     bp_ok_sp.stop(None)?;
-                    bp_ok_sp.write_ln(
-                        TitleFormat::info("Configured ~/.bash_profile to auto-start zsh").display(),
-                    )
+                    bp_ok_sp.write_ln(format!(
+                        "  {} Configured ~/.bash_profile to auto-start zsh",
+                        "[OK]".green()
+                    ))
                 })
                 .notify_err(move |e| {
                     let _ = bp_err_sp.stop(None);
@@ -2019,7 +2018,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Group::unit(install_zsh)
             .notify_ok(move || {
                 sp.stop(None)?;
-                sp.write_ln(TitleFormat::info("zsh installed successfully").display())
+                sp.write_ln(format!("  {} zsh installed", "[OK]".green()))
             })
             .notify_err(move |e| {
                 let _ = sp2.stop(None);
@@ -2042,7 +2041,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let sp2 = self.spinner.clone();
         Group::unit(zsh::InstallOhMyZsh::new())
             .notify_ok(move || {
-                sp.write_ln(TitleFormat::info("Oh My Zsh installed successfully").display())
+                sp.write_ln(format!("  {} Oh My Zsh installed", "[OK]".green()))
             })
             .notify_err(move |e| {
                 let _ = sp2.write_ln(
@@ -2099,7 +2098,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(group) => {
                 let sp = self.spinner.clone();
                 group.notify_ok(move || {
-                    sp.write_ln(TitleFormat::info("Plugins installed").display())
+                    sp.write_ln(format!("  {} Plugins installed", "[OK]".green()))
                 })
             }
             None => Group::unit(zsh::Noop),
@@ -2121,23 +2120,33 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         if matches!(deps.fzf, FzfStatus::NotFound) {
             let sp = self.spinner.clone();
-            let task = Group::unit(zsh::InstallFzf::new(platform, sudo)).notify_err(move |e| {
-                let _ = sp.stop(None);
-                let _ = sp
-                    .write_ln(TitleFormat::error(format!("Failed to install fzf: {e}")).display());
-                Err(e)
-            });
+            let sp2 = sp.clone();
+            let task = Group::unit(zsh::InstallFzf::new(platform, sudo))
+                .notify_ok(move || {
+                    sp.write_ln(format!("  {} fzf installed", "[OK]".green()))
+                })
+                .notify_err(move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!("Failed to install fzf: {e}")).display(),
+                    );
+                    Err(e)
+                });
             group = Some(task);
         }
 
         if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
             let sp = self.spinner.clone();
-            let task = Group::unit(zsh::InstallBat::new(platform, sudo)).notify_err(move |e| {
-                let _ = sp.stop(None);
-                let _ = sp
-                    .write_ln(TitleFormat::error(format!("Failed to install bat: {e}")).display());
-                Err(e)
-            });
+            let sp2 = sp.clone();
+            let task = Group::unit(zsh::InstallBat::new(platform, sudo))
+                .notify_ok(move || {
+                    sp.write_ln(format!("  {} bat installed", "[OK]".green()))
+                })
+                .notify_err(move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!("Failed to install bat: {e}")).display(),
+                    );
+                    Err(e)
+                });
             group = Some(match group {
                 Some(g) => g.alongside(task),
                 None => task,
@@ -2146,12 +2155,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
             let sp = self.spinner.clone();
-            let task = Group::unit(zsh::InstallFd::new(platform, sudo)).notify_err(move |e| {
-                let _ = sp.stop(None);
-                let _ =
-                    sp.write_ln(TitleFormat::error(format!("Failed to install fd: {e}")).display());
-                Err(e)
-            });
+            let sp2 = sp.clone();
+            let task = Group::unit(zsh::InstallFd::new(platform, sudo))
+                .notify_ok(move || {
+                    sp.write_ln(format!("  {} fd installed", "[OK]".green()))
+                })
+                .notify_err(move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!("Failed to install fd: {e}")).display(),
+                    );
+                    Err(e)
+                });
             group = Some(match group {
                 Some(g) => g.alongside(task),
                 None => task,
@@ -2159,13 +2173,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         match group {
-            Some(group) => {
-                let sp = self.spinner.clone();
-                group.notify_ok(move || {
-                    sp.stop(None)?;
-                    sp.write_ln(TitleFormat::info("Tools installed (fzf, bat, fd)").display())
-                })
-            }
+            Some(group) => group,
             None => Group::unit(zsh::Noop),
         }
     }

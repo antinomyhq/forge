@@ -177,8 +177,8 @@ async fn install_via_brew(tool: &str) -> Result<()> {
     }
     let status = Command::new("brew")
         .args(["install", tool])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await?;
     if status.success() {
@@ -195,8 +195,8 @@ async fn install_via_pkg(tool: &str) -> Result<()> {
     }
     let status = Command::new("pkg")
         .args(["install", "-y", tool])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await?;
     if status.success() {

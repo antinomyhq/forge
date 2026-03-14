@@ -111,8 +111,8 @@ pub(super) async fn install_oh_my_zsh() -> Result<()> {
         .env("RUNZSH", "no")
         .env("CHSH", "no")
         .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .spawn()
         .context("Failed to spawn sh for Oh My Zsh install")?;
 
@@ -204,8 +204,8 @@ pub(super) async fn install_autosuggestions() -> Result<()> {
             "https://github.com/zsh-users/zsh-autosuggestions.git",
             &path_str(&dest),
         ])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await
         .context("Failed to clone zsh-autosuggestions")?;
@@ -239,8 +239,8 @@ pub(super) async fn install_syntax_highlighting() -> Result<()> {
             "https://github.com/zsh-users/zsh-syntax-highlighting.git",
             &path_str(&dest),
         ])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await
         .context("Failed to clone zsh-syntax-highlighting")?;

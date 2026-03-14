@@ -63,8 +63,8 @@ async fn install_zsh_macos(sudo: &SudoCapability) -> Result<()> {
         if let Ok(brew_user) = std::env::var("SUDO_USER") {
             let status = Command::new("sudo")
                 .args(["-u", &brew_user, "brew", "install", "zsh"])
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
                 .status()
                 .await
                 .context("Failed to run brew as non-root user")?;
@@ -81,8 +81,8 @@ async fn install_zsh_macos(sudo: &SudoCapability) -> Result<()> {
 
     let status = Command::new("brew")
         .args(["install", "zsh"])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await
         .context("Failed to run brew install zsh")?;
@@ -399,8 +399,8 @@ async fn install_zsh_android() -> Result<()> {
 
     let status = Command::new("pkg")
         .args(["install", "-y", "zsh"])
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status()
         .await
         .context("Failed to run pkg install zsh")?;
