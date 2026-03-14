@@ -2179,7 +2179,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let mut input = ForgeWidget::input(format!("Enter {param}:"));
+                let mut input = ForgeWidget::input(format!("Enter {param}"));
 
                 // Add default value if it exists in the credential
                 if let Some(params) = existing_url_params
@@ -2367,7 +2367,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Prompt user to paste authorization code
-        let code = ForgeWidget::input("Paste the authorization code:")
+        let code = ForgeWidget::input("Paste the authorization code")
             .prompt()?
             .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
