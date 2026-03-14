@@ -66,30 +66,32 @@ impl InputBuilder {
         };
 
         let initial = self.default.as_deref().unwrap_or("");
-        let readline = rl.readline_with_initial(&prompt_str, (initial, ""));
-        debug!(output = ?readline, "Readline input");
-        let line = match readline {
-            Ok(s) => s,
-            Err(rustyline::error::ReadlineError::Eof)
-            | Err(rustyline::error::ReadlineError::Interrupted) => return Ok(None),
-            Err(e) => return Err(e.into()),
-        };
 
-        let value = strip_bracketed_paste(&line);
-        let trimmed = value.trim();
+        loop {
+            let readline = rl.readline_with_initial(&prompt_str, (initial, ""));
+            debug!(output = ?readline, "Readline input");
+            let line = match readline {
+                Ok(s) => s,
+                Err(rustyline::error::ReadlineError::Eof)
+                | Err(rustyline::error::ReadlineError::Interrupted) => return Ok(None),
+                Err(e) => return Err(e.into()),
+            };
 
-        if trimmed.is_empty() {
-            if let Some(ref default_val) = self.default {
-                return Ok(Some(default_val.clone()));
+            let value = strip_bracketed_paste(&line);
+            let trimmed = value.trim();
+
+            if trimmed.is_empty() {
+                if let Some(ref default_val) = self.default {
+                    return Ok(Some(default_val.clone()));
+                }
+                if self.allow_empty {
+                    return Ok(Some(String::new()));
+                }
+                continue;
             }
-            if self.allow_empty {
-                return Ok(Some(String::new()));
-            }
-            eprintln!("Input cannot be empty. Please try again.");
-            return Ok(None);
+
+            return Ok(Some(trimmed.to_string()));
         }
-
-        return Ok(Some(trimmed.to_string()));
     }
 }
 
