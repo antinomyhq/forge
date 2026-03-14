@@ -70,7 +70,7 @@
       ]
     },
     "reasoning_effort": {
-      "description": "Reasoning effort level used for all agents\n\nControls the reasoning effort for models that support variable thinking\nlevels (e.g., GPT-5.x). Sent as `reasoning_effort` in the API request.\n- `low` — minimal reasoning, fastest responses\n- `medium` — balanced reasoning effort\n- `high` — maximum reasoning, most thorough responses\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
+      "description": "Reasoning effort level used for all agents\n\nControls the reasoning effort for models that support variable thinking\nlevels (e.g., GPT-5.x). Sent as `reasoning_effort` in the API request.\n- `none` \u2014 no reasoning, raw completion\n- `minimal` \u2014 very light reasoning\n- `low` \u2014 light reasoning, fast responses\n- `medium` \u2014 balanced reasoning effort (default for most models)\n- `high` \u2014 thorough reasoning\n- `xhigh` \u2014 maximum reasoning, most thorough responses\n- If not specified, each agent's individual setting or the model\n  provider's default will be used",
       "anyOf": [
         {
           "$ref": "#/$defs/ReasoningEffortLevel"
@@ -238,12 +238,15 @@
       "format": "float"
     },
     "ReasoningEffortLevel": {
-      "description": "Controls the reasoning effort level for models that support variable thinking.\n\nThis parameter is sent directly as `reasoning_effort` in the OpenAI-compatible\nAPI request body. Models like GPT-5.x use this to control how much computation\nis spent on reasoning:\n- `low` — minimal reasoning, fastest responses\n- `medium` — balanced reasoning effort\n- `high` — maximum reasoning, most thorough responses",
+      "description": "Controls the reasoning effort level for models that support variable thinking.\n\nThis parameter is sent directly as `reasoning_effort` in the OpenAI-compatible\nAPI request body. Models like GPT-5.x and Codex use this to control how much\ncomputation is spent on reasoning:\n- `none` \u2014 no reasoning, raw completion\n- `minimal` \u2014 very light reasoning\n- `low` \u2014 light reasoning, fast responses\n- `medium` \u2014 balanced reasoning effort (default for most models)\n- `high` \u2014 thorough reasoning\n- `xhigh` \u2014 maximum reasoning, most thorough responses",
       "type": "string",
       "enum": [
+        "none",
+        "minimal",
         "low",
         "medium",
-        "high"
+        "high",
+        "xhigh"
       ]
     },
     "TopK": {

@@ -334,9 +334,12 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
         } else if let Some(reasoning_effort) = context.reasoning_effort {
             // Apply standalone reasoning_effort when no reasoning config is set
             let oai_effort = match reasoning_effort {
-                forge_domain::ReasoningEffortLevel::High => oai::ReasoningEffort::High,
-                forge_domain::ReasoningEffortLevel::Medium => oai::ReasoningEffort::Medium,
+                forge_domain::ReasoningEffortLevel::None => oai::ReasoningEffort::None,
+                forge_domain::ReasoningEffortLevel::Minimal => oai::ReasoningEffort::Minimal,
                 forge_domain::ReasoningEffortLevel::Low => oai::ReasoningEffort::Low,
+                forge_domain::ReasoningEffortLevel::Medium => oai::ReasoningEffort::Medium,
+                forge_domain::ReasoningEffortLevel::High => oai::ReasoningEffort::High,
+                forge_domain::ReasoningEffortLevel::Xhigh => oai::ReasoningEffort::Xhigh,
             };
             let reasoning_config = oai::ReasoningArgs::default()
                 .effort(oai_effort)

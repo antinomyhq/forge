@@ -137,9 +137,12 @@ pub struct AgentDefinition {
     ///
     /// Controls the reasoning effort for models that support variable thinking
     /// levels (e.g., GPT-5.x). Sent as `reasoning_effort` in the API request.
-    /// - `low` — minimal reasoning, fastest responses
-    /// - `medium` — balanced reasoning effort
-    /// - `high` — maximum reasoning, most thorough responses
+    /// - `none` — no reasoning, raw completion
+    /// - `minimal` — very light reasoning
+    /// - `low` — light reasoning, fast responses
+    /// - `medium` — balanced reasoning effort (default for most models)
+    /// - `high` — thorough reasoning
+    /// - `xhigh` — maximum reasoning, most thorough responses
     /// - If not specified, the model provider's default will be used
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
