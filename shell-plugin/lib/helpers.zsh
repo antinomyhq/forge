@@ -42,9 +42,20 @@ function _forge_reset() {
   # Clear buffer and reset cursor position
   BUFFER=""
   CURSOR=0
-  # Force widget redraw and prompt reset
-  zle -I
-  zle reset-prompt
+  # Use the builtin .send-break to end the ZLE edit cycle without printing
+  # the buffer or adding a visible blank line.
+  #
+  # .send-break (Ctrl+G) aborts the current line editor, clears the buffer,
+  # and triggers a fresh prompt cycle at the current terminal cursor position.
+  # Unlike .accept-line (which prints an empty buffer + newline, producing a
+  # visible blank line), .send-break cleanly transitions to the new prompt.
+  #
+  # We must NOT use `zle reset-prompt` here because it redraws at the
+  # position where ZLE *thinks* the cursor is -- which is stale after
+  # _forge_exec_interactive wrote output directly to /dev/tty (bypassing
+  # ZLE's cursor tracking). That stale redraw overwrites the last few
+  # lines of output.
+  zle .send-break
 }
 
 
