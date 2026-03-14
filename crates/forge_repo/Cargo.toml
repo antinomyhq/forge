@@ -47,6 +47,7 @@ gray_matter = { workspace = true }
 dirs.workspace = true
 async-openai.workspace = true
 google-cloud-auth.workspace = true
+whoami.workspace = true
 
 # gRPC for codebase client
 tonic.workspace = true

@@ -69,6 +69,7 @@ impl ProviderId {
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
     pub const MINIMAX: ProviderId = ProviderId(Cow::Borrowed("minimax"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
+    pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
 
     /// Returns all built-in provider IDs
     ///
@@ -98,6 +99,7 @@ impl ProviderId {
             ProviderId::BEDROCK,
             ProviderId::MINIMAX,
             ProviderId::CODEX,
+            ProviderId::OPENCODE_ZEN,
         ]
     }
 
@@ -121,6 +123,7 @@ impl ProviderId {
             "io_intelligence" => "IOIntelligence".to_string(),
             "minimax" => "MiniMax".to_string(),
             "codex" => "Codex".to_string(),
+            "opencode_zen" => "OpenCodeZen".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -163,6 +166,7 @@ impl std::str::FromStr for ProviderId {
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
             "minimax" => ProviderId::MINIMAX,
             "codex" => ProviderId::CODEX,
+            "opencode_zen" => ProviderId::OPENCODE_ZEN,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -522,6 +526,7 @@ mod tests {
         );
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
         assert_eq!(ProviderId::CODEX.to_string(), "Codex");
+        assert_eq!(ProviderId::OPENCODE_ZEN.to_string(), "OpenCodeZen");
     }
 
     #[test]

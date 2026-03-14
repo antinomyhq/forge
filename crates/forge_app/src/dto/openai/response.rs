@@ -23,17 +23,22 @@ fn is_non_zero_cost(cost: &f64) -> bool {
 #[serde(untagged)]
 pub enum Response {
     Success {
+        #[serde(default)]
         id: String,
         provider: Option<String>,
         #[serde(default)]
         model: Option<String>,
         choices: Vec<Choice>,
+        #[serde(default)]
         created: u64,
         object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
         #[serde(default)]
         prompt_filter_results: Option<Vec<PromptFilterResult>>,
+        /// Cost field from OpenCode Zen and similar providers
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cost: Option<String>,
     },
     Failure {
         error: ErrorResponse,
@@ -578,6 +583,7 @@ mod tests {
             system_fingerprint: None,
             usage: None,
             prompt_filter_results: None,
+            cost: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -617,6 +623,7 @@ mod tests {
             system_fingerprint: None,
             usage: None,
             prompt_filter_results: None,
+            cost: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -654,6 +661,7 @@ mod tests {
             system_fingerprint: None,
             usage: None,
             prompt_filter_results: None,
+            cost: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -691,6 +699,7 @@ mod tests {
             system_fingerprint: None,
             usage: None,
             prompt_filter_results: None,
+            cost: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -711,6 +720,7 @@ mod tests {
             system_fingerprint: None,
             usage: None,
             prompt_filter_results: None,
+            cost: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -898,6 +908,7 @@ mod tests {
                     violence: Some(FilterResult { filtered: false, severity: "safe".to_string() }),
                 },
             }]),
+            cost: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -906,5 +917,26 @@ mod tests {
         let error_string = format!("{:?}", error);
         assert!(error_string.contains("Content was filtered"));
         assert!(error_string.contains("hate"));
+    }
+
+    #[test]
+    fn test_opencode_zen_response_with_cost() {
+        // Test OpenCode Zen response format: {"choices":[],"cost":"0"}
+        let response_json = r#"{"choices":[],"cost":"0"}"#;
+
+        let actual = serde_json::from_str::<Response>(response_json);
+        assert!(
+            actual.is_ok(),
+            "Should parse OpenCode Zen response: {:?}",
+            actual.err()
+        );
+
+        // Verify it converts to ChatCompletionMessage correctly
+        let response = actual.unwrap();
+        let completion_result = ChatCompletionMessage::try_from(response);
+        assert!(completion_result.is_ok());
+
+        let message = completion_result.unwrap();
+        assert_eq!(message.content.unwrap().as_str(), "");
     }
 }
