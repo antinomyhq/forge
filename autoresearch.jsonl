@@ -14,3 +14,8 @@
 {"run":13,"commit":"6cd8532","metric":11.25,"metrics":{},"status":"discard","description":"hash local files from raw bytes with UTF-8 validation to avoid read_to_string allocations","timestamp":1773514387441,"segment":0}
 {"run":14,"commit":"6f537b2","metric":11.17,"metrics":{},"status":"keep","description":"compare sync/status paths in workspace-relative form and absolutize only outputs","timestamp":1773514594240,"segment":0}
 {"run":15,"commit":"6f537b2","metric":12.27,"metrics":{},"status":"discard","description":"decode remote SHA-256 hex strings to 32-byte arrays during sync/status planning","timestamp":1773514796018,"segment":0}
+{"run":16,"commit":"db0c88f","metric":11.16,"metrics":{},"status":"keep","description":"drop unused git ls-files basename allocations during workspace discovery","timestamp":1773514863360,"segment":0}
+{"run":17,"commit":"db0c88f","metric":13.11,"metrics":{},"status":"discard","description":"replace WalkedFile discovery buffers with direct PathBuf path lists","timestamp":1773514977506,"segment":0}
+{"run":18,"commit":"db0c88f","metric":11.75,"metrics":{},"status":"discard","description":"shrink remote hash maps before sync/status comparison","timestamp":1773515043789,"segment":0}
+{"run":19,"commit":"db0c88f","metric":12.77,"metrics":{},"status":"discard","description":"store remote sync/status hash maps as boxed strings to trim String headers","timestamp":1773515163402,"segment":0}
+{"run":20,"commit":"db0c88f","metric":11.17,"metrics":{},"status":"discard","description":"reuse remote hash strings from the fetched vector via path-to-index maps","timestamp":1773515490198,"segment":0}

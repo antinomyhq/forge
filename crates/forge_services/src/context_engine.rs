@@ -302,6 +302,27 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         emit(counter.sync_progress()).await;
 
+        if total_operations == 0 {
+            info!(
+                workspace_id = %workspace_id,
+                total_files = total_file_count,
+                "Workspace already in sync; skipping delete/upload phase"
+            );
+
+            emit(SyncProgress::Completed {
+                total_files: total_file_count,
+                uploaded_files: 0,
+                failed_files,
+            })
+            .await;
+
+            return if failed_files > 0 {
+                Err(forge_domain::Error::sync_failed(failed_files).into())
+            } else {
+                Ok(())
+            };
+        }
+
         match self
             .delete_files(
                 &user_id,
