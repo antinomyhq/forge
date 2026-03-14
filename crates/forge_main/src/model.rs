@@ -282,6 +282,7 @@ impl ForgeCommandManager {
                 Ok(SlashCommand::Commit { max_diff_size })
             }
             "/index" => Ok(SlashCommand::Index),
+            "/fast" | "/f" => Ok(SlashCommand::Fast),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -437,6 +438,10 @@ pub enum SlashCommand {
     /// Index the current workspace for semantic code search
     #[strum(props(usage = "Index the current workspace for semantic search"))]
     Index,
+
+    /// Toggle fast mode (priority inference at 2x cost)
+    #[strum(props(usage = "Toggle fast mode (priority inference at 2x cost)"))]
+    Fast,
 }
 
 impl SlashCommand {
@@ -469,6 +474,7 @@ impl SlashCommand {
             SlashCommand::Delete => "delete",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
+            SlashCommand::Fast => "fast",
         }
     }
 
