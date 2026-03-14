@@ -9,8 +9,7 @@
 # Save any existing right prompt before we overwrite it.
 # This runs once at source time; subsequent sources are a no-op because
 # the function will already be our version (not the original).
-if functions -q fish_right_prompt
-    and not functions -q _forge_original_fish_right_prompt
+if functions -q fish_right_prompt; and not functions -q _forge_original_fish_right_prompt
     # Only save if the current fish_right_prompt is NOT ours
     # (i.e., it doesn't contain "_FORGE_BIN" in its body)
     set -l body (functions fish_right_prompt)
@@ -39,7 +38,8 @@ function fish_right_prompt --description "Right prompt with ForgeCode session in
             env \
                 _FORGE_CONVERSATION_ID="$_FORGE_CONVERSATION_ID" \
                 _FORGE_ACTIVE_AGENT="$_FORGE_ACTIVE_AGENT" \
-                $forge_bin zsh rprompt 2>/dev/null
+                $forge_bin zsh rprompt 2>/dev/null \
+            | string collect
         )
 
         if test -n "$forge_info"

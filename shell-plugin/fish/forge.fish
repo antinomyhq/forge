@@ -210,16 +210,19 @@ function _forge_start_background_sync --description "Background workspace sync"
         return 0
     end
     set -l workspace_path (pwd -P)
+    set -l escaped_path (string escape -- "$workspace_path")
+    set -l escaped_bin (string escape -- "$_FORGE_BIN")
     fish -c "
-        if command $_FORGE_BIN workspace info '$workspace_path' >/dev/null 2>&1
-            command $_FORGE_BIN workspace sync '$workspace_path' >/dev/null 2>&1
+        if command $escaped_bin workspace info $escaped_path >/dev/null 2>&1
+            command $escaped_bin workspace sync $escaped_path >/dev/null 2>&1
         end
     " &
     disown 2>/dev/null
 end
 
 function _forge_start_background_update --description "Background update check"
-    fish -c "command $_FORGE_BIN update --no-confirm >/dev/null 2>&1" &
+    set -l escaped_bin (string escape -- "$_FORGE_BIN")
+    fish -c "command $escaped_bin update --no-confirm >/dev/null 2>&1" &
     disown 2>/dev/null
 end
 
@@ -291,7 +294,7 @@ function _forge_select_provider --description "FZF provider picker helper"
             _forge_log error "No $filter_status providers found"
             return 1
         end
-        printf '%s\n%s\n' "$header" "$filtered" >$tmpfile
+        printf '%s\n' "$header" $filtered >$tmpfile
     end
 
     if test -z "$current_provider"
@@ -753,9 +756,8 @@ function _forge_action_editor --description "Open editor for multi-line input"
     end
 
     # Read content, strip carriage returns
-    set -l content (command cat "$temp_file" | tr -d '\r')
-    set -l content_str (printf '%s\n' $content)
-    if test -z "$content_str" -o "$content_str" = ""
+    set -l content_str (command cat "$temp_file" | tr -d '\r' | string collect)
+    if test -z "$content_str"
         _forge_log info "Editor closed with no content"
         commandline -r ""
         return 0
@@ -779,7 +781,7 @@ function _forge_action_suggest --description "Generate shell command from descri
 
     set -l generated_command (FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
     if test -n "$generated_command"
-        set -l cmd_str (printf '%s ' $generated_command | string trim)
+        set -l cmd_str (printf '%s\n' $generated_command | string collect | string trim)
         commandline -r "$cmd_str"
         commandline -C (string length "$cmd_str")
     else
@@ -814,9 +816,9 @@ function _forge_action_commit_preview --description "Preview commit message, pla
     end
 
     if test -n "$commit_message"
-        # Join list back to string and escape for shell safety
-        set -l msg_str (printf '%s\n' $commit_message)
-        set -l escaped_message (string escape -- "$msg_str")
+        # Join list back to string preserving blank lines and escape for shell
+        set -l msg_str (printf '%s\n' $commit_message | string collect)
+        set -l escaped_message (string escape --style=script -- "$msg_str")
         if git diff --staged --quiet 2>/dev/null
             commandline -r "git commit -am $escaped_message"
         else
@@ -832,11 +834,15 @@ end
 
 function _forge_action_doctor --description "Run diagnostics"
     echo
+    # NOTE: forge currently only exposes `zsh doctor` — no fish-specific subcommand yet.
+    # Output is still useful for checking dependencies, providers, and system config.
     command $_FORGE_BIN zsh doctor
 end
 
 function _forge_action_keyboard --description "Show keyboard shortcuts"
     echo
+    # NOTE: forge currently only exposes `zsh keyboard` — output shows zsh keybindings.
+    # Fish users should refer to `bind` or the plugin README for fish-specific bindings.
     command $_FORGE_BIN zsh keyboard
 end
 
@@ -910,7 +916,7 @@ function _forge_accept_line --description "Intercept Enter key for :command disp
 
     # ── Pattern 1: ":action [args]" ──────────────────────────────────────────
     if string match -rq '^:([a-zA-Z][a-zA-Z0-9_-]*)(\s+(.*))?$' -- "$buf"
-        set -l user_action (string match -r '^:([a-zA-Z][a-zA-Z0-9_-]*)' -- "$buf" | tail -1)
+        set -l user_action (string match -r '^:([a-zA-Z][a-zA-Z0-9_-]*)' -- "$buf")[2]
         set -l input_text ""
 
         # Extract everything after the command name
@@ -1100,7 +1106,7 @@ if status is-interactive
     bind \t _forge_completion
 
     # Also bind in insert mode for vi-mode users
-    if bind --mode insert \r 2>/dev/null
+    if test "$fish_key_bindings" = fish_vi_key_bindings
         bind --mode insert \r _forge_accept_line
         bind --mode insert \n _forge_accept_line
         bind --mode insert \t _forge_completion
