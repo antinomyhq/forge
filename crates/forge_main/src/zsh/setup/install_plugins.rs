@@ -315,7 +315,11 @@ const END_MARKER: &str = "# <<< forge initialize <<<";
 fn remove_autostart_blocks(content: &mut String) {
     loop {
         let mut found = false;
-        for marker in &["# >>> forge initialize >>>", "# Added by zsh installer", "# Added by forge zsh setup"] {
+        for marker in &[
+            "# >>> forge initialize >>>",
+            "# Added by zsh installer",
+            "# Added by forge zsh setup",
+        ] {
             if let Some(start) = content.find(marker) {
                 found = true;
                 // Check if there's a newline before the marker (added by our block format)
