@@ -57,7 +57,13 @@ impl InputBuilder {
     pub fn prompt(self) -> Result<Option<String>> {
         let mut rl = DefaultEditor::new()?;
 
-        let prompt_str = format!("{} {}: ", "?".yellow().bold(), self.message.bold());
+        // On Windows, rustyline miscounts ANSI escape bytes as visible characters,
+        // causing incorrect cursor placement and extra space before the editor.
+        let prompt_str = if cfg!(windows) {
+            format!("? {}: ", self.message)
+        } else {
+            format!("{} {}: ", "?".yellow().bold(), self.message.bold())
+        };
 
         let initial = self.default.as_deref().unwrap_or("");
         let readline = rl.readline_with_initial(&prompt_str, (initial, ""));
