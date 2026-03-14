@@ -801,6 +801,7 @@ impl TryFrom<ContextRecord> for Context {
                 .temperature
                 .map(forge_domain::Temperature::new_unchecked),
             reasoning_effort: record.reasoning_effort,
+            service_tier: None,
             top_p: record.top_p.map(forge_domain::TopP::new_unchecked),
             top_k: record.top_k.map(forge_domain::TopK::new_unchecked),
             reasoning: record.reasoning.map(Into::into),

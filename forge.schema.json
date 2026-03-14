@@ -80,6 +80,17 @@
         }
       ]
     },
+    "service_tier": {
+      "description": "Service tier for API requests\n\nControls the processing priority for all agents:\n- `fast` \u2014 priority processing at 2x cost (fastest inference)\n- `flex` \u2014 flexible processing at reduced cost\n- `auto` \u2014 let the API choose the appropriate tier\n- If not specified, each agent's individual setting or the model provider's default will be used",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ServiceTier"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "templates": {
       "description": "Path pattern for custom template files (supports glob patterns)",
       "type": [
@@ -287,6 +298,15 @@
         "daily",
         "weekly",
         "always"
+      ]
+    },
+    "ServiceTier": {
+      "description": "Controls the service tier for API requests.\n\nThis parameter is sent as `service_tier` in the OpenAI API request body:\n- `fast` \u2014 priority processing at 2x cost (maps to \"priority\" in the API)\n- `flex` \u2014 flexible processing at reduced cost\n- `auto` \u2014 let the API choose the appropriate tier",
+      "type": "string",
+      "enum": [
+        "fast",
+        "flex",
+        "auto"
       ]
     }
   }

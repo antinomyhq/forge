@@ -1973,6 +1973,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Use default batch size of 100 for slash command
                 self.on_index(working_dir, 100).await?;
             }
+            SlashCommand::Fast => {
+                self.state.fast_mode = !self.state.fast_mode;
+                if self.state.fast_mode {
+                    self.state.service_tier = Some(forge_domain::ServiceTier::Fast);
+                    self.writeln("⚡ Fast mode ON — priority inference at 2x plan usage".to_string())?;
+                } else {
+                    self.state.service_tier = None;
+                    self.writeln("Fast mode OFF — using default inference".to_string())?;
+                }
+            }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
                 let agents = self.api.get_agents().await?;

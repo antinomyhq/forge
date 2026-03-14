@@ -349,6 +349,16 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
             builder.reasoning(reasoning_config);
         }
 
+        // Apply service tier if provided
+        if let Some(service_tier) = context.service_tier {
+            let oai_tier = match service_tier {
+                forge_domain::ServiceTier::Fast => oai::ServiceTier::Priority,
+                forge_domain::ServiceTier::Flex => oai::ServiceTier::Flex,
+                forge_domain::ServiceTier::Auto => oai::ServiceTier::Auto,
+            };
+            builder.service_tier(oai_tier);
+        }
+
         if let Some(prompt_cache_key) = prompt_cache_key {
             builder.prompt_cache_key(prompt_cache_key);
         }
