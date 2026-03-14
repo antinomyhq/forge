@@ -39,7 +39,11 @@ impl ConfirmBuilder {
             None => "y/n".to_string(),
         };
 
-        let message_with_hint = format!("{} {}", self.message, hint.yellow());
+        let message_with_hint = if cfg!(windows) {
+            format!("{} {}", self.message, hint)
+        } else {
+            format!("{} {}", self.message, hint.yellow())
+        };
 
         loop {
             let input_builder = InputBuilder {
