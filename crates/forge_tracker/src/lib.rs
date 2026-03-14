@@ -5,6 +5,7 @@ mod dispatch;
 mod error;
 mod event;
 mod log;
+mod rate_limit;
 pub use can_track::VERSION;
 pub use dispatch::Tracker;
 use error::Result;

@@ -263,7 +263,9 @@ impl ToolOperation {
                 // Handle text content
                 let content = output.content.file_content();
                 let content = if input.show_line_numbers {
-                    content.to_numbered_from(output.start_line as usize)
+                    content
+                        .to_numbered_from(output.start_line as usize)
+                        .to_string()
                 } else {
                     content.to_string()
                 };
@@ -437,8 +439,10 @@ impl ToolOperation {
 
                             let mut content_parts = Vec::new();
                             for chunk in chunks {
-                                let numbered =
-                                    chunk.content.to_numbered_from(chunk.start_line as usize);
+                                let numbered = chunk
+                                    .content
+                                    .to_numbered_from(chunk.start_line as usize)
+                                    .to_string();
                                 content_parts.push(numbered);
                             }
 

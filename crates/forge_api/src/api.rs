@@ -157,6 +157,22 @@ pub trait API: Sync + Send {
     /// Sets the operating model
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 
+    /// Gets the commit configuration (provider and model for commit message
+    /// generation).
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
+
+    /// Sets the commit configuration (provider and model for commit message
+    /// generation).
+    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()>;
+
+    /// Gets the suggest configuration (provider and model for command
+    /// suggestion generation).
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
+
+    /// Sets the suggest configuration (provider and model for command
+    /// suggestion generation).
+    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 

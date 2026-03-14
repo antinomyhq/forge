@@ -33,7 +33,7 @@ fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
     }
 }
 
-impl<F> ForgeHttpInfra<F> {
+impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     pub fn new(env: Environment, file_writer: Arc<F>) -> Self {
         let env = env.clone();
         let env_http = env.clone();
@@ -117,6 +117,8 @@ impl<F> ForgeHttpInfra<F> {
     ) -> anyhow::Result<Response> {
         let mut request_headers = self.headers(headers);
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+
+        self.write_debug_request(&body);
 
         self.execute_request("POST", url, |client| {
             client.post(url.clone()).headers(request_headers).body(body)
@@ -202,6 +204,17 @@ impl<F> ForgeHttpInfra<F> {
 }
 
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
+    fn write_debug_request(&self, body: &Bytes) {
+        if let Some(debug_path) = &self.env.debug_requests {
+            let file_writer = self.file.clone();
+            let body_clone = body.clone();
+            let debug_path = debug_path.clone();
+            tokio::spawn(async move {
+                let _ = file_writer.write(&debug_path, body_clone).await;
+            });
+        }
+    }
+
     async fn eventsource(
         &self,
         url: &Url,
@@ -211,15 +224,7 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
         let mut request_headers = self.headers(headers);
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
-        if let Some(debug_path) = &self.env.debug_requests {
-            let file_writer = self.file.clone();
-            let body_clone = body.clone();
-            let debug_path = debug_path.clone();
-            tokio::spawn(async move {
-                // Use debug_path if parent dir can be created, otherwise use fallback
-                let _ = file_writer.write(&debug_path, body_clone).await;
-            });
-        }
+        self.write_debug_request(&body);
 
         self.client
             .post(url.clone())
@@ -381,6 +386,53 @@ mod tests {
 
         let writes = file_writer.get_writes().await;
         assert_eq!(writes.len(), 1, "Should write one file");
+        assert_eq!(writes[0].0, debug_path);
+        assert_eq!(writes[0].1, body);
+    }
+
+    #[tokio::test]
+    async fn test_debug_requests_post_none_does_not_write() {
+        let file_writer = MockFileWriter::new();
+        let env = create_test_env(None);
+        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
+
+        let body = Bytes::from("test request body");
+        let url = Url::parse("http://127.0.0.1:9/responses").unwrap();
+
+        let _ = http.post(&url, None, body).await;
+
+        // Give async task time to complete
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let writes = file_writer.get_writes().await;
+        assert_eq!(
+            writes.len(),
+            0,
+            "No files should be written for POST when debug_requests is None"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_debug_requests_post_writes_body() {
+        let file_writer = MockFileWriter::new();
+        let debug_path = PathBuf::from("/tmp/forge-test/debug-post.json");
+        let env = create_test_env(Some(debug_path.clone()));
+        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
+
+        let body = Bytes::from("test request body");
+        let url = Url::parse("http://127.0.0.1:9/responses").unwrap();
+
+        let _ = http.post(&url, None, body.clone()).await;
+
+        // Give async task time to complete
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let writes = file_writer.get_writes().await;
+        assert_eq!(
+            writes.len(),
+            1,
+            "Should write one file for POST when debug_requests is set"
+        );
         assert_eq!(writes[0].0, debug_path);
         assert_eq!(writes[0].1, body);
     }

@@ -3,30 +3,52 @@ use nom::bytes::complete::tag;
 
 use crate::{Document, Image};
 
+/// A file or directory attachment included in a chat message.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct Attachment {
+    /// The resolved content of the attachment (image, file text, or directory
+    /// listing).
     pub content: AttachmentContent,
+    /// The original path or URL string used to reference this attachment.
     pub path: String,
 }
 
+/// The resolved content of an attachment, discriminated by the type of resource
+/// it represents.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AttachmentContent {
+    /// A binary image file encoded for inline display.
     Image(Image),
+    /// A text file, optionally restricted to a line range.
     Document(Document),
     FileContent {
+        /// Line-numbered display text shown to the model. May represent only a
+        /// slice of the full file when a range was requested.
         content: String,
+        /// First line of the displayed range (1-based, inclusive).
         start_line: u64,
+        /// Last line of the displayed range (1-based, inclusive).
         end_line: u64,
+        /// Total number of lines in the full file on disk.
         total_lines: u64,
+        /// SHA-256 hash of the raw (unformatted, untruncated) file content.
+        /// Used for external-change detection so the stored hash matches what
+        /// the detector reads back from disk, avoiding false-positive warnings.
+        content_hash: String,
     },
+    /// A directory listing showing the immediate children of a directory.
     DirectoryListing {
+        /// Entries contained in the directory.
         entries: Vec<DirectoryEntry>,
     },
 }
 
+/// A single entry within a directory listing attachment.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct DirectoryEntry {
+    /// Path of the entry relative to the listed directory.
     pub path: String,
+    /// Whether this entry is itself a directory.
     pub is_dir: bool,
 }
 

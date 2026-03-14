@@ -121,7 +121,7 @@ impl FileReaderInfra for ForgeInfra {
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+    ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
         self.file_read_service.read_batch_utf8(batch_size, paths)
     }
 
@@ -218,7 +218,7 @@ impl UserInfra for ForgeInfra {
         self.inquire_service.prompt_question(question).await
     }
 
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,

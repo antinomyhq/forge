@@ -513,7 +513,7 @@ Configuring the tool calls settings:
 ```bash
 # .env
 FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
-FORGE_MAX_IMAGE_SIZE=262144    # Maximum image file size in bytes for read_image operations (default: 262144 - 256 KB)
+FORGE_MAX_IMAGE_SIZE=10485760  # Maximum image file size in bytes for read_image operations (default: 10485760 - 10 MB)
 FORGE_DUMP_AUTO_OPEN=false     # Automatically open dump files in browser (default: false)
 FORGE_DEBUG_REQUESTS=/path/to/debug/requests.json  # Write debug HTTP request files to specified path (supports absolute and relative paths)
 ```
@@ -599,6 +599,20 @@ The `FORGE_LOG` variable controls the logging level for Forge's internal operati
 - `forge=info` - Informational messages (default when tracking enabled)
 - `forge=debug` - Debug information (default when tracking disabled)
 - `forge=trace` - Detailed tracing
+
+</details>
+
+<details>
+<summary><strong>Tracking Configuration</strong></summary>
+
+Control tracking of user-identifying metadata in telemetry events:
+
+```bash
+# .env
+FORGE_TRACKER=false                   # Disable tracking enrichment metadata (default: true)
+```
+
+The `FORGE_TRACKER` variable controls whether tracking enrichment metadata is included in telemetry events.
 
 </details>
 
@@ -771,6 +785,18 @@ MCP tools can be used as part of multi-agent workflows, allowing specialized age
 ## Documentation
 
 For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).
+
+---
+
+## Installation
+
+```bash
+# YOLO
+curl -fsSL https://forgecode.dev/cli | sh
+
+# Package managers
+nix run github:antinomyhq/forge # for latest dev branch
+```
 
 ---
 

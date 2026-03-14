@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use colored::Colorize;
 use forge_api::{API, Update};
+use forge_select::ForgeWidget;
 use forge_tracker::VERSION;
 use update_informer::{Check, Version, registry};
 
@@ -25,7 +26,7 @@ async fn execute_update_command(api: Arc<impl API>, auto_update: bool) {
                 let should_exit = if auto_update {
                     true
                 } else {
-                    let answer = forge_select::ForgeSelect::confirm(
+                    let answer = forge_select::ForgeWidget::confirm(
                         "You need to close forge to complete update. Do you want to close it now?",
                     )
                     .with_default(true)
@@ -48,7 +49,7 @@ async fn execute_update_command(api: Arc<impl API>, auto_update: bool) {
 }
 
 async fn confirm_update(version: Version) -> bool {
-    let answer = forge_select::ForgeSelect::confirm(format!(
+    let answer = ForgeWidget::confirm(format!(
         "Confirm upgrade from {} -> {} (latest)?",
         VERSION.to_string().bold().white(),
         version.to_string().bold().white()

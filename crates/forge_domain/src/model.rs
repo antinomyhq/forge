@@ -77,3 +77,11 @@ impl ModelId {
         &self.0
     }
 }
+
+impl std::str::FromStr for ModelId {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(ModelId(s.to_string()))
+    }
+}
