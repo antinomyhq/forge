@@ -12,3 +12,5 @@
 {"run":11,"commit":"fb4e5ec","metric":12.22,"metrics":{},"status":"discard","description":"replace remote hash maps with sorted merge-join planning for sync and status","timestamp":1773514182854,"segment":0}
 {"run":12,"commit":"6cd8532","metric":11.25,"metrics":{},"status":"keep","description":"switch remote hash planning from BTreeMap to HashMap plus final key sorting","timestamp":1773514272499,"segment":0}
 {"run":13,"commit":"6cd8532","metric":11.25,"metrics":{},"status":"discard","description":"hash local files from raw bytes with UTF-8 validation to avoid read_to_string allocations","timestamp":1773514387441,"segment":0}
+{"run":14,"commit":"6f537b2","metric":11.17,"metrics":{},"status":"keep","description":"compare sync/status paths in workspace-relative form and absolutize only outputs","timestamp":1773514594240,"segment":0}
+{"run":15,"commit":"6f537b2","metric":12.27,"metrics":{},"status":"discard","description":"decode remote SHA-256 hex strings to 32-byte arrays during sync/status planning","timestamp":1773514796018,"segment":0}

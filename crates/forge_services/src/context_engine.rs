@@ -599,13 +599,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .stdout
             .lines()
             .filter(|line| !line.is_empty())
-            .map(|line| {
-                let path = line.trim().to_string();
-                let file_name = std::path::Path::new(&path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string());
-                WalkedFile { path, file_name, size: 0 }
-            })
+            .map(|line| WalkedFile { path: line.trim().to_string(), file_name: None, size: 0 })
             .collect();
 
         Ok(files)
