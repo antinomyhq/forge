@@ -38,6 +38,10 @@ static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
         .collect()
 });
 
+/// Hard cap for concurrent workspace file reads to keep peak memory bounded
+/// even when the global read batch size is configured very high.
+const WORKSPACE_READ_BATCH_LIMIT: usize = 16;
+
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
 fn allowed_extensions() -> &'static HashSet<String> {
     &ALLOWED_EXTENSIONS
@@ -586,6 +590,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: FileReaderInfra,
     {
+        let batch_size = batch_size.max(1).min(WORKSPACE_READ_BATCH_LIMIT);
+
         async_stream::stream! {
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
@@ -615,6 +621,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: FileReaderInfra,
     {
+        let batch_size = batch_size.max(1).min(WORKSPACE_READ_BATCH_LIMIT);
+
         async_stream::stream! {
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
