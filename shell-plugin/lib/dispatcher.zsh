@@ -65,8 +65,6 @@ function _forge_action_default() {
         _FORGE_CONVERSATION_ID="$new_id"
     fi
     
-    echo
-    
     # Only set the agent if user explicitly specified one
     if [[ -n "$user_action" ]]; then
         _FORGE_ACTIVE_AGENT="$user_action"
@@ -226,7 +224,12 @@ function forge-accept-line() {
         keyboard-shortcuts|kb)
             _forge_action_keyboard
         ;;
+        echo)
+            zle -I
+            _forge_action_echo "$input_text"
+        ;;
         *)
+            zle -I
             _forge_action_default "$user_action" "$input_text"
         ;;
     esac
