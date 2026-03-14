@@ -1,0 +1,1 @@
+{"type":"config","name":"Reduce Forge workspace-service memory","metricName":"peak_rss_mb","metricUnit":"mb","bestDirection":"lower"}
