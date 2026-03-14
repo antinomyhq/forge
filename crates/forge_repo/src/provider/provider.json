@@ -550,7 +550,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "claude-opus-4-6",
