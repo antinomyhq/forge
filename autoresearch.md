@@ -37,3 +37,4 @@ The script builds and runs `crates/forge_services/examples/workspace_sync_memory
 ## What's Been Tried
 - Added a synthetic workspace-sync memory benchmark that exercises the current service path on a large tracked repo with in-sync remote hashes.
 - Initial hypothesis: peak memory is dominated by collecting `Vec<FileNode>` for all files and cloning/hash-planning from that full-content buffer.
+- Current experiment: split sync/status into a hash-only planning phase plus a second read only for files that are actually new/modified. This should preserve behavior while dropping full-content retention for in-sync files.

@@ -1,1 +1,2 @@
 {"type":"config","name":"Reduce Forge workspace-service memory","metricName":"peak_rss_mb","metricUnit":"mb","bestDirection":"lower"}
+{"run":1,"commit":"3942cf6","metric":212.52,"metrics":{},"status":"keep","description":"baseline: add synthetic workspace-sync memory benchmark harness","timestamp":1773511446490,"segment":0}
