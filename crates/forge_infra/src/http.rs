@@ -405,7 +405,11 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         let writes = file_writer.get_writes().await;
-        assert_eq!(writes.len(), 0, "No files should be written for POST when debug_requests is None");
+        assert_eq!(
+            writes.len(),
+            0,
+            "No files should be written for POST when debug_requests is None"
+        );
     }
 
     #[tokio::test]
@@ -424,7 +428,11 @@ mod tests {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         let writes = file_writer.get_writes().await;
-        assert_eq!(writes.len(), 1, "Should write one file for POST when debug_requests is set");
+        assert_eq!(
+            writes.len(),
+            1,
+            "Should write one file for POST when debug_requests is set"
+        );
         assert_eq!(writes[0].0, debug_path);
         assert_eq!(writes[0].1, body);
     }

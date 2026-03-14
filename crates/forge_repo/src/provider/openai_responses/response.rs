@@ -259,7 +259,10 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done) => {
                                 // If deltas were already streamed for this output index,
                                 // the arguments have already been emitted incrementally.
-                                if state.output_indices_with_deltas.contains(&done.output_index) {
+                                if state
+                                    .output_indices_with_deltas
+                                    .contains(&done.output_index)
+                                {
                                     None
                                 } else {
                                     // No deltas were received (e.g. the Spark model sends
@@ -1056,7 +1059,9 @@ mod tests {
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
             Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+                done,
+            )),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -1477,7 +1482,9 @@ mod tests {
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+                done,
+            )),
             Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
