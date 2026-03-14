@@ -963,7 +963,8 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
-      },{
+      },
+      {
         "id": "gemini-3-flash-preview",
         "name": "Gemini 3 Flash Preview",
         "description": "Google's fast and capable model with thinking support",
@@ -1672,7 +1673,6 @@
     "response_type": "Anthropic",
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{/if}}",
     "models": [
-
       {
         "id": "claude-sonnet-4-6",
         "name": "Claude Sonnet 4.6",
@@ -1682,7 +1682,8 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
-      },{
+      },
+      {
         "id": "claude-opus-4-6",
         "name": "Claude Opus 4.6",
         "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
@@ -1831,6 +1832,16 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.3-codex-spark",
+        "name": "GPT-5.3 Codex Spark",
+        "description": "Text-only research preview model optimized for near-instant, real-time coding iteration.",
+        "context_length": 272000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "gpt-5.3-codex",
