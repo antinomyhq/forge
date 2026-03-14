@@ -3114,12 +3114,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 self.writeln_title(TitleFormat::action(title))?;
                 let continued = self.should_continue().await?;
-                if !continued
-                    && let Some(conversation_id) = self.state.conversation_id {
-                        self.writeln_title(
-                            TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
-                        )?;
-                    }
+                if !continued && let Some(conversation_id) = self.state.conversation_id {
+                    self.writeln_title(
+                        TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
+                    )?;
+                }
             }
             ChatResponse::TaskReasoning { content } => {
                 writer.write_dimmed(&content)?;
