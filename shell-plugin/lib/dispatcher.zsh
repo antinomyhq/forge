@@ -166,6 +166,12 @@ function forge-accept-line() {
         config-model|model|m)
             _forge_action_model "$input_text"
         ;;
+        fast|f)
+            _forge_action_fast "$input_text"
+        ;;
+        thinking|reasoning)
+            _forge_action_thinking "$input_text"
+        ;;
         config-commit-model|ccm)
             _forge_action_commit_model "$input_text"
         ;;

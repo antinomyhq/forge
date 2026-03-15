@@ -230,6 +230,28 @@ pub trait AppConfigService: Send + Sync {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    /// Gets the service tier configuration.
+    async fn get_service_tier(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ServiceTier>>;
+
+    /// Sets the service tier configuration.
+    async fn set_service_tier(
+        &self,
+        tier: Option<forge_domain::ServiceTier>,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the reasoning effort level configuration.
+    async fn get_reasoning_effort(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningEffortLevel>>;
+
+    /// Sets the reasoning effort level configuration.
+    async fn set_reasoning_effort(
+        &self,
+        level: Option<forge_domain::ReasoningEffortLevel>,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1063,6 +1085,32 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
         self.config_service().set_suggest_config(config).await
+    }
+
+    async fn get_service_tier(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ServiceTier>> {
+        self.config_service().get_service_tier().await
+    }
+
+    async fn set_service_tier(
+        &self,
+        tier: Option<forge_domain::ServiceTier>,
+    ) -> anyhow::Result<()> {
+        self.config_service().set_service_tier(tier).await
+    }
+
+    async fn get_reasoning_effort(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningEffortLevel>> {
+        self.config_service().get_reasoning_effort().await
+    }
+
+    async fn set_reasoning_effort(
+        &self,
+        level: Option<forge_domain::ReasoningEffortLevel>,
+    ) -> anyhow::Result<()> {
+        self.config_service().set_reasoning_effort(level).await
     }
 }
 

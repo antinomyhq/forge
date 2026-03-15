@@ -560,6 +560,20 @@ pub enum ConfigSetField {
         /// Model ID to use for command suggestion generation.
         model: ModelId,
     },
+    /// Set the service tier (fast, flex, auto, or off to clear).
+    #[command(alias = "fast")]
+    ServiceTier {
+        /// Service tier value: fast (priority at 2x cost), flex (reduced cost),
+        /// auto (let API choose), or off (clear setting).
+        tier: String,
+    },
+    /// Set the reasoning effort level (xhigh, high, medium, low, minimal, none, or off to clear).
+    #[command(alias = "thinking")]
+    ReasoningEffort {
+        /// Reasoning effort level: xhigh, high, medium, low, minimal, none,
+        /// or off (clear setting).
+        level: String,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -573,6 +587,12 @@ pub enum ConfigGetField {
     Commit,
     /// Get the command suggestion generation config.
     Suggest,
+    /// Get the service tier setting.
+    #[command(alias = "fast")]
+    ServiceTier,
+    /// Get the reasoning effort level setting.
+    #[command(alias = "thinking")]
+    ReasoningEffort,
 }
 
 /// Command group for conversation management.
