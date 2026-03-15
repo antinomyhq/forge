@@ -646,7 +646,7 @@ function Invoke-ForgeActionNew {
     if ($InputText) {
         $newId = & $script:ForgeBin conversation new
         Switch-ForgeConversation -NewConversationId $newId
-        Invoke-ForgeInteractive -p $InputText --cid $script:ForgeConversationId
+        Invoke-ForgeInteractive -- -p $InputText --cid $script:ForgeConversationId
         Start-ForgeBackgroundSync
         Start-ForgeBackgroundUpdate
     } else {
@@ -1106,7 +1106,7 @@ function Invoke-ForgeActionDefault {
         $script:ForgeActiveAgent = $UserAction
     }
 
-    Invoke-ForgeInteractive -p $InputText --cid $script:ForgeConversationId
+    Invoke-ForgeInteractive -- -p $InputText --cid $script:ForgeConversationId
     Start-ForgeBackgroundSync
     Start-ForgeBackgroundUpdate
 }
@@ -1214,7 +1214,7 @@ function Invoke-ForgePrompt {
         $script:ForgeConversationId = $newId
     }
     Write-Host ''
-    Invoke-ForgeInteractive -p $PromptText --cid $script:ForgeConversationId
+    Invoke-ForgeInteractive -- -p $PromptText --cid $script:ForgeConversationId
     Start-ForgeBackgroundSync
     Start-ForgeBackgroundUpdate
 }
@@ -1302,6 +1302,36 @@ function Invoke-ForgeTabComplete {
 # Right Prompt Info
 # =============================================================================
 
+function Convert-ZshToAnsi {
+    <#
+    .SYNOPSIS
+        Convert ZSH prompt escape codes to ANSI escape sequences.
+    #>
+    [CmdletBinding()]
+    param([string]$Text)
+
+    $esc = "`e"
+    $result = $Text
+
+    # %B = bold on, %b = bold off (case-sensitive)
+    $result = $result -creplace '%B', "$esc[1m"
+    $result = $result -creplace '%b', "$esc[22m"
+
+    # %F{N} = foreground color N (256-color), %f = reset foreground (case-sensitive)
+    $result = [regex]::Replace($result, '%F\{(\d+)\}', { param($m) "$esc[38;5;$($m.Groups[1].Value)m" })
+    $result = $result -creplace '%f', "$esc[39m"
+
+    # %K{N} = background color N, %k = reset background (case-sensitive)
+    $result = [regex]::Replace($result, '%K\{(\d+)\}', { param($m) "$esc[48;5;$($m.Groups[1].Value)m" })
+    $result = $result -creplace '%k', "$esc[49m"
+
+    # %U = underline on, %u = underline off (case-sensitive)
+    $result = $result -creplace '%U', "$esc[4m"
+    $result = $result -creplace '%u', "$esc[24m"
+
+    return $result
+}
+
 function Get-ForgePromptInfo {
     <#
     .SYNOPSIS
@@ -1316,7 +1346,8 @@ function Get-ForgePromptInfo {
     try {
         $info = & $script:ForgeBin zsh rprompt 2>$null
         if ($info) {
-            return ($info -join '').Trim()
+            $raw = ($info -join '').Trim()
+            return (Convert-ZshToAnsi $raw)
         }
     } catch { }
     return ''
