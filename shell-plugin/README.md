@@ -32,6 +32,27 @@ sudo apt install fzf fd-find
 sudo pacman -S fzf fd
 ```
 
+## Setup
+
+Add the following to your `~/.zshrc` (after `oh-my-zsh` is sourced, if you use it):
+
+```bash
+# Forge shell plugin + theme
+eval "$(forge zsh plugin)"
+eval "$(forge zsh theme)"
+```
+
+The **plugin** provides `:` commands, tab completion, keybindings, and syntax highlighting.
+The **theme** adds an RPROMPT status line showing the active agent, token count, and model (e.g. `󱙺 FORGE 16.8k  gpt-5.4`).
+
+Then reload your shell:
+
+```bash
+source ~/.zshrc
+```
+
+Run `:doctor` to verify everything is set up correctly.
+
 ## Usage
 
 ### Starting a Conversation
