@@ -43,3 +43,6 @@
 {"run":1,"commit":"efe3cb4","metric":0,"metrics":{},"status":"crash","description":"baseline: exact cognee-tools prompt still fails on invalid jina uri format in cached MCP schema","timestamp":1773549536604,"segment":0}
 {"run":2,"commit":"efe3cb4","metric":0,"metrics":{},"status":"crash","description":"build hardened forge and corrupt jina MCP cache entry; prompt still emitted an error in runtime output","timestamp":1773549760868,"segment":0}
 {"run":3,"commit":"efe3cb4","metric":0,"metrics":{},"status":"crash","description":"remove forge and reinstall fish integration with current binary; fresh install failed because no default provider was configured","timestamp":1773549910490,"segment":0}
+{"run":4,"commit":"bbf9b25","metric":1,"metrics":{},"status":"keep","description":"stop fish colon dispatch from echoing typed prompt so : prompt and :command do not visually repeat","timestamp":1773550572070,"segment":0}
+{"run":5,"commit":"bbf9b25","metric":1,"metrics":{},"status":"discard","description":"verify current default Codex provider can answer `what is vellum`; direct forge prompt succeeds so failure is not a stable baseline repro","timestamp":1773551242766,"segment":0}
+{"type":"config","name":"Remove flow-nexus MCP traces from user config and cache","metricName":"flow_nexus_artifacts","metricUnit":"","bestDirection":"lower"}
