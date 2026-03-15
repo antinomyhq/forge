@@ -340,12 +340,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     tracker::error(&error);
                     tracing::error!(error = ?error);
                     self.spinner.stop(None)?;
-                    let error_fmt = TitleFormat::error(error.to_string()).display().to_string();
 
-                    if let Ok(error) = error.downcast::<ReadLineError>() {
-                        return Err(error)?;
-                    } else {
-                        self.writeln_to_stderr(error_fmt)?;
+                    match error.downcast::<ReadLineError>() {
+                        Ok(error) => {
+                            return Err(error)?;
+                        }
+                        Err(error) => self.writeln_to_stderr(
+                            TitleFormat::error(error.to_string()).display().to_string(),
+                        )?,
                     }
                 }
             }
