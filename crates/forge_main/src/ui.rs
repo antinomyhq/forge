@@ -1318,22 +1318,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
-        let service_tier = self
-            .api
-            .get_service_tier()
-            .await
-            .ok()
-            .flatten()
-            .map(|t| t.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let reasoning_effort = self
-            .api
-            .get_reasoning_effort()
-            .await
-            .ok()
-            .flatten()
-            .map(|l| l.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
+        let service_tier = match self.api.get_service_tier().await {
+            Ok(Some(tier)) => tier.to_string(),
+            Ok(None) => markers::EMPTY.to_string(),
+            Err(err) => {
+                tracing::debug!(error = ?err, "failed to get service tier");
+                markers::EMPTY.to_string()
+            }
+        };
+        let reasoning_effort = match self.api.get_reasoning_effort().await {
+            Ok(Some(effort)) => effort.to_string(),
+            Ok(None) => markers::EMPTY.to_string(),
+            Err(err) => {
+                tracing::debug!(error = ?err, "failed to get reasoning effort");
+                markers::EMPTY.to_string()
+            }
+        };
 
         let info = Info::new()
             .add_title("CONFIGURATION")
@@ -1997,14 +1997,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 if self.state.fast_mode {
                     self.state.service_tier = Some(forge_domain::ServiceTier::Fast);
                     self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::Xhigh);
-                    let _ = self.api.set_service_tier(Some(forge_domain::ServiceTier::Fast)).await;
-                    let _ = self.api.set_reasoning_effort(Some(forge_domain::ReasoningEffortLevel::Xhigh)).await;
+                    if let Err(e) = self.api.set_service_tier(Some(forge_domain::ServiceTier::Fast)).await {
+                        tracing::debug!(error = ?e, "failed to persist service tier");
+                    }
+                    if let Err(e) = self.api.set_reasoning_effort(Some(forge_domain::ReasoningEffortLevel::Xhigh)).await {
+                        tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                    }
                     self.writeln("⚡ Fast mode ON — priority inference + xhigh reasoning (2x cost)".to_string())?;
                 } else {
                     self.state.service_tier = None;
                     self.state.reasoning_effort = None;
-                    let _ = self.api.set_service_tier(None).await;
-                    let _ = self.api.set_reasoning_effort(None).await;
+                    if let Err(e) = self.api.set_service_tier(None).await {
+                        tracing::debug!(error = ?e, "failed to persist service tier");
+                    }
+                    if let Err(e) = self.api.set_reasoning_effort(None).await {
+                        tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                    }
                     self.writeln("Fast mode OFF — using default inference and reasoning".to_string())?;
                 }
             }
@@ -2043,7 +2051,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 {
                     Some(level) => {
                         self.state.reasoning_effort = Some(level.value);
-                        let _ = self.api.set_reasoning_effort(Some(level.value)).await;
+                        if let Err(e) = self.api.set_reasoning_effort(Some(level.value)).await {
+                            tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                        }
                         self.writeln(format!("Reasoning effort set to: {}", level.value))?;
                     }
                     None => {}
@@ -2064,7 +2074,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 if let Some(l) = level {
                     self.state.reasoning_effort = Some(l);
-                    let _ = self.api.set_reasoning_effort(Some(l)).await;
+                    if let Err(e) = self.api.set_reasoning_effort(Some(l)).await {
+                        tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                    }
                 }
                 self.writeln(format!("Reasoning effort set to: {}", level_str))?;
             }
@@ -3485,7 +3497,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     "off" | "none" | "clear" => None,
                     _ => {
                         anyhow::bail!(
-                            "Invalid service tier '{}'. Valid values: fast, flex, auto, off",
+                            "Invalid service tier '{}'. Valid values: fast (priority), flex, auto, off (none, clear)",
                             tier
                         );
                     }
@@ -3509,7 +3521,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     "off" | "clear" => None,
                     _ => {
                         anyhow::bail!(
-                            "Invalid reasoning effort '{}'. Valid values: xhigh, high, medium, low, minimal, none, off",
+                            "Invalid reasoning effort '{}'. Valid values: xhigh, high, medium (med), low, minimal (min), none, off (clear)",
                             level
                         );
                     }
