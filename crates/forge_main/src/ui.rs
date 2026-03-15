@@ -304,6 +304,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Get initial input from prompt
+        // Prompt can fail if it doesn't have access to TTY. If it fails the first time,
+        // we will stop everything and bubble up the error.
         let mut command = anyhow::Ok(self.prompt().await?);
 
         loop {
