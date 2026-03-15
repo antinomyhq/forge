@@ -962,9 +962,8 @@ function _forge_accept_line --description "Intercept Enter key for :command disp
         builtin history merge 2>/dev/null
         builtin history add -- "$buf" 2>/dev/null
 
-        # Clear the commandline and echo what was typed
+        # Clear the commandline before dispatch
         commandline -r ""
-        echo ": $user_action $input_text"
 
         # Alias resolution
         switch $user_action
@@ -1055,7 +1054,6 @@ function _forge_accept_line --description "Intercept Enter key for :command disp
         set -l input_text (string replace -r '^:\s+' '' -- "$buf")
 
         commandline -r ""
-        echo ": $input_text"
 
         if test -z "$_FORGE_CONVERSATION_ID"
             set -l new_id (command $_FORGE_BIN conversation new)

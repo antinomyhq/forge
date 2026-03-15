@@ -38,3 +38,8 @@
 {"run":1,"commit":"868c362","metric":0,"metrics":{},"status":"crash","description":"baseline: reproduce invalid flow-nexus cached array schemas missing items for Codex/OpenAI Responses","timestamp":1773548946883,"segment":0}
 {"run":2,"commit":"868c362","metric":0,"metrics":{},"status":"crash","description":"add strict array-items normalization plus targeted tests and install updated forge binary","timestamp":1773549061827,"segment":0}
 {"run":3,"commit":"868c362","metric":0,"metrics":{},"status":"crash","description":"narrow verification to forge_repo targeted test plus binary install; hit unrelated existing test fixture breakage","timestamp":1773549131352,"segment":0}
+{"run":4,"commit":"efe3cb4","metric":1,"metrics":{},"status":"keep","description":"normalize missing array items in strict MCP schemas and patch invalid flow-nexus cache entries","timestamp":1773549295371,"segment":0}
+{"type":"config","name":"Harden MCP cache reads and OpenAI tool schema normalization","metricName":"repro_success","metricUnit":"","bestDirection":"higher"}
+{"run":1,"commit":"efe3cb4","metric":0,"metrics":{},"status":"crash","description":"baseline: exact cognee-tools prompt still fails on invalid jina uri format in cached MCP schema","timestamp":1773549536604,"segment":0}
+{"run":2,"commit":"efe3cb4","metric":0,"metrics":{},"status":"crash","description":"build hardened forge and corrupt jina MCP cache entry; prompt still emitted an error in runtime output","timestamp":1773549760868,"segment":0}
+{"run":3,"commit":"efe3cb4","metric":0,"metrics":{},"status":"crash","description":"remove forge and reinstall fish integration with current binary; fresh install failed because no default provider was configured","timestamp":1773549910490,"segment":0}
