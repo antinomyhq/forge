@@ -141,18 +141,24 @@ impl<S: Services> ForgeApp<S> {
         let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
             .apply(conversation);
 
-        // Override with user-configured service tier and reasoning effort from AppConfig.
-        // These take precedence over agent/workflow defaults when set via :fast or :thinking.
+        // Override with user-configured service tier and reasoning effort.
+        // First check AppConfig (persisted settings), then ChatRequest (per-request overrides).
         let conversation = {
             let mut conv = conversation;
-            if let Ok(Some(tier)) = services.get_service_tier().await {
-                if let Some(ref mut ctx) = conv.context {
+            if let Some(ref mut ctx) = conv.context {
+                // AppConfig overrides (from :fast / :thinking persisted state)
+                if let Ok(Some(tier)) = services.get_service_tier().await {
                     ctx.service_tier = Some(tier);
                 }
-            }
-            if let Ok(Some(effort)) = services.get_reasoning_effort().await {
-                if let Some(ref mut ctx) = conv.context {
+                if let Ok(Some(effort)) = services.get_reasoning_effort().await {
                     ctx.reasoning_effort = Some(effort);
+                }
+                // ChatRequest overrides take highest precedence
+                if let Some(st) = chat.service_tier {
+                    ctx.service_tier = Some(st);
+                }
+                if let Some(re) = chat.reasoning_effort {
+                    ctx.reasoning_effort = Some(re);
                 }
             }
             conv

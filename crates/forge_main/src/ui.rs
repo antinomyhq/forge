@@ -2830,7 +2830,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let event: UserCommand = serde_json::from_str(&json)?;
 
         // Create the chat request with the event
-        let chat = ChatRequest::new(event.into(), conversation_id);
+        let mut chat = ChatRequest::new(event.into(), conversation_id);
+        chat.service_tier = self.state.service_tier;
+        chat.reasoning_effort = self.state.reasoning_effort;
 
         self.on_chat(chat).await
     }
@@ -3033,7 +3035,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Create the chat request with the event
-        let chat = ChatRequest::new(event, conversation_id);
+        let mut chat = ChatRequest::new(event, conversation_id);
+        chat.service_tier = self.state.service_tier;
+        chat.reasoning_effort = self.state.reasoning_effort;
 
         self.on_chat(chat).await
     }
@@ -3388,7 +3392,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_custom_event(&mut self, event: Event) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
-        let chat = ChatRequest::new(event, conversation_id);
+        let mut chat = ChatRequest::new(event, conversation_id);
+        chat.service_tier = self.state.service_tier;
+        chat.reasoning_effort = self.state.reasoning_effort;
         self.on_chat(chat).await
     }
 

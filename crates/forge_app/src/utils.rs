@@ -240,6 +240,15 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
                 );
             }
 
+            // OpenAI strict mode: remove unsupported JSON Schema keywords.
+            // OpenAI's function calling API rejects schemas containing "format"
+            // (e.g., "uri", "date-time") and "$schema" declarations that MCP
+            // servers commonly emit.
+            if strict_mode {
+                map.remove("format");
+                map.remove("$schema");
+            }
+
             // Recursively normalize nested schemas
             for value in map.values_mut() {
                 enforce_strict_schema(value, strict_mode);
@@ -413,6 +422,60 @@ mod tests {
 
         assert_eq!(schema["properties"]["layers"]["items"], json!({}));
         assert_eq!(schema["required"], json!(["layers"]));
+    }
+
+    #[test]
+    fn test_format_and_schema_stripped_in_strict_mode() {
+        let mut schema = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "The URL"
+                },
+                "date": {
+                    "type": "string",
+                    "format": "date-time",
+                    "description": "A date"
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        // $schema should be removed at top level
+        assert!(schema.get("$schema").is_none());
+        // format should be removed from properties
+        assert!(schema["properties"]["url"].get("format").is_none());
+        assert!(schema["properties"]["date"].get("format").is_none());
+        // other fields preserved
+        assert_eq!(schema["properties"]["url"]["type"], json!("string"));
+        assert_eq!(
+            schema["properties"]["url"]["description"],
+            json!("The URL")
+        );
+    }
+
+    #[test]
+    fn test_format_preserved_in_non_strict_mode() {
+        let mut schema = json!({
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, false);
+
+        // In non-strict mode, format and $schema should be preserved
+        assert!(schema.get("$schema").is_some());
+        assert_eq!(schema["properties"]["url"]["format"], json!("uri"));
     }
 
     #[test]
