@@ -33,6 +33,7 @@ use crate::cli::{
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
+use crate::editor::ReadLineError;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{ForgeCommandManager, SlashCommand};
@@ -306,7 +307,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Get initial input from prompt
         // Prompt can fail if it doesn't have access to TTY. If it fails the first time,
         // we will stop everything and bubble up the error.
-        let mut command = anyhow::Ok(self.prompt().await?);
+        let mut command = self.prompt().await;
 
         loop {
             match command {
@@ -335,14 +336,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                     self.spinner.stop(None)?;
                 }
-                Err(error) => {
-                    tracker::error(&error);
-                    tracing::error!(error = ?error);
-                    self.spinner.stop(None)?;
-                    self.writeln_to_stderr(
-                        TitleFormat::error(error.to_string()).display().to_string(),
-                    )?;
-                }
+                Err(error) => match error.downcast::<ReadLineError>() {
+                    Ok(error) => {
+                        return Err(error)?;
+                    }
+                    Err(error) => {
+                        tracker::error(&error);
+                        tracing::error!(error = ?error);
+                        self.spinner.stop(None)?;
+                        self.writeln_to_stderr(
+                            TitleFormat::error(error.to_string()).display().to_string(),
+                        )?;
+                    }
+                },
             }
             // Centralized prompt call at the end of the loop
             command = self.prompt().await;
