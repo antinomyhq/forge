@@ -183,6 +183,76 @@ function Invoke-Forge {
     & $script:ForgeBin --agent $agentId @ForgeArgs
 }
 
+function ConvertTo-ForgeBase64 {
+    <#
+    .SYNOPSIS
+        Encode text as UTF-8 base64 for safe PSReadLine command insertion.
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [string]$Text
+    )
+
+    if ([string]::IsNullOrEmpty($Text)) {
+        return ''
+    }
+
+    [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Text))
+}
+
+function ConvertFrom-ForgeBase64 {
+    <#
+    .SYNOPSIS
+        Decode UTF-8 base64 text produced by ConvertTo-ForgeBase64.
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowNull()]
+        [string]$EncodedText
+    )
+
+    if ([string]::IsNullOrEmpty($EncodedText)) {
+        return ''
+    }
+
+    [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($EncodedText))
+}
+
+function Get-ForgeDispatchCommand {
+    <#
+    .SYNOPSIS
+        Build a single-line PowerShell command for dispatching forge actions.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Action,
+
+        [AllowEmptyString()]
+        [string]$InputText = ''
+    )
+
+    $escapedAction = $Action -replace "'", "''"
+    $encodedInput = ConvertTo-ForgeBase64 -Text $InputText
+    "Invoke-ForgeDispatchEncoded '$escapedAction' '$encodedInput'"
+}
+
+function Get-ForgePromptCommand {
+    <#
+    .SYNOPSIS
+        Build a single-line PowerShell command for dispatching forge prompts.
+    #>
+    [CmdletBinding()]
+    param(
+        [AllowEmptyString()]
+        [string]$PromptText = ''
+    )
+
+    $encodedPrompt = ConvertTo-ForgeBase64 -Text $PromptText
+    "Invoke-ForgePromptEncoded '$encodedPrompt'"
+}
+
 function Invoke-ForgeInteractive {
     <#
     .SYNOPSIS
@@ -1256,6 +1326,24 @@ function Invoke-ForgeDispatch {
     }
 }
 
+function Invoke-ForgeDispatchEncoded {
+    <#
+    .SYNOPSIS
+        Main dispatcher variant that decodes base64 input before dispatching.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [string]$Action = '',
+
+        [Parameter(Position = 1)]
+        [string]$EncodedInputText = ''
+    )
+
+    $inputText = ConvertFrom-ForgeBase64 -EncodedText $EncodedInputText
+    Invoke-ForgeDispatch -Action $Action -RemainingArgs @($inputText)
+}
+
 function Invoke-ForgePrompt {
     <#
     .SYNOPSIS
@@ -1280,6 +1368,21 @@ function Invoke-ForgePrompt {
     Invoke-ForgeInteractive -- -p $PromptText --cid $script:ForgeConversationId
     Start-ForgeBackgroundSync
     Start-ForgeBackgroundUpdate
+}
+
+function Invoke-ForgePromptEncoded {
+    <#
+    .SYNOPSIS
+        Prompt handler variant that decodes base64 input before dispatching.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Position = 0)]
+        [string]$EncodedPromptText = ''
+    )
+
+    $promptText = ConvertFrom-ForgeBase64 -EncodedText $EncodedPromptText
+    Invoke-ForgePrompt -PromptWords @($promptText)
 }
 
 # =============================================================================
@@ -1440,25 +1543,22 @@ function Register-ForgeKeyHandlers {
         [Microsoft.PowerShell.PSConsoleReadLine]::GetBufferState([ref]$line, [ref]$cursor)
 
         # Pattern 1: ":action [args]" (e.g., :new, :agent sage)
-        if ($line -match '^:([a-zA-Z][a-zA-Z0-9_-]*)(\s+(.*))?$') {
+        if ($line -match '^:([a-zA-Z][a-zA-Z0-9_-]*)(\s+([\s\S]*))?$') {
             $action = $Matches[1]
             $actionArgs = if ($Matches[3]) { $Matches[3] } else { '' }
-
-            # Escape single quotes in arguments for safe passing
-            $escapedAction = $action -replace "'", "''"
-            $escapedArgs = $actionArgs -replace "'", "''"
+            $dispatchCommand = Get-ForgeDispatchCommand -Action $action -InputText $actionArgs
 
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::Insert("Invoke-ForgeDispatch '$escapedAction' '$escapedArgs'")
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($dispatchCommand)
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         }
         # Pattern 2: ": prompt text" (bare prompt, no command name)
-        elseif ($line -match '^:\s+(.+)$') {
+        elseif ($line -match '^:\s+([\s\S]+)$') {
             $prompt = $Matches[1]
-            $escapedPrompt = $prompt -replace "'", "''"
+            $promptCommand = Get-ForgePromptCommand -PromptText $prompt
 
             [Microsoft.PowerShell.PSConsoleReadLine]::RevertLine()
-            [Microsoft.PowerShell.PSConsoleReadLine]::Insert("Invoke-ForgePrompt '$escapedPrompt'")
+            [Microsoft.PowerShell.PSConsoleReadLine]::Insert($promptCommand)
             [Microsoft.PowerShell.PSConsoleReadLine]::AcceptLine()
         }
         # Not a forge command: execute normally
@@ -1635,7 +1735,9 @@ Export-ModuleMember -Function @(
     'Disable-ForgePlugin',
     # These must be exported so PSReadLine handlers (which run in a different scope) can call them
     'Invoke-ForgeDispatch',
+    'Invoke-ForgeDispatchEncoded',
     'Invoke-ForgePrompt',
+    'Invoke-ForgePromptEncoded',
     'Invoke-ForgeTabComplete',
     'Get-ForgePromptInfo'
 )

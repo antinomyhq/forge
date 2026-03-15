@@ -37,7 +37,9 @@
         'Enable-ForgePlugin',
         'Disable-ForgePlugin',
         'Invoke-ForgeDispatch',
+        'Invoke-ForgeDispatchEncoded',
         'Invoke-ForgePrompt',
+        'Invoke-ForgePromptEncoded',
         'Invoke-ForgeTabComplete',
         'Get-ForgePromptInfo'
     )
