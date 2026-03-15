@@ -85,8 +85,11 @@ function _forge_action_provider() {
         # Extract the second field (provider ID) from the selected line
         # Format: "DisplayName  provider_id  host  type  status"
         local provider_id=$(echo "$selected" | awk '{print $2}')
-        # Always use config set - it will handle authentication if needed
-        _forge_exec config set provider "$provider_id"
+        # Use _forge_exec_interactive because config-set may trigger
+        # interactive authentication prompts (rustyline) when the provider
+        # is not yet configured. Without /dev/tty redirection, ZLE's pipes
+        # cause rustyline to see EOF and fail with "API key input cancelled".
+        _forge_exec_interactive config set provider "$provider_id"
     fi
 }
 
@@ -158,7 +161,7 @@ function _forge_action_model() {
             local current_provider
             current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
-                _forge_exec config set provider "$provider_id"
+                _forge_exec_interactive config set provider "$provider_id"
             fi
 
             _forge_exec config set model "$model_id"

@@ -12,7 +12,7 @@ function _forge_action_login() {
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID)
         local provider=$(echo "$selected" | awk '{print $2}')
-        _forge_exec provider login "$provider"
+        _forge_exec_interactive provider login "$provider"
     fi
 }
 

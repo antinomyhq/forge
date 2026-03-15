@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::Utc;
 use forge_api::Conversation;
 use forge_domain::ConversationId;
-use forge_select::ForgeSelect;
+use forge_select::ForgeWidget;
 
 use crate::display_constants::markers;
 use crate::info::Info;
@@ -107,7 +107,7 @@ impl ConversationSelector {
             .unwrap_or(0);
 
         if let Some(selected) = tokio::task::spawn_blocking(move || {
-            ForgeSelect::select("Conversation", rows)
+            ForgeWidget::select("Conversation", rows)
                 .with_starting_cursor(starting_cursor)
                 .with_header_lines(1)
                 .prompt()
