@@ -21,6 +21,7 @@ use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
+use crate::services::AppConfigService;
 use crate::{
     AgentProviderResolver, ConversationService, EnvironmentService, FileDiscoveryService,
     ProviderService, Services, WorkflowService,
@@ -139,6 +140,24 @@ impl<S: Services> ForgeApp<S> {
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);
         let conversation = ApplyTunableParameters::new(agent.clone(), tool_definitions.clone())
             .apply(conversation);
+
+        // Override with user-configured service tier and reasoning effort from AppConfig.
+        // These take precedence over agent/workflow defaults when set via :fast or :thinking.
+        let conversation = {
+            let mut conv = conversation;
+            if let Ok(Some(tier)) = services.get_service_tier().await {
+                if let Some(ref mut ctx) = conv.context {
+                    ctx.service_tier = Some(tier);
+                }
+            }
+            if let Ok(Some(effort)) = services.get_reasoning_effort().await {
+                if let Some(ref mut ctx) = conv.context {
+                    ctx.reasoning_effort = Some(effort);
+                }
+            }
+            conv
+        };
+
         let conversation = SetConversationId.apply(conversation);
 
         // Create the orchestrator with all necessary dependencies

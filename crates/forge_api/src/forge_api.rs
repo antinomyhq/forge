@@ -309,6 +309,30 @@ impl<
         self.services.set_suggest_config(config).await
     }
 
+    async fn get_service_tier(&self) -> anyhow::Result<Option<forge_domain::ServiceTier>> {
+        self.services.get_service_tier().await
+    }
+
+    async fn set_service_tier(
+        &self,
+        tier: Option<forge_domain::ServiceTier>,
+    ) -> anyhow::Result<()> {
+        self.services.set_service_tier(tier).await
+    }
+
+    async fn get_reasoning_effort(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningEffortLevel>> {
+        self.services.get_reasoning_effort().await
+    }
+
+    async fn set_reasoning_effort(
+        &self,
+        level: Option<forge_domain::ReasoningEffortLevel>,
+    ) -> anyhow::Result<()> {
+        self.services.set_reasoning_effort(level).await
+    }
+
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
     }

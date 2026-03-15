@@ -17,6 +17,7 @@ use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
+use crate::services::AppConfigService;
 use crate::{
     AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
 };
@@ -110,6 +111,23 @@ impl Runner {
         let conversation = InitConversationMetrics::new(setup.current_time).apply(conversation);
         let conversation =
             ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
+
+        // Override with user-configured service tier and reasoning effort from AppConfig
+        let conversation = {
+            let mut conv = conversation;
+            if let Ok(Some(tier)) = services.get_service_tier().await {
+                if let Some(ref mut ctx) = conv.context {
+                    ctx.service_tier = Some(tier);
+                }
+            }
+            if let Ok(Some(effort)) = services.get_reasoning_effort().await {
+                if let Some(ref mut ctx) = conv.context {
+                    ctx.reasoning_effort = Some(effort);
+                }
+            }
+            conv
+        };
+
         let conversation = SetConversationId.apply(conversation);
 
         let orch = Orchestrator::new(services.clone(), setup.env.clone(), conversation, agent)

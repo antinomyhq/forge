@@ -110,6 +110,38 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         })
         .await
     }
+
+    async fn get_service_tier(&self) -> anyhow::Result<Option<forge_domain::ServiceTier>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.service_tier)
+    }
+
+    async fn set_service_tier(
+        &self,
+        tier: Option<forge_domain::ServiceTier>,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.service_tier = tier;
+        })
+        .await
+    }
+
+    async fn get_reasoning_effort(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningEffortLevel>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.reasoning_effort)
+    }
+
+    async fn set_reasoning_effort(
+        &self,
+        level: Option<forge_domain::ReasoningEffortLevel>,
+    ) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.reasoning_effort = level;
+        })
+        .await
+    }
 }
 
 #[cfg(test)]

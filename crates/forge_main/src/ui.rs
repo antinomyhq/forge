@@ -1318,10 +1318,29 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
+        let service_tier = match self.api.get_service_tier().await {
+            Ok(Some(tier)) => tier.to_string(),
+            Ok(None) => markers::EMPTY.to_string(),
+            Err(err) => {
+                tracing::debug!(error = ?err, "failed to get service tier");
+                markers::EMPTY.to_string()
+            }
+        };
+        let reasoning_effort = match self.api.get_reasoning_effort().await {
+            Ok(Some(effort)) => effort.to_string(),
+            Ok(None) => markers::EMPTY.to_string(),
+            Err(err) => {
+                tracing::debug!(error = ?err, "failed to get reasoning effort");
+                markers::EMPTY.to_string()
+            }
+        };
+
         let info = Info::new()
             .add_title("CONFIGURATION")
             .add_key_value("Default Model", model)
             .add_key_value("Default Provider", provider)
+            .add_key_value("Service Tier", service_tier)
+            .add_key_value("Reasoning Effort", reasoning_effort)
             .add_key_value("Commit Provider", commit_provider)
             .add_key_value("Commit Model", commit_model)
             .add_key_value("Suggest Provider", suggest_provider)
@@ -1978,10 +1997,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 if self.state.fast_mode {
                     self.state.service_tier = Some(forge_domain::ServiceTier::Fast);
                     self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::Xhigh);
+                    if let Err(e) = self.api.set_service_tier(Some(forge_domain::ServiceTier::Fast)).await {
+                        tracing::debug!(error = ?e, "failed to persist service tier");
+                    }
+                    if let Err(e) = self.api.set_reasoning_effort(Some(forge_domain::ReasoningEffortLevel::Xhigh)).await {
+                        tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                    }
                     self.writeln("⚡ Fast mode ON — priority inference + xhigh reasoning (2x cost)".to_string())?;
                 } else {
                     self.state.service_tier = None;
                     self.state.reasoning_effort = None;
+                    if let Err(e) = self.api.set_service_tier(None).await {
+                        tracing::debug!(error = ?e, "failed to persist service tier");
+                    }
+                    if let Err(e) = self.api.set_reasoning_effort(None).await {
+                        tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                    }
                     self.writeln("Fast mode OFF — using default inference and reasoning".to_string())?;
                 }
             }
@@ -2020,22 +2051,31 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 {
                     Some(level) => {
                         self.state.reasoning_effort = Some(level.value);
+                        if let Err(e) = self.api.set_reasoning_effort(Some(level.value)).await {
+                            tracing::debug!(error = ?e, "failed to persist reasoning effort");
+                        }
                         self.writeln(format!("Reasoning effort set to: {}", level.value))?;
                     }
                     None => {}
                 }
             }
             SlashCommand::ThinkingSet(ref level_str) => {
-                match level_str.as_str() {
-                    "none" => self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::None),
-                    "minimal" => self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::Minimal),
-                    "low" => self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::Low),
-                    "medium" => self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::Medium),
-                    "high" => self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::High),
-                    "xhigh" => self.state.reasoning_effort = Some(forge_domain::ReasoningEffortLevel::Xhigh),
+                let level = match level_str.as_str() {
+                    "none" => Some(forge_domain::ReasoningEffortLevel::None),
+                    "minimal" => Some(forge_domain::ReasoningEffortLevel::Minimal),
+                    "low" => Some(forge_domain::ReasoningEffortLevel::Low),
+                    "medium" => Some(forge_domain::ReasoningEffortLevel::Medium),
+                    "high" => Some(forge_domain::ReasoningEffortLevel::High),
+                    "xhigh" => Some(forge_domain::ReasoningEffortLevel::Xhigh),
                     other => {
                         self.writeln(format!("Unknown level: {other}. Use: none, minimal, low, medium, high, xhigh"))?;
                         return Ok(false);
+                    }
+                };
+                if let Some(l) = level {
+                    self.state.reasoning_effort = Some(l);
+                    if let Err(e) = self.api.set_reasoning_effort(Some(l)).await {
+                        tracing::debug!(error = ?e, "failed to persist reasoning effort");
                     }
                 }
                 self.writeln(format!("Reasoning effort set to: {}", level_str))?;
@@ -2942,7 +2982,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Register all the commands
         self.command.register_all(commands_result?);
 
-        self.state = UIState::new(self.api.environment());
+        let mut state = UIState::new(self.api.environment());
+        // Load persisted service tier and reasoning effort from AppConfig
+        if let Ok(Some(tier)) = self.api.get_service_tier().await {
+            state.service_tier = Some(tier);
+            state.fast_mode = matches!(tier, forge_domain::ServiceTier::Fast);
+        }
+        if let Ok(Some(effort)) = self.api.get_reasoning_effort().await {
+            state.reasoning_effort = Some(effort);
+        }
+        self.state = state;
         self.update_model(operating_model);
 
         Ok(workflow)
@@ -3440,6 +3489,52 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::ServiceTier { tier } => {
+                let tier_value = match tier.to_lowercase().as_str() {
+                    "fast" | "priority" => Some(forge_domain::ServiceTier::Fast),
+                    "flex" => Some(forge_domain::ServiceTier::Flex),
+                    "auto" => Some(forge_domain::ServiceTier::Auto),
+                    "off" | "none" | "clear" => None,
+                    _ => {
+                        anyhow::bail!(
+                            "Invalid service tier '{}'. Valid values: fast (priority), flex, auto, off (none, clear)",
+                            tier
+                        );
+                    }
+                };
+                self.api.set_service_tier(tier_value).await?;
+                let display = tier_value
+                    .map(|t| t.to_string())
+                    .unwrap_or_else(|| "off".to_string());
+                self.writeln_title(
+                    TitleFormat::action(&display).sub_title("is now the service tier"),
+                )?;
+            }
+            ConfigSetField::ReasoningEffort { level } => {
+                let effort_value = match level.to_lowercase().as_str() {
+                    "xhigh" => Some(forge_domain::ReasoningEffortLevel::Xhigh),
+                    "high" => Some(forge_domain::ReasoningEffortLevel::High),
+                    "medium" | "med" => Some(forge_domain::ReasoningEffortLevel::Medium),
+                    "low" => Some(forge_domain::ReasoningEffortLevel::Low),
+                    "minimal" | "min" => Some(forge_domain::ReasoningEffortLevel::Minimal),
+                    "none" => Some(forge_domain::ReasoningEffortLevel::None),
+                    "off" | "clear" => None,
+                    _ => {
+                        anyhow::bail!(
+                            "Invalid reasoning effort '{}'. Valid values: xhigh, high, medium (med), low, minimal (min), none, off (clear)",
+                            level
+                        );
+                    }
+                };
+                self.api.set_reasoning_effort(effort_value).await?;
+                let display = effort_value
+                    .map(|l| l.to_string())
+                    .unwrap_or_else(|| "off".to_string());
+                self.writeln_title(
+                    TitleFormat::action(&display)
+                        .sub_title("is now the reasoning effort level"),
+                )?;
+            }
         }
 
         Ok(())
@@ -3499,6 +3594,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::ServiceTier => {
+                let tier = self.api.get_service_tier().await?;
+                match tier {
+                    Some(t) => self.writeln(t.to_string())?,
+                    None => self.writeln("Service Tier: Not set")?,
+                }
+            }
+            ConfigGetField::ReasoningEffort => {
+                let effort = self.api.get_reasoning_effort().await?;
+                match effort {
+                    Some(l) => self.writeln(l.to_string())?,
+                    None => self.writeln("Reasoning Effort: Not set")?,
                 }
             }
         }

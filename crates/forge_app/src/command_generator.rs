@@ -267,6 +267,30 @@ mod tests {
         async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
             Ok(())
         }
+
+        async fn get_service_tier(&self) -> Result<Option<forge_domain::ServiceTier>> {
+            Ok(None)
+        }
+
+        async fn set_service_tier(
+            &self,
+            _tier: Option<forge_domain::ServiceTier>,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_reasoning_effort(
+            &self,
+        ) -> Result<Option<forge_domain::ReasoningEffortLevel>> {
+            Ok(None)
+        }
+
+        async fn set_reasoning_effort(
+            &self,
+            _level: Option<forge_domain::ReasoningEffortLevel>,
+        ) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]

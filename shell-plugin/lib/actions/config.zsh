@@ -305,3 +305,72 @@ function _forge_action_skill() {
     echo
     _forge_exec list skill
 }
+
+# Action handler: Toggle or set fast mode (service tier)
+# Usage: :fast        -> toggle between fast and off
+#        :fast on     -> enable fast mode (priority tier)
+#        :fast off    -> disable fast mode
+#        :fast flex   -> set flex tier
+#        :fast auto   -> set auto tier
+function _forge_action_fast() {
+    local input_text="$1"
+    echo
+
+    if [[ -z "$input_text" ]]; then
+        # Toggle: check current value and flip
+        local current
+        current=$($_FORGE_BIN config get service-tier 2>/dev/null)
+        if [[ "$current" == "fast" ]]; then
+            _forge_exec config set service-tier off
+        else
+            _forge_exec config set service-tier fast
+        fi
+    else
+        case "${input_text:l}" in
+            on|yes|1)
+                _forge_exec config set service-tier fast
+            ;;
+            off|no|0)
+                _forge_exec config set service-tier off
+            ;;
+            *)
+                _forge_exec config set service-tier "$input_text"
+            ;;
+        esac
+    fi
+}
+
+# Action handler: Set reasoning effort level
+# Usage: :thinking          -> show current level via fzf picker
+#        :thinking high     -> set to high
+#        :thinking off      -> clear reasoning effort
+function _forge_action_thinking() {
+    local input_text="$1"
+    echo
+
+    if [[ -z "$input_text" ]]; then
+        # Show fzf picker with all levels
+        local current
+        current=$($_FORGE_BIN config get reasoning-effort 2>/dev/null)
+
+        local levels="xhigh\nhigh\nmedium\nlow\nminimal\nnone\noff"
+        local selected
+        local fzf_args=(--prompt="Thinking ❯ ")
+
+        if [[ -n "$current" && "$current" != *"Not set"* ]]; then
+            # Find index of current level for positioning
+            local index=$(echo -e "$levels" | grep -n "^${current}$" | cut -d: -f1)
+            if [[ -n "$index" ]]; then
+                fzf_args+=(--bind="start:pos($(( index - 1 )))")
+            fi
+        fi
+
+        selected=$(echo -e "$levels" | _forge_fzf "${fzf_args[@]}")
+
+        if [[ -n "$selected" ]]; then
+            _forge_exec config set reasoning-effort "$selected"
+        fi
+    else
+        _forge_exec config set reasoning-effort "$input_text"
+    fi
+}

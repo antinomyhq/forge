@@ -173,6 +173,24 @@ pub trait API: Sync + Send {
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 
+    /// Gets the service tier configuration.
+    async fn get_service_tier(&self) -> anyhow::Result<Option<forge_domain::ServiceTier>>;
+
+    /// Sets the service tier configuration.
+    async fn set_service_tier(&self, tier: Option<forge_domain::ServiceTier>)
+        -> anyhow::Result<()>;
+
+    /// Gets the reasoning effort level configuration.
+    async fn get_reasoning_effort(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningEffortLevel>>;
+
+    /// Sets the reasoning effort level configuration.
+    async fn set_reasoning_effort(
+        &self,
+        level: Option<forge_domain::ReasoningEffortLevel>,
+    ) -> anyhow::Result<()>;
+
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 
