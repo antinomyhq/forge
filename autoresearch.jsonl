@@ -28,3 +28,4 @@
 {"run":27,"commit":"1d0ff57","metric":11.08,"metrics":{},"status":"discard","description":"stream git ls-files output directly into hash comparison on the hot sync path","timestamp":1773516698796,"segment":0}
 {"run":28,"commit":"1d0ff57","metric":12.7,"metrics":{},"status":"discard","description":"avoid per-workspace PathBuf allocation during ancestor workspace matching","timestamp":1773516763749,"segment":0}
 {"run":29,"commit":"1d0ff57","metric":12.16,"metrics":{},"status":"discard","description":"mock git ls-files in the synthetic memory harness to remove subprocess overhead","timestamp":1773546239137,"segment":0}
+{"run":30,"commit":"91496c5","metric":11.05,"metrics":{},"status":"discard","description":"reuse owned relative paths during remote-hash normalization and local hash emission","timestamp":1773546455464,"segment":0}
