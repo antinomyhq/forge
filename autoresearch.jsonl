@@ -47,3 +47,5 @@
 {"run":5,"commit":"bbf9b25","metric":1,"metrics":{},"status":"discard","description":"verify current default Codex provider can answer `what is vellum`; direct forge prompt succeeds so failure is not a stable baseline repro","timestamp":1773551242766,"segment":0}
 {"type":"config","name":"Remove flow-nexus MCP traces from user config and cache","metricName":"flow_nexus_artifacts","metricUnit":"","bestDirection":"lower"}
 {"run":1,"commit":"bb92007","metric":2,"metrics":{},"status":"keep","description":"baseline: count remaining flow-nexus traces in user MCP config and forge MCP cache","timestamp":1773551343704,"segment":0}
+{"run":2,"commit":"4dfd97c","metric":0,"metrics":{},"status":"keep","description":"remove flow-nexus from user MCP config and delete cached forge flow-nexus tool schema artifact","timestamp":1773551389509,"segment":0}
+{"run":3,"commit":"4dfd97c","metric":0,"metrics":{},"status":"discard","description":"verify `forge -p \"what is vellum\" --verbose` no longer hits any flow-nexus schema error after removing flow-nexus from user MCP config and cache","timestamp":1773551488322,"segment":0}
