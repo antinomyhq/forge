@@ -1047,6 +1047,67 @@ function Invoke-ForgeActionKeyboard {
 }
 
 # =============================================================================
+# Action Handlers -- Fast mode and Thinking/Reasoning effort
+# =============================================================================
+
+function Invoke-ForgeActionFast {
+    <#
+    .SYNOPSIS
+        Toggle or set fast mode (service tier).
+        :fast        -> toggle between fast and off
+        :fast on     -> enable fast mode
+        :fast off    -> disable fast mode
+        :fast flex   -> set flex tier
+        :fast auto   -> set auto tier
+    #>
+    param([string]$InputText = '')
+    Write-Host ''
+
+    if (-not $InputText) {
+        # Toggle: check current value and flip
+        $current = & $script:ForgeBin config get service-tier 2>$null
+        if ($current -match 'fast') {
+            & $script:ForgeBin config set service-tier off
+        } else {
+            & $script:ForgeBin config set service-tier fast
+        }
+    } else {
+        switch ($InputText.ToLower()) {
+            { $_ -in 'on', 'yes', '1' } { & $script:ForgeBin config set service-tier fast }
+            { $_ -in 'off', 'no', '0' } { & $script:ForgeBin config set service-tier off }
+            default                      { & $script:ForgeBin config set service-tier $InputText }
+        }
+    }
+}
+
+function Invoke-ForgeActionThinking {
+    <#
+    .SYNOPSIS
+        Set reasoning effort level.
+        :thinking          -> show fzf picker
+        :thinking high     -> set to high
+        :thinking off      -> clear reasoning effort
+    #>
+    param([string]$InputText = '')
+    Write-Host ''
+
+    if (-not $InputText) {
+        # Interactive picker with fzf
+        $levels = @('xhigh', 'high', 'medium', 'low', 'minimal', 'none', 'off')
+        $current = & $script:ForgeBin config get reasoning-effort 2>$null
+
+        $fzfArgs = @('--prompt=Thinking > ', '--height=10', '--reverse')
+
+        $selected = $levels | & (Get-Command fzf -ErrorAction SilentlyContinue) @fzfArgs 2>$null
+        if ($selected) {
+            & $script:ForgeBin config set reasoning-effort $selected
+        }
+    } else {
+        & $script:ForgeBin config set reasoning-effort $InputText
+    }
+}
+
+# =============================================================================
 # Action Handlers -- Default (unknown commands, custom commands, bare prompts)
 # =============================================================================
 
@@ -1189,6 +1250,8 @@ function Invoke-ForgeDispatch {
         'logout'                          { Invoke-ForgeActionLogout -InputText $InputText }
         'doctor'                          { Invoke-ForgeActionDoctor }
         { $_ -in 'keyboard-shortcuts', 'kb' } { Invoke-ForgeActionKeyboard }
+        { $_ -in 'fast', 'f' }           { Invoke-ForgeActionFast -InputText $InputText }
+        { $_ -in 'thinking', 'th', 'reasoning' } { Invoke-ForgeActionThinking -InputText $InputText }
         default                           { Invoke-ForgeActionDefault -UserAction $Action -InputText $InputText }
     }
 }
