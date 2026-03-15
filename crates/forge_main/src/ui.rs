@@ -1830,7 +1830,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     } else {
                         // Interactive prompt
                         println!();
-                        ForgeSelect::confirm("Would you like to make zsh your default shell?")
+                        ForgeWidget::confirm("Would you like to make zsh your default shell?")
                             .with_default(true)
                             .prompt()?
                             .unwrap_or(false)
