@@ -304,7 +304,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Get initial input from prompt
-        let mut command = self.prompt().await;
+        let mut command = anyhow::Ok(self.prompt().await?);
 
         loop {
             match command {
