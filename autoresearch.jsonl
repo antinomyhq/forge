@@ -46,3 +46,4 @@
 {"run":4,"commit":"bbf9b25","metric":1,"metrics":{},"status":"keep","description":"stop fish colon dispatch from echoing typed prompt so : prompt and :command do not visually repeat","timestamp":1773550572070,"segment":0}
 {"run":5,"commit":"bbf9b25","metric":1,"metrics":{},"status":"discard","description":"verify current default Codex provider can answer `what is vellum`; direct forge prompt succeeds so failure is not a stable baseline repro","timestamp":1773551242766,"segment":0}
 {"type":"config","name":"Remove flow-nexus MCP traces from user config and cache","metricName":"flow_nexus_artifacts","metricUnit":"","bestDirection":"lower"}
+{"run":1,"commit":"bb92007","metric":2,"metrics":{},"status":"keep","description":"baseline: count remaining flow-nexus traces in user MCP config and forge MCP cache","timestamp":1773551343704,"segment":0}
