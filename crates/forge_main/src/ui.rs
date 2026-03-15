@@ -45,8 +45,8 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
-use crate::zsh::ZshRPrompt;
-use crate::{TRACKER, banner, tracker};
+use crate::zsh::{FzfStatus, Group, Installation, OmzStatus, Platform, ZshRPrompt, ZshStatus};
+use crate::{TRACKER, banner, tracker, zsh};
 
 // File-specific constants
 const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
@@ -434,8 +434,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         }
                         return Ok(());
                     }
-                    crate::cli::ZshCommandGroup::Setup => {
-                        self.on_zsh_setup().await?;
+                    crate::cli::ZshCommandGroup::Setup { non_interactive } => {
+                        self.on_zsh_setup(non_interactive).await?;
                     }
                     crate::cli::ZshCommandGroup::Keyboard => {
                         self.on_zsh_keyboard().await?;
@@ -666,7 +666,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Setup => {
-                self.on_zsh_setup().await?;
+                self.on_zsh_setup(false).await?;
                 return Ok(());
             }
             TopLevelCommand::Doctor => {
@@ -1591,86 +1591,204 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Setup ZSH integration by updating .zshrc
-    async fn on_zsh_setup(&mut self) -> anyhow::Result<()> {
-        // Check nerd font support
+    /// Sets up ZSH integration including dependency installation and `.zshrc`
+    /// configuration.
+    ///
+    /// Orchestrates the full setup flow:
+    /// 1. Prerequisite check (git)
+    /// 2. Parallel dependency detection (zsh, Oh My Zsh, plugins, fzf)
+    /// 3. Installation of missing dependencies (respecting dependency order)
+    /// 4. Windows bashrc auto-start configuration
+    /// 5. Nerd Font check and editor selection (interactive, skipped if
+    ///    `non_interactive`)
+    /// 6. `.zshrc` configuration via `setup_zsh_integration()`
+    /// 7. Doctor verification and summary
+    ///
+    /// # Arguments
+    ///
+    /// * `non_interactive` - When true, skips Nerd Font and editor prompts,
+    ///   using defaults (nerd fonts enabled, no editor override).
+    async fn on_zsh_setup(&mut self, non_interactive: bool) -> anyhow::Result<()> {
+        // Track whether setup completed without any errors
+        let mut setup_fully_successful = true;
+
+        // Step A: Prerequisite check
+        self.spinner.start(Some("Checking prerequisites"))?;
+        let git_ok = crate::zsh::detect_git().await;
+        self.spinner.stop(None)?;
+
+        if !git_ok {
+            self.writeln_title(TitleFormat::error(
+                "git is required but not found. Install git and re-run forge zsh setup",
+            ))?;
+            return Ok(());
+        }
+
+        // Step B: Detect all dependencies in parallel
+        self.spinner.start(Some("Detecting environment"))?;
+        let platform = zsh::detect_platform();
+        let deps = zsh::detect_all_dependencies().await;
+        let sudo = zsh::detect_sudo(platform).await;
+        self.spinner.stop(None)?;
+
+        // Display detection results
+        self.log_dependency_status(&deps)?;
         println!();
-        println!(
-            "{} {} {}",
-            "󱙺".bold(),
-            "FORGE 33.0k".bold(),
-            " tonic-1.0".cyan()
-        );
 
-        let can_see_nerd_fonts =
-            ForgeWidget::confirm("Can you see all the icons clearly without any overlap?")
-                .with_default(true)
-                .prompt()?;
+        // Step C–E: Install missing dependencies + Windows bash_profile
+        let needs_install = !deps.all_installed() || deps.needs_tools();
+        if needs_install {
+            let missing = deps.missing_items();
+            self.writeln_title(TitleFormat::info("The following will be installed:"))?;
+            missing.into_iter().for_each(|item| {
+                println!("   {} ({})", item.to_string().dimmed(), item.kind());
+            });
+            println!();
+        } else {
+            self.writeln_title(TitleFormat::info("All dependencies already installed"))?;
+            println!();
+        }
 
-        let disable_nerd_font = match can_see_nerd_fonts {
-            Some(true) => {
-                println!();
-                false
-            }
-            Some(false) => {
-                println!();
-                println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
-                println!();
-                println!("   You can enable them later by:");
-                println!(
-                    "   1. Installing a Nerd Font from: {}",
-                    "https://www.nerdfonts.com/".dimmed()
-                );
-                println!("   2. Configuring your terminal to use a Nerd Font");
-                println!(
-                    "   3. Removing {} from your ~/.zshrc",
-                    "NERD_FONT=0".dimmed()
-                );
-                println!();
-                true
-            }
-            None => {
-                // User interrupted, default to not disabling
-                println!();
-                false
-            }
-        };
+        let install_failed = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let fail_flag = install_failed.clone();
 
-        // Ask about editor preference
-        let editor_options = vec![
-            "Use system default ($EDITOR)",
-            "VS Code (code --wait)",
-            "Vim",
-            "Neovim (nvim)",
-            "Nano",
-            "Emacs",
-            "Sublime Text (subl --wait)",
-            "Skip - I'll configure it later",
-        ];
+        let bp_ok_sp = self.spinner.clone();
+        let bp_err_sp = self.spinner.clone();
+        let bp_success = Arc::new(std::sync::atomic::AtomicBool::new(true));
+        let bp_flag = bp_success.clone();
 
-        let selected_editor = ForgeWidget::select(
-            "Which editor would you like to use for editing prompts?",
-            editor_options,
+        Group::when(
+            needs_install,
+            self.setup_install_zsh(&deps, platform, sudo)
+                .then(self.setup_install_omz(&deps))
+                .then(self.setup_install_plugins(&deps))
+                .then(self.setup_install_tools(&deps, platform, sudo))
+                .notify_err(move |e| {
+                    tracing::error!(error = ?e, "Installation failed");
+                    fail_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+                    Ok(())
+                }),
         )
-        .prompt()?;
+        .then(Group::when(
+            platform == Platform::Windows
+                && !install_failed.load(std::sync::atomic::Ordering::Relaxed),
+            self.setup_bash_profile()
+                .notify_ok(move || {
+                    bp_ok_sp.stop(None)?;
+                    bp_ok_sp.write_ln(format!(
+                        "  {} Configured ~/.bash_profile to auto-start zsh",
+                        "[OK]".green()
+                    ))
+                })
+                .notify_err(move |e| {
+                    let _ = bp_err_sp.stop(None);
+                    let _ = bp_err_sp.write_ln(
+                        TitleFormat::error(format!("Failed to configure bash_profile: {}", e))
+                            .display(),
+                    );
+                    bp_flag.store(false, std::sync::atomic::Ordering::Relaxed);
+                    Ok(())
+                }),
+        ))
+        .install()
+        .await?;
 
-        let forge_editor = match selected_editor {
-            Some("Use system default ($EDITOR)") => None,
-            Some("VS Code (code --wait)") => Some("code --wait"),
-            Some("Vim") => Some("vim"),
-            Some("Neovim (nvim)") => Some("nvim"),
-            Some("Nano") => Some("nano"),
-            Some("Emacs") => Some("emacs"),
-            Some("Sublime Text (subl --wait)") => Some("subl --wait"),
-            Some("Skip - I'll configure it later") => None,
-            _ => None,
+        if install_failed.load(std::sync::atomic::Ordering::Relaxed) {
+            return Ok(());
+        }
+        if !bp_success.load(std::sync::atomic::Ordering::Relaxed) {
+            setup_fully_successful = false;
+        }
+        if needs_install {
+            println!();
+        }
+
+        // Step F & G: Nerd Font check and Editor selection
+        let (disable_nerd_font, forge_editor) = if non_interactive {
+            // Non-interactive mode: use safe defaults
+            (false, None)
+        } else {
+            // Step F: Nerd Font check
+            println!();
+            println!(
+                "{} {} {}",
+                "󱙺".bold(),
+                "FORGE 33.0k".bold(),
+                " tonic-1.0".cyan()
+            );
+
+            let can_see_nerd_fonts =
+                ForgeWidget::confirm("Can you see all the icons clearly without any overlap?")
+                    .with_default(true)
+                    .prompt()?;
+
+            let disable_nerd_font = match can_see_nerd_fonts {
+                Some(true) => {
+                    println!();
+                    false
+                }
+                Some(false) => {
+                    println!();
+                    println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
+                    println!();
+                    println!("   You can enable them later by:");
+                    println!(
+                        "   1. Installing a Nerd Font from: {}",
+                        "https://www.nerdfonts.com/".dimmed()
+                    );
+                    println!("   2. Configuring your terminal to use a Nerd Font");
+                    println!(
+                        "   3. Removing {} from your ~/.zshrc",
+                        "NERD_FONT=0".dimmed()
+                    );
+                    println!();
+                    true
+                }
+                None => {
+                    // User interrupted, default to not disabling
+                    println!();
+                    false
+                }
+            };
+
+            // Step G: Editor selection
+            let editor_options = vec![
+                "Use system default ($EDITOR)",
+                "VS Code (code --wait)",
+                "Vim",
+                "Neovim (nvim)",
+                "Nano",
+                "Emacs",
+                "Sublime Text (subl --wait)",
+                "Skip - I'll configure it later",
+            ];
+
+            let selected_editor = ForgeWidget::select(
+                "Which editor would you like to use for editing prompts?",
+                editor_options,
+            )
+            .prompt()?;
+
+            let forge_editor = match selected_editor {
+                Some("Use system default ($EDITOR)") => None,
+                Some("VS Code (code --wait)") => Some("code --wait"),
+                Some("Vim") => Some("vim"),
+                Some("Neovim (nvim)") => Some("nvim"),
+                Some("Nano") => Some("nano"),
+                Some("Emacs") => Some("emacs"),
+                Some("Sublime Text (subl --wait)") => Some("subl --wait"),
+                Some("Skip - I'll configure it later") => None,
+                _ => None,
+            };
+
+            (disable_nerd_font, forge_editor)
         };
 
-        // Setup ZSH integration with nerd font and editor configuration
+        // Step H: Configure .zshrc via setup_zsh_integration() (always runs)
         self.spinner.start(Some("Configuring ZSH"))?;
         let result = crate::zsh::setup_zsh_integration(disable_nerd_font, forge_editor)?;
         self.spinner.stop(None)?;
 
-        // Log backup creation if one was made
         if let Some(backup_path) = result.backup_path {
             self.writeln_title(TitleFormat::debug(format!(
                 "backup created at {}",
@@ -1680,20 +1798,381 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::info(result.message))?;
 
+        // Step I: Run doctor (don't bail on failure — still show summary)
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
-        let doctor_result = self.on_zsh_doctor().await;
+        match self.on_zsh_doctor().await {
+            Ok(()) => {
+                self.writeln_title(TitleFormat::warning(
+                    "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
+                ))?;
+                self.writeln_title(TitleFormat::warning(
+                    "run `: Hi` after restarting your shell to confirm everything works",
+                ))?;
+            }
+            Err(e) => {
+                setup_fully_successful = false;
+                self.writeln_title(TitleFormat::error(format!("forge zsh doctor failed: {e}")))?;
+            }
+        }
 
-        if doctor_result.is_ok() {
-            self.writeln_title(TitleFormat::warning(
-                "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
+        // Step J: Change default shell (if not already zsh)
+        if platform != Platform::Windows {
+            let current_shell = std::env::var("SHELL").unwrap_or_default();
+            if !current_shell.contains("zsh") {
+                // Check if chsh is available (use POSIX command -v, not which)
+                let chsh_available = zsh::resolve_command_path("chsh").await.is_some();
+
+                if chsh_available {
+                    let should_change_shell = if non_interactive {
+                        // In non-interactive mode, default to yes
+                        true
+                    } else {
+                        // Interactive prompt
+                        println!();
+                        ForgeWidget::confirm("Would you like to make zsh your default shell?")
+                            .with_default(true)
+                            .prompt()?
+                            .unwrap_or(false)
+                    };
+
+                    if should_change_shell {
+                        // Find zsh path using POSIX command -v
+                        if let Some(zsh_path) = zsh::resolve_command_path("zsh").await {
+                            // Check if we're running as root (chsh won't need password)
+                            let is_root = std::env::var("USER").unwrap_or_default() == "root"
+                                || std::env::var("EUID").unwrap_or_default() == "0";
+
+                            // Only try chsh if we're root or in an interactive terminal
+                            // (non-root users need password which requires TTY)
+                            let can_run_chsh = is_root || !non_interactive;
+
+                            if can_run_chsh {
+                                // Try to run chsh
+                                self.spinner.start(Some("Setting zsh as default shell"))?;
+                                let chsh_result = tokio::process::Command::new("chsh")
+                                    .args(["-s", &zsh_path])
+                                    .status()
+                                    .await;
+                                self.spinner.stop(None)?;
+
+                                match chsh_result {
+                                    Ok(status) if status.success() => {
+                                        self.writeln_title(TitleFormat::info(
+                                            "zsh is now your default shell",
+                                        ))?;
+                                    }
+                                    Ok(_) => {
+                                        setup_fully_successful = false;
+                                        self.writeln_title(TitleFormat::warning(
+                                            "Failed to set default shell. You may need to run: chsh -s $(command -v zsh)",
+                                        ))?;
+                                    }
+                                    Err(e) => {
+                                        setup_fully_successful = false;
+                                        self.writeln_title(TitleFormat::warning(format!(
+                                            "Failed to set default shell: {}",
+                                            e
+                                        )))?;
+                                        self.writeln_title(TitleFormat::info(
+                                            "Run manually: chsh -s $(command -v zsh)",
+                                        ))?;
+                                    }
+                                }
+                            } else {
+                                // Skip chsh in non-interactive mode for non-root users
+                                self.writeln_title(TitleFormat::info(
+                                    "To make zsh your default shell, run: chsh -s $(command -v zsh)",
+                                ))?;
+                            }
+                        } else {
+                            self.writeln_title(TitleFormat::warning(
+                                "Could not find zsh path. Run manually: chsh -s $(command -v zsh)",
+                            ))?;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Step K: Summary
+        println!();
+        if setup_fully_successful {
+            self.writeln_title(TitleFormat::info(
+                "Setup complete! Open a new Git Bash window to start zsh.",
             ))?;
+        } else {
             self.writeln_title(TitleFormat::warning(
-                "run `: Hi` after restarting your shell to confirm everything works",
+                "Setup completed with some errors. Please review the messages above.",
             ))?;
         }
 
-        doctor_result
+        Ok(())
+    }
+
+    /// Logs the detected status of each zsh setup dependency to the UI.
+    fn log_dependency_status(&mut self, deps: &zsh::DependencyStatus) -> anyhow::Result<()> {
+        match &deps.zsh {
+            ZshStatus::Functional { version, path } => {
+                self.writeln_title(TitleFormat::info(format!(
+                    "zsh {} found at {}",
+                    version, path
+                )))?;
+            }
+            ZshStatus::Broken { path } => {
+                self.writeln_title(TitleFormat::info(format!(
+                    "zsh found at {} but modules are broken",
+                    path
+                )))?;
+            }
+            ZshStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("zsh not found"))?;
+            }
+        }
+
+        match &deps.oh_my_zsh {
+            OmzStatus::Installed => {
+                self.writeln_title(TitleFormat::info("Oh My Zsh installed"))?;
+            }
+            OmzStatus::NotInstalled => {
+                self.writeln_title(TitleFormat::info("Oh My Zsh not found"))?;
+            }
+        }
+
+        if deps.autosuggestions == crate::zsh::PluginStatus::Installed {
+            self.writeln_title(TitleFormat::info("zsh-autosuggestions installed"))?;
+        } else {
+            self.writeln_title(TitleFormat::info("zsh-autosuggestions not found"))?;
+        }
+
+        if deps.syntax_highlighting == crate::zsh::PluginStatus::Installed {
+            self.writeln_title(TitleFormat::info("zsh-syntax-highlighting installed"))?;
+        } else {
+            self.writeln_title(TitleFormat::info("zsh-syntax-highlighting not found"))?;
+        }
+
+        match &deps.fzf {
+            FzfStatus::Found { version, meets_minimum } => {
+                if *meets_minimum {
+                    self.writeln_title(TitleFormat::info(format!("fzf {} found", version)))?;
+                } else {
+                    self.writeln_title(TitleFormat::info(format!(
+                        "fzf {} found (outdated, need >= 0.36.0)",
+                        version
+                    )))?;
+                }
+            }
+            FzfStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("fzf not found"))?;
+            }
+        }
+
+        match &deps.bat {
+            crate::zsh::BatStatus::Installed { version, meets_minimum } => {
+                let status_msg = if *meets_minimum {
+                    format!("bat {} found", version)
+                } else {
+                    format!("bat {} found (outdated, need >= 0.20.0)", version)
+                };
+                self.writeln_title(TitleFormat::info(status_msg))?;
+            }
+            crate::zsh::BatStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("bat not found"))?;
+            }
+        }
+
+        match &deps.fd {
+            crate::zsh::FdStatus::Installed { version, meets_minimum } => {
+                let status_msg = if *meets_minimum {
+                    format!("fd {} found", version)
+                } else {
+                    format!("fd {} found (outdated, need >= 10.0.0)", version)
+                };
+                self.writeln_title(TitleFormat::info(status_msg))?;
+            }
+            crate::zsh::FdStatus::NotFound => {
+                self.writeln_title(TitleFormat::info("fd not found"))?;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Builds a group that installs zsh if it is missing or broken.
+    fn setup_install_zsh(
+        &self,
+        deps: &zsh::DependencyStatus,
+        platform: Platform,
+        sudo: zsh::SudoCapability,
+    ) -> Group {
+        if !deps.needs_zsh() {
+            return Group::unit(zsh::Noop);
+        }
+        let reinstall = matches!(deps.zsh, zsh::ZshStatus::Broken { .. });
+        let mut install_zsh = zsh::InstallZsh::new(platform, sudo);
+        if reinstall {
+            install_zsh = install_zsh.reinstall();
+        }
+        let sp = self.spinner.clone();
+        let sp2 = self.spinner.clone();
+        Group::unit(install_zsh)
+            .notify_ok(move || {
+                sp.stop(None)?;
+                sp.write_ln(format!("  {} zsh installed", "[OK]".green()))
+            })
+            .notify_err(move |e| {
+                let _ = sp2.stop(None);
+                let _ = sp2.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install zsh: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            })
+    }
+
+    /// Builds a group that installs Oh My Zsh if it is missing.
+    fn setup_install_omz(&self, deps: &zsh::DependencyStatus) -> Group {
+        if !deps.needs_omz() {
+            return Group::unit(zsh::Noop);
+        }
+        let sp = self.spinner.clone();
+        let sp2 = self.spinner.clone();
+        Group::unit(zsh::InstallOhMyZsh::new())
+            .notify_ok(move || sp.write_ln(format!("  {} Oh My Zsh installed", "[OK]".green())))
+            .notify_err(move |e| {
+                let _ = sp2.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install Oh My Zsh: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            })
+    }
+
+    /// Builds a group that installs plugins (autosuggestions +
+    /// syntax-highlighting) in parallel.
+    fn setup_install_plugins(&self, deps: &zsh::DependencyStatus) -> Group {
+        if !deps.needs_plugins() {
+            return Group::unit(zsh::Noop);
+        }
+
+        let mut group: Option<Group> = None;
+
+        if deps.autosuggestions == crate::zsh::PluginStatus::NotInstalled {
+            let sp = self.spinner.clone();
+            let task = Group::unit(zsh::InstallAutosuggestions::new()).notify_err(move |e| {
+                let _ = sp.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install zsh-autosuggestions: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            });
+            group = Some(task);
+        }
+
+        if deps.syntax_highlighting == crate::zsh::PluginStatus::NotInstalled {
+            let sp = self.spinner.clone();
+            let task = Group::unit(zsh::InstallSyntaxHighlighting::new()).notify_err(move |e| {
+                let _ = sp.write_ln(
+                    TitleFormat::error(format!(
+                        "Failed to install zsh-syntax-highlighting: {e}. Setup cannot continue."
+                    ))
+                    .display(),
+                );
+                Err(e)
+            });
+            group = Some(match group {
+                Some(g) => g.alongside(task),
+                None => task,
+            });
+        }
+
+        match group {
+            Some(group) => {
+                let sp = self.spinner.clone();
+                group.notify_ok(move || {
+                    sp.write_ln(format!("  {} Plugins installed", "[OK]".green()))
+                })
+            }
+            None => Group::unit(zsh::Noop),
+        }
+    }
+
+    /// Builds a group that installs tools (fzf, bat, fd) in parallel.
+    fn setup_install_tools(
+        &self,
+        deps: &zsh::DependencyStatus,
+        platform: Platform,
+        sudo: zsh::SudoCapability,
+    ) -> Group {
+        if !deps.needs_tools() {
+            return Group::unit(zsh::Noop);
+        }
+
+        let mut group: Option<Group> = None;
+
+        if matches!(deps.fzf, FzfStatus::NotFound) {
+            let sp = self.spinner.clone();
+            let sp2 = sp.clone();
+            let task = Group::unit(zsh::InstallFzf::new(platform, sudo))
+                .notify_ok(move || sp.write_ln(format!("  {} fzf installed", "[OK]".green())))
+                .notify_err(move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!("Failed to install fzf: {e}")).display(),
+                    );
+                    Err(e)
+                });
+            group = Some(task);
+        }
+
+        if matches!(deps.bat, crate::zsh::BatStatus::NotFound) {
+            let sp = self.spinner.clone();
+            let sp2 = sp.clone();
+            let task = Group::unit(zsh::InstallBat::new(platform, sudo))
+                .notify_ok(move || sp.write_ln(format!("  {} bat installed", "[OK]".green())))
+                .notify_err(move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!("Failed to install bat: {e}")).display(),
+                    );
+                    Err(e)
+                });
+            group = Some(match group {
+                Some(g) => g.alongside(task),
+                None => task,
+            });
+        }
+
+        if matches!(deps.fd, crate::zsh::FdStatus::NotFound) {
+            let sp = self.spinner.clone();
+            let sp2 = sp.clone();
+            let task = Group::unit(zsh::InstallFd::new(platform, sudo))
+                .notify_ok(move || sp.write_ln(format!("  {} fd installed", "[OK]".green())))
+                .notify_err(move |e| {
+                    let _ = sp2.write_ln(
+                        TitleFormat::error(format!("Failed to install fd: {e}")).display(),
+                    );
+                    Err(e)
+                });
+            group = Some(match group {
+                Some(g) => g.alongside(task),
+                None => task,
+            });
+        }
+
+        match group {
+            Some(group) => group,
+            None => Group::unit(zsh::Noop),
+        }
+    }
+
+    /// Builds a group that configures `~/.bash_profile` for zsh auto-start.
+    fn setup_bash_profile(&self) -> Group {
+        Group::unit(zsh::ConfigureBashProfile::new())
     }
 
     /// Handle the cmd command - generates shell command from natural language

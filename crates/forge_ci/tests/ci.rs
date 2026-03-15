@@ -29,3 +29,8 @@ fn test_stale_workflow() {
 fn test_autofix_workflow() {
     workflow::generate_autofix_workflow();
 }
+
+#[test]
+fn test_zsh_setup_workflow() {
+    workflow::generate_test_zsh_setup_workflow();
+}
