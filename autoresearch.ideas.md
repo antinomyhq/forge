@@ -1,3 +1,0 @@
-- Short-circuit the no-op sync path after diff planning so an already-in-sync workspace skips empty delete/upload stream setup and returns immediately.
-- Stream `git ls-files`/walker discovery directly into hashing so workspace sync/status never materializes the full `Vec<PathBuf>` for very large repos.
-- Add a dedicated `FileReaderInfra` hash/streaming API so sync/status can validate UTF-8 and compute SHA-256 without materializing full `String`s for hash-only passes.

@@ -29,3 +29,8 @@
 {"run":28,"commit":"1d0ff57","metric":12.7,"metrics":{},"status":"discard","description":"avoid per-workspace PathBuf allocation during ancestor workspace matching","timestamp":1773516763749,"segment":0}
 {"run":29,"commit":"1d0ff57","metric":12.16,"metrics":{},"status":"discard","description":"mock git ls-files in the synthetic memory harness to remove subprocess overhead","timestamp":1773546239137,"segment":0}
 {"run":30,"commit":"91496c5","metric":11.05,"metrics":{},"status":"discard","description":"reuse owned relative paths during remote-hash normalization and local hash emission","timestamp":1773546455464,"segment":0}
+{"run":31,"commit":"4fa56c5","metric":12.12,"metrics":{},"status":"discard","description":"specialize git and walker discovery to return filtered path lists directly","timestamp":1773546686398,"segment":0}
+{"run":32,"commit":"4fa56c5","metric":12.19,"metrics":{},"status":"discard","description":"manually hex-encode SHA-256 digests to avoid formatter overhead in compute_hash","timestamp":1773546792141,"segment":0}
+{"run":33,"commit":"4fa56c5","metric":13.27,"metrics":{},"status":"discard","description":"reuse a mutable absolute-path buffer across sequential hash reads","timestamp":1773546866417,"segment":0}
+{"run":34,"commit":"4fa56c5","metric":11.05,"metrics":{},"status":"discard","description":"avoid allocating lowercase extension strings for already-lowercase path filtering","timestamp":1773546933950,"segment":0}
+{"run":35,"commit":"4fa56c5","metric":12.22,"metrics":{},"status":"discard","description":"drop hash-pass file contents before yielding each streamed FileHash","timestamp":1773546996766,"segment":0}
