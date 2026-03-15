@@ -72,7 +72,7 @@ keep it light, acknowledge the work without boring the reader]
 
 ## Contributors
 
-A huge thank you to everyone who made this release happen: [list @handles]
+A huge thank you to everyone who made this release happen: [list @handles — exclude bots like @dependabot]
 
 ---
 **Full changelog**: [GitHub Release link]
@@ -87,6 +87,7 @@ A huge thank you to everyone who made this release happen: [list @handles]
 - **Skip internal jargon**: Translate crate names and internal concepts into plain language
 - **Celebrate contributors**: Name them enthusiastically
 - **Tagline formula**: `[Version] — [Adjective] [Theme]` (e.g. "v1.32.0 — Smarter Config, Smoother Workflows")
+- **No implementation details**: Do not mention internal module names, struct names, function names, crate names, or how something was implemented. Focus purely on what the user experiences or gains.
 
 ### 5. Output
 
