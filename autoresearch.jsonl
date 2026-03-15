@@ -34,3 +34,7 @@
 {"run":33,"commit":"4fa56c5","metric":13.27,"metrics":{},"status":"discard","description":"reuse a mutable absolute-path buffer across sequential hash reads","timestamp":1773546866417,"segment":0}
 {"run":34,"commit":"4fa56c5","metric":11.05,"metrics":{},"status":"discard","description":"avoid allocating lowercase extension strings for already-lowercase path filtering","timestamp":1773546933950,"segment":0}
 {"run":35,"commit":"4fa56c5","metric":12.22,"metrics":{},"status":"discard","description":"drop hash-pass file contents before yielding each streamed FileHash","timestamp":1773546996766,"segment":0}
+{"type":"config","name":"Fix flow-nexus MCP array schemas for OpenAI Responses compatibility","metricName":"valid_schema_checks","metricUnit":"","bestDirection":"higher"}
+{"run":1,"commit":"868c362","metric":0,"metrics":{},"status":"crash","description":"baseline: reproduce invalid flow-nexus cached array schemas missing items for Codex/OpenAI Responses","timestamp":1773548946883,"segment":0}
+{"run":2,"commit":"868c362","metric":0,"metrics":{},"status":"crash","description":"add strict array-items normalization plus targeted tests and install updated forge binary","timestamp":1773549061827,"segment":0}
+{"run":3,"commit":"868c362","metric":0,"metrics":{},"status":"crash","description":"narrow verification to forge_repo targeted test plus binary install; hit unrelated existing test fixture breakage","timestamp":1773549131352,"segment":0}

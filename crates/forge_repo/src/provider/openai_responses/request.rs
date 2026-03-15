@@ -374,6 +374,8 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
 #[cfg(test)]
 mod tests {
     use async_openai::types::responses as oai;
+
+    use super::codex_tool_parameters;
     use forge_app::domain::{
         Context as ChatContext, ContextMessage, ModelId, ToolCallId, ToolChoice,
     };
@@ -826,6 +828,29 @@ mod tests {
             serde_json::Value::Bool(false)
         );
         assert_eq!(schema["items"]["required"], serde_json::json!(["id"]));
+    }
+
+    #[test]
+    fn test_codex_tool_parameters_add_missing_items_for_nested_arrays() -> anyhow::Result<()> {
+        let schema_value = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "layers": {
+                    "type": "array"
+                }
+            }
+        });
+        let schema = schemars::Schema::try_from(schema_value).unwrap();
+
+        let actual = codex_tool_parameters(&schema)?;
+
+        assert_eq!(
+            actual["properties"]["layers"]["items"],
+            serde_json::json!({})
+        );
+        assert_eq!(actual["required"], serde_json::json!(["layers"]));
+
+        Ok(())
     }
 
     #[test]

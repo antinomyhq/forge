@@ -188,6 +188,21 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
                 }
             }
 
+            // Some MCP servers emit array schemas without an explicit `items`
+            // definition. OpenAI Responses rejects these as invalid, so default
+            // them to an unconstrained schema object.
+            let is_array = map
+                .get("type")
+                .and_then(|value| value.as_str())
+                .is_some_and(|ty| ty == "array");
+
+            if is_array && !map.contains_key("items") {
+                map.insert(
+                    "items".to_string(),
+                    serde_json::Value::Object(serde_json::Map::new()),
+                );
+            }
+
             // OpenAI strict mode: convert "nullable: true" to anyOf with null type.
             // OpenAI does not support the "nullable" keyword; instead, nullable
             // schemas must be expressed as anyOf: [<original_schema>, {type: "null"}].
@@ -381,6 +396,23 @@ mod tests {
         });
 
         assert_eq!(schema, expected);
+    }
+
+    #[test]
+    fn test_normalize_json_schema_adds_empty_items_for_nested_arrays() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "layers": {
+                    "type": "array"
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        assert_eq!(schema["properties"]["layers"]["items"], json!({}));
+        assert_eq!(schema["required"], json!(["layers"]));
     }
 
     #[test]
