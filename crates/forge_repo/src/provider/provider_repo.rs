@@ -1,4 +1,4 @@
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, LazyLock};
 
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
@@ -97,15 +97,15 @@ impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     }
 }
 
-static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
+static PROVIDER_CONFIGS: LazyLock<Vec<ProviderConfig>> = LazyLock::new(|| {
+    let json_str = include_str!("provider.json");
+    serde_json::from_str(json_str)
+        .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
+        .unwrap()
+});
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
-    PROVIDER_CONFIGS.get_or_init(|| {
-        let json_str = include_str!("provider.json");
-        serde_json::from_str(json_str)
-            .map_err(|e| anyhow::anyhow!("Failed to parse embedded provider configs: {e}"))
-            .unwrap()
-    })
+    &PROVIDER_CONFIGS
 }
 
 pub struct ForgeProviderRepository<F> {
@@ -190,7 +190,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             if config.id == ProviderId::OPENAI && has_openai_url {
                 continue;
             }
-            if config.id == ProviderId::OPENAI_COMPATIBLE && !has_openai_url {
+            if (config.id == ProviderId::OPENAI_COMPATIBLE
+                || config.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
+                && !has_openai_url
+            {
                 continue;
             }
             if config.id == ProviderId::ANTHROPIC && has_anthropic_url {
@@ -559,6 +562,27 @@ mod tests {
     }
 
     #[test]
+    fn test_openai_responses_compatible_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::OPENAI_RESPONSES_COMPATIBLE);
+        assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
+        assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
+        assert_eq!(
+            config.response_type,
+            Some(ProviderResponse::OpenAIResponses)
+        );
+        assert_eq!(config.url, "{{OPENAI_URL}}/responses");
+        match config.models.as_ref().unwrap() {
+            Models::Url(model_url) => assert_eq!(model_url, "{{OPENAI_URL}}/models"),
+            Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
+    }
+
+    #[test]
     fn test_anthropic_compatible_config() {
         let configs = get_provider_configs();
         let config = configs
@@ -667,7 +691,7 @@ mod env_tests {
             &self,
             _batch_size: usize,
             _paths: Vec<PathBuf>,
-        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
             futures::stream::empty()
         }
 
@@ -1147,8 +1171,7 @@ mod env_tests {
                 &self,
                 _batch_size: usize,
                 _paths: Vec<PathBuf>,
-            ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send
-            {
+            ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
                 futures::stream::empty()
             }
 

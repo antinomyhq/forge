@@ -1,7 +1,7 @@
 <h1 align="center">⚒️ Forge: AI-Enhanced Terminal Development Environment</h1>
 <p align="center">A comprehensive coding agent that integrates AI capabilities with your development environment</p>
 
-<p align="center"><code>curl -fsSL https://forgecode.dev/install.sh | sh</code></p>
+<p align="center"><code>curl -fsSL https://forgecode.dev/cli | sh</code></p>
 
 [![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
 [![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
@@ -41,7 +41,7 @@
 To get started with Forge, run the command below:
 
 ```bash
-curl -fsSL https://forgecode.dev/install.sh | sh
+curl -fsSL https://forgecode.dev/cli | sh
 ```
 
 On first run, Forge will guide you through setting up your AI provider credentials using the interactive login flow. Alternatively, you can configure providers beforehand:
@@ -154,7 +154,7 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Zero configuration** - Just add your API key and you're ready to go
 - **Seamless integration** - Works right in your terminal, where you already work
 - **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
-- **Secure by design** - Your code stays on your machine
+- **Secure by design** - Restricted shell mode limits file system access and prevents unintended changes
 - **Open-source** - Transparent, extensible, and community-driven
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
@@ -424,7 +424,7 @@ model: anthropic.claude-3-opus
 </details>
 
 <details>
-<summary><strong>Forge Services</strong></summary>
+<summary><strong>ForgeCode Services</strong></summary>
 
 ```bash
 # .env
@@ -500,8 +500,6 @@ Override default API endpoints and provider/model settings:
 ```bash
 # .env
 FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
-FORGE_OVERRIDE_MODEL=claude-3.7-sonnet   # Override model for all providers (takes precedence over configured models)
-FORGE_OVERRIDE_PROVIDER=anthropic         # Override default provider (takes precedence over configured provider)
 FORGE_WORKSPACE_SERVER_URL=http://localhost:8080  # URL for the indexing server (default: https://api.forgecode.dev/)
 ```
 
@@ -515,7 +513,7 @@ Configuring the tool calls settings:
 ```bash
 # .env
 FORGE_TOOL_TIMEOUT=300         # Maximum execution time in seconds for a tool before it is terminated to prevent hanging the session. (default: 300)
-FORGE_MAX_IMAGE_SIZE=262144    # Maximum image file size in bytes for read_image operations (default: 262144 - 256 KB)
+FORGE_MAX_IMAGE_SIZE=10485760  # Maximum image file size in bytes for read_image operations (default: 10485760 - 10 MB)
 FORGE_DUMP_AUTO_OPEN=false     # Automatically open dump files in browser (default: false)
 FORGE_DEBUG_REQUESTS=/path/to/debug/requests.json  # Write debug HTTP request files to specified path (supports absolute and relative paths)
 ```
@@ -601,6 +599,20 @@ The `FORGE_LOG` variable controls the logging level for Forge's internal operati
 - `forge=info` - Informational messages (default when tracking enabled)
 - `forge=debug` - Debug information (default when tracking disabled)
 - `forge=trace` - Detailed tracing
+
+</details>
+
+<details>
+<summary><strong>Tracking Configuration</strong></summary>
+
+Control tracking of user-identifying metadata in telemetry events:
+
+```bash
+# .env
+FORGE_TRACKER=false                   # Disable tracking enrichment metadata (default: true)
+```
+
+The `FORGE_TRACKER` variable controls whether tracking enrichment metadata is included in telemetry events.
 
 </details>
 
@@ -773,6 +785,18 @@ MCP tools can be used as part of multi-agent workflows, allowing specialized age
 ## Documentation
 
 For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).
+
+---
+
+## Installation
+
+```bash
+# YOLO
+curl -fsSL https://forgecode.dev/cli | sh
+
+# Package managers
+nix run github:antinomyhq/forge # for latest dev branch
+```
 
 ---
 

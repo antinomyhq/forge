@@ -127,7 +127,7 @@ impl WorkspaceStatus {
                 SyncStatus::Deleted => {
                     files_to_delete.push(status.path);
                 }
-                SyncStatus::InSync => {
+                SyncStatus::InSync | SyncStatus::Failed => {
                     // No action needed
                 }
             }

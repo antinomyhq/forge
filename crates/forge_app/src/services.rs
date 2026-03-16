@@ -19,7 +19,7 @@ use url::Url;
 use crate::Walker;
 use crate::user::{User, UserUsage};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
@@ -146,6 +146,13 @@ pub struct FsUndoOutput {
     pub after_undo: Option<String>,
 }
 
+/// Output from todo_write tool execution
+#[derive(Debug)]
+pub struct TodoWriteOutput {
+    /// List of todos that were saved
+    pub todos: Vec<forge_domain::Todo>,
+}
+
 #[derive(Debug)]
 pub struct PolicyDecision {
     pub allowed: bool,
@@ -207,6 +214,22 @@ pub trait AppConfigService: Send + Sync {
     /// # Errors
     /// Returns an error if no default provider is configured.
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
+
+    /// Gets the commit configuration (provider and model for commit message
+    /// generation).
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
+
+    /// Sets the commit configuration (provider and model for commit message
+    /// generation).
+    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()>;
+
+    /// Gets the suggest configuration (provider and model for command
+    /// suggestion generation).
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
+
+    /// Sets the suggest configuration (provider and model for command
+    /// suggestion generation).
+    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1021,6 +1044,22 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
         self.config_service().set_default_model(model).await
+    }
+
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
+        self.config_service().get_commit_config().await
+    }
+
+    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()> {
+        self.config_service().set_commit_config(config).await
+    }
+
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
+        self.config_service().get_suggest_config().await
+    }
+
+    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
+        self.config_service().set_suggest_config(config).await
     }
 }
 

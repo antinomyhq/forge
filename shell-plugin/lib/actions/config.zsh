@@ -85,15 +85,138 @@ function _forge_action_provider() {
         # Extract the second field (provider ID) from the selected line
         # Format: "DisplayName  provider_id  host  type  status"
         local provider_id=$(echo "$selected" | awk '{print $2}')
-        # Always use config set - it will handle authentication if needed
-        _forge_exec config set provider "$provider_id"
+        # Use _forge_exec_interactive because config-set may trigger
+        # interactive authentication prompts (rustyline) when the provider
+        # is not yet configured. Without /dev/tty redirection, ZLE's pipes
+        # cause rustyline to see EOF and fail with "API key input cancelled".
+        _forge_exec_interactive config set provider "$provider_id"
     fi
 }
 
-# Action handler: Select model
+# Helper: Open an fzf model picker and print the raw selected line.
+#
+# Model list columns (from `forge list models --porcelain`):
+#   1:model_id  2:model_name  3:provider(display)  4:provider_id(raw)  5:context  6:tools  7:image
+# The picker hides model_id (field 1) and provider_id (field 4) via --with-nth.
+#
+# Arguments:
+#   $1  prompt_text     - fzf prompt label (e.g. "Model ❯ ")
+#   $2  current_model   - model_id to pre-position the cursor on (may be empty)
+#   $3  input_text      - optional pre-fill query for fzf
+#
+# Outputs the raw selected line to stdout, or nothing if cancelled.
+function _forge_pick_model() {
+    local prompt_text="$1"
+    local current_model="$2"
+    local input_text="$3"
+
+    local output
+    output=$($_FORGE_BIN list models --porcelain 2>/dev/null)
+
+    if [[ -z "$output" ]]; then
+        return 1
+    fi
+
+    local fzf_args=(
+        --delimiter="$_FORGE_DELIMITER"
+        --prompt="$prompt_text"
+        --with-nth="2,3,5.."
+    )
+
+    if [[ -n "$input_text" ]]; then
+        fzf_args+=(--query="$input_text")
+    fi
+
+    if [[ -n "$current_model" ]]; then
+        local index=$(_forge_find_index "$output" "$current_model" 1)
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    echo "$output" | _forge_fzf --header-lines=1 "${fzf_args[@]}"
+}
+
+# Action handler: Select model (across all configured providers)
+# When the selected model belongs to a different provider, switches it first.
 function _forge_action_model() {
     local input_text="$1"
-    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.." "$input_text"
+    (
+        echo
+        local current_model
+        current_model=$(_forge_exec config get model 2>/dev/null)
+
+        local selected
+        selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text")
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id (raw), field 3 = provider display name,
+            # field 4 = provider_id (raw, for config set)
+            local model_id provider_display provider_id
+            read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+            provider_display=${provider_display//[[:space:]]/}
+
+            # Switch provider first if it differs from the current one
+            # config get provider returns the display name, so compare against that
+            local current_provider
+            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
+            if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
+                _forge_exec_interactive config set provider "$provider_id"
+            fi
+
+            _forge_exec config set model "$model_id"
+        fi
+    )
+}
+
+# Action handler: Select model for commit message generation
+# Calls `forge config set commit <provider_id> <model_id>` on selection.
+function _forge_action_commit_model() {
+    local input_text="$1"
+    (
+        echo
+        local current_commit_model
+        current_commit_model=$(_forge_exec config get commit 2>/dev/null | tail -n 1)
+
+        local selected
+        selected=$(_forge_pick_model "Commit Model ❯ " "$current_commit_model" "$input_text")
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id (raw), field 4 = provider_id (raw)
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set commit "$provider_id" "$model_id"
+        fi
+    )
+}
+
+# Action handler: Select model for command suggestion generation
+# Calls `forge config set suggest <provider_id> <model_id>` on selection.
+function _forge_action_suggest_model() {
+    local input_text="$1"
+    (
+        echo
+        local current_suggest_model
+        current_suggest_model=$(_forge_exec config get suggest 2>/dev/null | tail -n 1)
+
+        local selected
+        selected=$(_forge_pick_model "Suggest Model ❯ " "$current_suggest_model" "$input_text")
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id (raw), field 4 = provider_id (raw)
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set suggest "$provider_id" "$model_id"
+        fi
+    )
 }
 
 # Action handler: Sync workspace for codebase search
@@ -164,6 +287,12 @@ function _forge_select_and_set_config() {
             fi
         fi
     )
+}
+
+# Action handler: Show config list
+function _forge_action_config() {
+    echo
+    _forge_exec config list
 }
 
 # Action handler: Show tools

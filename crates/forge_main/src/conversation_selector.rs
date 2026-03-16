@@ -2,83 +2,119 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use chrono::Utc;
-use colored::Colorize;
 use forge_api::Conversation;
-use forge_select::ForgeSelect;
+use forge_domain::ConversationId;
+use forge_select::ForgeWidget;
 
 use crate::display_constants::markers;
+use crate::info::Info;
+use crate::porcelain::Porcelain;
 
 /// Logic for selecting conversations from a list
 pub struct ConversationSelector;
 
 impl ConversationSelector {
-    /// Select a conversation from the provided list
+    /// Select a conversation from the provided list using porcelain-style
+    /// tabular display matching the shell plugin's `:conversation` action.
     ///
-    /// Returns the selected conversation ID, or None if no selection was made
+    /// Displays columns: TITLE, UPDATED (hiding the UUID column).
+    /// The header row is non-selectable via `header_lines=1`.
+    ///
+    /// Returns the selected conversation, or None if no selection was made.
     pub async fn select_conversation(
         conversations: &[Conversation],
+        current_conversation_id: Option<ConversationId>,
     ) -> Result<Option<Conversation>> {
         if conversations.is_empty() {
             return Ok(None);
         }
 
-        // Select conversations that have some title
-        let conversation_iter = conversations.iter().filter(|c| c.title.is_some());
+        // Filter to conversations with titles and context
+        let valid_conversations: Vec<&Conversation> = conversations
+            .iter()
+            .filter(|c| c.title.is_some() && c.context.is_some())
+            .collect();
 
-        // First, calculate all formatted dates to find the maximum length
+        if valid_conversations.is_empty() {
+            return Ok(None);
+        }
+
+        // Build Info structure (same as on_show_conversations)
         let now = Utc::now();
-        let dates = conversation_iter.clone().map(|c| {
-            let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
-            let duration = now.signed_duration_since(date);
+        let mut info = Info::new();
+
+        for conv in &valid_conversations {
+            let title = conv
+                .title
+                .as_deref()
+                .map(|t| t.to_string())
+                .unwrap_or_else(|| markers::EMPTY.to_string());
+
+            let duration = now.signed_duration_since(
+                conv.metadata.updated_at.unwrap_or(conv.metadata.created_at),
+            );
             let duration =
                 std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
-            if duration.is_zero() {
+            let time_ago = if duration.is_zero() {
                 "now".to_string()
             } else {
-                let duration = humantime::format_duration(duration);
-                format!("{duration} ago")
-            }
-        });
+                format!("{} ago", humantime::format_duration(duration))
+            };
 
-        let titles = conversation_iter.clone().map(|c| {
-            c.title
-                .as_ref()
-                .map(|title| {
-                    const MAX_TITLE: usize = 57;
-                    if title.len() > MAX_TITLE {
-                        format!("{}...", title.chars().take(MAX_TITLE).collect::<String>())
-                    } else {
-                        title.to_owned()
-                    }
-                })
-                .unwrap_or_else(|| format!("{} [{}]", markers::EMPTY, c.id).to_string())
-        });
+            info = info
+                .add_title(conv.id)
+                .add_key_value("Title", title)
+                .add_key_value("Updated", time_ago);
+        }
 
-        let max_title_length: usize = titles.clone().map(|s| s.len()).max().unwrap_or(0);
+        // Convert to porcelain, drop UUID column (col 0), truncate title
+        let porcelain_output = Porcelain::from(&info)
+            .drop_col(0)
+            .truncate(0, 60)
+            .uppercase_headers();
+        let porcelain_str = porcelain_output.to_string();
+
+        let all_lines: Vec<&str> = porcelain_str.lines().collect();
+        if all_lines.is_empty() {
+            return Ok(None);
+        }
 
         #[derive(Clone)]
-        struct ConversationItem((String, Conversation));
-        impl Display for ConversationItem {
+        struct ConversationRow {
+            conversation: Option<Conversation>,
+            display: String,
+        }
+        impl Display for ConversationRow {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                self.0.0.fmt(f)
+                write!(f, "{}", self.display)
             }
         }
 
-        let conversations = dates
-            .zip(titles)
-            .map(|(date, title)| format!("{:<max_title_length$} {}", title.bold(), date.dimmed()))
-            .zip(conversation_iter.cloned())
-            .map(ConversationItem)
-            .collect::<Vec<_>>();
+        let mut rows: Vec<ConversationRow> = Vec::with_capacity(all_lines.len());
+        // Header row (non-selectable via header_lines=1)
+        rows.push(ConversationRow { conversation: None, display: all_lines[0].to_string() });
+        // Data rows
+        for (i, line) in all_lines.iter().skip(1).enumerate() {
+            rows.push(ConversationRow {
+                conversation: valid_conversations.get(i).cloned().cloned(),
+                display: line.to_string(),
+            });
+        }
 
-        if let Some(selected) = tokio::task::spawn_blocking(|| {
-            ForgeSelect::select("Select the conversation to resume:", conversations)
-                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+        // Find starting cursor for the current conversation
+        let starting_cursor = current_conversation_id
+            .and_then(|current| valid_conversations.iter().position(|c| c.id == current))
+            .unwrap_or(0);
+
+        if let Some(selected) = tokio::task::spawn_blocking(move || {
+            ForgeWidget::select("Conversation", rows)
+                .with_starting_cursor(starting_cursor)
+                .with_header_lines(1)
                 .prompt()
         })
         .await??
         {
-            Ok(Some(selected.0.1))
+            Ok(selected.conversation)
         } else {
             Ok(None)
         }
@@ -108,7 +144,7 @@ mod tests {
     #[tokio::test]
     async fn test_select_conversation_empty_list() {
         let conversations = vec![];
-        let result = ConversationSelector::select_conversation(&conversations)
+        let result = ConversationSelector::select_conversation(&conversations, None)
             .await
             .unwrap();
         assert!(result.is_none());

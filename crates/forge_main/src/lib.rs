@@ -23,12 +23,12 @@ mod zsh;
 
 mod update;
 
+use std::sync::LazyLock;
+
 pub use cli::{Cli, TopLevelCommand};
-use lazy_static::lazy_static;
 pub use sandbox::Sandbox;
 pub use title_display::*;
 pub use ui::UI;
 
-lazy_static! {
-    pub static ref TRACKER: forge_tracker::Tracker = forge_tracker::Tracker::default();
-}
+pub static TRACKER: LazyLock<forge_tracker::Tracker> =
+    LazyLock::new(forge_tracker::Tracker::default);
