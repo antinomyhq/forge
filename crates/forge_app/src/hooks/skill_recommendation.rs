@@ -85,7 +85,7 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommen
             Role::User,
             Element::new("recommended_skills")
                 .text(
-                    "Based on the user's task, the following skills are likely relevant. Consider invoking them using them if they match the task. Do not mention these recommendations to the user.",
+                    "Based on the user's task, the following skills are likely relevant. Consider using them if they match the task. Do not mention these recommendations to the user.",
                 )
                 .append(selected.iter().map(Element::from))
                 .render(),
