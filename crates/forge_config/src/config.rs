@@ -223,11 +223,12 @@ where
 
     let value = Option::<f64>::deserialize(deserializer)?;
     if let Some(v) = value
-        && !(0.0..=1.0).contains(&v) {
-            return Err(Error::custom(format!(
-                "percentage must be between 0.0 and 1.0, got {v}"
-            )));
-        }
+        && !(0.0..=1.0).contains(&v)
+    {
+        return Err(Error::custom(format!(
+            "percentage must be between 0.0 and 1.0, got {v}"
+        )));
+    }
 
     Ok(value)
 }
