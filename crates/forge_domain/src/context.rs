@@ -461,18 +461,12 @@ impl Context {
         attachments.into_iter().fold(self, |ctx, attachment| {
             ctx.add_message(match attachment.content {
                 AttachmentContent::Image(image) => ContextMessage::Image(image),
-                AttachmentContent::FileContent {
-                    content,
-                    start_line,
-                    end_line,
-                    total_lines,
-                    ..
-                } => {
+                AttachmentContent::FileContent { content, info } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
-                        .attr("start_line", start_line)
-                        .attr("end_line", end_line)
-                        .attr("total_lines", total_lines)
+                        .attr("start_line", info.start_line)
+                        .attr("end_line", info.end_line)
+                        .attr("total_lines", info.total_lines)
                         .cdata(content);
 
                     let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
@@ -734,7 +728,7 @@ mod tests {
 
     use super::*;
     use crate::transformer::Transformer;
-    use crate::{DirectoryEntry, estimate_token_count};
+    use crate::{DirectoryEntry, FileInfo, estimate_token_count};
 
     #[test]
     fn test_override_system_message() {
@@ -1134,10 +1128,7 @@ mod tests {
             path: "/path/to/file.rs".to_string(),
             content: AttachmentContent::FileContent {
                 content: "fn main() {}\n".to_string(),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: "hash".to_string(),
+                info: FileInfo::new(1, 1, 1, "hash".to_string()),
             },
         }];
 
@@ -1187,20 +1178,14 @@ mod tests {
                 path: "/path/to/file1.rs".to_string(),
                 content: AttachmentContent::FileContent {
                     content: "fn foo() {}\n".to_string(),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
-                    content_hash: "hash1".to_string(),
+                    info: FileInfo::new(1, 1, 1, "hash1".to_string()),
                 },
             },
             Attachment {
                 path: "/path/to/file2.rs".to_string(),
                 content: AttachmentContent::FileContent {
                     content: "fn bar() {}\n".to_string(),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
-                    content_hash: "hash2".to_string(),
+                    info: FileInfo::new(1, 1, 1, "hash2".to_string()),
                 },
             },
         ];

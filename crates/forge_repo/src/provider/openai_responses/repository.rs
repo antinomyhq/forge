@@ -419,6 +419,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(url).unwrap(),
             credential: make_credential(ProviderId::OPENAI, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -618,6 +619,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -668,6 +670,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -707,6 +710,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -722,6 +726,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: None,
+            custom_headers: None,
             auth_methods: vec![],
             url_params: vec![],
             models: None,
@@ -753,6 +758,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: make_credential(ProviderId::OPENAI, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::OAuthDevice(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse("https://example.com/auth").unwrap(),
@@ -792,6 +798,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: make_credential(ProviderId::OPENAI, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::OAuthCode(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse("https://example.com/auth").unwrap(),
@@ -858,6 +865,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: None,
+            custom_headers: None,
             auth_methods: vec![],
             url_params: vec![],
             models: None,
@@ -878,6 +886,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: make_credential(ProviderId::OPENAI, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::OAuthDevice(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse("https://example.com/auth").unwrap(),
@@ -921,6 +930,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::CodexDevice(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse(
@@ -997,6 +1007,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -1016,6 +1027,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-token"),
+            custom_headers: None,
             auth_methods: vec![],
             url_params: vec![],
             models: None,
@@ -1052,6 +1064,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -1196,6 +1209,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&codex_url).unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -1276,6 +1290,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&codex_url).unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -1323,6 +1338,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&codex_url).unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,

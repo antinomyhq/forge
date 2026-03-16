@@ -1,7 +1,7 @@
 use nom::Parser;
 use nom::bytes::complete::tag;
 
-use crate::Image;
+use crate::{FileInfo, Image};
 
 /// A file or directory attachment included in a chat message.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
@@ -24,16 +24,9 @@ pub enum AttachmentContent {
         /// Line-numbered display text shown to the model. May represent only a
         /// slice of the full file when a range was requested.
         content: String,
-        /// First line of the displayed range (1-based, inclusive).
-        start_line: u64,
-        /// Last line of the displayed range (1-based, inclusive).
-        end_line: u64,
-        /// Total number of lines in the full file on disk.
-        total_lines: u64,
-        /// SHA-256 hash of the raw (unformatted, untruncated) file content.
-        /// Used for external-change detection so the stored hash matches what
-        /// the detector reads back from disk, avoiding false-positive warnings.
-        content_hash: String,
+        /// Metadata about the file read: line positions and full-file content
+        /// hash for external-change detection.
+        info: FileInfo,
     },
     /// A directory listing showing the immediate children of a directory.
     DirectoryListing {
@@ -76,8 +69,8 @@ impl AttachmentContent {
 
     pub fn range_info(&self) -> Option<(u64, u64, u64)> {
         match self {
-            AttachmentContent::FileContent { start_line, end_line, total_lines, .. } => {
-                Some((*start_line, *end_line, *total_lines))
+            AttachmentContent::FileContent { info, .. } => {
+                Some((info.start_line, info.end_line, info.total_lines))
             }
             _ => None,
         }
