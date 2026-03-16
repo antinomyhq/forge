@@ -47,9 +47,7 @@ impl<S> SkillRecommendationHandler<S> {
 }
 
 #[async_trait]
-impl<S: WorkspaceService> EventHandle<EventData<StartPayload>>
-    for SkillRecommendationHandler<S>
-{
+impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommendationHandler<S> {
     async fn handle(
         &self,
         event: &EventData<StartPayload>,
@@ -81,7 +79,8 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>>
             Err(e) => {
                 warn!(
                     agent_id = %event.agent.id,
-                    error = %e,
+                    error = ?e,
+                    query = %user_query,
                     "Failed to recommend skills, skipping"
                 );
                 return Ok(());
