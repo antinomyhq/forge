@@ -1,6 +1,11 @@
 # !! Contents within this block are managed by 'forge zsh setup' !!
 # !! Do not edit manually - changes will be overwritten !!
 
+# Add ~/.local/bin to PATH if it exists and isn't already in PATH
+if [[ -d "$HOME/.local/bin" ]] && [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
+    export PATH="$HOME/.local/bin:$PATH"
+fi
+
 # Add required zsh plugins if not already present
 if [[ ! " ${plugins[@]} " =~ " zsh-autosuggestions " ]]; then
     plugins+=(zsh-autosuggestions)

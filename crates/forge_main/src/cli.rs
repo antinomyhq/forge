@@ -405,7 +405,12 @@ pub enum ZshCommandGroup {
     Rprompt,
 
     /// Setup zsh integration by updating .zshrc with plugin and theme
-    Setup,
+    Setup {
+        /// Skip interactive prompts (Nerd Font check, editor selection) and use
+        /// defaults. Useful for scripted installations and CI.
+        #[arg(long, short = 'y')]
+        non_interactive: bool,
+    },
 
     /// Show keyboard shortcuts for ZSH line editor
     Keyboard,
@@ -1716,7 +1721,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "zsh", "setup"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Zsh(terminal)) => {
-                matches!(terminal, ZshCommandGroup::Setup)
+                matches!(terminal, ZshCommandGroup::Setup { .. })
             }
             _ => false,
         };
