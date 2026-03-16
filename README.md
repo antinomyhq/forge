@@ -55,6 +55,59 @@ forge
 ```
 That's it! Forge is now ready to assist you with your development tasks.
 
+### Building from Source (Windows)
+
+To build Forge from source on Windows, you need the following tools:
+
+| Tool | Install Command (scoop) | Purpose |
+|------|------------------------|---------|
+| [Rust](https://rustup.rs/) | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | Rust compiler and Cargo build system |
+| [MinGW](https://www.mingw-w64.org/) | `scoop install mingw` | GCC toolchain and linker for the `x86_64-pc-windows-gnu` target |
+| [Protocol Buffers](https://github.com/protocolbuffers/protobuf) | `scoop install extras/protobuf` | `protoc` compiler required by gRPC/prost |
+| [CMake](https://cmake.org/) | `scoop install cmake` | Build system used by native dependencies (e.g., `aws-lc-sys`) |
+
+**Steps:**
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/antinomyhq/forge.git
+cd forge
+
+# 2. Ensure MinGW and protoc are in PATH
+export PATH="$HOME/scoop/apps/mingw/current/bin:$HOME/scoop/shims:$PATH"
+
+# 3. Build and install the forge CLI
+cargo install --path crates/forge_main
+```
+
+The `forge.exe` binary will be installed to `~/.cargo/bin/`.
+
+### PowerShell Plugin Setup (Windows)
+
+The PowerShell plugin requires the following additional tools:
+
+| Tool | Install Command | Required |
+|------|----------------|----------|
+| [PowerShell 7+](https://github.com/PowerShell/PowerShell) | `winget install Microsoft.PowerShell` | Yes |
+| [fzf](https://github.com/junegunn/fzf) | `scoop install fzf` | Yes |
+| [fd](https://github.com/sharkdp/fd) | `scoop install fd` | Recommended |
+| [bat](https://github.com/sharkdp/bat) | `scoop install bat` | Optional |
+
+**Install the module:**
+
+```powershell
+# Copy module to PowerShell modules directory
+$modulesPath = ($env:PSModulePath -split [IO.Path]::PathSeparator)[0]
+$dest = Join-Path $modulesPath 'ForgeCode'
+New-Item -ItemType Directory -Path $dest -Force
+Copy-Item shell-plugin/powershell/ForgeCode.psm1, shell-plugin/powershell/ForgeCode.psd1 -Destination $dest
+
+# Add to your PowerShell profile
+Add-Content -Path $PROFILE -Value "`nImport-Module ForgeCode`nEnable-ForgePlugin"
+```
+
+See [shell-plugin/powershell/README.md](shell-plugin/powershell/README.md) for full usage details.
+
 ## Usage Examples
 
 Forge can be used in different ways depending on your needs. Here are some common usage patterns:
