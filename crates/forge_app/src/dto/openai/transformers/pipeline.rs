@@ -126,6 +126,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::FORGE, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://antinomy.ai/api/v1/models").unwrap(),
             )),
@@ -141,6 +142,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
@@ -156,6 +158,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI_CODING, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
@@ -171,6 +174,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPENAI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
@@ -186,6 +190,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::XAI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.x.ai/v1/models").unwrap(),
             )),
@@ -201,6 +206,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::REQUESTY, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.requesty.ai/v1/models").unwrap(),
             )),
@@ -216,6 +222,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPEN_ROUTER, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
             )),
@@ -231,6 +238,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ANTHROPIC, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             )),

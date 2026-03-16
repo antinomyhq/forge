@@ -518,6 +518,18 @@
     "auth_methods": ["api_key"]
   },
   {
+    "id": "kimi_coding",
+    "api_key_vars": "KIMI_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.kimi.com/coding/v1/chat/completions",
+    "models": "https://api.kimi.com/coding/v1/models",
+    "auth_methods": ["api_key"],
+    "custom_headers": {
+      "User-Agent": "KimiCLI/1.0.0"
+    }
+  },
+  {
     "id": "openai_responses_compatible",
     "api_key_vars": "OPENAI_API_KEY",
     "url_param_vars": ["OPENAI_URL"],

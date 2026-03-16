@@ -94,6 +94,12 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                 }
                 forge_domain::AuthMethod::GoogleAdc => {}
             });
+        // Append provider-level custom headers (from provider.json config)
+        if let Some(custom_headers) = &self.provider.custom_headers {
+            for (k, v) in custom_headers {
+                headers.push((k.clone(), v.clone()));
+            }
+        }
         headers
     }
 
@@ -274,6 +280,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_credential(ProviderId::OPENAI, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -289,6 +296,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZAI, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -304,6 +312,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZAI_CODING, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -319,6 +328,7 @@ mod tests {
             response: Some(ProviderResponse::Anthropic),
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             credential: make_credential(ProviderId::ANTHROPIC, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -383,6 +393,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: reqwest::Url::parse(base_url)?,
             credential: make_credential(ProviderId::OPENAI, "test-api-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
