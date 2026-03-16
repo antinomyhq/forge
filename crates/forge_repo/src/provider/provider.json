@@ -1105,9 +1105,38 @@
   {
     "id": "forge_services",
     "provider_type": "context_engine",
-    "url_param_vars": ["FORGE_WORKSPACE_SERVER_URL"],
+    "url_param_vars": [
+      "FORGE_WORKSPACE_SERVER_URL"
+    ],
     "url": "{{FORGE_WORKSPACE_SERVER_URL}}",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      {
+        "oauth_code": {
+          "auth_url": "https://clerk.forgecode.dev/oauth/authorize",
+          "token_url": "https://clerk.forgecode.dev/oauth/token",
+          "client_id": "wmVgjvoQ3hUcGbk8",
+          "scopes": [
+            "openid",
+            "profile",
+            "email"
+          ],
+          "redirect_uri": "http://localhost:5175/app/oauth/callback",
+          "local_redirect_uris": [
+            "http://localhost:5175/app/oauth/callback",
+            "http://localhost:18741/oauth/callback",
+            "http://localhost:18742/oauth/callback",
+            "http://localhost:18743/oauth/callback",
+            "http://localhost:18744/oauth/callback",
+            "http://localhost:18745/oauth/callback"
+          ],
+          "callback_redirect": {
+            "success_uri": "https://forgecode.dev/",
+            "failure_uri": "https://forgecode.dev/app/oauth/failure"
+          },
+          "use_pkce": true
+        }
+      }
+    ]
   },
   {
     "id": "io_intelligence",

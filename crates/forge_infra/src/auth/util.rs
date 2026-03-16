@@ -22,7 +22,16 @@ pub(crate) fn calculate_token_expiry(
 }
 
 /// Convert oauth2 TokenResponse into domain OAuthTokenResponse
-pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenResponse {
+pub(crate) fn into_domain<T>(token: T) -> OAuthTokenResponse
+where
+    T: oauth2::TokenResponse + serde::Serialize,
+{
+    // Extract id_token if present in the serialized token fields
+    let id_token = serde_json::to_value(&token)
+        .ok()
+        .and_then(|v| v.get("id_token").cloned())
+        .and_then(|v| v.as_str().map(|s| s.to_string()));
+
     OAuthTokenResponse {
         access_token: token.access_token().secret().to_string(),
         refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
@@ -36,6 +45,7 @@ pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenRespo
                 .collect::<Vec<_>>()
                 .join(" ")
         }),
+        id_token,
     }
 }
 
@@ -73,11 +83,14 @@ pub(crate) fn build_oauth_credential(
     default_expiry: chrono::Duration,
 ) -> anyhow::Result<AuthCredential> {
     let expires_at = calculate_token_expiry(token_response.expires_in, default_expiry);
-    let oauth_tokens = OAuthTokens::new(
+    let mut oauth_tokens = OAuthTokens::new(
         token_response.access_token,
         token_response.refresh_token,
         expires_at,
     );
+    if let Some(id_token) = token_response.id_token {
+        oauth_tokens = oauth_tokens.id_token(id_token);
+    }
     Ok(AuthCredential::new_oauth(
         provider_id,
         oauth_tokens,
@@ -98,6 +111,7 @@ pub(crate) fn build_token_response(
         expires_at: None,
         token_type: "Bearer".to_string(),
         scope: None,
+        id_token: None,
     }
 }
 

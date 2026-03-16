@@ -41,6 +41,7 @@ cacache = { version = "13.1.0", features = ["tokio-runtime"], default-features =
 serde.workspace = true
 oauth2 = { version = "5.0", features = ["reqwest"] }
 serde_urlencoded = "0.7.1"
+urlencoding = "2.1"
 base64.workspace = true
 http.workspace = true
 url.workspace = true

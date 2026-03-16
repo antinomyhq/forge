@@ -1,7 +1,6 @@
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::WorkspaceId;
 
@@ -78,33 +77,6 @@ impl SyncProgress {
     }
 }
 
-/// Stored authentication token for the indexing service (no expiry)
-///
-/// Associates a user with their indexing service authentication token
-/// obtained from the remote authentication API.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WorkspaceAuth {
-    /// User ID that owns this authentication
-    pub user_id: UserId,
-    /// Authentication token (obtained from HTTP API)
-    pub token: crate::ApiKey,
-    /// When this token was stored locally
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-impl From<WorkspaceAuth> for crate::AuthDetails {
-    fn from(auth: WorkspaceAuth) -> Self {
-        crate::AuthDetails::ApiKey(auth.token)
-    }
-}
-
-impl WorkspaceAuth {
-    /// Create a new indexing auth record
-    pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {
-        Self { user_id, token, created_at: chrono::Utc::now() }
-    }
-}
-
 /// File content for upload to workspace server
 ///
 /// Contains the file path (relative to workspace root) and its textual content
@@ -126,14 +98,13 @@ impl FileRead {
 /// Generic wrapper for workspace operations
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeBase<T> {
-    pub user_id: UserId,
     pub workspace_id: WorkspaceId,
     pub data: T,
 }
 
 impl<T> CodeBase<T> {
-    pub fn new(user_id: UserId, workspace_id: WorkspaceId, data: T) -> Self {
-        Self { user_id, workspace_id, data }
+    pub fn new(workspace_id: WorkspaceId, data: T) -> Self {
+        Self { workspace_id, data }
     }
 }
 
@@ -165,28 +136,6 @@ pub type CodeSearchQuery<'a> = CodeBase<SearchParams<'a>>;
 pub type FileUpload = CodeBase<Vec<FileRead>>;
 pub type FileDeletion = CodeBase<Vec<String>>;
 pub type WorkspaceFiles = CodeBase<()>;
-
-/// User identifier for codebase operations.
-///
-/// Unique per machine, generated once and stored in database.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]
-#[display("{}", _0)]
-pub struct UserId(Uuid);
-
-impl UserId {
-    /// Generate a new random user ID
-    pub fn generate() -> Self {
-        Self(Uuid::new_v4())
-    }
-
-    /// Parse a user ID from a string
-    ///
-    /// # Errors
-    /// Returns an error if the string is not a valid UUID
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
-        Ok(Self(Uuid::parse_str(s)?))
-    }
-}
 
 /// Node identifier for code graph nodes.
 ///
@@ -425,14 +374,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-
-    #[test]
-    fn test_user_id_roundtrip() {
-        let user_id = UserId::generate();
-        let s = user_id.to_string();
-        let parsed = UserId::from_string(&s).unwrap();
-        assert_eq!(user_id, parsed);
-    }
 
     #[test]
     fn test_workspace_id_roundtrip() {

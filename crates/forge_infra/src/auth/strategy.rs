@@ -1,19 +1,158 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use forge_app::{AuthStrategy, OAuthHttpProvider, StrategyFactory};
 use forge_domain::{
-    ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential, CodeRequest,
-    DeviceCodeRequest, OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
+    ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential,
+    AuthInputMethod, CallbackRedirect, CodeRequest, DeviceCodeRequest, OAuthConfig,
+    OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
 };
 use google_cloud_auth::credentials::Builder;
 use oauth2::basic::BasicClient;
 use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 use reqwest::header::{HeaderMap, HeaderValue};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpListener;
+use tokio::sync::oneshot;
 use url::Url;
 
 use crate::auth::error::Error as AuthError;
 use crate::auth::http::{AnthropicHttpProvider, GithubHttpProvider, StandardHttpProvider};
+use crate::auth::http_response::HttpResponse;
 use crate::auth::util::*;
+
+/// Internal OAuth callback HTTP server
+///
+/// Provides a lightweight HTTP server for receiving OAuth authorization codes
+/// via localhost redirect. Uses raw TCP sockets to avoid heavy framework
+/// dependencies.
+struct OAuthCallbackServer;
+
+impl OAuthCallbackServer {
+    /// Attempts to start a local HTTP server on the given URI.
+    ///
+    /// Returns a receiver that will yield the authorization code when the
+    /// callback is received. When `callback_redirect` is provided, the server
+    /// responds with HTTP 302 redirects to the success/failure URIs instead of
+    /// inline HTML pages.
+    async fn start_callback_server(
+        redirect_uri: &str,
+        state: &str,
+        callback_redirect: Option<CallbackRedirect>,
+    ) -> anyhow::Result<oneshot::Receiver<String>> {
+        let port = Self::extract_port(redirect_uri)?;
+        let addr = format!("127.0.0.1:{}", port);
+
+        let listener = TcpListener::bind(&addr).await?;
+        let (tx, rx) = oneshot::channel();
+        let expected_state = state.to_string();
+
+        tokio::spawn(async move {
+            if let Ok((mut socket, _)) = listener.accept().await {
+                let mut buffer = vec![0; 4096];
+                if let Ok(n) = socket.read(&mut buffer).await {
+                    let request = String::from_utf8_lossy(&buffer[..n]);
+                    let params = Self::parse_query_params(&request);
+
+                    let (response, code) = if let Some(received_state) = params.get("state") {
+                        if received_state == &expected_state {
+                            if let Some(auth_code) = params.get("code") {
+                                (
+                                    Self::success_response(callback_redirect.as_ref()),
+                                    Some(auth_code.clone()),
+                                )
+                            } else {
+                                (
+                                    Self::error_response(
+                                        "No authorization code received",
+                                        callback_redirect.as_ref(),
+                                    ),
+                                    None,
+                                )
+                            }
+                        } else {
+                            (
+                                Self::error_response(
+                                    "Invalid state parameter",
+                                    callback_redirect.as_ref(),
+                                ),
+                                None,
+                            )
+                        }
+                    } else {
+                        (
+                            Self::error_response(
+                                "Missing state parameter",
+                                callback_redirect.as_ref(),
+                            ),
+                            None,
+                        )
+                    };
+
+                    let _ = socket.write_all(response.as_bytes()).await;
+                    let _ = socket.flush().await;
+
+                    if let Some(code) = code {
+                        let _ = tx.send(code);
+                    }
+                }
+            }
+        });
+
+        Ok(rx)
+    }
+
+    fn extract_port(redirect_uri: &str) -> anyhow::Result<u16> {
+        let url = Url::parse(redirect_uri)?;
+        url.port()
+            .ok_or_else(|| anyhow::anyhow!("No port specified in redirect URI"))
+    }
+
+    fn parse_query_params(request: &str) -> std::collections::HashMap<String, String> {
+        let first_line = request.lines().next().unwrap_or("");
+        let parts: Vec<&str> = first_line.split_whitespace().collect();
+
+        if parts.len() < 2 {
+            return std::collections::HashMap::new();
+        }
+
+        let path = parts[1];
+
+        if let Some(query_start) = path.find('?') {
+            let query = &path[query_start + 1..];
+            query
+                .split('&')
+                .filter_map(|pair| {
+                    let (key, value) = pair.split_once('=')?;
+
+                    Some((
+                        urlencoding::decode(key).ok()?.into_owned(),
+                        urlencoding::decode(value).ok()?.into_owned(),
+                    ))
+                })
+                .collect()
+        } else {
+            std::collections::HashMap::new()
+        }
+    }
+
+    fn success_response(callback_redirect: Option<&CallbackRedirect>) -> String {
+        if let Some(redirect) = callback_redirect {
+            return HttpResponse::redirect(&redirect.success_uri);
+        }
+        HttpResponse::ok_html(include_str!("oauth_success.html").to_string())
+    }
+
+    fn error_response(message: &str, callback_redirect: Option<&CallbackRedirect>) -> String {
+        if let Some(redirect) = callback_redirect {
+            let encoded_msg = urlencoding::encode(message);
+            let location = format!("{}?error={}", redirect.failure_uri, encoded_msg);
+            return HttpResponse::redirect(&location);
+        }
+        let html = include_str!("oauth_error.html").replace("{{ERROR_MESSAGE}}", message);
+        HttpResponse::bad_request_html(html)
+    }
+}
 
 /// API Key Strategy - Simple static key authentication
 pub struct ApiKeyStrategy {
@@ -73,6 +212,69 @@ impl<T> OAuthCodeStrategy<T> {
 #[async_trait::async_trait]
 impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
+        // Try to use local redirect URIs with HTTP callback server if available
+        if let Some(local_uris) = &self.config.local_redirect_uris {
+            // Try each local redirect URI in order
+            for local_uri in local_uris {
+                tracing::debug!("Attempting to bind OAuth callback server to {}", local_uri);
+
+                // Clone config with the local redirect URI
+                let mut modified_config = self.config.clone();
+                modified_config.redirect_uri = Some(local_uri.clone());
+
+                // Build auth URL with the modified config
+                let auth_params = match self.adapter.build_auth_url(&modified_config).await {
+                    Ok(params) => params,
+                    Err(e) => {
+                        return Err(AuthError::InitiationFailed(format!(
+                            "Failed to build auth URL: {e}"
+                        ))
+                        .into());
+                    }
+                };
+
+                // Try to start the callback server with the real state
+                match OAuthCallbackServer::start_callback_server(
+                    local_uri,
+                    &auth_params.state,
+                    modified_config.callback_redirect.clone(),
+                )
+                .await
+                {
+                    Ok(receiver) => {
+                        // Port is available! Use this URI
+                        tracing::info!("Successfully bound OAuth callback server to {}", local_uri);
+
+                        return Ok(AuthContextRequest::Code(CodeRequest {
+                            authorization_url: Url::parse(&auth_params.auth_url)?,
+                            state: auth_params.state.into(),
+                            pkce_verifier: auth_params.code_verifier.map(Into::into),
+                            oauth_config: modified_config,
+                            input_method: AuthInputMethod::HttpCallback {
+                                redirect_uri: local_uri.clone(),
+                            },
+                            callback_receiver: Some(Arc::new(tokio::sync::Mutex::new(Some(
+                                receiver,
+                            )))),
+                        }));
+                    }
+                    Err(e) => {
+                        // Port not available, try next one
+                        tracing::debug!(
+                            "Port for {} not available: {}. Trying next...",
+                            local_uri,
+                            e
+                        );
+                        continue;
+                    }
+                }
+            }
+
+            // No ports available, fall back to manual
+            tracing::info!("No local redirect URIs available, falling back to manual code paste");
+        }
+
+        // Fall back to manual code paste (no local URIs or no callback server)
         let auth_params = self
             .adapter
             .build_auth_url(&self.config)
@@ -84,6 +286,8 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
             state: auth_params.state.into(),
             pkce_verifier: auth_params.code_verifier.map(Into::into),
             oauth_config: self.config.clone(),
+            input_method: AuthInputMethod::Manual,
+            callback_receiver: None,
         }))
     }
 
@@ -643,8 +847,12 @@ async fn refresh_oauth_credential(
         (None, expiry)
     };
 
-    // Build new tokens with refreshed OAuth access token
-    let new_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
+    // Build new tokens with refreshed OAuth access token, preserving the original
+    // id_token (JWT)
+    let mut new_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
+    if let Some(id_token) = &tokens.id_token {
+        new_tokens = new_tokens.id_token(id_token.clone());
+    }
 
     // Build appropriate credential type while preserving URL params
     let refreshed = if let Some(key) = api_key {
@@ -1015,7 +1223,7 @@ impl AuthStrategy for AnyAuthStrategy {
 }
 
 /// Factory for creating authentication strategies
-pub struct ForgeAuthStrategyFactory {}
+pub struct ForgeAuthStrategyFactory;
 
 impl Default for ForgeAuthStrategyFactory {
     fn default() -> Self {
@@ -1025,7 +1233,7 @@ impl Default for ForgeAuthStrategyFactory {
 
 impl ForgeAuthStrategyFactory {
     pub fn new() -> Self {
-        Self {}
+        Self
     }
 }
 
@@ -1116,10 +1324,12 @@ mod tests {
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],
             redirect_uri: None,
+            local_redirect_uris: None,
             use_pkce: false,
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1139,10 +1349,12 @@ mod tests {
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],
             redirect_uri: None,
+            local_redirect_uris: None,
             use_pkce: false,
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1162,10 +1374,12 @@ mod tests {
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],
             redirect_uri: None,
+            local_redirect_uris: None,
             use_pkce: false,
             token_refresh_url: Some(Url::parse("https://example.com/api_key").unwrap()),
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1186,10 +1400,12 @@ mod tests {
             token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
             scopes: vec![],
             redirect_uri: None,
+            local_redirect_uris: None,
             use_pkce: false,
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
 
         let factory = ForgeAuthStrategyFactory::new();
@@ -1296,10 +1512,12 @@ mod tests {
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],
             redirect_uri: None,
+            local_redirect_uris: None,
             use_pkce: false,
             token_refresh_url: None,
             extra_auth_params: None,
             custom_headers: None,
+            callback_redirect: None,
         };
         let fixture_tokens = OAuthTokens::new(
             "access_token",

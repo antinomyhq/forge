@@ -841,7 +841,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // For login, always configure (even if already configured) to allow
         // re-authentication
         let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+            .configure_provider(
+                any_provider.id(),
+                any_provider.auth_methods().to_vec(),
+                false,
+            )
             .await?
         {
             Some(provider) => provider,
@@ -2352,38 +2356,122 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         request: &CodeRequest,
     ) -> anyhow::Result<()> {
-        use colored::Colorize;
-
         self.spinner.stop(None)?;
+        self.display_auth_instructions(&provider_id, request)?;
+        self.open_browser(&request.authorization_url)?;
+
+        let code = self.get_authorization_code(request).await?;
+
+        self.exchange_code_for_credentials(provider_id, request, code)
+            .await
+    }
+
+    /// Displays authentication instructions to the user
+    fn display_auth_instructions(
+        &mut self,
+        provider_id: &ProviderId,
+        request: &CodeRequest,
+    ) -> anyhow::Result<()> {
+        use colored::Colorize;
 
         self.writeln(format!(
             "{}",
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
-        // Display authorization URL
         self.writeln(format!(
             "{} Please visit: {}",
             "→".blue(),
             request.authorization_url.as_str().blue().underline()
         ))?;
 
-        // Try to open browser automatically
-        if let Err(e) = open::that(request.authorization_url.as_str()) {
+        Ok(())
+    }
+
+    /// Attempts to open the authorization URL in the user's browser
+    fn open_browser(&mut self, url: &url::Url) -> anyhow::Result<()> {
+        if let Err(e) = open::that(url.as_str()) {
             self.writeln_title(TitleFormat::error(format!(
                 "Failed to open browser automatically: {e}"
             )))?;
         }
+        Ok(())
+    }
 
-        // Prompt user to paste authorization code
-        let code = ForgeWidget::input("Paste the authorization code")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+    /// Gets the authorization code either via HTTP callback or manual input
+    async fn get_authorization_code(&mut self, request: &CodeRequest) -> anyhow::Result<String> {
+        use forge_domain::AuthInputMethod;
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
+        match &request.input_method {
+            AuthInputMethod::HttpCallback { redirect_uri } => {
+                self.try_http_callback(redirect_uri, request).await
+            }
+            AuthInputMethod::Manual => self.prompt_for_code(),
         }
+    }
 
+    /// Attempts to receive the authorization code via HTTP callback
+    async fn try_http_callback(
+        &mut self,
+        redirect_uri: &str,
+        request: &CodeRequest,
+    ) -> anyhow::Result<String> {
+        use colored::Colorize;
+
+        self.writeln(format!(
+            "{}",
+            format!("Waiting for authentication callback on {}...", redirect_uri).dimmed()
+        ))?;
+
+        self.spinner
+            .start(Some("Waiting for authentication callback..."))?;
+
+        let receiver = self.extract_callback_receiver(request).await?;
+
+        match tokio::time::timeout(Duration::from_secs(120), receiver).await {
+            Ok(Ok(code)) => {
+                self.spinner.stop(None)?;
+                self.writeln(format!("{}", "✓ Received callback".green()))?;
+                Ok(code)
+            }
+            Ok(Err(_)) => {
+                self.handle_callback_failure("Callback server closed without receiving code")
+            }
+            Err(_) => self.handle_callback_failure("Callback timeout after 120 seconds"),
+        }
+    }
+
+    /// Extracts the callback receiver from the request
+    async fn extract_callback_receiver(
+        &self,
+        request: &CodeRequest,
+    ) -> anyhow::Result<tokio::sync::oneshot::Receiver<String>> {
+        let receiver_mutex = request
+            .callback_receiver
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("No callback receiver available"))?;
+
+        let mut receiver_opt = receiver_mutex.lock().await;
+        receiver_opt
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Callback receiver already consumed"))
+    }
+
+    /// Handles callback failure by falling back to manual input
+    fn handle_callback_failure(&mut self, reason: &str) -> anyhow::Result<String> {
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::warning(reason))?;
+        self.writeln("Falling back to manual input...".dimmed())?;
+        self.prompt_for_code()
+    }
+
+    /// Exchanges the authorization code for credentials
+    async fn exchange_code_for_credentials(
+        &mut self,
+        provider_id: ProviderId,
+        request: &CodeRequest,
+        code: String,
+    ) -> anyhow::Result<()> {
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
 
@@ -2400,6 +2488,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         Ok(())
+    }
+
+    /// Prompts the user to manually paste an authorization code
+    fn prompt_for_code(&mut self) -> anyhow::Result<String> {
+        let code = ForgeWidget::input("Paste the authorization code:")
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+
+        if code.trim().is_empty() {
+            anyhow::bail!("Authorization code cannot be empty");
+        }
+
+        Ok(code)
     }
 
     /// Helper method to select an authentication method when multiple are
@@ -2453,28 +2554,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    /// Creates ForgeCode Services credentials if not already authenticated and
-    /// displays the credentials file location to the user.
-    async fn init_forge_services(&mut self) -> Result<()> {
-        self.api.create_auth_credentials().await?;
-        let env = self.api.environment();
-        let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
-        self.writeln_title(
-            TitleFormat::info("ForgeCode Services enabled").sub_title(&credentials_path),
-        )?;
-        Ok(())
-    }
-
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
+        skip_activation_prompt: bool,
     ) -> Result<Option<Provider<Url>>> {
-        if provider_id == ProviderId::FORGE_SERVICES {
-            self.init_forge_services().await?;
-            return Ok(None);
-        }
         // Select auth method (or use the only one available)
         let auth_method = match self
             .select_auth_method(provider_id.clone(), &auth_methods)
@@ -2505,6 +2591,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             AuthContextRequest::Code(request) => {
                 self.handle_code_flow(provider_id.clone(), &request).await?;
             }
+        }
+
+        // Skip activation prompt if requested (e.g., for forge_services)
+        if skip_activation_prompt {
+            self.writeln_title(TitleFormat::info(format!(
+                "{provider_id} configured successfully!"
+            )))?;
+            // Fetch and return the configured provider without asking about activation
+            let provider = self.api.get_provider(&provider_id).await?;
+            return Ok(provider.into_configured());
         }
 
         let should_set_active = self.display_credential_success(provider_id.clone()).await?;
@@ -2675,7 +2771,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+                .configure_provider(
+                    any_provider.id(),
+                    any_provider.auth_methods().to_vec(),
+                    false,
+                )
                 .await?
             {
                 Some(provider) => provider,
@@ -3595,9 +3695,26 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
-        // Check if auth already exists and create if needed
+        // Check if auth already exists and trigger OAuth flow if needed
         if !self.api.is_authenticated().await? {
-            self.init_forge_services().await?;
+            let forge_provider = self.api.get_provider(&ProviderId::FORGE_SERVICES).await?;
+
+            // Trigger OAuth authentication flow (skip activation prompt for forge_services)
+            self.configure_provider(
+                forge_provider.id(),
+                forge_provider.auth_methods().to_vec(),
+                true, // Skip activation prompt - forge_services is not a chat provider
+            )
+            .await?;
+
+            // Verify authentication succeeded (check actual authentication status)
+            if !self.api.is_authenticated().await? {
+                anyhow::bail!("Authentication cancelled or failed");
+            }
+
+            self.writeln_title(TitleFormat::info(
+                "Forge Services authenticated successfully",
+            ))?;
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;

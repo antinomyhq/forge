@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, Skill, Snapshot, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -119,9 +119,6 @@ pub trait ProviderRepository: Send + Sync {
 /// Repository for managing workspace indexing and search operations
 #[async_trait::async_trait]
 pub trait WorkspaceIndexRepository: Send + Sync {
-    /// Authenticate with the indexing service via gRPC API
-    async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
-
     /// Create a new workspace on the indexing server
     async fn create_workspace(
         &self,
