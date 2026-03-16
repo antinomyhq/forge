@@ -34,19 +34,6 @@ impl<S> SkillRecommendationHandler<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
-
-    /// Builds the recommendation message content from a list of selected
-    /// skills.
-    fn build_message(skills: &[SelectedSkill]) -> String {
-        Element::new("recommended_skills")
-            .text(
-                "Based on the user's task, the following skills are likely relevant. Consider \
-                 invoking them using them if they match the task. Do not mention \
-                 these recommendations to the user.",
-            )
-            .append(skills.iter().map(Element::from))
-            .render()
-    }
 }
 
 #[async_trait]
@@ -95,9 +82,17 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommen
         }
 
         // Inject as a droppable user message so it can be removed during compaction.
-        let message = TextMessage::new(Role::User, Self::build_message(&selected))
-            .model(event.agent.model.clone())
-            .droppable(true);
+        let message = TextMessage::new(
+            Role::User,
+            Element::new("recommended_skills")
+                .text(
+                    "Based on the user's task, the following skills are likely relevant. Consider invoking them using them if they match the task. Do not mention these recommendations to the user.",
+                )
+                .append(selected.iter().map(Element::from))
+                .render(),
+        )
+        .model(event.agent.model.clone())
+        .droppable(true);
 
         let ctx = conversation
             .context
