@@ -62,14 +62,14 @@ impl<F: FsReadService> FileChangeDetector<F> {
                 async move {
                     // Get current hash from the full raw file content (not the
                     // truncated/formatted content returned to the LLM).
-                    // ReadOutput.content_hash is always computed from the
+                    // ReadOutput.info.content_hash is always computed from the
                     // unprocessed file, so it is directly comparable with the
                     // stored hash.
                     let current_hash = fs
                         .read(file_path.to_string_lossy().to_string(), None, None)
                         .await
                         .ok()
-                        .map(|o| o.content_hash);
+                        .map(|o| o.info.content_hash);
 
                     // Check if hash has changed
                     if current_hash != last_hash {
@@ -182,10 +182,7 @@ mod tests {
             if let Some(file) = self.files.get(&path) {
                 Ok(crate::ReadOutput {
                     content: Content::File(file.displayed_content.clone()),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
-                    content_hash: compute_hash(&file.raw_content),
+                    info: forge_domain::FileInfo::new(1, 1, 1, compute_hash(&file.raw_content)),
                 })
             } else {
                 Err(anyhow::anyhow!(std::io::Error::from(

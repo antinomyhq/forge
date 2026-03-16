@@ -6,8 +6,8 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, Provider,
-    ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
+    FileInfo, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
+    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
     ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
@@ -38,10 +38,7 @@ pub struct PatchOutput {
 #[setters(into)]
 pub struct ReadOutput {
     pub content: Content,
-    pub start_line: u64,
-    pub end_line: u64,
-    pub total_lines: u64,
-    pub content_hash: String,
+    pub info: FileInfo,
 }
 
 #[derive(Debug)]

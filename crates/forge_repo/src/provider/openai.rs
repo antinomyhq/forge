@@ -94,6 +94,12 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                 }
                 forge_domain::AuthMethod::GoogleAdc => {}
             });
+        // Append provider-level custom headers (from provider.json config)
+        if let Some(custom_headers) = &self.provider.custom_headers {
+            for (k, v) in custom_headers {
+                headers.push((k.clone(), v.clone()));
+            }
+        }
         headers
     }
 
@@ -274,6 +280,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_credential(ProviderId::OPENAI, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -289,6 +296,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZAI, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -304,6 +312,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZAI_CODING, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -319,6 +328,7 @@ mod tests {
             response: Some(ProviderResponse::Anthropic),
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             credential: make_credential(ProviderId::ANTHROPIC, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -383,6 +393,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: reqwest::Url::parse(base_url)?,
             credential: make_credential(ProviderId::OPENAI, "test-api-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(
@@ -690,6 +701,51 @@ mod tests {
         let actual = enhance_error(fixture, &ProviderId::GITHUB_COPILOT);
         let error_string = format!("{:#}", actual);
         insta::assert_snapshot!(error_string);
+    }
+
+    #[test]
+    fn test_get_headers_includes_custom_headers() {
+        let mut provider = openai("test-key");
+        let mut custom = std::collections::HashMap::new();
+        custom.insert("User-Agent".to_string(), "KimiCLI/1.0.0".to_string());
+        custom.insert("X-Custom".to_string(), "custom-value".to_string());
+        provider.custom_headers = Some(custom);
+
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+        let headers = openai_provider.get_headers();
+
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "User-Agent" && v == "KimiCLI/1.0.0")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "X-Custom" && v == "custom-value")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+    }
+
+    #[test]
+    fn test_get_headers_no_custom_headers() {
+        let provider = openai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+        let headers = openai_provider.get_headers();
+
+        // Only authorization header should be present
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
     }
 }
 

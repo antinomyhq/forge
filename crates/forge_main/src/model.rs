@@ -1028,6 +1028,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
@@ -1048,6 +1049,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
             )),
@@ -1068,6 +1070,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("http://localhost:8080/models").unwrap(),
             )),
@@ -1088,6 +1091,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
+            custom_headers: None,
             models: Some(ModelSource::Url(Template::new(
                 "https://api.anthropic.com/v1/models",
             ))),
@@ -1108,6 +1112,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("http://192.168.1.1:8080/models").unwrap(),
             )),

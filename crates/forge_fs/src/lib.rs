@@ -24,3 +24,13 @@ pub use crate::error::Error;
 /// with consistent error handling.
 #[derive(Debug)]
 pub struct ForgeFS;
+
+impl ForgeFS {
+    /// Computes a SHA-256 hash of the given string content.
+    pub(crate) fn compute_hash(content: &str) -> String {
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        format!("{:x}", hasher.finalize())
+    }
+}
