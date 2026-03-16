@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, Role, StartPayload,
-    TextMessage,
+    ContextMessage, Conversation, EventData, EventHandle, Role, StartPayload, TextMessage,
 };
 use forge_template::Element;
 use tracing::warn;
