@@ -398,10 +398,8 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
             })
             .collect();
 
-        let grpc_request = tonic::Request::new(SelectSkillRequest {
-            skills,
-            user_prompt: request.user_prompt,
-        });
+        let grpc_request =
+            tonic::Request::new(SelectSkillRequest { skills, user_prompt: request.user_prompt });
 
         let grpc_request = self.with_auth(grpc_request, auth_token)?;
 

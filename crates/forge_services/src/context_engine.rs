@@ -882,10 +882,7 @@ impl<
         }
     }
 
-    async fn recommend_skills(
-        &self,
-        use_case: String,
-    ) -> Result<Vec<forge_domain::SelectedSkill>> {
+    async fn recommend_skills(&self, use_case: String) -> Result<Vec<forge_domain::SelectedSkill>> {
         let (token, _user_id) = self.get_workspace_credentials().await?;
 
         let skill_infos: Vec<SkillInfo> = self

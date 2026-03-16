@@ -177,10 +177,12 @@ pub trait WorkspaceIndexRepository: Send + Sync {
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<()>;
 
-    /// Select relevant skills for a user prompt using the remote ranking service.
+    /// Select relevant skills for a user prompt using the remote ranking
+    /// service.
     ///
     /// # Arguments
-    /// * `request` - The skill selection parameters including candidate skills and user prompt
+    /// * `request` - The skill selection parameters including candidate skills
+    ///   and user prompt
     /// * `auth_token` - API key used to authenticate with the remote service
     ///
     /// # Errors
