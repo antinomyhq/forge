@@ -50,13 +50,17 @@ function _forge_reset() {
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
-# Usage: _forge_find_index <output> <value_to_find> [field_number]
+# Usage: _forge_find_index <output> <value_to_find> [field_number] [second_value] [second_field_number]
 # field_number: which field to compare (1 for first field, 2 for second field, etc.)
+# second_value/second_field_number: optional second field to match for disambiguation
+#   (e.g. match both model_id AND provider_id when model names collide across providers)
 # Note: This function expects porcelain output WITH headers and skips the header line
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
     local field_number="${3:-1}"  # Default to first field if not specified
+    local second_value="${4:-}"
+    local second_field_number="${5:-}"
 
     local index=1
     local line_num=0
@@ -70,8 +74,17 @@ function _forge_find_index() {
         # Extract the specified field for comparison
         local field_value=$(echo "$line" | awk "{print \$$field_number}")
         if [[ "$field_value" == "$value_to_find" ]]; then
-            echo "$index"
-            return 0
+            # If a second field constraint is given, check it too
+            if [[ -n "$second_value" && -n "$second_field_number" ]]; then
+                local second_field_val=$(echo "$line" | awk "{print \$$second_field_number}")
+                if [[ "$second_field_val" == "$second_value" ]]; then
+                    echo "$index"
+                    return 0
+                fi
+            else
+                echo "$index"
+                return 0
+            fi
         fi
         ((index++))
     done <<< "$output"
