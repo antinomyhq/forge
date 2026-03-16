@@ -123,9 +123,9 @@ impl OAuthCallbackServer {
             query
                 .split('&')
                 .filter_map(|pair| {
-                    let mut split = pair.splitn(2, '=');
-                    let key = split.next()?;
-                    let value = split.next()?;
+                    let (key, value) = pair.split_once('=')?;
+                    
+                    
                     Some((
                         urlencoding::decode(key).ok()?.into_owned(),
                         urlencoding::decode(value).ok()?.into_owned(),
@@ -206,11 +206,7 @@ pub struct OAuthCodeStrategy<T> {
 
 impl<T> OAuthCodeStrategy<T> {
     pub fn new(adapter: T, provider_id: ProviderId, config: OAuthConfig) -> Self {
-        Self {
-            config,
-            provider_id,
-            adapter,
-        }
+        Self { config, provider_id, adapter }
     }
 }
 
@@ -276,9 +272,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
             }
 
             // No ports available, fall back to manual
-            tracing::info!(
-                "No local redirect URIs available, falling back to manual code paste"
-            );
+            tracing::info!("No local redirect URIs available, falling back to manual code paste");
         }
 
         // Fall back to manual code paste (no local URIs or no callback server)
@@ -1260,20 +1254,26 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
                 if provider_id == ProviderId::CLAUDE_CODE {
-                    return Ok(AnyAuthStrategy::OAuthCodeAnthropic(
-                        OAuthCodeStrategy::new(AnthropicHttpProvider, provider_id, config),
-                    ));
+                    return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
+                        AnthropicHttpProvider,
+                        provider_id,
+                        config,
+                    )));
                 }
 
                 if provider_id == ProviderId::GITHUB_COPILOT {
-                    return Ok(AnyAuthStrategy::OAuthCodeGithub(
-                        OAuthCodeStrategy::new(GithubHttpProvider, provider_id, config),
-                    ));
+                    return Ok(AnyAuthStrategy::OAuthCodeGithub(OAuthCodeStrategy::new(
+                        GithubHttpProvider,
+                        provider_id,
+                        config,
+                    )));
                 }
 
-                Ok(AnyAuthStrategy::OAuthCodeStandard(
-                    OAuthCodeStrategy::new(StandardHttpProvider, provider_id, config),
-                ))
+                Ok(AnyAuthStrategy::OAuthCodeStandard(OAuthCodeStrategy::new(
+                    StandardHttpProvider,
+                    provider_id,
+                    config,
+                )))
             }
             forge_domain::AuthMethod::OAuthDevice(config) => {
                 // Check if this is OAuth-with-API-Key flow (GitHub Copilot pattern)

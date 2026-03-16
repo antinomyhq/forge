@@ -49,9 +49,7 @@ impl HttpResponse {
 
     /// Creates a 302 redirect response.
     pub fn redirect(location: &str) -> String {
-        Self::new(302, "Found")
-            .header("Location", location)
-            .build()
+        Self::new(302, "Found").header("Location", location).build()
     }
 
     /// Creates a 200 OK HTML response.

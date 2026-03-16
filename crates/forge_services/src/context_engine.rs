@@ -350,7 +350,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         }
     }
 
-    /// Gets the ForgeCode services credential and extracts the authentication token
+    /// Gets the ForgeCode services credential and extracts the authentication
+    /// token
     ///
     /// # Errors
     /// Returns an error if the credential is not found, if there's a database

@@ -841,7 +841,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // For login, always configure (even if already configured) to allow
         // re-authentication
         let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec(), false)
+            .configure_provider(
+                any_provider.id(),
+                any_provider.auth_methods().to_vec(),
+                false,
+            )
             .await?
         {
             Some(provider) => provider,
@@ -2767,7 +2771,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec(), false)
+                .configure_provider(
+                    any_provider.id(),
+                    any_provider.auth_methods().to_vec(),
+                    false,
+                )
                 .await?
             {
                 Some(provider) => provider,

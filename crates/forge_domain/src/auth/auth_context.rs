@@ -1,6 +1,7 @@
-use derive_more::{Deref, From};
 use std::collections::HashMap;
 use std::sync::Arc;
+
+use derive_more::{Deref, From};
 use tokio::sync::Mutex;
 use tokio::sync::oneshot::Receiver;
 use url::Url;
@@ -56,7 +57,8 @@ pub struct CodeRequest {
     pub pkce_verifier: Option<PkceVerifier>,
     pub oauth_config: OAuthConfig,
     pub input_method: AuthInputMethod,
-    /// Callback receiver for HTTP callback method (wrapped for Clone compatibility)
+    /// Callback receiver for HTTP callback method (wrapped for Clone
+    /// compatibility)
     pub callback_receiver: Option<Arc<Mutex<Option<Receiver<String>>>>>,
 }
 
