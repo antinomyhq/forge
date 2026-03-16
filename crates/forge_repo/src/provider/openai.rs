@@ -702,6 +702,51 @@ mod tests {
         let error_string = format!("{:#}", actual);
         insta::assert_snapshot!(error_string);
     }
+
+    #[test]
+    fn test_get_headers_includes_custom_headers() {
+        let mut provider = openai("test-key");
+        let mut custom = std::collections::HashMap::new();
+        custom.insert("User-Agent".to_string(), "KimiCLI/1.0.0".to_string());
+        custom.insert("X-Custom".to_string(), "custom-value".to_string());
+        provider.custom_headers = Some(custom);
+
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+        let headers = openai_provider.get_headers();
+
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "User-Agent" && v == "KimiCLI/1.0.0")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "X-Custom" && v == "custom-value")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+    }
+
+    #[test]
+    fn test_get_headers_no_custom_headers() {
+        let provider = openai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+        let headers = openai_provider.get_headers();
+
+        // Only authorization header should be present
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+    }
 }
 
 /// Repository for OpenAI-compatible provider responses
