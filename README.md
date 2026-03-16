@@ -106,6 +106,37 @@ Copy-Item shell-plugin/powershell/ForgeCode.psm1, shell-plugin/powershell/ForgeC
 Add-Content -Path $PROFILE -Value "`nImport-Module ForgeCode`nEnable-ForgePlugin"
 ```
 
+**Install a Nerd Font (required for prompt icons):**
+
+The Forge prompt uses [Nerd Font](https://www.nerdfonts.com/) icons. Without a Nerd Font, the right-side prompt will display garbled characters.
+
+```powershell
+# Install via scoop
+scoop bucket add nerd-fonts
+scoop install nerd-fonts/CascadiaCode-NF
+```
+
+Then set `"CaskaydiaCove Nerd Font"` as the font in your terminal:
+- **Windows Terminal**: Settings > Profiles > Defaults > Appearance > Font face
+- Or edit `settings.json` directly:
+```json
+"profiles": {
+    "defaults": {
+        "font": {
+            "face": "CaskaydiaCove Nerd Font"
+        }
+    }
+}
+```
+
+**Set UTF-8 encoding in your PowerShell profile:**
+
+Add this line at the top of your `$PROFILE` (before the ForgeCode import) to prevent encoding issues:
+
+```powershell
+[console]::InputEncoding = [console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+```
+
 See [shell-plugin/powershell/README.md](shell-plugin/powershell/README.md) for full usage details.
 
 ## Usage Examples
