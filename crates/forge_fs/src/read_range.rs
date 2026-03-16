@@ -60,7 +60,7 @@ impl crate::ForgeFS {
             // If the file is empty, return empty content
             return Ok((
                 String::new(),
-                FileInfo::new(start_line, end_line, 0).content_hash(content_hash),
+                FileInfo::new(start_line, end_line, 0, content_hash),
             ));
         }
         // Split into lines
@@ -84,7 +84,7 @@ impl crate::ForgeFS {
         // Calculate actual end line (1-based) that was used
         let actual_end_line = cmp::min(end_line, total_lines);
 
-        let info = FileInfo::new(start_line, actual_end_line, total_lines).content_hash(content_hash);
+        let info = FileInfo::new(start_line, actual_end_line, total_lines, content_hash);
 
         // Extract requested lines
         let result_content = if start_pos == 0 && end_pos == total_lines - 1 {
@@ -123,35 +123,35 @@ mod test {
         assert_eq!(info.start_line, 2);
         assert_eq!(info.end_line, 5);
         assert_eq!(info.total_lines, 10);
-        assert_eq!(info.content_hash.as_deref(), Some(full_hash.as_str()));
+        assert_eq!(info.content_hash, full_hash);
 
         // Test reading from start
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 3).await?;
         assert_eq!(result, "Line 1\nLine 2\nLine 3");
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 3);
-        assert_eq!(info.content_hash.as_deref(), Some(full_hash.as_str()));
+        assert_eq!(info.content_hash, full_hash);
 
         // Test reading to end
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 8, 10).await?;
         assert_eq!(result, "Line 8\nLine 9\nLine 10");
         assert_eq!(info.start_line, 8);
         assert_eq!(info.end_line, 10);
-        assert_eq!(info.content_hash.as_deref(), Some(full_hash.as_str()));
+        assert_eq!(info.content_hash, full_hash);
 
         // Test reading entire file
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 10).await?;
         assert_eq!(result, content);
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 10);
-        assert_eq!(info.content_hash.as_deref(), Some(full_hash.as_str()));
+        assert_eq!(info.content_hash, full_hash);
 
         // Test single line
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 5, 5).await?;
         assert_eq!(result, "Line 5");
         assert_eq!(info.start_line, 5);
         assert_eq!(info.end_line, 5);
-        assert_eq!(info.content_hash.as_deref(), Some(full_hash.as_str()));
+        assert_eq!(info.content_hash, full_hash);
 
         // Test first line specifically
         let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 1).await?;
@@ -159,7 +159,7 @@ mod test {
         assert_eq!(info.start_line, 1);
         assert_eq!(info.end_line, 1);
         assert_eq!(info.total_lines, 10);
-        assert_eq!(info.content_hash.as_deref(), Some(full_hash.as_str()));
+        assert_eq!(info.content_hash, full_hash);
 
         // Test invalid ranges
         assert!(
@@ -216,31 +216,66 @@ mod test {
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 1, 5).await?;
         assert_eq!(actual_content, content);
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (1, 5, 5));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (1, 5, 5)
+        );
 
         // Test: end_line = total_lines + 1 (one beyond)
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 1, 6).await?;
         assert_eq!(actual_content, content);
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (1, 5, 5));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (1, 5, 5)
+        );
 
         // Test: end_line >> total_lines (far beyond)
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 1, 10000).await?;
         assert_eq!(actual_content, content);
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (1, 5, 5));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (1, 5, 5)
+        );
 
         // Test: range starting in the middle with excessive end_line
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 3, 100).await?;
         assert_eq!(actual_content, "Line 3\nLine 4\nLine 5");
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (3, 5, 5));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (3, 5, 5)
+        );
 
         // Test: reading last line with excessive end_line
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 5, 100).await?;
         assert_eq!(actual_content, "Line 5");
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (5, 5, 5));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (5, 5, 5)
+        );
 
         Ok(())
     }
@@ -256,19 +291,40 @@ mod test {
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 1, 50).await?;
         assert_eq!(actual_content.lines().count(), 50);
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (1, 50, 5000));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (1, 50, 5000)
+        );
 
         // Test: range in the middle
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 2500, 3500).await?;
         assert_eq!(actual_content.lines().count(), 1001); // Lines 2500-3500 inclusive
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (2500, 3500, 5000));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (2500, 3500, 5000)
+        );
 
         // Test: end beyond file bounds (simulates max_read_size limiting)
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 4990, 6000).await?;
         assert_eq!(actual_content.lines().count(), 11); // Lines 4990-5000
-        assert_eq!((actual_info.start_line, actual_info.end_line, actual_info.total_lines), (4990, 5000, 5000));
+        assert_eq!(
+            (
+                actual_info.start_line,
+                actual_info.end_line,
+                actual_info.total_lines
+            ),
+            (4990, 5000, 5000)
+        );
 
         Ok(())
     }

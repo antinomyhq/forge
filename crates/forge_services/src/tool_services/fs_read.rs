@@ -145,10 +145,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
             return Ok(ReadOutput {
                 content: Content::image(image),
-                start_line: 0,
-                end_line: 0,
-                total_lines: 0,
-                content_hash: hash,
+                info: FileInfo::new(0, 0, 0, hash),
             });
         }
 
@@ -194,21 +191,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 .join("\n")
         };
 
-        let file_info = FileInfo {
-            start_line,
-            end_line,
-            total_lines,
-            content_hash: Some(hash.clone()),
-        };
+        let file_info = FileInfo::new(start_line, end_line, total_lines, hash);
 
-        Ok(ReadOutput {
-            content: Content::file(content),
-            // FIXME: just return file-info directly instead of setting each field
-            start_line: file_info.start_line,
-            end_line: file_info.end_line,
-            total_lines: file_info.total_lines,
-            content_hash: hash,
-        })
+        Ok(ReadOutput { content: Content::file(content), info: file_info })
     }
 }
 

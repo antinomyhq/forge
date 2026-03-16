@@ -79,8 +79,8 @@ pub trait FileReaderInfra: Send + Sync {
     /// - FileInfo.end_line: ending line position
     /// - FileInfo.total_lines: total line count in file
     /// - FileInfo.content_hash: SHA-256 hash of the **full** file content,
-    ///   allowing callers to store a stable hash that matches what a
-    ///   whole-file read produces (used by the external-change detector)
+    ///   allowing callers to store a stable hash that matches what a whole-file
+    ///   read produces (used by the external-change detector)
     async fn range_read_utf8(
         &self,
         path: &Path,

@@ -1,4 +1,3 @@
-use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -8,8 +7,7 @@ pub struct File {
 }
 
 /// Information about a file or file range read operation
-#[derive(Debug, Clone, PartialEq, Setters)]
-#[setters(strip_option, into)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileInfo {
     /// Starting line position of the read operation
     pub start_line: u64,
@@ -20,19 +18,16 @@ pub struct FileInfo {
     /// Total number of lines in the file
     pub total_lines: u64,
 
-    // FIXME: Make it required
     /// SHA-256 hash of the **full** file content.
-    /// Populated by ranged reads so callers can store a stable hash that
-    /// matches what a whole-file read produces (used by the
-    /// external-change detector).
-    pub content_hash: Option<String>,
+    /// Stored so callers have a stable hash that matches what a subsequent
+    /// whole-file read produces (used by the external-change detector).
+    pub content_hash: String,
 }
 
 impl FileInfo {
     /// Creates a new FileInfo with the specified parameters.
-    /// `content_hash` is initialised to `None`; use the setter to populate it.
-    pub fn new(start_line: u64, end_line: u64, total_lines: u64) -> Self {
-        Self { start_line, end_line, total_lines, content_hash: None }
+    pub fn new(start_line: u64, end_line: u64, total_lines: u64, content_hash: String) -> Self {
+        Self { start_line, end_line, total_lines, content_hash }
     }
 
     /// Returns true if this represents a partial file read
