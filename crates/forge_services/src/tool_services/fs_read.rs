@@ -194,10 +194,16 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 .join("\n")
         };
 
-        let file_info = FileInfo { start_line, end_line, total_lines };
+        let file_info = FileInfo {
+            start_line,
+            end_line,
+            total_lines,
+            content_hash: Some(hash.clone()),
+        };
 
         Ok(ReadOutput {
             content: Content::file(content),
+            // FIXME: just return file-info directly instead of setting each field
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
