@@ -124,8 +124,7 @@ impl OAuthCallbackServer {
                 .split('&')
                 .filter_map(|pair| {
                     let (key, value) = pair.split_once('=')?;
-                    
-                    
+
                     Some((
                         urlencoding::decode(key).ok()?.into_owned(),
                         urlencoding::decode(value).ok()?.into_owned(),
