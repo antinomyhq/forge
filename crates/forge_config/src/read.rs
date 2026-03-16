@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use config::{ConfigBuilder, Environment, File, FileFormat, builder::AsyncState};
+use config::builder::AsyncState;
+use config::{ConfigBuilder, Environment, File, FileFormat};
 use serde::de::DeserializeOwned;
 
 use crate::config::ForgeConfig;
@@ -33,13 +34,15 @@ fn load_dot_env(cwd: &Path) {
     }
 }
 
-/// Reads and deserializes any `T: DeserializeOwned` from the following sources, in increasing
-/// priority order:
+/// Reads and deserializes any `T: DeserializeOwned` from the following sources,
+/// in increasing priority order:
 ///
 /// 1. `.env` files loaded from the current working directory upward
 /// 2. Embedded `default.yaml` (compiled into the binary)
-/// 3. A YAML file at `~/forge/forge.yaml` (optional — skipped if the file does not exist)
-/// 4. A YAML file at `<cwd>/.forge/forge.yaml` (optional — skipped if the file does not exist)
+/// 3. A YAML file at `~/forge/forge.yaml` (optional — skipped if the file does
+///    not exist)
+/// 4. A YAML file at `<cwd>/.forge/forge.yaml` (optional — skipped if the file
+///    does not exist)
 /// 5. Environment variables (always active)
 ///
 /// CWD-level config files take precedence over home-level ones.
@@ -76,10 +79,10 @@ pub async fn read<T: DeserializeOwned>() -> Result<T, Error> {
     Ok(cfg.try_deserialize::<T>()?)
 }
 
-/// Returns all configurable fields of [`ForgeConfig`] as `(env_var, description)` tuples derived
-/// from the JSON Schema. Nested structs (e.g. `compaction`) are expanded with the
-/// `FORGE_PARENT__CHILD` double-underscore separator convention used by the environment variable
-/// reader.
+/// Returns all configurable fields of [`ForgeConfig`] as `(env_var,
+/// description)` tuples derived from the JSON Schema. Nested structs (e.g.
+/// `compaction`) are expanded with the `FORGE_PARENT__CHILD` double-underscore
+/// separator convention used by the environment variable reader.
 pub fn env_vars() -> Vec<(String, String)> {
     use schemars::SchemaGenerator;
     use serde_json::Value;
@@ -136,8 +139,9 @@ pub fn env_vars() -> Vec<(String, String)> {
     result
 }
 
-/// Resolves a field schema to its concrete object schema, following `$ref` pointers and
-/// unwrapping `anyOf` wrappers that schemars emits for `Option<T>` fields.
+/// Resolves a field schema to its concrete object schema, following `$ref`
+/// pointers and unwrapping `anyOf` wrappers that schemars emits for `Option<T>`
+/// fields.
 fn resolve_schema<'a>(
     schema: &'a serde_json::Value,
     defs: &'a serde_json::Map<String, serde_json::Value>,
@@ -165,9 +169,8 @@ fn resolve_schema<'a>(
 mod tests {
     use pretty_assertions::assert_eq;
 
-    use crate::config::ForgeConfig;
-
     use super::*;
+    use crate::config::ForgeConfig;
 
     async fn read_env(env_var: &str) -> Result<ForgeConfig, Error> {
         let (key, value) = env_var
@@ -203,7 +206,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_http_keep_alive_interval() {
-        let config = read_env("FORGE_HTTP__KEEP_ALIVE_INTERVAL=30").await.unwrap();
+        let config = read_env("FORGE_HTTP__KEEP_ALIVE_INTERVAL=30")
+            .await
+            .unwrap();
         let actual = config.http.unwrap().keep_alive_interval;
         let expected = Some(30u64);
 

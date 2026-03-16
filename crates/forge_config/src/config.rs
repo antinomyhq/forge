@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use schemars::JsonSchema;
 
 use crate::error::Error;
 use crate::read::read;
@@ -28,11 +28,13 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_open_dump: Option<bool>,
 
-    /// Custom banner text displayed on startup instead of the default ASCII art.
+    /// Custom banner text displayed on startup instead of the default ASCII
+    /// art.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub banner: Option<String>,
 
-    /// Compaction settings controlling when and how conversation history is summarized.
+    /// Compaction settings controlling when and how conversation history is
+    /// summarized.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compaction: Option<CompactionConfig>,
 
@@ -92,7 +94,8 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_image_size: Option<u64>,
 
-    /// Maximum number of tool-calling requests the agent may make in a single turn.
+    /// Maximum number of tool-calling requests the agent may make in a single
+    /// turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
 
@@ -104,7 +107,8 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_search_result_size: Option<usize>,
 
-    /// Maximum number of consecutive tool failures allowed before the agent aborts the turn.
+    /// Maximum number of consecutive tool failures allowed before the agent
+    /// aborts the turn.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
@@ -112,11 +116,13 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
 
-    /// Identifier of the default provider that hosts the model (e.g. `"openai"`).
+    /// Identifier of the default provider that hosts the model (e.g.
+    /// `"openai"`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider_id: Option<String>,
 
-    /// Named presets keyed by preset identifier, each bundling model and sampling settings.
+    /// Named presets keyed by preset identifier, each bundling model and
+    /// sampling settings.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub presets: HashMap<PresetId, PresetConfig>,
 
@@ -170,8 +176,8 @@ pub struct ForgeConfig {
 }
 
 impl ForgeConfig {
-    /// Reads a [`ForgeConfig`] from `.env` files, YAML/JSON config at `~/forge/forge.{yaml,json}`,
-    /// and environment variables.
+    /// Reads a [`ForgeConfig`] from `.env` files, YAML/JSON config at
+    /// `~/forge/forge.{yaml,json}`, and environment variables.
     ///
     /// # Errors
     ///
@@ -180,9 +186,10 @@ impl ForgeConfig {
         read().await
     }
 
-    /// Returns all configurable fields as `(env_var, description)` tuples derived from the JSON
-    /// Schema. Nested structs (e.g. `compaction`) are expanded using the `FORGE_PARENT__CHILD`
-    /// double-underscore separator convention used by the environment variable reader.
+    /// Returns all configurable fields as `(env_var, description)` tuples
+    /// derived from the JSON Schema. Nested structs (e.g. `compaction`) are
+    /// expanded using the `FORGE_PARENT__CHILD` double-underscore separator
+    /// convention used by the environment variable reader.
     pub fn env_vars() -> Vec<(String, String)> {
         crate::read::env_vars()
     }
@@ -215,13 +222,12 @@ where
     use serde::de::Error;
 
     let value = Option::<f64>::deserialize(deserializer)?;
-    if let Some(v) = value {
-        if !(0.0..=1.0).contains(&v) {
+    if let Some(v) = value
+        && !(0.0..=1.0).contains(&v) {
             return Err(Error::custom(format!(
                 "percentage must be between 0.0 and 1.0, got {v}"
             )));
         }
-    }
 
     Ok(value)
 }
@@ -263,7 +269,8 @@ pub enum TlsVersion {
 /// tool selections, and custom request overrides into a reusable profile.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct PresetConfig {
-    /// Sampling temperature controlling randomness (0.0 = deterministic, higher = more random).
+    /// Sampling temperature controlling randomness (0.0 = deterministic, higher
+    /// = more random).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
 
@@ -316,19 +323,23 @@ pub enum ReasoningEffort {
     Custom(String),
 }
 
-/// A single JSON body override targeting a specific path in the request payload.
+/// A single JSON body override targeting a specific path in the request
+/// payload.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct BodyParam {
-    /// JSON-pointer segments identifying where to set the value (e.g. `["parameters", "stop"]`).
+    /// JSON-pointer segments identifying where to set the value (e.g.
+    /// `["parameters", "stop"]`).
     pub path: Vec<String>,
     /// The value to insert at the given path.
     pub value: Value,
 }
 
-/// Controls when and how conversation history is compacted to stay within context limits.
+/// Controls when and how conversation history is compacted to stay within
+/// context limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct CompactionConfig {
-    /// Maximum percentage of the context that can be summarized during compaction.
+    /// Maximum percentage of the context that can be summarized during
+    /// compaction.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
@@ -485,7 +496,8 @@ pub struct UpdateConfig {
 /// compaction behaviour, and turn limits.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct AgentConfig {
-    /// Compaction settings for this agent, overriding the global compaction config.
+    /// Compaction settings for this agent, overriding the global compaction
+    /// config.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compaction: Option<CompactionConfig>,
 
