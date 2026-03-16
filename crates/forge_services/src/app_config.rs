@@ -257,7 +257,7 @@ mod tests {
                     auth_methods: p.auth_methods.clone(),
                     url_params: p.url_params.clone(),
                     credential: p.credential.clone(),
-            custom_headers: None,
+                    custom_headers: None,
                 })
                 .ok_or_else(|| anyhow::anyhow!("Provider not found"))
         }
