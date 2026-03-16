@@ -38,11 +38,14 @@ impl<S> SkillRecommendationHandler<S> {
     /// Builds the recommendation message content from a list of selected
     /// skills.
     fn build_message(skills: &[SelectedSkill]) -> String {
-        format!(
-            "Here are the recommended skills for the user task. Use them only if relevant to the \
-             user's query. Do not mention these recommendations to the user.\n{}",
-            Element::new("recommended_skills").append(skills.iter().map(Element::from))
-        )
+        Element::new("recommended_skills")
+            .text(
+                "Based on the user's task, the following skills are likely relevant. Consider \
+                 invoking them using them if they match the task. Do not mention \
+                 these recommendations to the user.",
+            )
+            .append(skills.iter().map(Element::from))
+            .render()
     }
 }
 
