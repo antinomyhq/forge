@@ -148,22 +148,43 @@ function Invoke-ForgeFzf {
     <#
     .SYNOPSIS
         FZF wrapper with forge defaults.
+    .PARAMETER InputObject
+        Pipeline input to pass to fzf via stdin.
     .PARAMETER FzfArgs
         Additional arguments to pass to fzf.
     #>
     [CmdletBinding()]
     param(
+        [Parameter(ValueFromPipeline)]
+        [string[]]$InputObject,
+
         [Parameter(ValueFromRemainingArguments)]
         [string[]]$FzfArgs
     )
 
-    $baseArgs = @(
-        '--reverse', '--exact', '--cycle', '--select-1',
-        '--height', '80%', '--no-scrollbar', '--ansi',
-        '--color=header:bold'
-    )
-    $allArgs = $baseArgs + $FzfArgs
-    & fzf @allArgs
+    begin {
+        $baseArgs = @(
+            '--reverse', '--exact', '--cycle', '--select-1',
+            '--height', '80%', '--no-scrollbar', '--ansi',
+            '--color=header:bold'
+        )
+        $allArgs = $baseArgs + $FzfArgs
+        $collectedInput = @()
+    }
+
+    process {
+        if ($InputObject) {
+            $collectedInput += $InputObject
+        }
+    }
+
+    end {
+        if ($collectedInput) {
+            $collectedInput | & fzf @allArgs
+        } else {
+            & fzf @allArgs
+        }
+    }
 }
 
 function Invoke-Forge {
