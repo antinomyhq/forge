@@ -131,7 +131,7 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
                 self.title_tasks.remove(&conversation.id);
             }
             Err(e) => {
-                debug!(error = %e, "Title generation task failed");
+                debug!(error = ?e, "Title generation task failed");
                 // Remove so a future StartPayload can retry.
                 self.title_tasks.remove(&conversation.id);
             }

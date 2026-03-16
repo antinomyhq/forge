@@ -40,7 +40,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
             Err(e) => {
                 tracing::error!(
                     path = %path.display(),
-                    error = %e,
+                    error = ?e,
                     "Failed to read config file. Using default config."
                 );
                 return AppConfig::default();
@@ -59,7 +59,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
             .inspect_err(|e| {
                 tracing::error!(
                     path = %path.display(),
-                    error = %e,
+                    error = ?e,
                     "Failed to repair config file. Using default config."
                 );
             })
