@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use anyhow::Result;
 use console::strip_ansi_codes;
 use fzf_wrapped::{Fzf, Layout};
@@ -25,6 +27,12 @@ impl<T> MultiSelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Bail immediately when stdin is not a terminal to prevent the process
+        // from blocking indefinitely on a detached or non-interactive session.
+        if !std::io::stdin().is_terminal() {
+            return Ok(None);
+        }
+
         if self.options.is_empty() {
             return Ok(None);
         }
