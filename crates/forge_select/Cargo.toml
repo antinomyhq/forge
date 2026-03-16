@@ -6,11 +6,11 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+colored.workspace = true
 console.workspace = true
-derive_more.workspace = true
-dialoguer.workspace = true
-
-crossterm.workspace = true
+fzf-wrapped.workspace = true
+rustyline.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

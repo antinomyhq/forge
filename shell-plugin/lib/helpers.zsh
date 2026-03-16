@@ -25,6 +25,19 @@ function _forge_exec() {
     "${cmd[@]}"
 }
 
+# Like _forge_exec but connects stdin/stdout to /dev/tty so that interactive
+# prompts (rustyline, fzf, etc.) work correctly when forge is launched as a
+# child of a ZLE widget. ZLE owns the terminal and replaces the process's
+# stdin/stdout with its own pipes, so without this redirect any readline
+# library would see a non-tty stdin and return EOF immediately.
+# Do NOT use inside $(...) command substitutions - use _forge_exec instead.
+function _forge_exec_interactive() {
+    local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
+    local -a cmd
+    cmd=($_FORGE_BIN --agent "$agent_id" "$@")
+    "${cmd[@]}" </dev/tty >/dev/tty
+}
+
 function _forge_reset() {
   # Clear buffer and reset cursor position
   BUFFER=""
@@ -37,13 +50,16 @@ function _forge_reset() {
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
-# Usage: _forge_find_index <output> <value_to_find> [field_number]
-# field_number: which field to compare (1 for first field, 2 for second field, etc.)
+# Usage: _forge_find_index <output> <value_to_find> [field_number] [field_number2] [value_to_find2]
+# field_number: which porcelain column to compare (1-based, using multi-space delimiter)
+# field_number2/value_to_find2: optional second column+value for compound matching
 # Note: This function expects porcelain output WITH headers and skips the header line
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
-    local field_number="${3:-1}"  # Default to first field if not specified
+    local field_number="${3:-1}"
+    local field_number2="${4:-}"
+    local value_to_find2="${5:-}"
 
     local index=1
     local line_num=0
@@ -54,11 +70,18 @@ function _forge_find_index() {
             continue
         fi
         
-        # Extract the specified field for comparison
-        local field_value=$(echo "$line" | awk "{print \$$field_number}")
+        local field_value=$(echo "$line" | awk -F '  +' "{print \$$field_number}")
         if [[ "$field_value" == "$value_to_find" ]]; then
-            echo "$index"
-            return 0
+            if [[ -n "$field_number2" && -n "$value_to_find2" ]]; then
+                local field_value2=$(echo "$line" | awk -F '  +' "{print \$$field_number2}")
+                if [[ "$field_value2" == "$value_to_find2" ]]; then
+                    echo "$index"
+                    return 0
+                fi
+            else
+                echo "$index"
+                return 0
+            fi
         fi
         ((index++))
     done <<< "$output"

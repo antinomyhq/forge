@@ -96,7 +96,9 @@ impl ForgeEditor {
 
     pub fn prompt(&mut self, prompt: &dyn Prompt) -> anyhow::Result<ReadResult> {
         let signal = self.editor.read_line(prompt);
-        signal.map(Into::into).map_err(|e| anyhow::anyhow!(e))
+        signal
+            .map(Into::into)
+            .map_err(|e| anyhow::anyhow!(ReadLineError(e)))
     }
 
     /// Sets the buffer content to be pre-filled on the next prompt
@@ -105,6 +107,10 @@ impl ForgeEditor {
             .run_edit_commands(&[EditCommand::InsertString(content)]);
     }
 }
+
+#[derive(Debug, thiserror::Error)]
+#[error(transparent)]
+pub struct ReadLineError(std::io::Error);
 
 impl From<Signal> for ReadResult {
     fn from(signal: Signal) -> Self {

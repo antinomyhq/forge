@@ -73,7 +73,7 @@ function _forge_action_default() {
     fi
     
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+    _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
@@ -160,14 +160,23 @@ function forge-accept-line() {
         conversation|c)
             _forge_action_conversation "$input_text"
         ;;
-        provider|p)
+        config-provider|provider|p)
             _forge_action_provider "$input_text"
         ;;
-        model|m)
+        config-model|model|m)
             _forge_action_model "$input_text"
+        ;;
+        config-commit-model|ccm)
+            _forge_action_commit_model "$input_text"
+        ;;
+        config-suggest-model|csm)
+            _forge_action_suggest_model "$input_text"
         ;;
         tools|t)
             _forge_action_tools
+        ;;
+        config)
+            _forge_action_config
         ;;
         skill)
             _forge_action_skill

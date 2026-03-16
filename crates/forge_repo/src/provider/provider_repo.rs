@@ -43,6 +43,9 @@ struct ProviderConfig {
     models: Option<Models>,
     #[merge(strategy = merge::vec::append)]
     auth_methods: Vec<forge_domain::AuthMethod>,
+    #[serde(default)]
+    #[merge(strategy = overwrite)]
+    custom_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 fn overwrite<T>(base: &mut T, other: T) {
@@ -92,6 +95,7 @@ impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
                 .map(|v| URLParam::from(v.clone()))
                 .collect(),
             credential: None,
+            custom_headers: config.custom_headers.clone(),
             models,
         }
     }
@@ -190,7 +194,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             if config.id == ProviderId::OPENAI && has_openai_url {
                 continue;
             }
-            if config.id == ProviderId::OPENAI_COMPATIBLE && !has_openai_url {
+            if (config.id == ProviderId::OPENAI_COMPATIBLE
+                || config.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
+                && !has_openai_url
+            {
                 continue;
             }
             if config.id == ProviderId::ANTHROPIC && has_anthropic_url {
@@ -304,6 +311,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
                 .map(|v| URLParam::from(v.clone()))
                 .collect(),
             credential: Some(credential),
+            custom_headers: config.custom_headers.clone(),
             models,
         })
     }
@@ -559,6 +567,27 @@ mod tests {
     }
 
     #[test]
+    fn test_openai_responses_compatible_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::OPENAI_RESPONSES_COMPATIBLE);
+        assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
+        assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
+        assert_eq!(
+            config.response_type,
+            Some(ProviderResponse::OpenAIResponses)
+        );
+        assert_eq!(config.url, "{{OPENAI_URL}}/responses");
+        match config.models.as_ref().unwrap() {
+            Models::Url(model_url) => assert_eq!(model_url, "{{OPENAI_URL}}/models"),
+            Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
+    }
+
+    #[test]
     fn test_anthropic_compatible_config() {
         let configs = get_provider_configs();
         let config = configs
@@ -667,7 +696,7 @@ mod env_tests {
             &self,
             _batch_size: usize,
             _paths: Vec<PathBuf>,
-        ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+        ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
             futures::stream::empty()
         }
 
@@ -1147,8 +1176,7 @@ mod env_tests {
                 &self,
                 _batch_size: usize,
                 _paths: Vec<PathBuf>,
-            ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send
-            {
+            ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
                 futures::stream::empty()
             }
 

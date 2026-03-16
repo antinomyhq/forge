@@ -252,12 +252,6 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&response_event, &mut self.conversation)
                 .await?;
 
-            // Update context from conversation after hook runs (compaction may have
-            // modified it)
-            if let Some(updated_context) = &self.conversation.context {
-                context = updated_context.clone();
-            }
-
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
             is_complete =
@@ -274,6 +268,11 @@ impl<S: AgentService> Orchestrator<S> {
             let mut tool_call_records = self
                 .execute_tool_calls(&message.tool_calls, &tool_context)
                 .await?;
+
+            // Update context from conversation after tool-call hooks run
+            if let Some(updated_context) = &self.conversation.context {
+                context = updated_context.clone();
+            }
 
             self.error_tracker.adjust_record(&tool_call_records);
             let allowed_max_attempts = self.error_tracker.limit();

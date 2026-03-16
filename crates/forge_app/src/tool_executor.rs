@@ -307,7 +307,8 @@ impl<
             }
             ToolCatalog::TodoWrite(input) => {
                 let before = context.get_todos()?;
-                let after = context.update_todos(input.todos.clone())?;
+                context.update_todos(input.todos.clone())?;
+                let after = context.get_todos()?;
                 ToolOperation::TodoWrite { before, after }
             }
             ToolCatalog::TodoRead(_input) => {
