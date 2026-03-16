@@ -249,13 +249,27 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             Err(e) => Some(Err(e)),
                         }
                     }
-                    Err(e) => Some(Err(anyhow::anyhow!("SSE parse error: {}", e))),
+                    Err(e) => Some(Err(into_sse_parse_error(e))),
                 }
             });
 
         use crate::provider::IntoDomain;
         let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
+    }
+}
+
+fn into_sse_parse_error<E>(error: eventsource_stream::EventStreamError<E>) -> anyhow::Error
+where
+    E: std::fmt::Debug + std::fmt::Display + Send + Sync + 'static,
+{
+    let is_retryable = matches!(&error, eventsource_stream::EventStreamError::Transport(_));
+    let error = anyhow::anyhow!("SSE parse error: {}", error);
+
+    if is_retryable {
+        forge_domain::Error::Retryable(error).into()
+    } else {
+        error
     }
 }
 
@@ -381,6 +395,12 @@ mod tests {
 
     use super::*;
     use crate::provider::mock_server::MockServer;
+
+    fn is_retryable(error: &anyhow::Error) -> bool {
+        error
+            .downcast_ref::<forge_domain::Error>()
+            .is_some_and(|error| matches!(error, forge_domain::Error::Retryable(_)))
+    }
 
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
         Some(forge_domain::AuthCredential {
@@ -801,6 +821,33 @@ mod tests {
         assert_eq!(headers[0].0, "authorization");
         assert_eq!(headers[1].0, "X-Custom");
         assert_eq!(headers[1].1, "value");
+    }
+
+    #[test]
+    fn test_into_sse_parse_error_marks_transport_errors_retryable() {
+        let error = into_sse_parse_error(eventsource_stream::EventStreamError::Transport(
+            anyhow::anyhow!("error decoding response body"),
+        ));
+
+        assert!(is_retryable(&error));
+        assert_eq!(
+            error.to_string(),
+            "SSE parse error: Transport error: error decoding response body"
+        );
+    }
+
+    #[test]
+    fn test_into_sse_parse_error_keeps_utf8_errors_non_retryable() {
+        let error =
+            into_sse_parse_error(eventsource_stream::EventStreamError::<anyhow::Error>::Utf8(
+                String::from_utf8(vec![0xFF]).unwrap_err(),
+            ));
+
+        assert!(!is_retryable(&error));
+        assert_eq!(
+            error.to_string(),
+            "SSE parse error: UTF8 error: invalid utf-8 sequence of 1 bytes from index 0"
+        );
     }
 
     #[test]
