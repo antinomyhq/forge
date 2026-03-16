@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use async_openai::types::responses as oai;
 use forge_app::domain::{
@@ -151,9 +151,18 @@ impl IntoDomain for oai::Response {
     }
 }
 
+#[derive(Clone, Copy, Hash, PartialEq, Eq, derive_more::From)]
+struct ToolCallIndex(u32);
+
 #[derive(Default)]
 struct CodexStreamState {
-    output_index_to_tool_call: HashMap<u32, (ToolCallId, ToolName)>,
+    output_index_to_tool_call: HashMap<ToolCallIndex, (ToolCallId, ToolName)>,
+    /// Tracks output indices that have received at least one arguments delta.
+    /// When arguments are streamed via deltas, the `done` event should be
+    /// skipped to avoid duplication. When no deltas are received (e.g. the
+    /// Spark model sends arguments only in the `done` event), we must emit
+    /// them from the `done` handler.
+    received_toolcall_deltas: HashSet<ToolCallIndex>,
 }
 
 impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
@@ -197,7 +206,7 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                         let tool_name = ToolName::new(call.name.clone());
 
                                         state.output_index_to_tool_call.insert(
-                                            added.output_index,
+                                            added.output_index.into(),
                                             (tool_call_id.clone(), tool_name.clone()),
                                         );
 
@@ -224,9 +233,12 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                 }
                             }
                             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta) => {
+                                state
+                                    .received_toolcall_deltas
+                                    .insert(delta.output_index.into());
                                 let (call_id, name) = state
                                     .output_index_to_tool_call
-                                    .get(&delta.output_index)
+                                    .get(&(delta.output_index.into()))
                                     .cloned()
                                     .unwrap_or_else(|| {
                                         (
@@ -249,9 +261,45 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                     }),
                                 )))
                             }
-                            oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(_done) => {
-                                // Arguments are already sent via deltas, no need to emit here
-                                None
+                            oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done) => {
+                                // If deltas were already streamed for this output index,
+                                // the arguments have already been emitted incrementally.
+                                if state
+                                    .received_toolcall_deltas
+                                    .contains(&(done.output_index.into()))
+                                {
+                                    None
+                                } else {
+                                    // No deltas were received (e.g. the Spark model sends
+                                    // the complete arguments only in the `done` event).
+                                    // Emit the full tool call now.
+                                    let (call_id, name) = state
+                                        .output_index_to_tool_call
+                                        .get(&(done.output_index.into()))
+                                        .cloned()
+                                        .unwrap_or_else(|| {
+                                            (
+                                                ToolCallId::new(format!(
+                                                    "output_{}",
+                                                    done.output_index
+                                                )),
+                                                ToolName::new(
+                                                    done.name.clone().unwrap_or_default(),
+                                                ),
+                                            )
+                                        });
+
+                                    let name = (!name.as_str().is_empty()).then_some(name);
+
+                                    Some(Ok(ChatCompletionMessage::default().add_tool_call(
+                                        ToolCall::Part(ToolCallPart {
+                                            call_id: Some(call_id),
+                                            name,
+                                            arguments_part: done.arguments,
+                                            thought_signature: None,
+                                        }),
+                                    )))
+                                }
                             }
                             oai::ResponseStreamEvent::ResponseCompleted(done) => {
                                 // Text content, reasoning, and tool calls were already streamed via
@@ -637,16 +685,6 @@ mod tests {
         }
     }
 
-    fn fixture_function_call_arguments_done() -> oai::ResponseFunctionCallArgumentsDoneEvent {
-        oai::ResponseFunctionCallArgumentsDoneEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item_id: "item_1".to_string(),
-            name: Some("shell".to_string()),
-            arguments: String::new(),
-        }
-    }
-
     fn fixture_response_error_event() -> oai::ResponseErrorEvent {
         oai::ResponseErrorEvent {
             sequence_number: 1,
@@ -977,18 +1015,72 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stream_with_function_call_arguments_done() -> anyhow::Result<()> {
-        let done = fixture_function_call_arguments_done();
+    async fn test_stream_with_function_call_arguments_done_no_deltas() -> anyhow::Result<()> {
+        // When no deltas were received, the done event should emit the tool call
+        let done = oai::ResponseFunctionCallArgumentsDoneEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item_id: "item_1".to_string(),
+            name: Some("shell".to_string()),
+            arguments: r#"{"cmd":"echo hi"}"#.to_string(),
+        };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
-        // Arguments are already sent via deltas, no need to emit here
-        assert!(actual.is_none());
+        assert_eq!(actual.tool_calls.len(), 1);
+        let tool_call = actual.tool_calls.first().unwrap();
+        let part = tool_call.as_partial().unwrap();
+        assert_eq!(
+            part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
+            Some("output_0")
+        );
+        assert_eq!(
+            part.name.as_ref().map(|n: &ToolName| n.as_str()),
+            Some("shell")
+        );
+        assert_eq!(part.arguments_part, r#"{"cmd":"echo hi"}"#);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_function_call_arguments_done_after_deltas() -> anyhow::Result<()> {
+        // When deltas were already received, the done event should NOT emit
+        let added = fixture_function_call_added("call_123", "shell", "");
+        let delta = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"}"#);
+        let done = oai::ResponseFunctionCallArgumentsDoneEvent {
+            sequence_number: 3,
+            output_index: 0,
+            item_id: "item_1".to_string(),
+            name: Some("shell".to_string()),
+            arguments: r#"{"cmd":"echo"}"#.to_string(),
+        };
+
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([
+            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+                done,
+            )),
+        ]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let mut messages = vec![];
+        while let Some(msg) = stream_domain.next().await {
+            messages.push(msg);
+        }
+
+        // Should only get one message from the delta, not a duplicate from done
+        assert_eq!(messages.len(), 1);
+        let actual = messages.remove(0)?;
+        assert_eq!(actual.tool_calls.len(), 1);
+        let part = actual.tool_calls.first().unwrap().as_partial().unwrap();
+        assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
         Ok(())
     }
@@ -1346,5 +1438,94 @@ mod tests {
         let actual = serde_json::from_str::<ResponsesStreamEvent>(fixture);
 
         assert!(actual.is_err());
+    }
+
+    /// Simulates the Spark model's streaming pattern: function call arguments
+    /// are sent only in the `done` event (no deltas). The stream emits:
+    /// 1. output_item.added (function_call with empty arguments)
+    /// 2. function_call_arguments.done (complete arguments)
+    /// 3. response.completed
+    #[tokio::test]
+    async fn test_spark_style_stream_function_call_no_deltas() -> anyhow::Result<()> {
+        // Step 1: output_item.added with empty arguments (Spark sends "" initially)
+        let added = fixture_function_call_added("call_shkZ0WZ4bgS2HdaAF0YOcB06", "shell", "");
+
+        // Step 2: function_call_arguments.done with full arguments (no deltas)
+        let done = oai::ResponseFunctionCallArgumentsDoneEvent {
+            sequence_number: 5,
+            output_index: 0,
+            item_id: "fc_123".to_string(),
+            name: Some("shell".to_string()),
+            arguments: r#"{"command":"date \"+%Y-%m-%d\"","cwd":"/Users/amit/code-forge","description":"Get current date","env":[],"keep_ansi":false}"#.to_string(),
+        };
+
+        // Step 3: response.completed with usage
+        let response: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 1773422509,
+            "model": "gpt-5.3-codex-spark",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "type": "function_call",
+                    "status": "completed",
+                    "call_id": "call_shkZ0WZ4bgS2HdaAF0YOcB06",
+                    "name": "shell",
+                    "arguments": "{\"command\":\"date\"}"
+                }
+            ],
+            "usage": {
+                "input_tokens": 14900,
+                "output_tokens": 381,
+                "total_tokens": 15281,
+                "input_tokens_details": { "cached_tokens": 14720 },
+                "output_tokens_details": { "reasoning_tokens": 317 }
+            }
+        }))?;
+        let completed = oai::ResponseCompletedEvent { sequence_number: 7, response };
+
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([
+            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+                done,
+            )),
+            Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
+        ]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let mut messages = vec![];
+        while let Some(msg) = stream_domain.next().await {
+            messages.push(msg);
+        }
+
+        // Should get:
+        // 1. Tool call from the done event (since no deltas were received)
+        // 2. Completion metadata from response.completed
+        assert_eq!(messages.len(), 2);
+
+        // First message: tool call with full arguments
+        let tool_msg = messages.remove(0)?;
+        assert_eq!(tool_msg.tool_calls.len(), 1);
+        let part = tool_msg.tool_calls[0].as_partial().unwrap();
+        assert_eq!(
+            part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
+            Some("call_shkZ0WZ4bgS2HdaAF0YOcB06")
+        );
+        assert_eq!(
+            part.name.as_ref().map(|n: &ToolName| n.as_str()),
+            Some("shell")
+        );
+        assert!(part.arguments_part.contains("\"command\""));
+
+        // Second message: completion with usage and finish_reason
+        let completion_msg = messages.remove(0)?;
+        assert_eq!(completion_msg.finish_reason, Some(FinishReason::ToolCalls));
+        assert!(completion_msg.usage.is_some());
+        let usage = completion_msg.usage.unwrap();
+        assert_eq!(usage.prompt_tokens, TokenCount::Actual(14900));
+        assert_eq!(usage.completion_tokens, TokenCount::Actual(381));
+
+        Ok(())
     }
 }

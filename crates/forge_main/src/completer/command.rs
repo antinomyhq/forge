@@ -38,6 +38,7 @@ impl Completer for CommandCompleter {
                         span: Span::new(0, line.len()),
                         append_whitespace: false,
                         match_indices: None,
+                        display_override: None,
                     })
                 } else {
                     None

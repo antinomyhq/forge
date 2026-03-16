@@ -84,8 +84,8 @@ impl ForgeEnvironmentInfra {
                         .unwrap_or(16)
                 }),
             http: resolve_http_config(),
-            max_file_size: 256 << 10, // 256 KiB
-            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
+            max_file_size: 10 << 20, // 10 MiB
+            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(10 << 20), /* 10 MiB */
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
@@ -771,12 +771,12 @@ mod tests {
         let cwd = tempfile::tempdir().unwrap();
         let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
 
-        // Test default value (256 KiB)
+        // Test default value (10 MiB)
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 262144); // 256 << 10
+        assert_eq!(env.max_image_size, 10485760); // 10 MiB
 
         // Test custom value
         unsafe {
@@ -790,7 +790,7 @@ mod tests {
             std::env::set_var("FORGE_MAX_IMAGE_SIZE", "invalid");
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 262144);
+        assert_eq!(env.max_image_size, 10485760);
 
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
