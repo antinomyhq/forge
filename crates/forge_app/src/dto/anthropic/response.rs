@@ -30,6 +30,7 @@ impl From<Model> for forge_domain::Model {
             vec![
                 forge_domain::InputModality::Text,
                 forge_domain::InputModality::Image,
+                forge_domain::InputModality::File,
             ]
         } else {
             vec![forge_domain::InputModality::Text]
