@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, Role, SelectedSkill, StartPayload,
+    ContextMessage, Conversation, EventData, EventHandle, Role, StartPayload,
     TextMessage,
 };
 use forge_template::Element;
