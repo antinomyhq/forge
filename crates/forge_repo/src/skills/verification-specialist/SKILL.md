@@ -102,6 +102,7 @@ Before closing the task, output the final Requirements Matrix with all statuses 
 - **Unsafe Cleanup**: Deleting harness files, checker scripts, or required outputs during cleanup.
 - **Test Script Cleanup**: Forgetting to remove assistant-created temporary test scripts after verification.
 - **Assuming Tests Pass**: Never mark a requirement `verified` without running its test command.
+- **Handler Invocation ≠ Handler Correctness**: Verifying that an error handler, cleanup block, or fallback path was *entered* is not the same as verifying it *completed correctly*. The handler is ordinary code — it can itself fail, block, or produce wrong output. Always write a test that asserts the handler's outcome (e.g., side effects, return value, final state), not merely that execution reached it.
 
 ---
 
