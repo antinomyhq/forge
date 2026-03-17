@@ -37,6 +37,9 @@ pub struct Message {
     pub reasoning_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_opaque: Option<String>,
+    // Kimi format for replayed assistant tool-call reasoning
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_content: Option<ExtraContent>,
 }
@@ -448,6 +451,7 @@ impl From<ContextMessage> for Message {
                 }),
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: chat_message.thought_signature.map(ExtraContent::from),
             },
             ContextMessage::Tool(tool_result) => Message {
@@ -459,6 +463,7 @@ impl From<ContextMessage> for Message {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: None,
             },
             ContextMessage::Image(img) => {
@@ -475,6 +480,7 @@ impl From<ContextMessage> for Message {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    reasoning_content: None,
                     extra_content: None,
                 }
             }

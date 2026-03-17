@@ -152,7 +152,14 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            .pipe(
+                if self.agent.provider == ProviderId::KIMI_CODING {
+                    ReasoningNormalizer::kimi_replay()
+                } else {
+                    ReasoningNormalizer::default()
+                }
+                .when(|_| reasoning_supported),
+            );
         let response = self
             .services
             .chat_agent(
@@ -292,10 +299,20 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
+            let reasoning_details = message.reasoning_details.or_else(|| {
+                message.reasoning.as_ref().map(|reasoning| {
+                    vec![ReasoningFull {
+                        text: Some(reasoning.clone()),
+                        type_of: Some("reasoning.text".to_string()),
+                        ..Default::default()
+                    }]
+                })
+            });
+
             context = context.append_message(
                 message.content.clone(),
                 message.thought_signature.clone(),
-                message.reasoning_details,
+                reasoning_details,
                 message.usage,
                 tool_call_records,
             );

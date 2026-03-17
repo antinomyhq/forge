@@ -337,6 +337,48 @@ async fn test_reasoning_should_be_in_context() {
 }
 
 #[tokio::test]
+async fn test_tool_call_reasoning_is_preserved_in_context() {
+    let tool_call =
+        ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
+    let reasoning_content = "I should inspect the file before answering.";
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![(tool_call.clone(), tool_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Reading file")
+                .tool_calls(vec![tool_call.into()])
+                .reasoning(Content::full(reasoning_content))
+                .finish_reason(FinishReason::ToolCalls),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.agent = ctx
+        .agent
+        .reasoning(ReasoningConfig::default().effort(forge_domain::Effort::High));
+    ctx.run("Read a file").await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+    let assistant_tool_call_message = context
+        .messages
+        .iter()
+        .find(|message| message.has_role(Role::Assistant) && message.has_tool_call())
+        .expect("Should persist assistant tool-call message");
+
+    let reasoning_details = match &assistant_tool_call_message.message {
+        forge_domain::ContextMessage::Text(message) => message
+            .reasoning_details
+            .as_ref()
+            .expect("Should persist reasoning details for assistant tool-call message"),
+        _ => panic!("Expected assistant tool-call message to be text"),
+    };
+    assert_eq!(reasoning_details.len(), 1);
+    assert_eq!(reasoning_details[0].text.as_deref(), Some(reasoning_content));
+    assert_eq!(reasoning_details[0].type_of.as_deref(), Some("reasoning.text"));
+}
+
+#[tokio::test]
 async fn test_reasoning_not_supported_when_disabled() {
     let reasoning_content = "Thinking .....";
     let mut ctx = TestContext::default().mock_assistant_responses(vec![

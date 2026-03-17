@@ -50,6 +50,7 @@ impl ProviderId {
     pub const OPEN_ROUTER: ProviderId = ProviderId(Cow::Borrowed("open_router"));
     pub const REQUESTY: ProviderId = ProviderId(Cow::Borrowed("requesty"));
     pub const ZAI: ProviderId = ProviderId(Cow::Borrowed("zai"));
+    pub const KIMI_CODING: ProviderId = ProviderId(Cow::Borrowed("kimi_coding"));
     pub const ZAI_CODING: ProviderId = ProviderId(Cow::Borrowed("zai_coding"));
     pub const CEREBRAS: ProviderId = ProviderId(Cow::Borrowed("cerebras"));
     pub const XAI: ProviderId = ProviderId(Cow::Borrowed("xai"));
@@ -80,6 +81,7 @@ impl ProviderId {
             ProviderId::OPEN_ROUTER,
             ProviderId::REQUESTY,
             ProviderId::ZAI,
+            ProviderId::KIMI_CODING,
             ProviderId::ZAI_CODING,
             ProviderId::CEREBRAS,
             ProviderId::XAI,
@@ -147,6 +149,7 @@ impl std::str::FromStr for ProviderId {
             "open_router" => ProviderId::OPEN_ROUTER,
             "requesty" => ProviderId::REQUESTY,
             "zai" => ProviderId::ZAI,
+            "kimi_coding" => ProviderId::KIMI_CODING,
             "zai_coding" => ProviderId::ZAI_CODING,
             "cerebras" => ProviderId::CEREBRAS,
             "xai" => ProviderId::XAI,
@@ -542,9 +545,17 @@ mod tests {
     }
 
     #[test]
+    fn test_kimi_coding_from_str() {
+        let actual = ProviderId::from_str("kimi_coding").unwrap();
+        let expected = ProviderId::KIMI_CODING;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_codex_in_built_in_providers() {
         let built_in = ProviderId::built_in_providers();
         assert!(built_in.contains(&ProviderId::CODEX));
+        assert!(built_in.contains(&ProviderId::KIMI_CODING));
         assert!(built_in.contains(&ProviderId::OPENAI_RESPONSES_COMPATIBLE));
     }
 

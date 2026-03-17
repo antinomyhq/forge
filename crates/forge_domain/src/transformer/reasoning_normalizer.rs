@@ -1,4 +1,4 @@
-use crate::{Context, Transformer};
+use crate::{Context, Role, Transformer};
 
 /// A transformer that normalizes reasoning details across assistant messages.
 ///
@@ -6,12 +6,44 @@ use crate::{Context, Transformer};
 /// stripped to save context space, but the LAST assistant turn's thinking must
 /// be preserved for reasoning continuity (especially during tool use).
 ///
-/// This transformer checks if the last assistant message has reasoning details.
-/// If it does, reasoning is preserved only on the last assistant message.
-/// If it doesn't, all reasoning details are removed from all assistant
-/// messages.
+/// Kimi's coding endpoint is stricter about replayed assistant tool-call turns,
+/// so the Kimi replay mode preserves reasoning on assistant messages that carry
+/// tool calls in addition to the most recent assistant reasoning turn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ReasoningNormalizationMode {
+    #[default]
+    Standard,
+    KimiReplay,
+}
+
 #[derive(Default)]
-pub struct ReasoningNormalizer;
+pub struct ReasoningNormalizer {
+    mode: ReasoningNormalizationMode,
+}
+
+impl ReasoningNormalizer {
+    pub fn kimi_replay() -> Self {
+        Self { mode: ReasoningNormalizationMode::KimiReplay }
+    }
+
+    fn should_preserve_reasoning(
+        &self,
+        idx: usize,
+        text_message: &crate::TextMessage,
+        last_assistant_idx: Option<usize>,
+        preserve_last_reasoning: bool,
+    ) -> bool {
+        match self.mode {
+            ReasoningNormalizationMode::Standard => {
+                preserve_last_reasoning && Some(idx) == last_assistant_idx
+            }
+            ReasoningNormalizationMode::KimiReplay => {
+                text_message.tool_calls.is_some()
+                    || (preserve_last_reasoning && Some(idx) == last_assistant_idx)
+            }
+        }
+    }
+}
 
 impl Transformer for ReasoningNormalizer {
     type Value = Context;
@@ -23,37 +55,26 @@ impl Transformer for ReasoningNormalizer {
             .iter()
             .enumerate()
             .rev()
-            .find(|(_, message)| message.has_role(crate::Role::Assistant))
+            .find(|(_, message)| message.has_role(Role::Assistant))
             .map(|(idx, _)| idx);
 
         // Check if the last assistant message has reasoning
-        let last_assistant_has_reasoning = last_assistant_idx.and_then(|idx| {
-            context
-                .messages
-                .get(idx)
-                .map(|message| message.has_reasoning_details())
-        });
+        let preserve_last_reasoning = last_assistant_idx
+            .and_then(|idx| context.messages.get(idx).map(|message| message.has_reasoning_details()))
+            == Some(true);
 
-        // Apply the normalization rule
-        if last_assistant_has_reasoning == Some(false) || last_assistant_has_reasoning.is_none() {
-            // Remove reasoning details from all assistant messages
-            // NOTE: We do NOT set context.reasoning = None here, as that would
-            // disable reasoning for subsequent turns. The reasoning config should
-            // persist across turns even when stripping reasoning blocks.
-            for message in context.messages.iter_mut() {
-                if message.has_role(crate::Role::Assistant)
-                    && let crate::ContextMessage::Text(text_msg) = &mut **message
-                {
-                    text_msg.reasoning_details = None;
+        for (idx, message) in context.messages.iter_mut().enumerate() {
+            if let crate::ContextMessage::Text(text_msg) = &mut **message {
+                if text_msg.role != Role::Assistant {
+                    continue;
                 }
-            }
-        } else {
-            // Last assistant has reasoning - strip from all previous assistant messages
-            for (idx, message) in context.messages.iter_mut().enumerate() {
-                if message.has_role(crate::Role::Assistant)
-                    && Some(idx) != last_assistant_idx
-                    && let crate::ContextMessage::Text(text_msg) = &mut **message
-                {
+
+                if !self.should_preserve_reasoning(
+                    idx,
+                    text_msg,
+                    last_assistant_idx,
+                    preserve_last_reasoning,
+                ) {
                     text_msg.reasoning_details = None;
                 }
             }
@@ -84,7 +105,7 @@ mod tests {
         }
     }
 
-    fn create_context_first_assistant_has_reasoning() -> Context {
+    fn create_context_assistant_reasoning_history() -> Context {
         let reasoning_details = vec![ReasoningFull {
             text: Some("I need to think about this carefully".to_string()),
             signature: None,
@@ -109,7 +130,7 @@ mod tests {
             )))
     }
 
-    fn create_context_first_assistant_no_reasoning() -> Context {
+    fn create_context_last_assistant_has_reasoning() -> Context {
         let reasoning_details = vec![ReasoningFull {
             text: Some("Complex reasoning process".to_string()),
             signature: None,
@@ -119,10 +140,10 @@ mod tests {
         Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::Text(TextMessage::new(
-                Role::Assistant,
-                "First assistant without reasoning",
-            )))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "First assistant with reasoning")
+                    .reasoning_details(reasoning_details.clone()),
+            ))
             .add_message(ContextMessage::Text(
                 TextMessage::new(Role::Assistant, "Second assistant with reasoning")
                     .reasoning_details(reasoning_details.clone()),
@@ -134,27 +155,44 @@ mod tests {
     }
 
     #[test]
-    fn test_reasoning_normalizer_keeps_all_when_first_has_reasoning() {
-        let fixture = create_context_first_assistant_has_reasoning();
-        let mut transformer = ReasoningNormalizer;
+    fn test_reasoning_normalizer_drops_reasoning_when_last_assistant_has_none() {
+        let fixture = create_context_assistant_reasoning_history();
+        let mut transformer = ReasoningNormalizer::default();
         let actual = transformer.transform(fixture.clone());
 
-        // All reasoning details should be preserved since first assistant has reasoning
-        let snapshot =
-            TransformationSnapshot::new("ReasoningNormalizer_first_has_reasoning", fixture, actual);
+        let snapshot = TransformationSnapshot::new(
+            "ReasoningNormalizer_last_assistant_has_no_reasoning",
+            fixture,
+            actual,
+        );
         assert_yaml_snapshot!(snapshot);
     }
 
     #[test]
-    fn test_reasoning_normalizer_removes_all_when_first_assistant_message_has_no_reasoning() {
-        let context = create_context_first_assistant_no_reasoning();
-        let mut transformer = ReasoningNormalizer;
+    fn test_reasoning_normalizer_preserves_only_last_assistant_reasoning() {
+        let context = create_context_last_assistant_has_reasoning();
+        let mut transformer = ReasoningNormalizer::default();
         let actual = transformer.transform(context.clone());
 
-        // All reasoning details should be removed since first assistant has no
-        // reasoning
-        let snapshot =
-            TransformationSnapshot::new("ReasoningNormalizer_first_no_reasoning", context, actual);
+        let assistant_messages = actual
+            .messages
+            .iter()
+            .filter_map(|message| match &**message {
+                crate::ContextMessage::Text(text) if text.role == Role::Assistant => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(assistant_messages.len(), 3, "Expected three assistant messages");
+        assert_eq!(assistant_messages[0].reasoning_details, None);
+        assert_eq!(assistant_messages[1].reasoning_details, None);
+        assert!(assistant_messages[2].reasoning_details.is_some());
+
+        let snapshot = TransformationSnapshot::new(
+            "ReasoningNormalizer_preserves_only_last_assistant_reasoning",
+            context,
+            actual,
+        );
         assert_yaml_snapshot!(snapshot);
     }
 
@@ -164,11 +202,9 @@ mod tests {
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None));
-        let mut transformer = ReasoningNormalizer;
+        let mut transformer = ReasoningNormalizer::default();
         let actual = transformer.transform(context.clone());
 
-        // All reasoning details should be removed since first assistant has no
-        // reasoning
         let snapshot = TransformationSnapshot::new(
             "ReasoningNormalizer_first_no_assistant_message_present",
             context,
@@ -210,7 +246,7 @@ mod tests {
             ));
 
         // Execute
-        let mut transformer = ReasoningNormalizer;
+        let mut transformer = ReasoningNormalizer::default();
         let actual = transformer.transform(fixture.clone());
 
         // Verify: Only the last assistant should have reasoning
@@ -258,4 +294,66 @@ mod tests {
             "Reasoning should remain enabled for subsequent turns"
         );
     }
+
+    #[test]
+    fn test_kimi_replay_preserves_tool_call_reasoning_and_last_assistant_reasoning() {
+        let replay_reasoning = vec![ReasoningFull {
+            text: Some("Reasoning attached to replayed tool call".to_string()),
+            signature: Some("sig_tool".to_string()),
+            ..Default::default()
+        }];
+        let last_reasoning = vec![ReasoningFull {
+            text: Some("Reasoning attached to the latest assistant turn".to_string()),
+            signature: Some("sig_last".to_string()),
+            ..Default::default()
+        }];
+
+        let tool_call = crate::ToolCallFull::new("shell")
+            .call_id(crate::ToolCallId::new("call_kimi_1"))
+            .arguments(crate::ToolCallArguments::from(serde_json::json!({"command": "pwd"})));
+
+        let fixture = Context::default()
+            .reasoning(ReasoningConfig::default().enabled(true))
+            .add_message(ContextMessage::user("Initial request", None))
+            .add_message(ContextMessage::assistant(
+                "Let me inspect the workspace",
+                None,
+                Some(replay_reasoning.clone()),
+                Some(vec![tool_call]),
+            ))
+            .add_tool_results(vec![crate::ToolResult::new("shell")
+                .call_id(Some(crate::ToolCallId::new("call_kimi_1")))
+                .output(Ok(crate::ToolOutput::text("/workspace".to_string())))])
+            .add_message(ContextMessage::user("Continue", None))
+            .add_message(ContextMessage::assistant(
+                "Here is the result",
+                None,
+                Some(last_reasoning.clone()),
+                None,
+            ));
+
+        let mut transformer = ReasoningNormalizer::kimi_replay();
+        let actual = transformer.transform(fixture.clone());
+
+        let assistant_messages = actual
+            .messages
+            .iter()
+            .filter_map(|message| match &**message {
+                crate::ContextMessage::Text(text) if text.role == Role::Assistant => Some(text),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(assistant_messages.len(), 2, "Expected two assistant messages");
+        assert_eq!(assistant_messages[0].reasoning_details, Some(replay_reasoning));
+        assert_eq!(assistant_messages[1].reasoning_details, Some(last_reasoning));
+
+        let snapshot = TransformationSnapshot::new(
+            "ReasoningNormalizer_kimi_replay_preserves_tool_call_reasoning",
+            fixture,
+            actual,
+        );
+        assert_yaml_snapshot!(snapshot);
+    }
 }
+

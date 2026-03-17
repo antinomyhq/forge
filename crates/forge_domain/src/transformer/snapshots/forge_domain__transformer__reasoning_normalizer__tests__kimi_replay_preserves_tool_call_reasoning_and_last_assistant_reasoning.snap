@@ -1,0 +1,94 @@
+---
+source: crates/forge_domain/src/transformer/reasoning_normalizer.rs
+assertion_line: 356
+expression: snapshot
+---
+transformation: ReasoningNormalizer_kimi_replay_preserves_tool_call_reasoning
+before:
+  messages:
+    - text:
+        role: User
+        content: Initial request
+    - text:
+        role: Assistant
+        content: Let me inspect the workspace
+        tool_calls:
+          - name: shell
+            call_id: call_kimi_1
+            arguments:
+              command: pwd
+        reasoning_details:
+          - text: Reasoning attached to replayed tool call
+            signature: sig_tool
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
+    - tool:
+        name: shell
+        call_id: call_kimi_1
+        output:
+          is_error: false
+          values:
+            - text: /workspace
+    - text:
+        role: User
+        content: Continue
+    - text:
+        role: Assistant
+        content: Here is the result
+        reasoning_details:
+          - text: Reasoning attached to the latest assistant turn
+            signature: sig_last
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
+  reasoning:
+    enabled: true
+after:
+  messages:
+    - text:
+        role: User
+        content: Initial request
+    - text:
+        role: Assistant
+        content: Let me inspect the workspace
+        tool_calls:
+          - name: shell
+            call_id: call_kimi_1
+            arguments:
+              command: pwd
+        reasoning_details:
+          - text: Reasoning attached to replayed tool call
+            signature: sig_tool
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
+    - tool:
+        name: shell
+        call_id: call_kimi_1
+        output:
+          is_error: false
+          values:
+            - text: /workspace
+    - text:
+        role: User
+        content: Continue
+    - text:
+        role: Assistant
+        content: Here is the result
+        reasoning_details:
+          - text: Reasoning attached to the latest assistant turn
+            signature: sig_last
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
+  reasoning:
+    enabled: true
