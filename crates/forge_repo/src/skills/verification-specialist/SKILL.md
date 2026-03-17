@@ -103,6 +103,7 @@ Before closing the task, output the final Requirements Matrix with all statuses 
 - **Test Script Cleanup**: Forgetting to remove assistant-created temporary test scripts after verification.
 - **Assuming Tests Pass**: Never mark a requirement `verified` without running its test command.
 - **Handler Invocation ≠ Handler Correctness**: Verifying that an error handler, cleanup block, or fallback path was *entered* is not the same as verifying it *completed correctly*. The handler is ordinary code — it can itself fail, block, or produce wrong output. Always write a test that asserts the handler's outcome (e.g., side effects, return value, final state), not merely that execution reached it.
+- **Rationalizing Weak Tests**: When mutation validation shows a test passes despite a broken implementation, do NOT conclude the test is "still valuable" and move on. A test that cannot catch the regression it was designed for provides no safety. Re-examine the requirement: the test may be exercising a simplified proxy for the real behavior (e.g., in-process API call vs. real network request, programmatic signal vs. OS signal). Redesign the test to operate at the same level as the actual requirement, or re-read the requirement to find untested aspects.
 
 ---
 
