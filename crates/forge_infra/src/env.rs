@@ -104,6 +104,7 @@ impl ForgeEnvironmentInfra {
                         .unwrap_or(32)
                 },
             ),
+            model_cache_ttl: parse_env::<u128>("FORGE_MODEL_CACHE_TTL").unwrap_or(604_800), // 1 week
         }
     }
 
