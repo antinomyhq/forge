@@ -15,8 +15,8 @@ use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 
-/// TTL for cached model lists: 2 hours in seconds.
-const MODEL_CACHE_TTL_SECS: u128 = 7200;
+/// TTL for cached model lists: 1 week in seconds.
+const MODEL_CACHE_TTL_SECS: u128 = 604_800;
 
 /// Repository responsible for routing chat requests to the appropriate provider
 /// implementation based on the provider's response type.
