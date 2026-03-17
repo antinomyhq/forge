@@ -64,7 +64,7 @@ pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
 reedline = "0.46.0"
-rustyline = "14.0.0"
+rustyline = "17.0.2"
 regex = "1.12.3"
 reqwest = { version = "0.12.23", features = [
     "json",
