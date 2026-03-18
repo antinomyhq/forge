@@ -20,6 +20,10 @@
     "description": "Switch the model for the current session only, without modifying global config [alias: m]"
   },
   {
+    "command": "model-reset",
+    "description": "Reset session model to use global config [alias: mr]"
+  },
+  {
     "command": "config-commit-model",
     "description": "Set the model used for commit message generation [alias: ccm]"
   },

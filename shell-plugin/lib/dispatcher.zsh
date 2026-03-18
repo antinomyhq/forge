@@ -169,6 +169,9 @@ function forge-accept-line() {
         model|m)
             _forge_action_session_model "$input_text"
         ;;
+        model-reset|mr)
+            _forge_action_model_reset
+        ;;
         config-commit-model|ccm)
             _forge_action_commit_model "$input_text"
         ;;

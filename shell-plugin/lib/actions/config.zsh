@@ -352,6 +352,23 @@ function _forge_action_session_model() {
     fi
 }
 
+# Action handler: Reset session model and provider to defaults.
+# Clears both _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER,
+# reverting to global config for subsequent forge invocations.
+function _forge_action_model_reset() {
+    echo
+
+    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" ]]; then
+        _forge_log info "Session model already cleared (using global config)"
+        return 0
+    fi
+
+    _FORGE_SESSION_MODEL=""
+    _FORGE_SESSION_PROVIDER=""
+
+    _forge_log success "Session model reset to global config"
+}
+
 # Action handler: Show config list
 function _forge_action_config() {
     echo
