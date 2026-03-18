@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, InitAuth, ModelId};
+use forge_domain::{AgentId, InitAuth, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -22,6 +22,11 @@ pub trait API: Sync + Send {
 
     /// Provides a list of models available in the current environment
     async fn get_models(&self) -> Result<Vec<Model>>;
+
+    /// Provides models from all configured providers. Providers that fail to
+    /// return models are silently skipped.
+    async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>>;
+
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
@@ -151,6 +156,22 @@ pub trait API: Sync + Send {
 
     /// Sets the operating model
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
+
+    /// Gets the commit configuration (provider and model for commit message
+    /// generation).
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
+
+    /// Sets the commit configuration (provider and model for commit message
+    /// generation).
+    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()>;
+
+    /// Gets the suggest configuration (provider and model for command
+    /// suggestion generation).
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
+
+    /// Sets the suggest configuration (provider and model for command
+    /// suggestion generation).
+    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

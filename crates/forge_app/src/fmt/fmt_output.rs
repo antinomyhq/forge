@@ -2,6 +2,7 @@ use forge_display::DiffFormat;
 use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
 use crate::fmt::content::FormatContent;
+use crate::fmt::todo_fmt::{format_todos, format_todos_diff};
 use crate::operation::ToolOperation;
 use crate::utils::format_display_path;
 
@@ -30,6 +31,12 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+            ToolOperation::TodoWrite { before, after } => Some(ChatResponseContent::ToolOutput(
+                format_todos_diff(before, after),
+            )),
+            ToolOperation::TodoRead { output } => {
+                Some(ChatResponseContent::ToolOutput(format_todos(output)))
+            }
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
@@ -49,7 +56,7 @@ mod tests {
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
-    use forge_domain::{ChatResponseContent, Environment};
+    use forge_domain::{ChatResponseContent, Environment, FileInfo};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
@@ -90,10 +97,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 5,
-                content_hash: crate::compute_hash(content),
+                info: FileInfo::new(1, 1, 5, crate::compute_hash(content)),
             },
         };
         let env = fixture_environment();
@@ -116,10 +120,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 2,
-                end_line: 4,
-                total_lines: 10,
-                content_hash: crate::compute_hash(content),
+                info: FileInfo::new(2, 4, 10, crate::compute_hash(content)),
             },
         };
         let env = fixture_environment();

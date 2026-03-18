@@ -132,10 +132,14 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
     // execution failures Only propagate the error if the script actually failed
     // to execute
     if !status.success() {
+        let exit_code = status
+            .code()
+            .map_or_else(|| "unknown".to_string(), |code| code.to_string());
+
         anyhow::bail!(
-            "ZSH {} script failed with exit code: {:?}",
+            "ZSH {} script failed with exit code: {}",
             script_name,
-            status.code()
+            exit_code
         );
     }
 

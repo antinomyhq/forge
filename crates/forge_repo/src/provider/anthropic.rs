@@ -8,7 +8,8 @@ use forge_app::domain::{
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
-    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SetCache,
+    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SanitizeToolIds,
+    SetCache,
 };
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use reqwest::Url;
@@ -105,7 +106,8 @@ impl<T: HttpInfra> Anthropic<T> {
         let pipeline = AuthSystemMessage::default()
             .when(|_| self.use_oauth)
             .pipe(CapitalizeToolNames)
-            .pipe(DropInvalidToolUse);
+            .pipe(DropInvalidToolUse)
+            .pipe(SanitizeToolIds);
 
         // Vertex AI does not support output_format, so we skip schema enforcement
         // and remove any output_format field
@@ -282,6 +284,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
+            custom_headers: None,
         };
 
         Ok(Anthropic::new(
@@ -349,6 +352,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url.clone())),
+            custom_headers: None,
         };
 
         let anthropic = Anthropic::new(
@@ -488,6 +492,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
+            custom_headers: None,
         };
 
         let fixture = Anthropic::new(
@@ -566,6 +571,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
+            custom_headers: None,
         };
 
         let fixture = Anthropic::new(
@@ -642,6 +648,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::GoogleAdc],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Hardcoded(vec![])),
+            custom_headers: None,
         };
 
         let _anthropic = Anthropic::new(
@@ -666,7 +673,8 @@ mod tests {
         let pipeline = AuthSystemMessage::default()
             .when(|_| false) // Not using OAuth
             .pipe(CapitalizeToolNames)
-            .pipe(DropInvalidToolUse);
+            .pipe(DropInvalidToolUse)
+            .pipe(SanitizeToolIds);
 
         let request = pipeline
             .pipe(RemoveOutputFormat)

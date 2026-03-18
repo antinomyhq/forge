@@ -418,6 +418,61 @@ mod tests {
         insta::assert_snapshot!(actual);
     }
 
+    #[test]
+    fn test_template_engine_renders_todo_write() {
+        use forge_domain::{
+            ContextSummary, Role, SummaryBlock, SummaryMessage, SummaryTool, SummaryToolCall, Todo,
+            TodoChange, TodoChangeKind, TodoStatus,
+        };
+
+        // Create test data with todo_write tool call showing a diff
+        let changes = vec![
+            TodoChange {
+                todo: Todo::new("Implement user authentication")
+                    .id("1")
+                    .status(TodoStatus::Completed),
+                kind: TodoChangeKind::Updated,
+            },
+            TodoChange {
+                todo: Todo::new("Add database migrations")
+                    .id("2")
+                    .status(TodoStatus::InProgress),
+                kind: TodoChangeKind::Added,
+            },
+            TodoChange {
+                todo: Todo::new("Write documentation")
+                    .id("3")
+                    .status(TodoStatus::Pending),
+                kind: TodoChangeKind::Removed,
+            },
+        ];
+
+        let messages = vec![
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Create a task plan")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall {
+                        id: Some(forge_domain::ToolCallId::new("call_1")),
+                        tool: SummaryTool::TodoWrite { changes },
+                        is_success: true,
+                    }
+                    .into(),
+                ],
+            ),
+        ];
+
+        let context_summary = ContextSummary { messages };
+        let data = serde_json::json!({"messages": context_summary.messages});
+
+        let actual = render_template(&data);
+
+        insta::assert_snapshot!(actual);
+    }
+
     #[tokio::test]
     async fn test_render_summary_frame_snapshot() {
         // Load the conversation fixture

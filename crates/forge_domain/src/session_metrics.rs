@@ -4,8 +4,10 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use crate::file_operation::FileOperation;
+use crate::{Todo, TodoStatus};
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
@@ -20,6 +22,11 @@ pub struct Metrics {
     /// Tracks all files that have been read in this session
     #[serde(default, skip_serializing_if = "HashSet::is_empty")]
     pub files_accessed: HashSet<String>,
+
+    /// Tracks all known todos for the session, including historical completed
+    /// todos that were removed from active updates.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub todos: Vec<Todo>,
 }
 
 impl Metrics {
@@ -35,10 +42,59 @@ impl Metrics {
     }
 
     /// Gets the session duration if tracking has started
-    /// Gets the session duration if tracking has started
     pub fn duration(&self, now: DateTime<Utc>) -> Option<Duration> {
         self.started_at
             .map(|start| (now - start).to_std().unwrap_or_default())
+    }
+
+    /// Returns todos currently in pending or in-progress states.
+    pub fn get_active_todos(&self) -> Vec<Todo> {
+        self.todos
+            .iter()
+            .filter(|todo| matches!(todo.status, TodoStatus::Pending | TodoStatus::InProgress))
+            .cloned()
+            .collect()
+    }
+
+    /// Returns all known todos, including historical completed todos.
+    pub fn get_todos(&self) -> &[Todo] {
+        &self.todos
+    }
+
+    /// Updates active todos with the given todos while preserving completed
+    /// historical todos that are no longer present in the incoming active list.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any todo fails validation or if duplicate IDs are
+    /// found.
+    pub fn update_todos(&mut self, mut new_todos: Vec<Todo>) -> anyhow::Result<Vec<Todo>> {
+        for todo in &mut new_todos {
+            todo.validate()?;
+            if todo.id.is_empty() {
+                todo.id = Uuid::new_v4().to_string();
+            }
+        }
+
+        let ids: Vec<&str> = new_todos.iter().map(|t| t.id.as_str()).collect();
+        let unique_ids: HashSet<&str> = ids.iter().copied().collect();
+        if ids.len() != unique_ids.len() {
+            anyhow::bail!("Duplicate todo IDs found in the request");
+        }
+
+        let mut merged = new_todos;
+        for todo in &self.todos {
+            if todo.status == TodoStatus::Completed
+                && !merged.iter().any(|candidate| candidate.id == todo.id)
+            {
+                merged.push(todo.clone());
+            }
+        }
+
+        merged.sort_by(|left, right| left.id.cmp(&right.id));
+        self.todos = merged;
+
+        Ok(self.get_active_todos())
     }
 }
 
@@ -155,7 +211,6 @@ mod tests {
         assert_eq!(operation.lines_removed, 0);
         assert_eq!(operation.content_hash, Some("hash1".to_string()));
     }
-
     #[test]
     fn test_files_accessed_only_tracks_reads() {
         let metrics = Metrics::default()
@@ -191,5 +246,31 @@ mod tests {
             metrics.file_operations.get("file3.rs").unwrap().tool,
             ToolKind::Patch
         );
+    }
+
+    #[test]
+    fn test_update_todos_keeps_removed_completed_in_history() {
+        let mut fixture = Metrics::default();
+        let setup = vec![
+            Todo::new("Task A").id("1").status(TodoStatus::Completed),
+            Todo::new("Task B").id("2").status(TodoStatus::InProgress),
+        ];
+
+        fixture.update_todos(setup).unwrap();
+
+        let actual = fixture
+            .update_todos(vec![
+                Todo::new("Task B").id("2").status(TodoStatus::Completed),
+            ])
+            .unwrap();
+        let expected = Vec::<Todo>::new();
+        assert_eq!(actual, expected);
+
+        let actual = fixture.get_todos().to_vec();
+        let expected = vec![
+            Todo::new("Task A").id("1").status(TodoStatus::Completed),
+            Todo::new("Task B").id("2").status(TodoStatus::Completed),
+        ];
+        assert_eq!(actual, expected);
     }
 }

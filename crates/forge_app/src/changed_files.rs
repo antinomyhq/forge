@@ -26,7 +26,8 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
     /// duplicate notifications.
     pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
-        let changes = FileChangeDetector::new(self.services.clone())
+        let parallel_file_reads = self.services.get_environment().parallel_file_reads;
+        let changes = FileChangeDetector::new(self.services.clone(), parallel_file_reads)
             .detect(&conversation.metrics)
             .await;
 
@@ -110,10 +111,7 @@ mod tests {
                     let hash = compute_hash(content);
                     ReadOutput {
                         content: Content::file(content.clone()),
-                        start_line: 1,
-                        end_line: 1,
-                        total_lines: 1,
-                        content_hash: hash,
+                        info: forge_domain::FileInfo::new(1, 1, 1, hash),
                     }
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))

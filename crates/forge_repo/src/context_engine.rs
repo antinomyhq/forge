@@ -136,7 +136,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
     ) -> Result<WorkspaceId> {
         let request = tonic::Request::new(CreateWorkspaceRequest {
             workspace: Some(WorkspaceDefinition {
-                working_dir: working_dir.to_string_lossy().to_string(),
+                working_dir: working_dir.to_string_lossy().replace("\\", "/"),
                 ..Default::default()
             }),
         });

@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ConversationId, ProviderId};
+use forge_domain::{AgentId, ConversationId, ModelId, ProviderId};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -61,6 +61,22 @@ pub struct Cli {
     /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
+
+    /// Override the model to use for this session.
+    ///
+    /// When provided, uses this model instead of the configured default.
+    /// This is a runtime override and does not change the permanent
+    /// configuration.
+    #[arg(long)]
+    pub model: Option<ModelId>,
+
+    /// Override the provider to use for this session.
+    ///
+    /// When provided, uses this provider instead of the configured default.
+    /// This is a runtime override and does not change the permanent
+    /// configuration.
+    #[arg(long)]
+    pub provider: Option<ProviderId>,
 
     /// Top-level subcommands.
     #[command(subcommand)]
@@ -149,6 +165,16 @@ pub enum TopLevelCommand {
     /// VS Code integration commands.
     #[command(subcommand)]
     Vscode(VscodeCommand),
+
+    /// Update forge to the latest version.
+    Update(UpdateArgs),
+
+    /// Setup zsh integration by updating .zshrc with plugin and theme (alias
+    /// for `zsh setup`).
+    Setup,
+
+    /// Run diagnostics on shell environment (alias for `zsh doctor`).
+    Doctor,
 }
 
 /// Command group for custom command management.
@@ -493,28 +519,65 @@ pub enum ConfigCommand {
     List,
 }
 
+/// Arguments for `forge config set`.
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigSetArgs {
-    /// Configuration field to set.
-    pub field: ConfigField,
-
-    /// Value to set.
-    pub value: String,
+    #[command(subcommand)]
+    pub field: ConfigSetField,
 }
 
-/// Configuration fields that can be managed.
-#[derive(clap::ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ConfigField {
-    /// The active model.
-    Model,
-    /// The active provider.
-    Provider,
-}
-
+/// Arguments for `forge config get`.
 #[derive(Parser, Debug, Clone)]
 pub struct ConfigGetArgs {
-    /// Configuration field to get.
-    pub field: ConfigField,
+    #[command(subcommand)]
+    pub field: ConfigGetField,
+}
+
+/// Type-safe subcommands for `forge config set`.
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigSetField {
+    /// Set the active model.
+    Model {
+        /// Model ID to set as default.
+        model: ModelId,
+    },
+    /// Set the active provider.
+    Provider {
+        /// Provider ID to set as default.
+        provider: ProviderId,
+
+        /// Optional model ID to set simultaneously, skipping interactive model
+        /// selection.
+        #[arg(long)]
+        model: Option<ModelId>,
+    },
+    /// Set the provider and model for commit message generation.
+    Commit {
+        /// Provider ID to use for commit message generation.
+        provider: ProviderId,
+        /// Model ID to use for commit message generation.
+        model: ModelId,
+    },
+    /// Set the provider and model for command suggestion generation.
+    Suggest {
+        /// Provider ID to use for command suggestion generation.
+        provider: ProviderId,
+        /// Model ID to use for command suggestion generation.
+        model: ModelId,
+    },
+}
+
+/// Type-safe subcommands for `forge config get`.
+#[derive(Subcommand, Debug, Clone)]
+pub enum ConfigGetField {
+    /// Get the active model.
+    Model,
+    /// Get the active provider.
+    Provider,
+    /// Get the commit message generation config.
+    Commit,
+    /// Get the command suggestion generation config.
+    Suggest,
 }
 
 /// Command group for conversation management.
@@ -568,6 +631,10 @@ pub enum ConversationCommand {
     Show {
         /// Conversation ID.
         id: ConversationId,
+
+        /// Print raw markdown without rendering.
+        #[arg(long)]
+        md: bool,
     },
 
     /// Show conversation details.
@@ -715,6 +782,14 @@ pub enum VscodeCommand {
     InstallExtension,
 }
 
+/// Update command arguments.
+#[derive(Parser, Debug, Clone)]
+pub struct UpdateArgs {
+    /// Skip the confirmation prompt when applying updates.
+    #[arg(long, default_value_t = false)]
+    pub no_confirm: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser;
@@ -777,9 +852,10 @@ mod tests {
         ]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) if args.field == ConfigField::Model => {
-                    Some(args.value.clone())
-                }
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Model { model } => Some(model.as_str().to_string()),
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,
@@ -793,14 +869,47 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "config", "set", "provider", "OpenAI"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) if args.field == ConfigField::Provider => {
-                    Some(args.value.clone())
-                }
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Provider { provider, model } => {
+                        Some((provider.to_string(), model))
+                    }
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,
         };
-        let expected = Some("OpenAI".to_string());
+        let expected = Some(("OpenAi".to_string(), None));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_with_provider_and_model() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "set",
+            "provider",
+            "anthropic",
+            "--model",
+            "claude-sonnet-4-20250514",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Provider { provider, model } => {
+                        Some((provider.to_string(), model.map(|m| m.as_str().to_string())))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some((
+            "Anthropic".to_string(),
+            Some("claude-sonnet-4-20250514".to_string()),
+        ));
         assert_eq!(actual, expected);
     }
 
@@ -820,12 +929,40 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "config", "get", "model"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Get(args) => args.field,
+                ConfigCommand::Get(args) => matches!(args.field, ConfigGetField::Model),
                 _ => panic!("Expected ConfigCommand::Get"),
             },
             _ => panic!("Expected TopLevelCommand::Config"),
         };
-        let expected = ConfigField::Model;
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_config_set_commit_with_provider_and_model() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "set",
+            "commit",
+            "anthropic",
+            "claude-haiku-4-20250514",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Commit { provider, model } => {
+                        Some((provider.to_string(), model.as_str().to_string()))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some((
+            "Anthropic".to_string(),
+            "claude-haiku-4-20250514".to_string(),
+        ));
         assert_eq!(actual, expected);
     }
 
@@ -973,17 +1110,41 @@ mod tests {
             "show",
             "550e8400-e29b-41d4-a716-446655440004",
         ]);
-        let id = match fixture.subcommands {
+        let (id, md) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Show { id } => id,
-                _ => ConversationId::default(),
+                ConversationCommand::Show { id, md } => (id, md),
+                _ => (ConversationId::default(), false),
             },
-            _ => ConversationId::default(),
+            _ => (ConversationId::default(), false),
         };
         assert_eq!(
             id,
             ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
         );
+        assert_eq!(md, false);
+    }
+
+    #[test]
+    fn test_conversation_show_with_md_flag() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "show",
+            "550e8400-e29b-41d4-a716-446655440004",
+            "--md",
+        ]);
+        let (id, md) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Show { id, md } => (id, md),
+                _ => (ConversationId::default(), false),
+            },
+            _ => (ConversationId::default(), false),
+        };
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
+        );
+        assert_eq!(md, true);
     }
 
     #[test]
@@ -1612,6 +1773,20 @@ mod tests {
     }
 
     #[test]
+    fn test_setup_alias() {
+        let fixture = Cli::parse_from(["forge", "setup"]);
+        let actual = matches!(fixture.subcommands, Some(TopLevelCommand::Setup));
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_doctor_alias() {
+        let fixture = Cli::parse_from(["forge", "doctor"]);
+        let actual = matches!(fixture.subcommands, Some(TopLevelCommand::Doctor));
+        assert_eq!(actual, true);
+    }
+
+    #[test]
     fn test_install_vscode_extension() {
         let fixture = Cli::parse_from(["forge", "vscode", "install-extension"]);
         let actual = matches!(
@@ -1675,5 +1850,25 @@ mod tests {
         };
         let expected = false;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_update_with_no_confirm() {
+        let fixture = Cli::parse_from(["forge", "update", "--no-confirm"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Update(args)) => args.no_confirm,
+            _ => panic!("Expected Update command"),
+        };
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_update_without_no_confirm() {
+        let fixture = Cli::parse_from(["forge", "update"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Update(args)) => args.no_confirm,
+            _ => panic!("Expected Update command"),
+        };
+        assert!(!actual);
     }
 }

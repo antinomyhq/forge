@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
-use crate::{ModelId, ProviderId};
+use crate::{CommitConfig, ModelId, ProviderId, SuggestConfig};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -21,6 +21,10 @@ pub struct AppConfig {
     pub provider: Option<ProviderId>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub model: HashMap<ProviderId, ModelId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<CommitConfig>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggest: Option<SuggestConfig>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]

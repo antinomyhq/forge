@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 
-use crate::{ArcSender, ChatResponse, Metrics, TitleFormat};
+use crate::{ArcSender, ChatResponse, Metrics, TitleFormat, Todo};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
@@ -46,6 +46,41 @@ impl ToolCallContext {
             .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
         Ok(f(&mut metrics))
     }
+
+    /// Execute a fallible closure with access to the metrics
+    pub fn try_with_metrics<F, R>(&self, f: F) -> anyhow::Result<R>
+    where
+        F: FnOnce(&mut Metrics) -> anyhow::Result<R>,
+    {
+        let mut metrics = self
+            .metrics
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire metrics lock"))?;
+        f(&mut metrics)
+    }
+
+    /// Returns all known todos (active and historical completed todos).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the metrics lock cannot be acquired.
+    pub fn get_todos(&self) -> anyhow::Result<Vec<Todo>> {
+        self.with_metrics(|metrics| metrics.get_todos().to_vec())
+    }
+
+    /// Replaces active todos in metrics and returns only active todos.
+    ///
+    /// # Arguments
+    ///
+    /// * `todos` - New todos to store in metrics.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the metrics lock cannot be acquired or todo
+    /// validation fails.
+    pub fn update_todos(&self, todos: Vec<Todo>) -> anyhow::Result<Vec<Todo>> {
+        self.try_with_metrics(|metrics| metrics.update_todos(todos))
+    }
 }
 
 #[cfg(test)]
@@ -61,8 +96,6 @@ mod tests {
 
     #[test]
     fn test_with_sender() {
-        // This is just a type check test - we don't actually create a sender
-        // as it's complex to set up in a unit test
         let metrics = Metrics::default();
         let context = ToolCallContext::new(metrics);
         assert!(context.sender.is_none());

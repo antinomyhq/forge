@@ -361,3 +361,48 @@ expression: tools
     "name"
   ]
 }
+{
+  "title": "TodoWrite",
+  "type": "object",
+  "properties": {
+    "todos": {
+      "description": "Array of todo items to create or update",
+      "type": "array",
+      "items": {
+        "description": "A todo item",
+        "type": "object",
+        "properties": {
+          "content": {
+            "description": "Content/description of the todo item",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique identifier for the todo item",
+            "type": "string"
+          },
+          "status": {
+            "description": "Current status of the todo",
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "content",
+          "status"
+        ]
+      }
+    }
+  },
+  "required": [
+    "todos"
+  ]
+}
+{
+  "title": "TodoRead",
+  "type": "object"
+}
