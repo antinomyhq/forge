@@ -4,6 +4,33 @@ use forge_domain::{
 };
 use serde::Deserialize;
 
+/// Deserializes cost field which can be a string or a number
+fn deserialize_optional_string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::Number(n)) => n
+            .as_f64()
+            .ok_or_else(|| serde::de::Error::custom("cost number is not representable as f64"))
+            .map(Some),
+        Some(serde_json::Value::String(s)) => {
+            if s.trim().is_empty() {
+                Ok(None)
+            } else {
+                s.parse::<f64>()
+                    .map(Some)
+                    .map_err(|e| serde::de::Error::custom(format!("invalid cost value: {e}")))
+            }
+        }
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "invalid cost type: expected number or string, got {other}"
+        ))),
+    }
+}
+
 use super::request::Role;
 use crate::dto::anthropic::Error;
 
@@ -211,7 +238,10 @@ pub enum Event {
         index: u32,
         content_block: ContentBlock,
     },
-    Ping,
+    Ping {
+        #[serde(default, deserialize_with = "deserialize_optional_string_or_f64")]
+        cost: Option<f64>,
+    },
     ContentBlockDelta {
         index: u32,
         delta: ContentBlock,
@@ -306,6 +336,15 @@ impl TryFrom<Event> for ChatCompletionMessage {
             }
             Event::Error { error } => {
                 return Err(error.into());
+            }
+            Event::Ping { cost: Some(cost) } => {
+                // OpenCode Zen sends cost in a ping event at the end of the stream
+                ChatCompletionMessage::assistant(Content::part("")).usage(
+                    forge_domain::Usage {
+                        cost: Some(cost),
+                        ..Default::default()
+                    },
+                )
             }
             _ => ChatCompletionMessage::assistant(Content::part("")),
         };
@@ -441,7 +480,7 @@ mod tests {
                     content_block: ContentBlock::Text { text: "".to_string() },
                 },
             ),
-            ("ping", r#"{"type": "ping"}"#, Event::Ping),
+            ("ping", r#"{"type": "ping"}"#, Event::Ping { cost: None }),
             (
                 "content_block_delta",
                 r#"{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello"}}"#,
@@ -767,5 +806,51 @@ mod tests {
 
         assert_eq!(actual.context_length, None);
         assert_eq!(actual.id.as_str(), "unknown-claude-model");
+    }
+
+    #[test]
+    fn test_ping_event_with_string_cost() {
+        // Fixture: OpenCode Zen sends cost as a string in a ping event
+        let fixture = r#"{"type":"ping","cost":"0.00724710"}"#;
+
+        let actual: Event = serde_json::from_str(fixture).unwrap();
+
+        let expected = Event::Ping { cost: Some(0.00724710) };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_ping_event_with_numeric_cost() {
+        // Fixture: Cost as a numeric value
+        let fixture = r#"{"type":"ping","cost":0.05}"#;
+
+        let actual: Event = serde_json::from_str(fixture).unwrap();
+
+        let expected = Event::Ping { cost: Some(0.05) };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_ping_event_with_cost_produces_usage() {
+        // Fixture: Ping event with cost should produce a usage with cost
+        let fixture = Event::Ping { cost: Some(0.00724710) };
+
+        let actual = ChatCompletionMessage::try_from(fixture).unwrap();
+
+        let expected_usage = forge_domain::Usage {
+            cost: Some(0.00724710),
+            ..Default::default()
+        };
+        assert_eq!(actual.usage, Some(expected_usage));
+    }
+
+    #[test]
+    fn test_ping_event_without_cost_produces_empty_message() {
+        // Fixture: Standard ping without cost should produce empty message
+        let fixture = Event::Ping { cost: None };
+
+        let actual = ChatCompletionMessage::try_from(fixture).unwrap();
+
+        assert_eq!(actual.usage, None);
     }
 }
