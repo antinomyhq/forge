@@ -53,16 +53,25 @@ impl ChatResponseContent {
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskMessage { content: ChatResponseContent },
-    TaskReasoning { content: String },
+    TaskMessage {
+        content: ChatResponseContent,
+    },
+    TaskReasoning {
+        content: String,
+    },
     TaskComplete,
     ToolCallStart {
         tool_call: ToolCallFull,
         notifier: Arc<Notify>,
     },
     ToolCallEnd(ToolResult),
-    RetryAttempt { cause: Cause, duration: Duration },
-    Interrupt { reason: InterruptionReason },
+    RetryAttempt {
+        cause: Cause,
+        duration: Duration,
+    },
+    Interrupt {
+        reason: InterruptionReason,
+    },
 }
 
 impl ChatResponse {
