@@ -14,6 +14,7 @@ use crate::provider::bedrock::BedrockResponseRepository;
 use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
+use crate::provider::opencode_zen::OpenCodeZenResponseRepository;
 
 /// TTL for cached model lists: 2 hours in seconds.
 const MODEL_CACHE_TTL_SECS: u128 = 7200;
@@ -45,6 +46,8 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let bedrock_repo = BedrockResponseRepository::new(retry_config.clone());
         let google_repo =
             GoogleResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+        let opencode_zen_repo =
+            OpenCodeZenResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
         let model_cache = Arc::new(CacacheStorage::new(
             env.cache_dir().join("model_cache"),
@@ -58,6 +61,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
                 anthropic_repo,
                 bedrock_repo,
                 google_repo,
+                opencode_zen_repo,
             }),
             model_cache,
             bg_refresh: BgRefresh::default(),
@@ -127,6 +131,7 @@ struct ProviderRouter<F> {
     anthropic_repo: AnthropicResponseRepository<F>,
     bedrock_repo: BedrockResponseRepository,
     google_repo: GoogleResponseRepository<F>,
+    opencode_zen_repo: OpenCodeZenResponseRepository<F>,
 }
 
 impl<F: HttpInfra + Sync> ProviderRouter<F> {
@@ -164,6 +169,9 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
             Some(ProviderResponse::Google) => {
                 self.google_repo.chat(model_id, context, provider).await
             }
+            Some(ProviderResponse::OpenCode) => {
+                self.opencode_zen_repo.chat(model_id, context, provider).await
+            }
             None => Err(anyhow::anyhow!(
                 "Provider response type not configured for provider: {}",
                 provider.id
@@ -178,6 +186,7 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
             Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
             Some(ProviderResponse::Google) => self.google_repo.models(provider).await,
+            Some(ProviderResponse::OpenCode) => self.opencode_zen_repo.models(provider).await,
             None => Err(anyhow::anyhow!(
                 "Provider response type not configured for provider: {}",
                 provider.id

@@ -550,15 +550,32 @@ impl Context {
         self,
         content: impl ToString,
         thought_signature: Option<String>,
+        reasoning: Option<String>,
         reasoning_details: Option<Vec<ReasoningFull>>,
         usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
     ) -> Self {
+        // Convert flat reasoning string to reasoning_details if present
+        let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
+            let reasoning_entry = ReasoningFull {
+                text: Some(reasoning_text),
+                ..Default::default()
+            };
+            if let Some(mut existing_details) = reasoning_details {
+                existing_details.push(reasoning_entry);
+                Some(existing_details)
+            } else {
+                Some(vec![reasoning_entry])
+            }
+        } else {
+            reasoning_details
+        };
+
         // Adding tool calls
         let message: MessageEntry = ContextMessage::assistant(
             content,
             thought_signature,
-            reasoning_details,
+            merged_reasoning_details,
             Some(
                 tool_records
                     .iter()

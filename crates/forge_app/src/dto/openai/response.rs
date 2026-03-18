@@ -19,6 +19,33 @@ fn is_non_zero_cost(cost: &f64) -> bool {
     cost.abs() > COST_EPSILON
 }
 
+fn deserialize_optional_string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
+
+    match value {
+        None | Some(serde_json::Value::Null) => Ok(None),
+        Some(serde_json::Value::Number(number)) => number
+            .as_f64()
+            .ok_or_else(|| serde::de::Error::custom("cost number is not representable as f64"))
+            .map(Some),
+        Some(serde_json::Value::String(cost)) => {
+            if cost.trim().is_empty() {
+                Ok(None)
+            } else {
+                cost.parse::<f64>()
+                    .map(Some)
+                    .map_err(|e| serde::de::Error::custom(format!("invalid cost value: {e}")))
+            }
+        }
+        Some(other) => Err(serde::de::Error::custom(format!(
+            "invalid cost type: expected number or string, got {other}"
+        ))),
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(untagged)]
 pub enum Response {
@@ -28,12 +55,18 @@ pub enum Response {
         #[serde(default)]
         model: Option<String>,
         choices: Vec<Choice>,
+        #[serde(default)]
         created: u64,
         object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
         #[serde(default)]
         prompt_filter_results: Option<Vec<PromptFilterResult>>,
+    },
+    CostOnly {
+        choices: Vec<Choice>,
+        #[serde(deserialize_with = "deserialize_optional_string_or_f64")]
+        cost: Option<f64>,
     },
     Failure {
         error: ErrorResponse,
@@ -487,6 +520,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     Ok(default_response)
                 }
             }
+            Response::CostOnly { .. } => Ok(ChatCompletionMessage::default()),
             Response::Failure { error } => Err(Error::Response(error).into()),
         }
     }
@@ -717,6 +751,25 @@ mod tests {
         assert!(result.is_ok());
         let message = result.unwrap();
         assert_eq!(message.content.unwrap().as_str(), "");
+    }
+
+    #[test]
+    fn test_cost_only_response_parses_and_returns_empty_message() {
+        let fixture = r#"{\"choices\":[],\"cost\":\"0\"}"#;
+        let actual = serde_json::from_str::<Response>(fixture).unwrap();
+
+        let actual = ChatCompletionMessage::try_from(actual).unwrap();
+
+        let expected = ChatCompletionMessage::default();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cost_only_response_numeric_cost_parses() {
+        let fixture = r#"{\"choices\":[],\"cost\":0.0}"#;
+        let actual = serde_json::from_str::<Response>(fixture);
+
+        assert!(actual.is_ok());
     }
 
     #[tokio::test]
