@@ -310,6 +310,48 @@ function _forge_select_and_set_config() {
     )
 }
 
+# Action handler: Select model for the current session only.
+# Sets _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER in the shell environment
+# so that every subsequent forge invocation uses those values via --model /
+# --provider flags without touching the permanent global configuration.
+function _forge_action_session_model() {
+    local input_text="$1"
+    echo
+
+    local current_model current_provider provider_index
+    # Use session overrides as the starting selection if already set,
+    # otherwise fall back to the globally configured values.
+    if [[ -n "$_FORGE_SESSION_MODEL" ]]; then
+        current_model="$_FORGE_SESSION_MODEL"
+        provider_index=4
+    else
+        current_model=$(_forge_exec config get model 2>/dev/null)
+        provider_index=3
+    fi
+    if [[ -n "$_FORGE_SESSION_PROVIDER" ]]; then
+        current_provider="$_FORGE_SESSION_PROVIDER"
+        provider_index=4
+    else
+        current_provider=$(_forge_exec config get provider 2>/dev/null)
+        provider_index=3
+    fi
+
+    local selected
+    selected=$(_forge_pick_model "Session Model ❯ " "$current_model" "$input_text" "$current_provider" "$provider_index")
+
+    if [[ -n "$selected" ]]; then
+        local model_id provider_display provider_id
+        read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
+        model_id=${model_id//[[:space:]]/}
+        provider_id=${provider_id//[[:space:]]/}
+
+        _FORGE_SESSION_MODEL="$model_id"
+        _FORGE_SESSION_PROVIDER="$provider_id"
+
+        _forge_log success "Session model set to \033[1m${model_id}\033[0m (provider: \033[1m${provider_id}\033[0m)"
+    fi
+}
+
 # Action handler: Show config list
 function _forge_action_config() {
     echo

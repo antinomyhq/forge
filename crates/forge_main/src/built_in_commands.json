@@ -13,7 +13,11 @@
   },
   {
     "command": "config-model",
-    "description": "Switch the models [alias: m, model]"
+    "description": "Switch the models [alias: cm]"
+  },
+  {
+    "command": "model",
+    "description": "Switch the model for the current session only, without modifying global config [alias: m]"
   },
   {
     "command": "config-commit-model",
