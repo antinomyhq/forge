@@ -2,33 +2,14 @@ use forge_domain::{
     ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-/// Deserializes cost field which can be a string or a number
-fn deserialize_optional_string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-    match value {
-        None | Some(serde_json::Value::Null) => Ok(None),
-        Some(serde_json::Value::Number(n)) => n
-            .as_f64()
-            .ok_or_else(|| serde::de::Error::custom("cost number is not representable as f64"))
-            .map(Some),
-        Some(serde_json::Value::String(s)) => {
-            if s.trim().is_empty() {
-                Ok(None)
-            } else {
-                s.parse::<f64>()
-                    .map(Some)
-                    .map_err(|e| serde::de::Error::custom(format!("invalid cost value: {e}")))
-            }
-        }
-        Some(other) => Err(serde::de::Error::custom(format!(
-            "invalid cost type: expected number or string, got {other}"
-        ))),
-    }
+/// Represents a value that may be either a JSON number or a numeric string.
+#[derive(Deserialize, Debug, Clone, PartialEq, derive_more::TryInto, Serialize)]
+#[serde(untagged)]
+pub enum StringOrF64 {
+    Number(f64),
+    String(String),
 }
 
 use super::request::Role;
@@ -239,8 +220,7 @@ pub enum Event {
         content_block: ContentBlock,
     },
     Ping {
-        #[serde(default, deserialize_with = "deserialize_optional_string_or_f64")]
-        cost: Option<f64>,
+        cost: Option<StringOrF64>,
     },
     ContentBlockDelta {
         index: u32,
@@ -339,8 +319,12 @@ impl TryFrom<Event> for ChatCompletionMessage {
             }
             Event::Ping { cost: Some(cost) } => {
                 // OpenCode Zen sends cost in a ping event at the end of the stream
+                let cost_value = match cost {
+                    StringOrF64::Number(n) => n,
+                    StringOrF64::String(s) => s.parse().unwrap_or(0.0),
+                };
                 ChatCompletionMessage::assistant(Content::part(""))
-                    .usage(forge_domain::Usage { cost: Some(cost), ..Default::default() })
+                    .usage(forge_domain::Usage { cost: Some(cost_value), ..Default::default() })
             }
             _ => ChatCompletionMessage::assistant(Content::part("")),
         };

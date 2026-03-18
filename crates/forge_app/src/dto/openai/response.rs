@@ -10,6 +10,14 @@ use super::tool_choice::FunctionType;
 use crate::dto::openai::ReasoningDetail;
 use crate::dto::openai::error::{Error, ErrorCode, ErrorResponse};
 
+/// Represents a value that may be either a JSON number or a numeric string.
+#[derive(Deserialize, Debug, Clone, PartialEq, derive_more::TryInto, Serialize)]
+#[serde(untagged)]
+pub enum StringOrF64 {
+    Number(f64),
+    String(String),
+}
+
 /// Epsilon for floating point comparison to handle near-zero costs
 const COST_EPSILON: f64 = 1e-9;
 
@@ -17,33 +25,6 @@ const COST_EPSILON: f64 = 1e-9;
 #[inline]
 fn is_non_zero_cost(cost: &f64) -> bool {
     cost.abs() > COST_EPSILON
-}
-
-fn deserialize_optional_string_or_f64<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-
-    match value {
-        None | Some(serde_json::Value::Null) => Ok(None),
-        Some(serde_json::Value::Number(number)) => number
-            .as_f64()
-            .ok_or_else(|| serde::de::Error::custom("cost number is not representable as f64"))
-            .map(Some),
-        Some(serde_json::Value::String(cost)) => {
-            if cost.trim().is_empty() {
-                Ok(None)
-            } else {
-                cost.parse::<f64>()
-                    .map(Some)
-                    .map_err(|e| serde::de::Error::custom(format!("invalid cost value: {e}")))
-            }
-        }
-        Some(other) => Err(serde::de::Error::custom(format!(
-            "invalid cost type: expected number or string, got {other}"
-        ))),
-    }
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -65,8 +46,7 @@ pub enum Response {
     },
     CostOnly {
         choices: Vec<Choice>,
-        #[serde(deserialize_with = "deserialize_optional_string_or_f64")]
-        cost: Option<f64>,
+        cost: Option<StringOrF64>,
     },
     Failure {
         error: ErrorResponse,
@@ -523,12 +503,16 @@ impl TryFrom<Response> for ChatCompletionMessage {
             Response::CostOnly { cost, .. } => {
                 let mut msg = ChatCompletionMessage::default();
                 if let Some(c) = cost {
+                    let cost_value = match c {
+                        StringOrF64::Number(n) => n,
+                        StringOrF64::String(s) => s.parse().unwrap_or(0.0),
+                    };
                     msg.usage = Some(Usage {
                         prompt_tokens: TokenCount::Actual(0),
                         completion_tokens: TokenCount::Actual(0),
                         total_tokens: TokenCount::Actual(0),
                         cached_tokens: TokenCount::Actual(0),
-                        cost: Some(c),
+                        cost: Some(cost_value),
                     });
                 }
                 Ok(msg)

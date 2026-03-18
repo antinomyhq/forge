@@ -2,7 +2,7 @@ use forge_domain::{
     ChatCompletionMessage, FinishReason, Reasoning, ReasoningPart, TokenCount, ToolCallId,
     ToolCallPart, ToolName,
 };
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 
 /// Model information from Google API
 #[derive(Deserialize, Debug, Clone)]
@@ -55,33 +55,21 @@ pub enum EventData {
     Unknown(serde_json::Value),
 }
 
+/// Represents a value that may be either a JSON number or a numeric string,
+/// used for fields like `cost` that proxies sometimes encode as strings.
+#[derive(Deserialize, Debug, Clone, PartialEq, derive_more::TryInto)]
+#[serde(untagged)]
+pub enum StringOrF64 {
+    Number(f64),
+    String(String),
+}
+
 /// Heartbeat/cost event sent by some proxies (e.g. opencode.ai).
 ///
 /// Example payload: `{"type":"ping","cost":"0.02889400"}`
 #[derive(Deserialize, Debug, Clone, PartialEq)]
 pub struct PingEvent {
-    #[serde(deserialize_with = "deserialize_string_or_f64")]
-    pub cost: f64,
-}
-
-/// Deserializes a value that may be either a JSON number or a numeric string
-/// into an `f64`.
-fn deserialize_string_or_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value = serde_json::Value::deserialize(deserializer)?;
-    match value {
-        serde_json::Value::Number(n) => n
-            .as_f64()
-            .ok_or_else(|| serde::de::Error::custom("cost number is not representable as f64")),
-        serde_json::Value::String(s) => s
-            .parse::<f64>()
-            .map_err(|e| serde::de::Error::custom(format!("invalid cost value: {e}"))),
-        other => Err(serde::de::Error::custom(format!(
-            "invalid cost type: expected number or string, got {other}"
-        ))),
-    }
+    pub cost: StringOrF64,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
@@ -109,7 +97,11 @@ impl TryFrom<EventData> for ChatCompletionMessage {
             )),
             EventData::Ping(ping) => {
                 // Extract cost from proxy ping events (e.g. opencode.ai)
-                let usage = forge_domain::Usage { cost: Some(ping.cost), ..Default::default() };
+                let cost = match ping.cost {
+                    StringOrF64::Number(n) => n,
+                    StringOrF64::String(s) => s.parse().unwrap_or(0.0),
+                };
+                let usage = forge_domain::Usage { cost: Some(cost), ..Default::default() };
                 Ok(ChatCompletionMessage::assistant(forge_domain::Content::part("")).usage(usage))
             }
             EventData::Unknown(_) => {
