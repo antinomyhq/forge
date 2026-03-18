@@ -87,8 +87,12 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                     && current_usage.cost.is_some();
 
                 if is_complete_usage {
-                    // Replace with the latest complete usage
+                    // Replace with the latest complete usage, but preserve cost if already set
+                    let existing_cost = usage.cost;
                     usage = *current_usage;
+                    if usage.cost.is_none() && existing_cost.is_some() {
+                        usage.cost = existing_cost;
+                    }
                 } else if is_cost_only {
                     // Accumulate only the cost to the existing usage
                     usage.cost = current_usage.cost;
@@ -411,6 +415,58 @@ mod tests {
                 total_tokens: TokenCount::Actual(110),
                 cached_tokens: TokenCount::Actual(0),
                 cost: Some(0.005), // From cost-only event
+            },
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_cost_preserved_when_complete_usage_arrives_after_cost_only() {
+        // Fixture: Cost-only event arrives BEFORE the complete usage event
+        // (Graphite bug report scenario)
+        let messages = vec![
+            // Cost-only event arrives first
+            Ok(ChatCompletionMessage::default().usage(Usage {
+                prompt_tokens: TokenCount::Actual(0),
+                completion_tokens: TokenCount::Actual(0),
+                total_tokens: TokenCount::Actual(0),
+                cached_tokens: TokenCount::Actual(0),
+                cost: Some(0.005),
+            })),
+            // Complete usage event arrives after (without cost)
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("Hello world!"))
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(100),
+                    completion_tokens: TokenCount::Actual(10),
+                    total_tokens: TokenCount::Actual(110),
+                    cached_tokens: TokenCount::Actual(0),
+                    cost: None,
+                })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Cost from cost-only event should NOT be lost when complete usage
+        // replaces it
+        let expected = ChatCompletionMessageFull {
+            content: "Hello world!".to_string(),
+            tool_calls: vec![],
+            thought_signature: None,
+            usage: Usage {
+                prompt_tokens: TokenCount::Actual(100),
+                completion_tokens: TokenCount::Actual(10),
+                total_tokens: TokenCount::Actual(110),
+                cached_tokens: TokenCount::Actual(0),
+                cost: Some(0.005), // Preserved from cost-only event
             },
             reasoning: None,
             reasoning_details: None,
