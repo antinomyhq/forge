@@ -338,8 +338,8 @@ async fn test_reasoning_should_be_in_context() {
 
 #[tokio::test]
 async fn test_tool_call_reasoning_is_preserved_in_context() {
-    let tool_call =
-        ToolCallFull::new("fs_read").arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
     let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
     let reasoning_content = "I should inspect the file before answering.";
 
@@ -374,8 +374,14 @@ async fn test_tool_call_reasoning_is_preserved_in_context() {
         _ => panic!("Expected assistant tool-call message to be text"),
     };
     assert_eq!(reasoning_details.len(), 1);
-    assert_eq!(reasoning_details[0].text.as_deref(), Some(reasoning_content));
-    assert_eq!(reasoning_details[0].type_of.as_deref(), Some("reasoning.text"));
+    assert_eq!(
+        reasoning_details[0].text.as_deref(),
+        Some(reasoning_content)
+    );
+    assert_eq!(
+        reasoning_details[0].type_of.as_deref(),
+        Some("reasoning.text")
+    );
 }
 
 #[tokio::test]

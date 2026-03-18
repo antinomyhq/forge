@@ -13,7 +13,10 @@ impl Transformer for KimiReasoning {
         if let Some(ref mut messages) = request.messages {
             for message in messages.iter_mut() {
                 let is_assistant_tool_call = message.role == crate::dto::openai::Role::Assistant
-                    && message.tool_calls.as_ref().is_some_and(|tool_calls| !tool_calls.is_empty());
+                    && message
+                        .tool_calls
+                        .as_ref()
+                        .is_some_and(|tool_calls| !tool_calls.is_empty());
 
                 if !is_assistant_tool_call {
                     continue;
@@ -23,12 +26,13 @@ impl Transformer for KimiReasoning {
                     continue;
                 }
 
-                message.reasoning_content = message.reasoning_details.as_ref().and_then(|details| {
-                    details
-                        .iter()
-                        .find(|detail| detail.r#type == "reasoning.text")
-                        .and_then(|detail| detail.text.clone())
-                });
+                message.reasoning_content =
+                    message.reasoning_details.as_ref().and_then(|details| {
+                        details
+                            .iter()
+                            .find(|detail| detail.r#type == "reasoning.text")
+                            .and_then(|detail| detail.text.clone())
+                    });
             }
         }
 
@@ -41,11 +45,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::dto::openai::{
-        Message, MessageContent, ReasoningDetail, Request, Role,
-        response::{FunctionCall, ToolCall},
-        tool_choice::FunctionType,
-    };
+    use crate::dto::openai::response::{FunctionCall, ToolCall};
+    use crate::dto::openai::tool_choice::FunctionType;
+    use crate::dto::openai::{Message, MessageContent, ReasoningDetail, Request, Role};
 
     #[test]
     fn test_sets_reasoning_content_for_assistant_tool_call_messages() {
