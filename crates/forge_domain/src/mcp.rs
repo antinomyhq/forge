@@ -434,7 +434,10 @@ mod tests {
 
         let actual: McpConfig = serde_json::from_str(json).unwrap();
 
-        match actual.mcp_servers.get(&"slow-stdio-server".to_string().into()) {
+        match actual
+            .mcp_servers
+            .get(&"slow-stdio-server".to_string().into())
+        {
             Some(McpServerConfig::Stdio(server)) => {
                 assert_eq!(server.command, "node");
                 assert_eq!(server.args, vec!["server.js"]);
@@ -459,7 +462,10 @@ mod tests {
 
         let actual: McpConfig = serde_json::from_str(json).unwrap();
 
-        match actual.mcp_servers.get(&"fast-stdio-server".to_string().into()) {
+        match actual
+            .mcp_servers
+            .get(&"fast-stdio-server".to_string().into())
+        {
             Some(McpServerConfig::Stdio(server)) => {
                 assert_eq!(server.command, "node");
                 assert_eq!(server.timeout, None);
