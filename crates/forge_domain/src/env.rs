@@ -102,7 +102,7 @@ pub struct Environment {
     pub parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache.
     /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
-    pub model_cache_ttl: u128,
+    pub model_cache_ttl: u64,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.

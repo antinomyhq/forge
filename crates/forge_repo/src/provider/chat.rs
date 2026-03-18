@@ -45,7 +45,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
 
         let model_cache = Arc::new(CacacheStorage::new(
             env.cache_dir().join("model_cache"),
-            Some(env.model_cache_ttl),
+            Some(env.model_cache_ttl as u128),
         ));
 
         Self {
