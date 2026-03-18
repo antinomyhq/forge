@@ -371,7 +371,7 @@ function _forge_action_model_reset() {
 # Action handler: Show config list
 function _forge_action_config() {
     echo
-    _forge_exec config list
+    $_FORGE_BIN config list
 }
 
 # Action handler: Show tools
