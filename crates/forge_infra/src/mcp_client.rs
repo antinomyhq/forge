@@ -113,13 +113,12 @@ impl ForgeMcpClient {
                     .spawn()?;
 
                 // Spawn a task to drain stderr to prevent buffer overflow
-                // Spawn a task to drain stderr to prevent buffer overflow
                 // If stderr fills up, the child process will block
                 if let Some(stderr) = stderr {
                     tokio::spawn(async move {
                         let mut reader = BufReader::new(stderr).lines();
-                        while let Ok(Some(_)) = reader.next_line().await {
-                            // Discard stderr output to prevent buffer overflow
+                        while let Ok(Some(line)) = reader.next_line().await {
+                            tracing::warn!("MCP server stderr: {}", line);
                         }
                     });
                 }
