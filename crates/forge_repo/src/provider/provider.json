@@ -1868,7 +1868,7 @@
       {
         "id": "MiniMax-M2.7-highspeed",
         "name": "MiniMax M2.7 Highspeed",
-        "description": "Peak performance model optimized for code generation and refactoring with advanced reasoning",
+        "description": "Same performance as M2.7 with significantly faster inference (~100 tps)",
         "context_length": 204800,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
