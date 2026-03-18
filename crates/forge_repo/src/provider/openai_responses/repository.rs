@@ -199,7 +199,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             }
                             Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
-                                Some(Ok(super::response::StreamItem::Event(*inner)))
+                                Some(Ok(super::response::StreamItem::Event(inner)))
                             }
                             Err(e) => Some(Err(e)),
                         }
@@ -268,7 +268,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             }
                             Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
-                                Some(Ok(super::response::StreamItem::Event(*inner)))
+                                Some(Ok(super::response::StreamItem::Event(inner)))
                             }
                             Err(e) => Some(Err(e)),
                         }

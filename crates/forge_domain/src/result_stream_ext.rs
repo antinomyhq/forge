@@ -67,9 +67,35 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
         while let Some(message) = self.next().await {
             let message =
                 anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
-            // Process usage information - accumulate instead of replace
+            // Process usage information
+            // - For Anthropic-style streaming: input tokens in MessageStart, output tokens
+            //   in MessageDelta
+            // - For OpenAI-style streaming: all tokens in the final chunk
+            // - For GLM-style: may send complete usage in every chunk (need to replace, not
+            //   accumulate)
+            // - Cost-only events: have 0 tokens but a cost value
             if let Some(current_usage) = message.usage.as_ref() {
-                usage = usage.accumulate(current_usage);
+                // If current usage has both prompt and completion tokens, it's a "complete"
+                // usage In this case, replace instead of accumulate (handles
+                // GLM-style streaming)
+                let is_complete_usage =
+                    *current_usage.prompt_tokens > 0 && *current_usage.completion_tokens > 0;
+
+                // Cost-only events have 0 tokens but a cost value
+                let is_cost_only = *current_usage.prompt_tokens == 0
+                    && *current_usage.completion_tokens == 0
+                    && current_usage.cost.is_some();
+
+                if is_complete_usage {
+                    // Replace with the latest complete usage
+                    usage = *current_usage;
+                } else if is_cost_only {
+                    // Accumulate only the cost to the existing usage
+                    usage.cost = current_usage.cost;
+                } else {
+                    // Accumulate partial usage (for Anthropic-style streaming)
+                    usage = usage.accumulate(current_usage);
+                }
             }
 
             if !tool_interrupted {
@@ -250,22 +276,15 @@ mod tests {
     #[tokio::test]
     async fn test_into_full_basic() {
         // Fixture: Create a stream of messages
+        // OpenAI-style: usage only in the final chunk
         let messages = vec![
-            Ok(ChatCompletionMessage::default()
-                .content(Content::part("Hello "))
-                .usage(Usage {
-                    prompt_tokens: TokenCount::Actual(10),
-                    completion_tokens: TokenCount::Actual(5),
-                    total_tokens: TokenCount::Actual(15),
-                    cached_tokens: TokenCount::Actual(0),
-                    cost: None,
-                })),
+            Ok(ChatCompletionMessage::default().content(Content::part("Hello "))),
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("world!"))
                 .usage(Usage {
                     prompt_tokens: TokenCount::Actual(10),
-                    completion_tokens: TokenCount::Actual(10),
-                    total_tokens: TokenCount::Actual(20),
+                    completion_tokens: TokenCount::Actual(5),
+                    total_tokens: TokenCount::Actual(15),
                     cached_tokens: TokenCount::Actual(0),
                     cost: None,
                 })),
@@ -277,17 +296,121 @@ mod tests {
         // Actual: Convert stream to full message
         let actual = result_stream.into_full(false).await.unwrap();
 
-        // Expected: Combined content and accumulated usage
+        // Expected: Combined content and usage from final chunk
         let expected = ChatCompletionMessageFull {
             content: "Hello world!".to_string(),
             tool_calls: vec![],
             thought_signature: None,
             usage: Usage {
-                prompt_tokens: TokenCount::Actual(20), // 10 + 10 accumulated
-                completion_tokens: TokenCount::Actual(15), // 5 + 10 accumulated
-                total_tokens: TokenCount::Actual(35),  // 15 + 20 accumulated
+                prompt_tokens: TokenCount::Actual(10),    // From final chunk
+                completion_tokens: TokenCount::Actual(5), // From final chunk
+                total_tokens: TokenCount::Actual(15),     // From final chunk
                 cached_tokens: TokenCount::Actual(0),
                 cost: None,
+            },
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_glm_style_usage_replacement() {
+        // Fixture: Simulate GLM-style streaming where complete usage is sent in every
+        // chunk This tests that we replace instead of accumulate to avoid
+        // multiplying tokens
+        let messages = vec![
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("Hello "))
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(100),
+                    completion_tokens: TokenCount::Actual(5),
+                    total_tokens: TokenCount::Actual(105),
+                    cached_tokens: TokenCount::Actual(0),
+                    cost: None,
+                })),
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("world!"))
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(100),
+                    completion_tokens: TokenCount::Actual(10),
+                    total_tokens: TokenCount::Actual(110),
+                    cached_tokens: TokenCount::Actual(0),
+                    cost: None,
+                })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Usage should be from the last chunk, NOT accumulated
+        // (accumulating would give prompt_tokens=200, which is wrong)
+        let expected = ChatCompletionMessageFull {
+            content: "Hello world!".to_string(),
+            tool_calls: vec![],
+            thought_signature: None,
+            usage: Usage {
+                prompt_tokens: TokenCount::Actual(100), // From last chunk, NOT 200
+                completion_tokens: TokenCount::Actual(10), // From last chunk
+                total_tokens: TokenCount::Actual(110),  // From last chunk, NOT 215
+                cached_tokens: TokenCount::Actual(0),
+                cost: None,
+            },
+            reasoning: None,
+            reasoning_details: None,
+            finish_reason: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_cost_only_event_adds_cost_to_usage() {
+        // Fixture: Simulate GLM-style streaming with a separate cost event at the end
+        let messages = vec![
+            // Content with complete usage
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("Hello world!"))
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(100),
+                    completion_tokens: TokenCount::Actual(10),
+                    total_tokens: TokenCount::Actual(110),
+                    cached_tokens: TokenCount::Actual(0),
+                    cost: None,
+                })),
+            // Cost-only event (0 tokens but has cost)
+            Ok(ChatCompletionMessage::default().usage(Usage {
+                prompt_tokens: TokenCount::Actual(0),
+                completion_tokens: TokenCount::Actual(0),
+                total_tokens: TokenCount::Actual(0),
+                cached_tokens: TokenCount::Actual(0),
+                cost: Some(0.005),
+            })),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Actual: Convert stream to full message
+        let actual = result_stream.into_full(false).await.unwrap();
+
+        // Expected: Usage should have tokens from first chunk, cost from cost-only
+        // event
+        let expected = ChatCompletionMessageFull {
+            content: "Hello world!".to_string(),
+            tool_calls: vec![],
+            thought_signature: None,
+            usage: Usage {
+                prompt_tokens: TokenCount::Actual(100),
+                completion_tokens: TokenCount::Actual(10),
+                total_tokens: TokenCount::Actual(110),
+                cached_tokens: TokenCount::Actual(0),
+                cost: Some(0.005), // From cost-only event
             },
             reasoning: None,
             reasoning_details: None,

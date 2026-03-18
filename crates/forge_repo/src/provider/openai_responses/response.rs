@@ -78,7 +78,7 @@ where
 /// events carrying cost) bypass the scan and are passed through directly.
 pub(super) enum StreamItem {
     /// A standard OpenAI Responses API streaming event.
-    Event(oai::ResponseStreamEvent),
+    Event(Box<oai::ResponseStreamEvent>),
     /// A pre-resolved message (e.g. cost from a proxy ping event).
     Message(ChatCompletionMessage),
 }
@@ -225,7 +225,7 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                 futures::future::ready({
                     let item = match item {
                         Ok(StreamItem::Message(msg)) => Some(Ok(msg)),
-                        Ok(StreamItem::Event(event)) => match event {
+                        Ok(StreamItem::Event(event)) => match *event {
                             oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => Some(Ok(
                                 ChatCompletionMessage::assistant(Content::part(delta.delta)),
                             )),
@@ -418,7 +418,7 @@ mod tests {
     /// Wraps an `oai::ResponseStreamEvent` into a `StreamItem::Event` result
     /// for use in test streams.
     fn event(e: oai::ResponseStreamEvent) -> anyhow::Result<StreamItem> {
-        Ok(StreamItem::Event(e))
+        Ok(StreamItem::Event(Box::new(e)))
     }
 
     fn fixture_response_usage() -> oai::ResponseUsage {

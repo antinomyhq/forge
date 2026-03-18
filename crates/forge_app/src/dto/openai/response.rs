@@ -520,7 +520,19 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     Ok(default_response)
                 }
             }
-            Response::CostOnly { .. } => Ok(ChatCompletionMessage::default()),
+            Response::CostOnly { cost, .. } => {
+                let mut msg = ChatCompletionMessage::default();
+                if let Some(c) = cost {
+                    msg.usage = Some(Usage {
+                        prompt_tokens: TokenCount::Actual(0),
+                        completion_tokens: TokenCount::Actual(0),
+                        total_tokens: TokenCount::Actual(0),
+                        cached_tokens: TokenCount::Actual(0),
+                        cost: Some(c),
+                    });
+                }
+                Ok(msg)
+            }
             Response::Failure { error } => Err(Error::Response(error).into()),
         }
     }
@@ -760,7 +772,14 @@ mod tests {
 
         let actual = ChatCompletionMessage::try_from(actual).unwrap();
 
-        let expected = ChatCompletionMessage::default();
+        // CostOnly events now include the cost in the usage
+        let expected = ChatCompletionMessage::default().usage(Usage {
+            prompt_tokens: TokenCount::Actual(0),
+            completion_tokens: TokenCount::Actual(0),
+            total_tokens: TokenCount::Actual(0),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.0),
+        });
         assert_eq!(actual, expected);
     }
 
