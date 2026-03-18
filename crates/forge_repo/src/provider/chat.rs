@@ -16,9 +16,6 @@ use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 use crate::provider::opencode_zen::OpenCodeZenResponseRepository;
 
-/// TTL for cached model lists: 2 hours in seconds.
-const MODEL_CACHE_TTL_SECS: u128 = 7200;
-
 /// Repository responsible for routing chat requests to the appropriate provider
 /// implementation based on the provider's response type.
 pub struct ForgeChatRepository<F> {
@@ -51,7 +48,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
 
         let model_cache = Arc::new(CacacheStorage::new(
             env.cache_dir().join("model_cache"),
-            Some(MODEL_CACHE_TTL_SECS),
+            Some(env.model_cache_ttl as u128),
         ));
 
         Self {
