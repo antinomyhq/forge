@@ -109,15 +109,14 @@ impl TryFrom<EventData> for ChatCompletionMessage {
             )),
             EventData::Ping(ping) => {
                 // Extract cost from proxy ping events (e.g. opencode.ai)
-                let usage = forge_domain::Usage {
-                    cost: Some(ping.cost),
-                    ..Default::default()
-                };
+                let usage = forge_domain::Usage { cost: Some(ping.cost), ..Default::default() };
                 Ok(ChatCompletionMessage::assistant(forge_domain::Content::part("")).usage(usage))
             }
             EventData::Unknown(_) => {
                 // Silently ignore any other unrecognised events
-                Ok(ChatCompletionMessage::assistant(forge_domain::Content::part("")))
+                Ok(ChatCompletionMessage::assistant(
+                    forge_domain::Content::part(""),
+                ))
             }
         }
     }
@@ -627,9 +626,8 @@ mod tests {
         assert!(matches!(event_data, EventData::Ping(_)));
 
         let actual = ChatCompletionMessage::try_from(event_data).unwrap();
-        let expected = ChatCompletionMessage::assistant(forge_domain::Content::part("")).usage(
-            forge_domain::Usage { cost: Some(0.028894), ..Default::default() },
-        );
+        let expected = ChatCompletionMessage::assistant(forge_domain::Content::part(""))
+            .usage(forge_domain::Usage { cost: Some(0.028894), ..Default::default() });
         assert_eq!(actual, expected);
     }
 

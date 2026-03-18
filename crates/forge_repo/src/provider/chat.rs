@@ -167,7 +167,9 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
                 self.google_repo.chat(model_id, context, provider).await
             }
             Some(ProviderResponse::OpenCode) => {
-                self.opencode_zen_repo.chat(model_id, context, provider).await
+                self.opencode_zen_repo
+                    .chat(model_id, context, provider)
+                    .await
             }
             None => Err(anyhow::anyhow!(
                 "Provider response type not configured for provider: {}",

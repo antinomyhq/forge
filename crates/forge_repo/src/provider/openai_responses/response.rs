@@ -405,9 +405,8 @@ mod tests {
 
     // Type alias for ResponseStream in tests since it's not provided by
     // response-types
-    type ResponseStream = std::pin::Pin<
-        Box<dyn futures::Stream<Item = anyhow::Result<StreamItem>> + Send>,
-    >;
+    type ResponseStream =
+        std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<StreamItem>> + Send>>;
     use forge_app::domain::{Content, FinishReason, Reasoning, ReasoningFull, TokenCount, Usage};
     use forge_domain::{ChatCompletionMessage as Message, ToolCallId, ToolName};
     use tokio_stream::StreamExt;

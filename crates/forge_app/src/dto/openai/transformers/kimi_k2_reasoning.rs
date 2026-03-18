@@ -2,10 +2,11 @@ use forge_domain::Transformer;
 
 use crate::dto::openai::Request;
 
-/// Transformer that converts reasoning_details to kimi_k2's reasoning_content flat format.
+/// Transformer that converts reasoning_details to kimi_k2's reasoning_content
+/// flat format.
 ///
-/// kimi_k2 models expect reasoning to be sent as a flat `reasoning_content` string field
-/// instead of the OpenRouter-style `reasoning_details` array.
+/// kimi_k2 models expect reasoning to be sent as a flat `reasoning_content`
+/// string field instead of the OpenRouter-style `reasoning_details` array.
 ///
 /// This transformer:
 /// 1. Extracts `reasoning.text` type entries → `reasoning_content`

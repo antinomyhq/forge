@@ -707,4 +707,3 @@ mod tests {
         assert_eq!(actual.tools.unwrap()[0].function.parameters, expected);
     }
 }
-

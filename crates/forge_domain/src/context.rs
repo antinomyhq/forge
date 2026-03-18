@@ -557,10 +557,8 @@ impl Context {
     ) -> Self {
         // Convert flat reasoning string to reasoning_details if present
         let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
-            let reasoning_entry = ReasoningFull {
-                text: Some(reasoning_text),
-                ..Default::default()
-            };
+            let reasoning_entry =
+                ReasoningFull { text: Some(reasoning_text), ..Default::default() };
             if let Some(mut existing_details) = reasoning_details {
                 existing_details.push(reasoning_entry);
                 Some(existing_details)

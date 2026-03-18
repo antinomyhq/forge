@@ -188,13 +188,13 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
                             Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
-                                let usage = forge_domain::Usage {
-                                    cost: Some(cost),
-                                    ..Default::default()
-                                };
+                                let usage =
+                                    forge_domain::Usage { cost: Some(cost), ..Default::default() };
                                 Some(Ok(super::response::StreamItem::Message(
-                                    ChatCompletionMessage::assistant(forge_domain::Content::part(""))
-                                        .usage(usage),
+                                    ChatCompletionMessage::assistant(forge_domain::Content::part(
+                                        "",
+                                    ))
+                                    .usage(usage),
                                 )))
                             }
                             Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
@@ -211,8 +211,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
 
         // Convert to domain messages using the existing conversion logic
         use crate::provider::IntoDomain;
-        let stream: BoxStream<super::response::StreamItem, anyhow::Error> =
-            Box::pin(event_stream);
+        let stream: BoxStream<super::response::StreamItem, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
     }
 
@@ -258,13 +257,13 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
                             Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
-                                let usage = forge_domain::Usage {
-                                    cost: Some(cost),
-                                    ..Default::default()
-                                };
+                                let usage =
+                                    forge_domain::Usage { cost: Some(cost), ..Default::default() };
                                 Some(Ok(super::response::StreamItem::Message(
-                                    ChatCompletionMessage::assistant(forge_domain::Content::part(""))
-                                        .usage(usage),
+                                    ChatCompletionMessage::assistant(forge_domain::Content::part(
+                                        "",
+                                    ))
+                                    .usage(usage),
                                 )))
                             }
                             Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
@@ -279,8 +278,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
             });
 
         use crate::provider::IntoDomain;
-        let stream: BoxStream<super::response::StreamItem, anyhow::Error> =
-            Box::pin(event_stream);
+        let stream: BoxStream<super::response::StreamItem, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
     }
 }

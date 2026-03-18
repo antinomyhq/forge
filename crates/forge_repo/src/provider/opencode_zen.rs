@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use derive_setters::Setters;
-use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider,
-    ProviderResponse, ResultStream, RetryConfig,
-};
 use forge_app::HttpInfra;
+use forge_app::domain::{
+    ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderResponse,
+    ResultStream, RetryConfig,
+};
 use forge_domain::ChatRepository;
 use url::Url;
 
@@ -75,10 +75,7 @@ impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
             }
             OpenCodeBackend::Google => {
                 // Gemini models use model-specific endpoint
-                new_provider.url = Url::parse(&format!(
-                    "https://opencode.ai/zen/v1"
-                ))
-                .unwrap();
+                new_provider.url = Url::parse("https://opencode.ai/zen/v1").unwrap();
                 new_provider.response = Some(ProviderResponse::Google);
             }
             OpenCodeBackend::OpenAI => {
@@ -113,7 +110,9 @@ impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
                     .await
             }
             OpenCodeBackend::Google => {
-                self.google_repo.chat(model_id, context, adapted_provider).await
+                self.google_repo
+                    .chat(model_id, context, adapted_provider)
+                    .await
             }
             OpenCodeBackend::OpenAI => {
                 self.openai_repo
@@ -187,7 +186,10 @@ mod tests {
             get_backend_for_test("gpt-5.4-pro"),
             OpenCodeBackend::OpenAIResponses
         );
-        assert_eq!(get_backend_for_test("gpt-5"), OpenCodeBackend::OpenAIResponses);
+        assert_eq!(
+            get_backend_for_test("gpt-5"),
+            OpenCodeBackend::OpenAIResponses
+        );
         assert_eq!(
             get_backend_for_test("gpt-5.1-codex"),
             OpenCodeBackend::OpenAIResponses
@@ -198,11 +200,17 @@ mod tests {
             get_backend_for_test("gemini-3.1-pro"),
             OpenCodeBackend::Google
         );
-        assert_eq!(get_backend_for_test("gemini-3-flash"), OpenCodeBackend::Google);
+        assert_eq!(
+            get_backend_for_test("gemini-3-flash"),
+            OpenCodeBackend::Google
+        );
 
         // Test other models route to OpenAI
         assert_eq!(get_backend_for_test("glm-5"), OpenCodeBackend::OpenAI);
-        assert_eq!(get_backend_for_test("minimax-m2.5"), OpenCodeBackend::OpenAI);
+        assert_eq!(
+            get_backend_for_test("minimax-m2.5"),
+            OpenCodeBackend::OpenAI
+        );
         assert_eq!(get_backend_for_test("kimi-k2.5"), OpenCodeBackend::OpenAI);
         assert_eq!(get_backend_for_test("big-pickle"), OpenCodeBackend::OpenAI);
     }
