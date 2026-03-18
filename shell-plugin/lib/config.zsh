@@ -29,7 +29,7 @@ typeset -h _FORGE_ACTIVE_AGENT
 # Previous conversation ID for :conversation - (like cd -)
 typeset -h _FORGE_PREVIOUS_CONVERSATION_ID
 
-# Session-scoped model and provider overrides (set via :session-model).
+# Session-scoped model and provider overrides (set via :model / :m).
 # When non-empty, these are passed as --model / --provider to every forge
 # invocation for the lifetime of the current shell session.
 typeset -h _FORGE_SESSION_MODEL
