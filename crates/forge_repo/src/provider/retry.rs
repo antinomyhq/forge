@@ -309,8 +309,9 @@ mod tests {
         let retry_config = fixture_retry_config(vec![]);
 
         // overloaded_error arriving as an SSE event must be retried
-        let error =
-            anyhow::Error::from(AnthropicError::OverloadedError { message: "Overloaded".to_string() });
+        let error = anyhow::Error::from(AnthropicError::OverloadedError {
+            message: "Overloaded".to_string(),
+        });
         assert!(is_retryable(into_retry(error, &retry_config)));
 
         // Generic errors are still not retryable
