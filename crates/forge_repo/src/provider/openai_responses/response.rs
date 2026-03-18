@@ -80,7 +80,7 @@ pub(super) enum StreamItem {
     /// A standard OpenAI Responses API streaming event.
     Event(Box<oai::ResponseStreamEvent>),
     /// A pre-resolved message (e.g. cost from a proxy ping event).
-    Message(ChatCompletionMessage),
+    Message(Box<ChatCompletionMessage>),
 }
 
 impl IntoDomain for oai::ResponseUsage {
@@ -224,7 +224,7 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
             self.scan(CodexStreamState::default(), move |state, item| {
                 futures::future::ready({
                     let item = match item {
-                        Ok(StreamItem::Message(msg)) => Some(Ok(msg)),
+                        Ok(StreamItem::Message(msg)) => Some(Ok(*msg)),
                         Ok(StreamItem::Event(event)) => match *event {
                             oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => Some(Ok(
                                 ChatCompletionMessage::assistant(Content::part(delta.delta)),

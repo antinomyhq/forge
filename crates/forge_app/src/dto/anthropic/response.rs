@@ -795,7 +795,7 @@ mod tests {
 
         let actual: Event = serde_json::from_str(fixture).unwrap();
 
-        let expected = Event::Ping { cost: Some(0.00724710) };
+        let expected = Event::Ping { cost: Some(StringOrF64::String("0.00724710".into())) };
         assert_eq!(actual, expected);
     }
 
@@ -806,14 +806,14 @@ mod tests {
 
         let actual: Event = serde_json::from_str(fixture).unwrap();
 
-        let expected = Event::Ping { cost: Some(0.05) };
+        let expected = Event::Ping { cost: Some(StringOrF64::Number(0.05)) };
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_ping_event_with_cost_produces_usage() {
         // Fixture: Ping event with cost should produce a usage with cost
-        let fixture = Event::Ping { cost: Some(0.00724710) };
+        let fixture = Event::Ping { cost: Some(StringOrF64::Number(0.00724710)) };
 
         let actual = ChatCompletionMessage::try_from(fixture).unwrap();
 

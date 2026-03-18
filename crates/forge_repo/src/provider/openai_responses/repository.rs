@@ -190,12 +190,12 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
                                 let usage =
                                     forge_domain::Usage { cost: Some(cost), ..Default::default() };
-                                Some(Ok(super::response::StreamItem::Message(
+                                Some(Ok(super::response::StreamItem::Message(Box::new(
                                     ChatCompletionMessage::assistant(forge_domain::Content::part(
                                         "",
                                     ))
                                     .usage(usage),
-                                )))
+                                ))))
                             }
                             Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
@@ -259,12 +259,12 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
                                 let usage =
                                     forge_domain::Usage { cost: Some(cost), ..Default::default() };
-                                Some(Ok(super::response::StreamItem::Message(
+                                Some(Ok(super::response::StreamItem::Message(Box::new(
                                     ChatCompletionMessage::assistant(forge_domain::Content::part(
                                         "",
                                     ))
                                     .usage(usage),
-                                )))
+                                ))))
                             }
                             Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
