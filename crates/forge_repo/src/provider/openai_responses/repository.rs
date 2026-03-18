@@ -1106,7 +1106,7 @@ mod tests {
 
         assert_eq!(
             repo.retry_config.retry_status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522, 520]
+            vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
         );
     }
 
