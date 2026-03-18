@@ -3075,13 +3075,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
+            ChatResponse::ToolCallStart { tool_call, notifier } => {
                 writer.finish()?;
 
                 // Stop spinner only for tools that require stdout/stderr access
                 if tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
                 }
+
+                // Notify orch that the UI has rendered the tool header.
+                // Orch awaits this before executing the tool, preventing tool
+                // stdout from appearing before the tool name is printed.
+                notifier.notify_one();
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.

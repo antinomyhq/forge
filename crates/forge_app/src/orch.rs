@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::sync::Notify;
+
 use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::{Agent, *};
@@ -70,8 +72,16 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
-                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                    .await?;
+                let notifier = Arc::new(Notify::new());
+                self.send(ChatResponse::ToolCallStart {
+                    tool_call: tool_call.clone(),
+                    notifier: notifier.clone(),
+                })
+                .await?;
+                // Wait for the UI to acknowledge it has rendered the tool header
+                // before we execute the tool. This prevents tool stdout from
+                // appearing before the tool name is printed.
+                notifier.notified().await;
             }
 
             // Fire the ToolcallStart lifecycle event
