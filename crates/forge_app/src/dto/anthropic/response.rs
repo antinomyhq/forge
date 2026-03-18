@@ -339,12 +339,8 @@ impl TryFrom<Event> for ChatCompletionMessage {
             }
             Event::Ping { cost: Some(cost) } => {
                 // OpenCode Zen sends cost in a ping event at the end of the stream
-                ChatCompletionMessage::assistant(Content::part("")).usage(
-                    forge_domain::Usage {
-                        cost: Some(cost),
-                        ..Default::default()
-                    },
-                )
+                ChatCompletionMessage::assistant(Content::part(""))
+                    .usage(forge_domain::Usage { cost: Some(cost), ..Default::default() })
             }
             _ => ChatCompletionMessage::assistant(Content::part("")),
         };
@@ -837,10 +833,7 @@ mod tests {
 
         let actual = ChatCompletionMessage::try_from(fixture).unwrap();
 
-        let expected_usage = forge_domain::Usage {
-            cost: Some(0.00724710),
-            ..Default::default()
-        };
+        let expected_usage = forge_domain::Usage { cost: Some(0.00724710), ..Default::default() };
         assert_eq!(actual.usage, Some(expected_usage));
     }
 
