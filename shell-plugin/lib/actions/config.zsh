@@ -154,11 +154,10 @@ function _forge_action_model() {
     (
         echo
         local current_model current_provider
-        current_model=$(_forge_exec config get model 2>/dev/null)
+        current_model=$($_FORGE_BIN config get model 2>/dev/null)
         # config get provider returns the display name (e.g. "OpenAI"),
         # which corresponds to porcelain field 3 (provider display)
-        current_provider=$(_forge_exec config get provider 2>/dev/null)
-
+        current_provider=$($_FORGE_BIN config get provider 2>/dev/null)
         local selected
         selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text" "$current_provider" 3)
 
@@ -325,14 +324,14 @@ function _forge_action_session_model() {
         current_model="$_FORGE_SESSION_MODEL"
         provider_index=4
     else
-        current_model=$(_forge_exec config get model 2>/dev/null)
+        current_model=$($_FORGE_BIN config get model 2>/dev/null)
         provider_index=3
     fi
     if [[ -n "$_FORGE_SESSION_PROVIDER" ]]; then
         current_provider="$_FORGE_SESSION_PROVIDER"
         provider_index=4
     else
-        current_provider=$(_forge_exec config get provider 2>/dev/null)
+        current_provider=$($_FORGE_BIN config get provider 2>/dev/null)
         provider_index=3
     fi
 
