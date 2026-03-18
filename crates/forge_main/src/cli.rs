@@ -545,6 +545,11 @@ pub enum ConfigSetField {
     Provider {
         /// Provider ID to set as default.
         provider: ProviderId,
+
+        /// Optional model ID to set simultaneously, skipping interactive model
+        /// selection.
+        #[arg(long)]
+        model: Option<ModelId>,
     },
     /// Set the provider and model for commit message generation.
     Commit {
@@ -865,14 +870,46 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
                 ConfigCommand::Set(args) => match args.field {
-                    ConfigSetField::Provider { provider } => Some(provider.to_string()),
+                    ConfigSetField::Provider { provider, model } => {
+                        Some((provider.to_string(), model))
+                    }
                     _ => None,
                 },
                 _ => None,
             },
             _ => None,
         };
-        let expected = Some("OpenAi".to_string());
+        let expected = Some(("OpenAi".to_string(), None));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_with_provider_and_model() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "config",
+            "set",
+            "provider",
+            "anthropic",
+            "--model",
+            "claude-sonnet-4-20250514",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Provider { provider, model } => {
+                        Some((provider.to_string(), model.map(|m| m.as_str().to_string())))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some((
+            "Anthropic".to_string(),
+            Some("claude-sonnet-4-20250514".to_string()),
+        ));
         assert_eq!(actual, expected);
     }
 
