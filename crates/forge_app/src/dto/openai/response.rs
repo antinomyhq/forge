@@ -755,7 +755,7 @@ mod tests {
 
     #[test]
     fn test_cost_only_response_parses_and_returns_empty_message() {
-        let fixture = r#"{\"choices\":[],\"cost\":\"0\"}"#;
+        let fixture = r#"{"choices":[],"cost":"0"}"#;
         let actual = serde_json::from_str::<Response>(fixture).unwrap();
 
         let actual = ChatCompletionMessage::try_from(actual).unwrap();
@@ -766,7 +766,7 @@ mod tests {
 
     #[test]
     fn test_cost_only_response_numeric_cost_parses() {
-        let fixture = r#"{\"choices\":[],\"cost\":0.0}"#;
+        let fixture = r#"{"choices":[],"cost":0.0}"#;
         let actual = serde_json::from_str::<Response>(fixture);
 
         assert!(actual.is_ok());
