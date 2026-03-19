@@ -39,8 +39,10 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         use forge_domain::ProviderId;
 
-        if provider.id == ProviderId::CODEX {
-            // Codex uses the configured URL directly as the responses endpoint
+        if provider.id == ProviderId::CODEX || provider.id == ProviderId::OPENCODE_ZEN {
+            // Codex and OpenCode Zen use the configured URL directly as the
+            // responses endpoint (their URLs already contain the full path,
+            // e.g. `opencode.ai/zen/v1/responses`).
             let responses_url = provider.url.clone();
             let api_base = {
                 let mut base = provider.url.clone();
@@ -185,8 +187,19 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
 
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
+                                let usage =
+                                    forge_domain::Usage { cost: Some(cost), ..Default::default() };
+                                Some(Ok(super::response::StreamItem::Message(Box::new(
+                                    ChatCompletionMessage::assistant(forge_domain::Content::part(
+                                        "",
+                                    ))
+                                    .usage(usage),
+                                ))))
+                            }
+                            Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
-                                Some(Ok(*inner))
+                                Some(Ok(super::response::StreamItem::Event(inner)))
                             }
                             Err(e) => Some(Err(e)),
                         }
@@ -198,7 +211,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
 
         // Convert to domain messages using the existing conversion logic
         use crate::provider::IntoDomain;
-        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        let stream: BoxStream<super::response::StreamItem, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
     }
 
@@ -243,8 +256,19 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                         .with_context(|| format!("Failed to parse SSE event: {}", event.data));
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
+                                let usage =
+                                    forge_domain::Usage { cost: Some(cost), ..Default::default() };
+                                Some(Ok(super::response::StreamItem::Message(Box::new(
+                                    ChatCompletionMessage::assistant(forge_domain::Content::part(
+                                        "",
+                                    ))
+                                    .usage(usage),
+                                ))))
+                            }
+                            Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
-                                Some(Ok(*inner))
+                                Some(Ok(super::response::StreamItem::Event(inner)))
                             }
                             Err(e) => Some(Err(e)),
                         }
@@ -254,7 +278,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
             });
 
         use crate::provider::IntoDomain;
-        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        let stream: BoxStream<super::response::StreamItem, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
     }
 }
