@@ -249,7 +249,21 @@ impl From<&Context> for ContextSummary {
                             if let Ok(ToolCatalog::TodoWrite(input)) =
                                 ToolCatalog::try_from(call.clone())
                             {
-                                current_todos = input.todos;
+                                for item in &input.todos {
+                                    if item.status == crate::TodoStatus::Cancelled {
+                                        current_todos.retain(|t| t.content != item.content);
+                                    } else if let Some(existing) =
+                                        current_todos.iter_mut().find(|t| t.content == item.content)
+                                    {
+                                        existing.status = item.status;
+                                    } else {
+                                        current_todos.push(Todo {
+                                            id: String::new(),
+                                            content: item.content.clone(),
+                                            status: item.status,
+                                        });
+                                    }
+                                }
                             }
                         }
                     }
@@ -346,32 +360,40 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
             ToolCatalog::TodoWrite(input) => {
                 let before_map: HashMap<&str, &Todo> =
-                    current_todos.iter().map(|t| (t.id.as_str(), t)).collect();
-                let after_ids: std::collections::HashSet<&str> =
-                    input.todos.iter().map(|t| t.id.as_str()).collect();
+                    current_todos.iter().map(|t| (t.content.as_str(), t)).collect();
 
                 let mut changes = vec![];
 
-                for todo in &input.todos {
-                    match before_map.get(todo.id.as_str()) {
-                        None => changes
-                            .push(TodoChange { todo: todo.clone(), kind: TodoChangeKind::Added }),
-                        Some(prev)
-                            if prev.status != todo.status || prev.content != todo.content =>
-                        {
+                for item in &input.todos {
+                    if item.status == crate::TodoStatus::Cancelled {
+                        if let Some(prev) = before_map.get(item.content.as_str()) {
                             changes.push(TodoChange {
-                                todo: todo.clone(),
-                                kind: TodoChangeKind::Updated,
+                                todo: (*prev).clone(),
+                                kind: TodoChangeKind::Removed,
                             });
                         }
-                        _ => {}
-                    }
-                }
-
-                for prev in current_todos {
-                    if !after_ids.contains(prev.id.as_str()) {
-                        changes
-                            .push(TodoChange { todo: prev.clone(), kind: TodoChangeKind::Removed });
+                    } else {
+                        match before_map.get(item.content.as_str()) {
+                            None => changes.push(TodoChange {
+                                todo: Todo {
+                                    id: String::new(),
+                                    content: item.content.clone(),
+                                    status: item.status,
+                                },
+                                kind: TodoChangeKind::Added,
+                            }),
+                            Some(prev) if prev.status != item.status => {
+                                changes.push(TodoChange {
+                                    todo: Todo {
+                                        id: prev.id.clone(),
+                                        content: item.content.clone(),
+                                        status: item.status,
+                                    },
+                                    kind: TodoChangeKind::Updated,
+                                });
+                            }
+                            _ => {}
+                        }
                     }
                 }
 

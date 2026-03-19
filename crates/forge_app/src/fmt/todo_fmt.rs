@@ -21,10 +21,13 @@ fn format_todo_line(todo: &Todo, line_style: TodoLineStyle) -> String {
         TodoStatus::Completed => "󰄵",
         TodoStatus::InProgress => "󰄗",
         TodoStatus::Pending => "󰄱",
+        TodoStatus::Cancelled => "󰅙",
     };
 
     let content = match todo.status {
-        TodoStatus::Completed => style(todo.content.as_str()).strikethrough().to_string(),
+        TodoStatus::Completed | TodoStatus::Cancelled => {
+            style(todo.content.as_str()).strikethrough().to_string()
+        }
         _ => todo.content.clone(),
     };
 
@@ -32,6 +35,8 @@ fn format_todo_line(todo: &Todo, line_style: TodoLineStyle) -> String {
     let styled = match (&todo.status, line_style) {
         (TodoStatus::Pending, TodoLineStyle::Bold) => style(line).white().bold().to_string(),
         (TodoStatus::Pending, TodoLineStyle::Dim) => style(line).white().dim().to_string(),
+        (TodoStatus::Cancelled, TodoLineStyle::Bold) => style(line).red().bold().to_string(),
+        (TodoStatus::Cancelled, TodoLineStyle::Dim) => style(line).red().dim().to_string(),
         (TodoStatus::InProgress, TodoLineStyle::Bold) => style(line).cyan().bold().to_string(),
         (TodoStatus::InProgress, TodoLineStyle::Dim) => style(line).cyan().dim().to_string(),
         (TodoStatus::Completed, TodoLineStyle::Bold) => style(line).green().bold().to_string(),
@@ -53,72 +58,50 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
 
     let before_map: std::collections::HashMap<&str, &Todo> =
         before.iter().map(|todo| (todo.id.as_str(), todo)).collect();
-    let after_ids: std::collections::HashSet<&str> =
-        after.iter().map(|todo| todo.id.as_str()).collect();
+    let after_map: std::collections::HashMap<&str, &Todo> =
+        after.iter().map(|todo| (todo.id.as_str(), todo)).collect();
 
     let mut result = "\n".to_string();
 
-    enum DiffLine<'a> {
-        Current {
-            todo: &'a Todo,
-            line_style: TodoLineStyle,
-        },
-        Removed {
-            todo: &'a Todo,
-        },
-    }
-
-    impl DiffLine<'_> {
-        fn id(&self) -> &str {
-            match self {
-                DiffLine::Current { todo, .. } | DiffLine::Removed { todo } => todo.id.as_str(),
-            }
-        }
-    }
-
-    let mut lines: Vec<DiffLine<'_>> = Vec::new();
-
-    for todo in after {
-        let previous = before_map.get(todo.id.as_str()).copied();
-        let is_new = previous.is_none();
-        let is_changed = previous
-            .map(|item| item.status != todo.status || item.content != todo.content)
-            .unwrap_or(false);
-
-        let line_style = if is_new || is_changed {
-            TodoLineStyle::Bold
+    // Walk `before` in insertion order: emit the current version of surviving
+    // items, or the removed rendering for items that were dropped.
+    for before_todo in before {
+        if let Some(after_todo) = after_map.get(before_todo.id.as_str()).copied() {
+            // Item still exists — render with bold/dim based on whether it changed.
+            let is_changed =
+                before_todo.status != after_todo.status || before_todo.content != after_todo.content;
+            let line_style = if is_changed { TodoLineStyle::Bold } else { TodoLineStyle::Dim };
+            result.push_str(&format_todo_line(after_todo, line_style));
         } else {
-            TodoLineStyle::Dim
-        };
-
-        lines.push(DiffLine::Current { todo, line_style });
-    }
-
-    for todo in before {
-        if !after_ids.contains(todo.id.as_str()) {
-            lines.push(DiffLine::Removed { todo });
+            // Item was removed — render with status-aware styling.
+            let content = style(before_todo.content.as_str()).strikethrough().to_string();
+            if before_todo.status == TodoStatus::Completed {
+                // Removed completed: dimmed white checkmark (historical done)
+                result.push_str(&format!(
+                    "  {}\n",
+                    style(format!("󰄵 {content}")).white().dim()
+                ));
+            } else {
+                // Removed non-completed: use the correct status icon in red
+                let checkbox = match before_todo.status {
+                    TodoStatus::InProgress => "󰄗",
+                    TodoStatus::Pending => "󰄱",
+                    TodoStatus::Cancelled => "󰅙",
+                    TodoStatus::Completed => "󰄵",
+                };
+                result.push_str(&format!(
+                    "  {}\n",
+                    style(format!("{checkbox} {content}")).red()
+                ));
+            }
         }
     }
 
-    lines.sort_by(|left, right| left.id().cmp(right.id()));
-
-    for line in lines {
-        match line {
-            DiffLine::Current { todo, line_style } => {
-                result.push_str(&format_todo_line(todo, line_style));
-            }
-            DiffLine::Removed { todo } => {
-                let content = style(todo.content.as_str()).strikethrough().to_string();
-
-                if todo.status == TodoStatus::Completed {
-                    result.push_str(&format!(
-                        "  {}\n",
-                        style(format!("󰄵 {content}")).white().dim()
-                    ));
-                } else {
-                    result.push_str(&format!("  {}\n", style(format!("󰄱 {content}")).red()));
-                }
-            }
+    // Append newly-added items (present in `after` but not in `before`) in
+    // their original insertion order.
+    for todo in after {
+        if !before_map.contains_key(todo.id.as_str()) {
+            result.push_str(&format_todo_line(todo, TodoLineStyle::Bold));
         }
     }
 
@@ -137,10 +120,7 @@ pub(crate) fn format_todos(todos: &[Todo]) -> String {
 
     let mut result = "\n".to_string();
 
-    let mut sorted_todos: Vec<&Todo> = todos.iter().collect();
-    sorted_todos.sort_by(|left, right| left.id.cmp(&right.id));
-
-    for todo in sorted_todos {
+    for todo in todos {
         result.push_str(&format_todo_line(todo, TodoLineStyle::Dim));
     }
 
@@ -176,6 +156,58 @@ mod tests {
 
     fn fixture_todo(content: &str, id: &str, status: TodoStatus) -> Todo {
         Todo::new(content).id(id).status(status)
+    }
+
+    fn fixture_todo_write_output_raw(before: Vec<Todo>, after: Vec<Todo>) -> String {
+        let setup = ToolOperation::TodoWrite { before, after };
+        let actual = setup.to_content(&fixture_environment());
+
+        if let Some(ChatResponseContent::ToolOutput(output)) = actual {
+            output
+        } else {
+            panic!("Expected ToolOutput content")
+        }
+    }
+
+    #[test]
+    fn test_todo_write_removed_in_progress_renders_with_in_progress_icon_in_red() {
+        // before: Write migrations is in_progress
+        // after:  empty (it was cancelled/removed)
+        let setup = (
+            vec![fixture_todo("Write migrations", "1", TodoStatus::InProgress)],
+            Vec::new(),
+        );
+
+        // Verify icon (strip color) — must be 󰄗, NOT 󰄱
+        let plain = fixture_todo_write_output(setup.0.clone(), setup.1.clone());
+        let expected_plain = "\n  󰄗 Write migrations\n";
+        assert_eq!(plain, expected_plain);
+
+        // Verify color — must contain the red ANSI escape sequence
+        let raw = fixture_todo_write_output_raw(setup.0, setup.1);
+        // console crate emits "\x1b[31m" for red
+        assert!(
+            raw.contains("\x1b[31m"),
+            "Expected red ANSI color for removed in_progress item, got: {raw:?}"
+        );
+    }
+
+    #[test]
+    fn test_todo_write_removed_pending_renders_with_pending_icon_in_red() {
+        let setup = (
+            vec![fixture_todo("Pending task", "1", TodoStatus::Pending)],
+            Vec::new(),
+        );
+
+        let plain = fixture_todo_write_output(setup.0.clone(), setup.1.clone());
+        let expected_plain = "\n  󰄱 Pending task\n";
+        assert_eq!(plain, expected_plain);
+
+        let raw = fixture_todo_write_output_raw(setup.0, setup.1);
+        assert!(
+            raw.contains("\x1b[31m"),
+            "Expected red ANSI color for removed pending item, got: {raw:?}"
+        );
     }
 
     fn fixture_todo_write_output(before: Vec<Todo>, after: Vec<Todo>) -> String {
@@ -220,14 +252,16 @@ mod tests {
     }
 
     #[test]
-    fn test_format_todos_are_sorted_by_id() {
+    fn test_format_todos_preserves_insertion_order() {
+        // Items are given in insertion order: Second was added first, First second.
+        // Output must reflect that insertion order, not alphabetical or id-sorted.
         let setup = vec![
             fixture_todo("Second", "2", TodoStatus::Pending),
             fixture_todo("First", "1", TodoStatus::Pending),
         ];
 
         let actual = strip_ansi_codes(super::format_todos(&setup).as_str()).to_string();
-        let expected = "\n  󰄱 First\n  󰄱 Second\n";
+        let expected = "\n  󰄱 Second\n  󰄱 First\n";
 
         assert_eq!(actual, expected);
     }
