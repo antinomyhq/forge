@@ -25,7 +25,8 @@ pub struct OAuthConfig {
     /// The URL to initiate the OAuth authorization or device code flow
     #[schemars(with = "String")]
     pub auth_url: Url,
-    /// The URL to exchange authorization codes or device codes for access tokens
+    /// The URL to exchange authorization codes or device codes for access
+    /// tokens
     #[schemars(with = "String")]
     pub token_url: Url,
     /// The OAuth client identifier
