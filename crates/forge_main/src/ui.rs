@@ -3109,7 +3109,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Scope guard to ensure notification happens even on error.
                 // If writer.finish() or spinner.stop() fails, the guard's drop
                 // will still notify orch, preventing the deadlock.
-                struct NotifyGuard<'a> (&'a tokio::sync::Notify);
+                struct NotifyGuard<'a>(&'a tokio::sync::Notify);
                 impl<'a> Drop for NotifyGuard<'a> {
                     fn drop(&mut self) {
                         self.0.notify_one();
