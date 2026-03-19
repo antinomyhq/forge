@@ -176,7 +176,7 @@ mod tests {
     }
 
     #[test]
-    fn test_todo_write_removed_in_progress_renders_with_in_progress_icon_in_red() {
+    fn test_todo_write_removed_in_progress_renders_with_in_progress_icon_in_raw_snapshot() {
         // before: Write migrations is in_progress
         // after:  empty (it was cancelled/removed)
         let setup = (
@@ -193,17 +193,12 @@ mod tests {
         let expected_plain = "\n  󰄗 Write migrations\n";
         assert_eq!(plain, expected_plain);
 
-        // Verify color — must contain the red ANSI escape sequence
         let raw = fixture_todo_write_output_raw(setup.0, setup.1);
-        // console crate emits "\x1b[31m" for red
-        assert!(
-            raw.contains("\x1b[31m"),
-            "Expected red ANSI color for removed in_progress item, got: {raw:?}"
-        );
+        assert_snapshot!(raw);
     }
 
     #[test]
-    fn test_todo_write_removed_pending_renders_with_pending_icon_in_red() {
+    fn test_todo_write_removed_pending_renders_with_pending_icon_in_raw_snapshot() {
         let setup = (
             vec![fixture_todo("Pending task", "1", TodoStatus::Pending)],
             Vec::new(),
@@ -214,10 +209,7 @@ mod tests {
         assert_eq!(plain, expected_plain);
 
         let raw = fixture_todo_write_output_raw(setup.0, setup.1);
-        assert!(
-            raw.contains("\x1b[31m"),
-            "Expected red ANSI color for removed pending item, got: {raw:?}"
-        );
+        assert_snapshot!(raw);
     }
 
     fn fixture_todo_write_output(before: Vec<Todo>, after: Vec<Todo>) -> String {
