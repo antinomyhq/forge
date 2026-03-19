@@ -36,7 +36,7 @@ use crate::display_constants::{CommandType, headers, markers, status};
 use crate::editor::ReadLineError;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{ForgeCommandManager, SlashCommand};
+use crate::model::{CommandParseError, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -337,8 +337,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.spinner.stop(None)?;
                 }
                 Err(error) => {
-                    tracker::error(&error);
-                    tracing::error!(error = ?error);
+                    // Skip tracking and tracing for expected command parse errors (user typos, unknown commands)
+                    if error.downcast_ref::<CommandParseError>().is_none() {
+                        tracker::error(&error);
+                        tracing::error!(error = ?error);
+                    }
                     self.spinner.stop(None)?;
 
                     match error.downcast::<ReadLineError>() {

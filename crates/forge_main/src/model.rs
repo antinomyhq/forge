@@ -7,6 +7,14 @@ use strum_macros::{EnumIter, EnumProperty};
 
 use crate::info::Info;
 
+#[derive(Debug, thiserror::Error)]
+pub enum CommandParseError {
+    #[error("{0} is not valid")]
+    UnknownCommand(String),
+    #[error("Invalid Command Format.")]
+    InvalidFormat,
+}
+
 /// Result of agent command registration
 #[derive(Debug, Clone)]
 pub struct AgentCommandRegistrationResult {
@@ -311,10 +319,10 @@ impl ForgeCommandManager {
                             parameters.into_iter().map(|s| s.to_owned()).collect(),
                         )))
                     } else {
-                        Err(anyhow::anyhow!("{command} is not valid"))
+                        Err(CommandParseError::UnknownCommand(command.to_string()).into())
                     }
                 } else {
-                    Err(anyhow::anyhow!("Invalid Command Format."))
+                    Err(CommandParseError::InvalidFormat.into())
                 }
             }
         }
