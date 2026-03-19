@@ -3,10 +3,11 @@ use url::Url;
 
 use super::drop_tool_call::DropToolCalls;
 use super::github_copilot_reasoning::GitHubCopilotReasoning;
+use super::kimi_k2_reasoning::KimiK2Reasoning;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::minimax::SetMinimaxParams;
-use super::normalize_tool_schema::NormalizeToolSchema;
+use super::normalize_tool_schema::{EnforceStrictToolSchema, NormalizeToolSchema};
 use super::set_cache::SetCache;
 use super::set_reasoning_effort::SetReasoningEffort;
 use super::strip_thought_signature::StripThoughtSignature;
@@ -57,9 +58,14 @@ impl Transformer for ProviderPipeline<'_> {
         let github_copilot_reasoning =
             GitHubCopilotReasoning.when(move |_| provider.id == ProviderId::GITHUB_COPILOT);
 
+        let kimi_k2_reasoning = KimiK2Reasoning.when(when_model("kimi"));
+
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
         let trim_tool_call_ids = TrimToolCallIds.when(move |_| provider.id == ProviderId::OPENAI);
+
+        let strict_tool_schema =
+            EnforceStrictToolSchema.when(move |_| provider.id == ProviderId::OPENCODE_ZEN);
 
         let mut combined = zai_thinking
             .pipe(or_transformers)
@@ -67,8 +73,10 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(set_reasoning_effort)
             .pipe(open_ai_compat)
             .pipe(github_copilot_reasoning)
+            .pipe(kimi_k2_reasoning)
             .pipe(cerebras_compat)
             .pipe(trim_tool_call_ids)
+            .pipe(strict_tool_schema)
             .pipe(NormalizeToolSchema);
         combined.transform(request)
     }
@@ -245,6 +253,20 @@ mod tests {
         }
     }
 
+    fn opencode_zen(key: &str) -> Provider<Url> {
+        Provider {
+            id: ProviderId::OPENCODE_ZEN,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://opencode.ai/zen/v1/chat/completions").unwrap(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: make_credential(ProviderId::OPENCODE_ZEN, key),
+            custom_headers: None,
+            models: Some(ModelSource::Hardcoded(vec![])),
+        }
+    }
+
     #[test]
     fn test_supports_open_router_params() {
         assert!(supports_open_router_params(&forge("forge")));
@@ -340,6 +362,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            reasoning_content: None,
             extra_content: None,
         }]);
 
@@ -370,6 +393,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            reasoning_content: None,
             extra_content: None,
         }]);
 
@@ -397,6 +421,7 @@ mod tests {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: Some(ExtraContent {
                     google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
@@ -437,6 +462,7 @@ mod tests {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: Some(ExtraContent {
                     google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
@@ -467,6 +493,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    reasoning_content: None,
                     extra_content: None,
                 },
                 Message {
@@ -478,6 +505,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    reasoning_content: None,
                     extra_content: None,
                 },
             ]);
@@ -524,6 +552,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    reasoning_content: None,
                     extra_content: None,
                 },
                 Message {
@@ -535,6 +564,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    reasoning_content: None,
                     extra_content: None,
                 },
             ]);
@@ -580,6 +610,7 @@ mod tests {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: Some(ExtraContent {
                     google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
@@ -591,5 +622,88 @@ mod tests {
         // Thought signature should be stripped for gemini-2 models (not gemini-3)
         let messages = actual.messages.unwrap();
         assert!(messages[0].extra_content.is_none());
+    }
+
+    #[test]
+    fn test_opencode_zen_provider_enforces_strict_tool_schema() {
+        let provider = opencode_zen("opencode-zen");
+        let fixture = Request::default().tools(vec![crate::dto::openai::Tool {
+            r#type: crate::dto::openai::FunctionType,
+            function: crate::dto::openai::FunctionDescription {
+                name: "fs_search".to_string(),
+                description: Some("Search files".to_string()),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "output_mode": {
+                            "description": "Output mode",
+                            "nullable": true,
+                            "type": "string",
+                            "enum": ["content", "files_with_matches", "count", null]
+                        }
+                    }
+                }),
+            },
+        }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        let expected = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "output_mode": {
+                    "description": "Output mode",
+                    "anyOf": [
+                        {"type": "string", "enum": ["content", "files_with_matches", "count"]},
+                        {"type": "null"}
+                    ]
+                }
+            },
+            "additionalProperties": false,
+            "required": ["output_mode"]
+        });
+
+        assert_eq!(actual.tools.unwrap()[0].function.parameters, expected);
+    }
+
+    #[test]
+    fn test_openai_provider_does_not_enforce_strict_tool_schema() {
+        let provider = openai("openai");
+        let fixture = Request::default().tools(vec![crate::dto::openai::Tool {
+            r#type: crate::dto::openai::FunctionType,
+            function: crate::dto::openai::FunctionDescription {
+                name: "fs_search".to_string(),
+                description: Some("Search files".to_string()),
+                parameters: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "output_mode": {
+                            "description": "Output mode",
+                            "nullable": true,
+                            "type": "string",
+                            "enum": ["content", "files_with_matches", "count", null]
+                        }
+                    }
+                }),
+            },
+        }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        let expected = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "output_mode": {
+                    "description": "Output mode",
+                    "nullable": true,
+                    "type": "string",
+                    "enum": ["content", "files_with_matches", "count", null]
+                }
+            }
+        });
+
+        assert_eq!(actual.tools.unwrap()[0].function.parameters, expected);
     }
 }

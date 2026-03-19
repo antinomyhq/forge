@@ -51,7 +51,25 @@ impl From<Model> for forge_domain::Model {
 pub enum EventData {
     Response(Response),
     Error(ErrorResponse),
+    Ping(PingEvent),
     Unknown(serde_json::Value),
+}
+
+/// Represents a value that may be either a JSON number or a numeric string,
+/// used for fields like `cost` that proxies sometimes encode as strings.
+#[derive(Deserialize, Debug, Clone, PartialEq, derive_more::TryInto)]
+#[serde(untagged)]
+pub enum StringOrF64 {
+    Number(f64),
+    String(String),
+}
+
+/// Heartbeat/cost event sent by some proxies (e.g. opencode.ai).
+///
+/// Example payload: `{"type":"ping","cost":"0.02889400"}`
+#[derive(Deserialize, Debug, Clone, PartialEq)]
+pub struct PingEvent {
+    pub cost: StringOrF64,
 }
 
 #[derive(Deserialize, Debug, Clone, PartialEq)]
@@ -77,7 +95,21 @@ impl TryFrom<EventData> for ChatCompletionMessage {
                 e.error.code,
                 e.error.message
             )),
-            EventData::Unknown(v) => Err(anyhow::anyhow!("Received unknown event data: {}", v)),
+            EventData::Ping(ping) => {
+                // Extract cost from proxy ping events (e.g. opencode.ai)
+                let cost = match ping.cost {
+                    StringOrF64::Number(n) => n,
+                    StringOrF64::String(s) => s.parse().unwrap_or(0.0),
+                };
+                let usage = forge_domain::Usage { cost: Some(cost), ..Default::default() };
+                Ok(ChatCompletionMessage::assistant(forge_domain::Content::part("")).usage(usage))
+            }
+            EventData::Unknown(_) => {
+                // Silently ignore any other unrecognised events
+                Ok(ChatCompletionMessage::assistant(
+                    forge_domain::Content::part(""),
+                ))
+            }
         }
     }
 }
@@ -577,6 +609,39 @@ mod tests {
         assert_eq!(domain_model_v2.id.as_str(), "gemini-2.0-flash");
         assert_eq!(domain_model_v2.name.unwrap(), "models/gemini-2.0-flash");
         assert_eq!(domain_model_v2.context_length.unwrap(), 2_000_000);
+    }
+
+    #[test]
+    fn test_ping_event_extracts_cost() {
+        let fixture = json!({"type": "ping", "cost": "0.02889400"});
+        let event_data: EventData = serde_json::from_value(fixture).unwrap();
+        assert!(matches!(event_data, EventData::Ping(_)));
+
+        let actual = ChatCompletionMessage::try_from(event_data).unwrap();
+        let expected = ChatCompletionMessage::assistant(forge_domain::Content::part(""))
+            .usage(forge_domain::Usage { cost: Some(0.028894), ..Default::default() });
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_ping_event_with_numeric_cost() {
+        let fixture = json!({"type": "ping", "cost": 0.05});
+        let event_data: EventData = serde_json::from_value(fixture).unwrap();
+        assert!(matches!(event_data, EventData::Ping(_)));
+
+        let actual = ChatCompletionMessage::try_from(event_data).unwrap();
+        assert_eq!(actual.usage.unwrap().cost, Some(0.05));
+    }
+
+    #[test]
+    fn test_unknown_event_returns_empty_message() {
+        let fixture = json!({"type": "something_else", "data": 123});
+        let event_data: EventData = serde_json::from_value(fixture).unwrap();
+        assert!(matches!(event_data, EventData::Unknown(_)));
+
+        let actual = ChatCompletionMessage::try_from(event_data).unwrap();
+        let expected = ChatCompletionMessage::assistant(forge_domain::Content::part(""));
+        assert_eq!(actual, expected);
     }
 
     #[test]
