@@ -73,7 +73,7 @@ impl<S: Services> AgentExecutor<S> {
             let message = message?;
             if matches!(
                 &message,
-                ChatResponse::ToolCallStart(_) | ChatResponse::ToolCallEnd(_)
+                ChatResponse::ToolCallStart { .. } | ChatResponse::ToolCallEnd(_)
             ) {
                 output.clear();
             }
@@ -91,7 +91,7 @@ impl<S: Services> AgentExecutor<S> {
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
-                ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
+                ChatResponse::ToolCallStart { .. } => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { reason } => {
