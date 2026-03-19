@@ -3109,13 +3109,29 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
+            ChatResponse::ToolCallStart { tool_call, notifier } => {
+                // Scope guard to ensure notification happens even on error.
+                // If writer.finish() or spinner.stop() fails, the guard's drop
+                // will still notify orch, preventing the deadlock.
+                struct NotifyGuard<'a>(&'a tokio::sync::Notify);
+                impl<'a> Drop for NotifyGuard<'a> {
+                    fn drop(&mut self) {
+                        self.0.notify_one();
+                    }
+                }
+                let _guard = NotifyGuard(&notifier);
+
                 writer.finish()?;
 
                 // Stop spinner only for tools that require stdout/stderr access
                 if tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
                 }
+
+                // Notify orch that the UI has rendered the tool header.
+                // Orch awaits this before executing the tool, preventing tool
+                // stdout from appearing before the tool name is printed.
+                drop(_guard);
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
