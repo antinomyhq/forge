@@ -275,7 +275,8 @@ mod tests {
             ])
             .unwrap();
 
-        let expected = [fixture
+        let expected = [
+            fixture
                 .todos
                 .iter()
                 .find(|t| t.content == "Task A")
@@ -286,7 +287,8 @@ mod tests {
                 .iter()
                 .find(|t| t.content == "Task B")
                 .cloned()
-                .unwrap()];
+                .unwrap(),
+        ];
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].content, expected[0].content);
         assert_eq!(actual[1].content, expected[1].content);
