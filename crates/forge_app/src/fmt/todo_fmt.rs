@@ -135,13 +135,42 @@ pub(crate) fn format_todos(todos: &[Todo]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use console::strip_ansi_codes;
+    use std::sync::Mutex;
+
+    use console::{
+        colors_enabled, colors_enabled_stderr, set_colors_enabled, set_colors_enabled_stderr,
+        strip_ansi_codes,
+    };
     use forge_domain::{ChatResponseContent, Environment, Todo, TodoStatus};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
     use crate::fmt::content::FormatContent;
     use crate::operation::ToolOperation;
+
+    static ANSI_STYLE_LOCK: Mutex<()> = Mutex::new(());
+
+    struct ColorStateGuard {
+        stdout: bool,
+        stderr: bool,
+    }
+
+    impl ColorStateGuard {
+        fn force_enabled() -> Self {
+            let stdout = colors_enabled();
+            let stderr = colors_enabled_stderr();
+            set_colors_enabled(true);
+            set_colors_enabled_stderr(true);
+            Self { stdout, stderr }
+        }
+    }
+
+    impl Drop for ColorStateGuard {
+        fn drop(&mut self) {
+            set_colors_enabled(self.stdout);
+            set_colors_enabled_stderr(self.stderr);
+        }
+    }
 
     fn fixture_environment() -> Environment {
         use fake::{Fake, Faker};
@@ -165,6 +194,10 @@ mod tests {
     }
 
     fn fixture_todo_write_output_raw(before: Vec<Todo>, after: Vec<Todo>) -> String {
+        let _lock = ANSI_STYLE_LOCK
+            .lock()
+            .expect("ANSI style lock should not be poisoned");
+        let _colors = ColorStateGuard::force_enabled();
         let setup = ToolOperation::TodoWrite { before, after };
         let actual = setup.to_content(&fixture_environment());
 
