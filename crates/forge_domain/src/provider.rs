@@ -201,6 +201,7 @@ pub enum ProviderResponse {
     Bedrock,
     /// Google AI format
     Google,
+    /// OpenCode proxy format — response type is determined by the selected model
     OpenCode,
 }
 

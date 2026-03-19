@@ -338,6 +338,11 @@
           "description": "Google AI format",
           "type": "string",
           "const": "Google"
+        },
+        {
+          "description": "OpenCode proxy format — response type is determined by the selected model",
+          "type": "string",
+          "const": "OpenCode"
         }
       ]
     },
