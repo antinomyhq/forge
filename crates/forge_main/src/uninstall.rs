@@ -7,10 +7,16 @@ use crate::TRACKER;
 /// All selectable uninstall reasons shown to the user.
 const REASONS: &[(&str, UninstallReason)] = &[
     ("Found a better tool", UninstallReason::FoundBetterTool),
-    ("Too slow or resource-heavy", UninstallReason::TooSlowOrHeavy),
+    (
+        "Too slow or resource-heavy",
+        UninstallReason::TooSlowOrHeavy,
+    ),
     ("Missing features I need", UninstallReason::MissingFeatures),
     ("Too many bugs or crashes", UninstallReason::TooManyBugs),
-    ("Only needed it temporarily", UninstallReason::OnlyNeededTemporarily),
+    (
+        "Only needed it temporarily",
+        UninstallReason::OnlyNeededTemporarily,
+    ),
     ("Other", UninstallReason::Other(String::new())),
 ];
 
@@ -150,10 +156,7 @@ async fn run_uninstall_script() {
     }
 
     println!("{}", "You can reinstall at any time with:".dimmed());
-    println!(
-        "  {}",
-        "curl -fsSL https://forgecode.dev/cli | sh".bold()
-    );
+    println!("  {}", "curl -fsSL https://forgecode.dev/cli | sh".bold());
     println!(
         "{}",
         "We'd love your feedback: https://github.com/antinomyhq/forge/issues".dimmed()
