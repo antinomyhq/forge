@@ -849,7 +849,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, None).await
     }
 
     async fn handle_provider_logout(
@@ -2672,6 +2672,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Activates a provider by configuring it if needed, setting it as default,
     /// and ensuring a compatible model is selected.
     async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
+        self.activate_provider_with_model(any_provider, None).await
+    }
+
+    /// Activates a provider with an optional pre-selected model.
+    /// When `model` is provided, the interactive model selection prompt is
+    /// skipped and the specified model is set directly.
+    async fn activate_provider_with_model(
+        &mut self,
+        any_provider: AnyProvider,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
@@ -2690,12 +2701,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, model).await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
     /// a compatible model is selected.
-    async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
+    /// When `model` is `Some`, the interactive model selection is skipped and
+    /// the provided model is validated and set directly.
+    async fn finalize_provider_activation(
+        &mut self,
+        provider: Provider<Url>,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
@@ -2703,6 +2720,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::action(format!("{}", provider.id))
                 .sub_title("is now the default provider"),
         )?;
+
+        // If a model was pre-selected (e.g. from :model), validate and set it
+        // directly without prompting
+        if let Some(model) = model {
+            let model_id = self
+                .validate_model(model.as_str(), Some(&provider.id))
+                .await?;
+            self.api.set_default_model(model_id.clone()).await?;
+            self.writeln_title(
+                TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+            )?;
+            return Ok(());
+        }
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -3352,9 +3382,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider } => {
+            ConfigSetField::Provider { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider(provider).await?;
+                self.activate_provider_with_model(provider, model).await?;
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;
