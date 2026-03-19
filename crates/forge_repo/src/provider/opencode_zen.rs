@@ -8,12 +8,14 @@ use forge_app::domain::{
     ResultStream, RetryConfig,
 };
 use forge_domain::ChatRepository;
+use tracing::{debug, warn};
 use url::Url;
 
 use crate::provider::anthropic::AnthropicResponseRepository;
 use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
+use crate::provider::utils::{create_headers, format_http_context};
 
 /// OpenCode Zen provider that routes to different backends based on model:
 /// - Claude models (claude-*) -> Anthropic endpoint
@@ -23,6 +25,7 @@ use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 #[derive(Setters)]
 #[setters(strip_option, into)]
 pub struct OpenCodeZenResponseRepository<F> {
+    infra: Arc<F>,
     openai_repo: OpenAIResponseRepository<F>,
     codex_repo: OpenAIResponsesResponseRepository<F>,
     anthropic_repo: AnthropicResponseRepository<F>,
@@ -33,6 +36,7 @@ pub struct OpenCodeZenResponseRepository<F> {
 impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self {
+            infra: infra.clone(),
             openai_repo: OpenAIResponseRepository::new(infra.clone()),
             codex_repo: OpenAIResponsesResponseRepository::new(infra.clone()),
             anthropic_repo: AnthropicResponseRepository::new(infra.clone()),
@@ -123,19 +127,80 @@ impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
     }
 
     pub async fn models(&self, provider: Provider<Url>) -> Result<Vec<Model>> {
-        // For OpenCode Zen, we use hardcoded models from the provider config
-        // The models are already loaded from provider.json
         if let Some(models) = provider.models() {
             match models {
-                forge_domain::ModelSource::Hardcoded(models) => Ok(models.clone()),
-                forge_domain::ModelSource::Url(_) => {
-                    // Should not happen for OpenCode Zen as we hardcode models
-                    Ok(vec![])
+                forge_domain::ModelSource::Hardcoded(models) => {
+                    debug!("Using hardcoded models for OpenCode Zen");
+                    Ok(models.clone())
+                }
+                forge_domain::ModelSource::Url(url) => {
+                    self.fetch_models_from_url(&provider, url).await
                 }
             }
         } else {
             Ok(vec![])
         }
+    }
+
+    /// Fetches models from the OpenCode Zen models endpoint.
+    /// The endpoint returns an OpenAI-compatible list of models.
+    async fn fetch_models_from_url(
+        &self,
+        provider: &Provider<Url>,
+        url: &Url,
+    ) -> Result<Vec<Model>> {
+        debug!(url = %url, "Fetching models from OpenCode Zen");
+
+        let headers = self.build_auth_headers(provider);
+        let headers = create_headers(headers);
+
+        let response = self
+            .infra
+            .http_get(url, Some(headers))
+            .await
+            .map_err(|e| {
+                warn!(error = ?e, url = %url, "Failed to fetch models from OpenCode Zen");
+                e
+            })?;
+
+        let status = response.status();
+        let ctx_message = format_http_context(Some(status), "GET", url);
+
+        let response_text = response.text().await.map_err(|e| {
+            warn!(error = ?e, "Failed to decode response text");
+            e
+        })?;
+
+        if !status.is_success() {
+            warn!(status = %status, body = %response_text, "OpenCode Zen models endpoint returned error");
+            anyhow::bail!("{}: {}", ctx_message, response_text);
+        }
+
+        // Parse OpenAI-compatible response format: {"data": [...]}
+        let data: OpenCodeModelsResponse = serde_json::from_str(&response_text)
+            .map_err(|e| {
+                warn!(error = ?e, body = %response_text, "Failed to parse OpenCode Zen models response");
+                anyhow::anyhow!("{}: Failed to parse models response: {}", ctx_message, e)
+            })?;
+
+        debug!(model_count = %data.data.len(), "Successfully fetched models from OpenCode Zen");
+        Ok(data.data.into_iter().map(Into::into).collect())
+    }
+
+    /// Builds authentication headers for OpenCode Zen API requests.
+    fn build_auth_headers(&self, provider: &Provider<Url>) -> Vec<(String, String)> {
+        let mut headers = Vec::new();
+
+        if let Some(credential) = &provider.credential {
+            match &credential.auth_details {
+                forge_domain::AuthDetails::ApiKey(api_key) => {
+                    headers.push(("Authorization".to_string(), format!("Bearer {}", api_key)));
+                }
+                _ => {}
+            }
+        }
+
+        headers
     }
 }
 
@@ -146,6 +211,58 @@ enum OpenCodeBackend {
     OpenAIResponses,
     Anthropic,
     Google,
+}
+
+/// Response format for OpenCode Zen models endpoint.
+/// Follows OpenAI-compatible format: {"data": [...]}
+#[derive(Debug, Clone, serde::Deserialize)]
+struct OpenCodeModelsResponse {
+    data: Vec<OpenCodeModel>,
+}
+
+/// Model representation in OpenCode Zen models response.
+#[derive(Debug, Clone, serde::Deserialize)]
+struct OpenCodeModel {
+    id: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    description: Option<String>,
+    #[serde(default = "default_context_length")]
+    context_length: u64,
+    #[serde(default)]
+    tools_supported: bool,
+    #[serde(default)]
+    supports_parallel_tool_calls: bool,
+    #[serde(default)]
+    supports_reasoning: bool,
+    #[serde(default)]
+    input_modalities: Vec<String>,
+}
+
+fn default_context_length() -> u64 {
+    128000
+}
+
+impl From<OpenCodeModel> for Model {
+    fn from(model: OpenCodeModel) -> Self {
+        let input_modalities = model
+            .input_modalities
+            .into_iter()
+            .filter_map(|m| m.parse().ok())
+            .collect();
+
+        Model {
+            id: ModelId::new(model.id),
+            name: model.name,
+            description: model.description,
+            context_length: Some(model.context_length),
+            tools_supported: Some(model.tools_supported),
+            supports_parallel_tool_calls: Some(model.supports_parallel_tool_calls),
+            supports_reasoning: Some(model.supports_reasoning),
+            input_modalities,
+        }
+    }
 }
 
 #[cfg(test)]
