@@ -68,13 +68,19 @@ pub(crate) fn format_todos_diff(before: &[Todo], after: &[Todo]) -> String {
     for before_todo in before {
         if let Some(after_todo) = after_map.get(before_todo.id.as_str()).copied() {
             // Item still exists — render with bold/dim based on whether it changed.
-            let is_changed =
-                before_todo.status != after_todo.status || before_todo.content != after_todo.content;
-            let line_style = if is_changed { TodoLineStyle::Bold } else { TodoLineStyle::Dim };
+            let is_changed = before_todo.status != after_todo.status
+                || before_todo.content != after_todo.content;
+            let line_style = if is_changed {
+                TodoLineStyle::Bold
+            } else {
+                TodoLineStyle::Dim
+            };
             result.push_str(&format_todo_line(after_todo, line_style));
         } else {
             // Item was removed — render with status-aware styling.
-            let content = style(before_todo.content.as_str()).strikethrough().to_string();
+            let content = style(before_todo.content.as_str())
+                .strikethrough()
+                .to_string();
             if before_todo.status == TodoStatus::Completed {
                 // Removed completed: dimmed white checkmark (historical done)
                 result.push_str(&format!(
@@ -174,7 +180,11 @@ mod tests {
         // before: Write migrations is in_progress
         // after:  empty (it was cancelled/removed)
         let setup = (
-            vec![fixture_todo("Write migrations", "1", TodoStatus::InProgress)],
+            vec![fixture_todo(
+                "Write migrations",
+                "1",
+                TodoStatus::InProgress,
+            )],
             Vec::new(),
         );
 

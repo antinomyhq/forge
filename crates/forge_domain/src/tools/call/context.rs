@@ -72,7 +72,8 @@ impl ToolCallContext {
     ///
     /// # Arguments
     ///
-    /// * `changes` - Todo items to add, update, or remove (via `cancelled` status).
+    /// * `changes` - Todo items to add, update, or remove (via `cancelled`
+    ///   status).
     ///
     /// # Errors
     ///

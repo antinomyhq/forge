@@ -76,7 +76,8 @@ impl Metrics {
     ///
     /// # Errors
     ///
-    /// Returns an error if any todo content is empty or exceeds 1000 characters.
+    /// Returns an error if any todo content is empty or exceeds 1000
+    /// characters.
     pub fn apply_todo_changes(&mut self, changes: Vec<TodoItem>) -> anyhow::Result<Vec<Todo>> {
         for item in &changes {
             if item.content.trim().is_empty() {
@@ -91,7 +92,8 @@ impl Metrics {
             if item.status == TodoStatus::Cancelled {
                 // Remove the item by content key
                 self.todos.retain(|t| t.content != item.content);
-            } else if let Some(existing) = self.todos.iter_mut().find(|t| t.content == item.content) {
+            } else if let Some(existing) = self.todos.iter_mut().find(|t| t.content == item.content)
+            {
                 // Update in-place
                 existing.status = item.status;
             } else {
@@ -273,10 +275,18 @@ mod tests {
             ])
             .unwrap();
 
-        let expected = vec![
-            fixture.todos.iter().find(|t| t.content == "Task A").cloned().unwrap(),
-            fixture.todos.iter().find(|t| t.content == "Task B").cloned().unwrap(),
-        ];
+        let expected = [fixture
+                .todos
+                .iter()
+                .find(|t| t.content == "Task A")
+                .cloned()
+                .unwrap(),
+            fixture
+                .todos
+                .iter()
+                .find(|t| t.content == "Task B")
+                .cloned()
+                .unwrap()];
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].content, expected[0].content);
         assert_eq!(actual[1].content, expected[1].content);

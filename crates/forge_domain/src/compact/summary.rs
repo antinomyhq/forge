@@ -359,8 +359,10 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
             ToolCatalog::TodoWrite(input) => {
-                let before_map: HashMap<&str, &Todo> =
-                    current_todos.iter().map(|t| (t.content.as_str(), t)).collect();
+                let before_map: HashMap<&str, &Todo> = current_todos
+                    .iter()
+                    .map(|t| (t.content.as_str(), t))
+                    .collect();
 
                 let mut changes = vec![];
 
