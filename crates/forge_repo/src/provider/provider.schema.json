@@ -211,7 +211,7 @@
           ]
         },
         "token_url": {
-          "description": "The URL to exchange authorization codes or device codes for access tokens",
+          "description": "The URL to exchange authorization codes or device codes for access\ntokens",
           "type": "string"
         },
         "use_pkce": {
@@ -340,7 +340,7 @@
           "const": "Google"
         },
         {
-          "description": "OpenCode proxy format — response type is determined by the selected model",
+          "description": "OpenCode proxy format — response type is determined by the selected\nmodel",
           "type": "string",
           "const": "OpenCode"
         }
