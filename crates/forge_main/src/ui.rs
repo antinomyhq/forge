@@ -2931,7 +2931,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Create a ChatRequest with the appropriate event type
         let mut event = match content {
-            Some(text) => Event::new(text),
+            Some(text) => {
+                tracker::prompt(text.clone());
+                Event::new(text)
+            }
             None => Event::empty(),
         };
 
