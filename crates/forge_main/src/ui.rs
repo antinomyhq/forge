@@ -337,7 +337,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.spinner.stop(None)?;
                 }
                 Err(error) => {
-                    // Skip tracking and tracing for expected command parse errors (user typos, unknown commands)
+                    // Skip tracking and tracing for expected command parse errors (user typos,
+                    // unknown commands)
                     if error.downcast_ref::<CommandParseError>().is_none() {
                         tracker::error(&error);
                         tracing::error!(error = ?error);
