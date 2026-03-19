@@ -65,10 +65,7 @@ impl DatabasePool {
             .run_pending_migrations(MIGRATIONS)
             .map_err(|e| anyhow::anyhow!("Failed to run database migrations: {e}"))?;
 
-        Ok(Self {
-            pool,
-            max_retries: 5,
-        })
+        Ok(Self { pool, max_retries: 5 })
     }
 
     pub fn get_connection(&self) -> Result<PooledSqliteConnection> {
@@ -76,9 +73,9 @@ impl DatabasePool {
             self.max_retries,
             "Failed to get connection from pool, retrying",
             || {
-                self.pool.get().map_err(|e| {
-                    anyhow::anyhow!("Failed to get connection from pool: {e}")
-                })
+                self.pool
+                    .get()
+                    .map_err(|e| anyhow::anyhow!("Failed to get connection from pool: {e}"))
             },
         )
     }
