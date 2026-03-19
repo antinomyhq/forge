@@ -22,6 +22,7 @@ mod vscode;
 mod zsh;
 
 mod update;
+mod uninstall;
 
 use std::sync::LazyLock;
 
