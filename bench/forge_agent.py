@@ -722,6 +722,8 @@ class ForgeAgent(BaseInstalledAgent):
             "LM_STUDIO_PORT",
             "FORGE_WORKSPACE_SERVER_URL",
             "AWS_REGION",
+            # MCP server API keys
+            "CONTEXT7_API_KEY",
         ]
 
         for key_var in api_key_vars:
