@@ -5,108 +5,67 @@ description: MANDATORY verification workflow that MUST be invoked before marking
 
 # Verification Specialist
 
-This skill provides a systematic approach to verifying your work, ensuring it is robust, and properly completing tasks.
+Systematic workflow for verifying work before completing a task.
 
 ## Core Principles
 
-1. **Reconstruct Requirements from Context**: You have the full conversation history. Use it — scroll back to the original user message that defined this task and extract requirements from it.
-2. **Verify Functional Correctness**: Compilation or parsing success does NOT mean the solution works. Always run functional tests.
-3. **Traceability**: Every requirement must map to at least one concrete verification command. If a requirement has no runnable test, it is not verified.
-4. **Hard Completion Gate**: Completion is forbidden unless task preflight passes: required artifacts exist, output schema/format is valid, and required verifier/harness checks pass. Invoking this skill alone is not sufficient.
+1. **Reconstruct Requirements**: Review the conversation history — original task, follow-ups, and implicit requirements (no regressions, code compiles, existing tests pass).
+2. **Functional Correctness**: Compilation success does NOT mean the solution works. Always run functional tests.
+3. **Traceability**: Every requirement must map to a concrete, runnable verification command. No command = not verified.
+4. **Hard Completion Gate**: Completion is forbidden unless all requirements are verified, required artifacts exist, and output format is valid. Invoking this skill alone is not sufficient.
 
 ---
 
-## Step 1 — Requirements Extraction from Conversation History
+## Step 1 — Build Requirements Matrix
 
-You are invoked after implementation. Your first job is to reconstruct what was asked.
-
-**Go back through the conversation history and find:**
-1. The original user message that described the task.
-2. Any follow-up clarifications or scope changes from the user.
-3. Any implicit requirements (e.g., "don't break existing behavior", "follow the same pattern as X").
-
-From this, produce a Requirements Matrix — one row per discrete, independently testable behavior. Do not group multiple behaviors into one row.
-
-**Format:**
+Extract every discrete, testable behavior from the conversation. One row per behavior — do not group multiple behaviors together. Include implicit requirements (no regressions, compiles, existing tests pass) as explicit rows.
 
 ```
-| # | Requirement                              | Source                  | How to Verify                                      | Status  |
-|---|------------------------------------------|-------------------------|----------------------------------------------------|---------|
-| 1 | <exact behavior expected>                | user message / implicit | <runnable command that proves it works>             | pending |
-| 2 | <exact behavior expected>                | user message / implicit | <runnable command that proves it works>             | pending |
+| # | Requirement                              | Source                       | How to Verify                          | Status  |
+|---|------------------------------------------|------------------------------|----------------------------------------|---------|
+| 1 | <exact behavior expected>                | user message / implicit / follow-up | <runnable command or test name>   | pending |
 ```
 
-**Rules:**
-- **Source** must be one of: `user message`, `implicit` (unstated but obviously required), or `follow-up` (from a later clarification).
-- **How to Verify** must be a concrete, runnable shell command, test name, or observable output — never "review code" or "check manually".
-- Every implicit requirement (e.g., no regressions, code compiles, existing tests still pass) must appear as an explicit row.
+**"How to Verify" must be a runnable shell command, test name, or observable output — never "review code" or "check manually".**
 
-**Example** (for a task: "create a Gemini reasoning effort transformer, High for first 10 messages, Medium for next 40, High again after 50"):
-
+Example:
 ```
-| # | Requirement                                   | Source        | How to Verify                                          | Status  |
-|---|-----------------------------------------------|---------------|--------------------------------------------------------|---------|
-| 1 | High effort when < 10 assistant messages      | user message  | cargo test test_reasoning_effort_high_for_first_10     | pending |
-| 2 | Medium effort for messages 10–49              | user message  | cargo test test_reasoning_effort_medium_for_10_to_49   | pending |
-| 3 | High effort again at 50+ messages             | user message  | cargo test test_reasoning_effort_high_for_50_and_above | pending |
-| 4 | No-op when thinking_config is absent          | implicit      | cargo test test_reasoning_effort_noop_without_thinking | pending |
-| 5 | Transformer is wired into the pipeline        | implicit      | grep -n "ReasoningEffort" pipeline.rs                  | pending |
-| 6 | Existing tests still pass                     | implicit      | cargo test -p forge_app                                | pending |
+| # | Requirement                              | Source       | How to Verify                                        | Status  |
+|---|------------------------------------------|--------------|------------------------------------------------------|---------|
+| 1 | High effort when < 10 messages           | user message | cargo test test_effort_high_first_10                 | pending |
+| 2 | Transformer wired into pipeline          | implicit     | grep -n "ReasoningEffort" pipeline.rs                | pending |
+| 3 | Existing tests still pass                | implicit     | cargo test -p forge_app                              | pending |
 ```
 
 ---
 
 ## Step 2 — Verification Execution
 
-For each row in the Requirements Matrix, run the exact verification command and record the result. All rows must reach `verified` status.
+Run each verification command and record the result. All rows must reach `verified`.
 
-### Testing Rules
-- Run tests using the `shell` tool — never assume they pass.
-- If a test does not exist for a requirement, write it first, then run it.
-- Test edge cases: empty inputs, boundary values (e.g., exactly at the threshold), and maximum values.
-- If outputs have a required format (JSON, CSV, etc.), parse and validate the output, do not just check it is non-empty.
-
-### Build & Lint
-- Run `cargo check` (or equivalent) to confirm no compilation errors.
-- Run `cargo clippy` (or `npm run lint`, etc.) to confirm no lint regressions.
-- These must pass even if the task did not explicitly ask for it.
+- Run tests via `shell` — never assume they pass.
+- If no test exists for a requirement, write one first.
+- Test edge cases: empty inputs, boundary values, max values.
+- Validate output format (JSON, CSV, etc.) by parsing, not just checking non-empty.
+- Run `cargo check` / `cargo clippy` (or equivalent lint) even if not explicitly requested.
+- If verification fails 3+ times for the same requirement, stop and redesign the approach.
 
 ---
 
 ## Step 3 — Cleanup & Final Audit
 
-1. **Search for missed cases**: If the task involved replacing or removing all occurrences of something, run `fs_search` to confirm no instances remain.
-2. **Task preflight check (mandatory)**: Confirm required artifact path(s) exist, output schema/format matches task contract, and threshold/metric constraints pass where applicable.
-3. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
+1. If the task involved replacing/removing all occurrences, run `fs_search` to confirm none remain.
+2. Confirm required artifacts exist and output format matches the task contract.
+3. Every row in the Requirements Matrix must be `verified`. Any non-verified row means the task is incomplete.
+
+Output the final matrix as completion proof.
 
 ---
 
-## Completed Requirements Matrix (Final State)
+## Failure Patterns to Avoid
 
-Before closing the task, output the final Requirements Matrix with all statuses set to `verified`. This serves as the completion proof.
-
-```
-| # | Requirement                                      | How to Verify                                             | Status   |
-|---|--------------------------------------------------|-----------------------------------------------------------|----------|
-| 1 | ...                                              | ...                                                       | verified |
-```
-
----
-
-## Common Failure Patterns to Avoid
-
-- **Skipping Requirements Extraction**: Diving into code without listing requirements first leads to missed edge cases and incomplete implementations.
-- **Vague Verification Commands**: "Check the output looks right" is not a verification command. Use executable commands with observable pass/fail results.
-- **Incomplete Solutions**: Partial implementations assumed to work. Every requirement must be fully implemented and verified.
-- **Compound Requirements**: Bundling multiple behaviors into one row makes it impossible to tell which part failed.
-- **Unsafe Cleanup**: Deleting harness files, checker scripts, or required outputs during cleanup.
-- **Test Script Cleanup**: Forgetting to remove assistant-created temporary test scripts after verification.
-- **Assuming Tests Pass**: Never mark a requirement `verified` without running its test command.
-- **Handler Invocation ≠ Handler Correctness**: Verifying that an error handler, cleanup block, or fallback path was *entered* is not the same as verifying it *completed correctly*. The handler is ordinary code — it can itself fail, block, or produce wrong output. Always write a test that asserts the handler's outcome (e.g., side effects, return value, final state), not merely that execution reached it.
-- **Rationalizing Weak Tests**: When mutation validation shows a test passes despite a broken implementation, do NOT conclude the test is "still valuable" and move on. A test that cannot catch the regression it was designed for provides no safety. Re-examine the requirement: the test may be exercising a simplified proxy for the real behavior (e.g., in-process API call vs. real network request, programmatic signal vs. OS signal). Redesign the test to operate at the same level as the actual requirement, or re-read the requirement to find untested aspects.
-
----
-
-## When to Re-plan
-
-If verification fails more than 3 times for the same requirement, stop and redesign the approach. Add a new row to the Requirements Matrix capturing what changed, and re-verify from scratch. Incremental fixes on a broken approach compound errors.
+- **Vague Verification**: "Check the output looks right" is not verification. Use executable commands with pass/fail results.
+- **Compound Requirements**: One row per behavior. Bundling makes it impossible to tell which part failed.
+- **Unsafe Cleanup**: Do not delete harness files, checker scripts, or required outputs. Do remove assistant-created temp scripts.
+- **Handler Invocation != Correctness**: Verifying a handler was *entered* is not verifying it *completed correctly*. Assert the handler's outcome (side effects, return value, final state).
+- **Rationalizing Weak Tests**: A test that passes despite broken implementation provides no safety. Redesign it to match the real execution context.

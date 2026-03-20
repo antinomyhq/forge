@@ -14,9 +14,14 @@ uv venv /uv/forge --python 3.13
 source /uv/forge/bin/activate
 uv pip install openai pydantic
 
-# Ensure Python is discoverable in non-login/non-activated shells used by agents
-ln -sf /uv/forge/bin/python /usr/local/bin/python
-ln -sf /uv/forge/bin/python /usr/local/bin/python3
+# Ensure Python is discoverable in non-login/non-activated shells used by agents.
+# Only create symlinks if no python already exists — task containers often ship
+# their own Python with pre-installed dependencies (pytest, numpy, etc.) and
+# overwriting it with the uv venv python (which only has openai/pydantic) would
+# break those dependencies. The uv venv is still activated for the setup script
+# and available at /uv/forge/bin/python for forge's internal use.
+[ ! -e /usr/local/bin/python ] && ln -sf /uv/forge/bin/python /usr/local/bin/python
+[ ! -e /usr/local/bin/python3 ] && ln -sf /uv/forge/bin/python /usr/local/bin/python3
 
 # Forge binary is uploaded by harbor's setup process
 # Just ensure it's executable
