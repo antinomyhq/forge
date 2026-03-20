@@ -84,8 +84,8 @@ impl ForgeEnvironmentInfra {
             .and_then(|url| Url::parse(url.as_str()).ok())
             .unwrap_or_else(|| Url::parse("https://antinomy.ai/api/v1/").unwrap());
 
-        // Convert 10 KB to bytes as default
-        let default_max_bytes: f64 = 10.0 * 1024.0;
+        // Convert 50 KB to bytes as default
+        let default_max_bytes: f64 = 50.0 * 1024.0;
         let max_bytes =
             parse_env::<f64>("FORGE_MAX_SEARCH_RESULT_BYTES").unwrap_or(default_max_bytes);
 
@@ -553,7 +553,7 @@ mod tests {
         // Test default value
         let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
         let environment = forge_env.get_environment();
-        let expected_default = (10.0_f64 * 1024.0).ceil() as usize;
+        let expected_default = (50.0_f64 * 1024.0).ceil() as usize;
         assert_eq!(environment.max_search_result_bytes, expected_default);
 
         // Test environment override

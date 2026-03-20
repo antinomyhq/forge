@@ -26,6 +26,7 @@ use crate::{
 pub struct TempContentFiles {
     stdout: Option<PathBuf>,
     stderr: Option<PathBuf>,
+    search: Option<PathBuf>,
 }
 
 #[derive(Debug, derive_more::From)]
@@ -377,20 +378,50 @@ impl ToolOperation {
 
                     match truncated_output.strategy {
                         TruncationMode::Byte => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
-                                env.max_search_result_bytes
-                            );
+                            let reason = if let Some(path) = &content_files.search {
+                                format!(
+                                    "WARNING: Search results are INCOMPLETE — output exceeded the {} bytes size limit and was truncated. \
+                                    The displayed results do NOT represent all matches. \
+                                    The complete untruncated output has been written to: {}. \
+                                    You MUST read this file or use a more specific search pattern to ensure full coverage.",
+                                    env.max_search_result_bytes,
+                                    path.display()
+                                )
+                            } else {
+                                format!(
+                                    "WARNING: Search results are INCOMPLETE — output exceeded the {} bytes size limit and was truncated. \
+                                    The displayed results do NOT represent all matches. \
+                                    Please use a more specific search pattern to ensure full coverage.",
+                                    env.max_search_result_bytes
+                                )
+                            };
                             elm = elm.attr("reason", reason);
                         }
                         TruncationMode::Line => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
-                            );
+                            let reason = if let Some(path) = &content_files.search {
+                                format!(
+                                    "WARNING: Search results are INCOMPLETE — output exceeded the {max_lines} lines limit and was truncated. \
+                                    The displayed results do NOT represent all matches. \
+                                    The complete untruncated output has been written to: {}. \
+                                    You MUST read this file or use a more specific search pattern to ensure full coverage.",
+                                    path.display()
+                                )
+                            } else {
+                                format!(
+                                    "WARNING: Search results are INCOMPLETE — output exceeded the {max_lines} lines limit and was truncated. \
+                                    The displayed results do NOT represent all matches. \
+                                    Please use a more specific search pattern to ensure full coverage."
+                                )
+                            };
                             elm = elm.attr("reason", reason);
                         }
                         TruncationMode::Full => {}
                     };
+
+                    if let Some(path) = &content_files.search {
+                        elm = elm.attr("full_output", path.display());
+                    }
+
                     elm = elm.cdata(truncated_output.data.join("\n"));
 
                     forge_domain::ToolOutput::text(elm)

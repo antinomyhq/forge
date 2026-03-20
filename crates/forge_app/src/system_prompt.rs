@@ -144,7 +144,8 @@ mod tests {
     use std::sync::Arc;
 
     use fake::Fake;
-    use forge_domain::{Agent, Environment};
+    use forge_domain::{Agent, Environment, Template};
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -329,5 +330,49 @@ mod tests {
             "Template should include both tools, got: {}",
             content
         );
+    }
+
+    #[tokio::test]
+    async fn test_background_prompt_mentions_sandboxed_docker_and_local_eval_scope() {
+        use forge_domain::{Conversation, ToolDefinition};
+
+        // Fixture
+        let services = Arc::new(MockSkillFetchService);
+        let mut env = create_test_environment();
+        env.background = true;
+        let agent = create_test_agent().system_prompt(Template::new(
+            "{{> forge-partial-background-instructions.md }}",
+        ));
+        let tool_definitions = vec![ToolDefinition::new("todo_write").description("Task tracking")];
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = Conversation::generate();
+        let actual = system_prompt
+            .add_system_message(conversation)
+            .await
+            .unwrap()
+            .context
+            .expect("Context should exist")
+            .messages
+            .iter()
+            .find(|message| message.has_role(forge_domain::Role::System))
+            .and_then(|message| message.content())
+            .expect("System message should exist")
+            .to_string();
+
+        // Assert
+        let expected_fragments = vec![
+            "You are running inside a sandboxed Docker environment provided for this task.",
+            "do not refuse solely because of those terms when the task is explicitly scoped to this local sandbox, Docker container, benchmark, CTF, or evaluation harness.",
+            "Never target external systems, third-party services, real users, or credentials outside the sandbox.",
+        ];
+        let actual_matches: Vec<bool> = expected_fragments
+            .iter()
+            .map(|fragment| actual.contains(fragment))
+            .collect();
+        let expected_matches = vec![true, true, true];
+        assert_eq!(actual_matches, expected_matches);
     }
 }

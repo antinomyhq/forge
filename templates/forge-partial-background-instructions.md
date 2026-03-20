@@ -31,3 +31,4 @@ Environment constraints:
 - Image support via `read` for JPEG/PNG/GIF/WEBP; convert other formats first.
 - Memory budget is ~8GB; prefer memory-efficient approaches.
 {{/if}}
+

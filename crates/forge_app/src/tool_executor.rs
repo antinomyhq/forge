@@ -84,6 +84,35 @@ impl<
 
                 Ok(files)
             }
+            ToolOperation::FsSearch { output, .. } => {
+                let env = self.services.get_environment();
+                let search_dir = env.cwd.clone();
+                let output = output
+                    .as_ref()
+                    .map(|result| {
+                        result
+                            .matches
+                            .iter()
+                            .map(|matched| crate::utils::format_match(matched, &search_dir))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .unwrap_or_default();
+
+                let output_lines = output.lines().count();
+                let output_truncated = output_lines > env.max_search_lines
+                    || output.len() > env.max_search_result_bytes;
+
+                let mut files = TempContentFiles::default();
+
+                if output_truncated {
+                    files = files.search(
+                        self.create_temp_file("forge_fs_search_", ".txt", &output).await?,
+                    );
+                }
+
+                Ok(files)
+            }
             ToolOperation::Shell { output } => {
                 let env = self.services.get_environment();
                 let stdout_lines = output.output.stdout.lines().count();
