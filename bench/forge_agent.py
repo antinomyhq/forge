@@ -764,6 +764,14 @@ class ForgeAgent(BaseInstalledAgent):
                 target_path=f"{self.FORGE_CONTAINER_CONFIG_DIR}/.credentials.json",
             )
 
+        # Upload MCP configuration so MCP servers (context7, deepwiki, etc.) are available
+        mcp_config_file = self.FORGE_HOST_CONFIG_DIR / ".mcp.json"
+        if mcp_config_file.exists():
+            await environment.upload_file(
+                source_path=mcp_config_file,
+                target_path=f"{self.FORGE_CONTAINER_CONFIG_DIR}/.mcp.json",
+            )
+
         # Upload agent guidelines per task if present
         uploaded_agent_md = False
         
