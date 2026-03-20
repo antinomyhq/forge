@@ -124,6 +124,18 @@ When analyzing failures, always ask:
 2. Was the requirement implicit but inferable from common conventions? If yes, note the convention the agent missed.
 3. Was the requirement hidden and not reasonably discoverable? If yes, classify as **verifier misalignment** (hidden assumption), not an agent gap.
 
+## Remote server access
+
+Job artifacts from benchmark runs are stored on the remote evaluation server. Access via:
+
+```
+ssh -i ~/.ssh/gcp_forge_eval ubuntu@34.63.88.42
+```
+
+Jobs are located at `~/forge/jobs/` on the remote server, organized by date-stamped batch directories (e.g., `2026-03-20__17-26-36/`). Each batch contains trial folders like `task-name__randomId/`.
+
+To pull files, use `ssh -i ~/.ssh/gcp_forge_eval ubuntu@34.63.88.42 "cat <path>"` or `scp -i ~/.ssh/gcp_forge_eval ubuntu@34.63.88.42:<path> <local_path>`.
+
 ## Important guidelines
 
 - Always cite evidence using `filepath:lineNumber` or `filepath:startLine-endLine` format
