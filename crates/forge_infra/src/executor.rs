@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use forge_app::CommandInfra;
 use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
@@ -111,6 +112,8 @@ impl ForgeCommandExecutorService {
 
         let mut prepared_command = self.prepare_command(&command, working_dir, env_vars);
 
+        let start_time = Instant::now();
+
         // Spawn the command
         let mut child = prepared_command.spawn()?;
 
@@ -139,11 +142,14 @@ impl ForgeCommandExecutorService {
         drop(stderr_pipe);
         drop(ready);
 
+        let wall_time_secs = start_time.elapsed().as_secs_f64();
+
         Ok(CommandOutput {
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
             exit_code: status.code(),
             command,
+            wall_time_secs: Some(wall_time_secs),
         })
     }
 }
@@ -279,6 +285,7 @@ mod tests {
             stderr: "".to_string(),
             command: "echo \"hello world\"".into(),
             exit_code: Some(0),
+            wall_time_secs: None,
         };
 
         if cfg!(target_os = "windows") {
@@ -421,6 +428,7 @@ mod tests {
             stderr: "".to_string(),
             command: "echo \"silent test\"".into(),
             exit_code: Some(0),
+            wall_time_secs: None,
         };
 
         if cfg!(target_os = "windows") {

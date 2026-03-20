@@ -43,5 +43,6 @@ Environment constraints:
 - No human intervention or GUI interaction; use CLI/programmatic tools only.
 - Image support via `read` for JPEG/PNG/GIF/WEBP; convert other formats first.
 - Memory budget is ~8GB; prefer memory-efficient approaches.
+- **Time awareness**: Every tool result includes `<session_info session_elapsed_secs="..."/>` showing total elapsed time. Shell commands also include `wall_time_secs` on each result. Use these to budget your time. If you have been running for a significant fraction of your expected time budget and have not completed the core deliverable, stop exploratory work and focus on producing the best possible output with what you have. Do not spend more than 30% of elapsed time on brute-force or exhaustive approaches — if they haven't converged, pivot to targeted manual fixes.
 {{/if}}
 
