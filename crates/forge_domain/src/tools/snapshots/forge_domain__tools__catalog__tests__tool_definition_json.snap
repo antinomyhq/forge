@@ -298,6 +298,10 @@ expression: tools
       "description": "Clear, concise description of what this command does. Recommended to be\n5-10 words for simple commands. For complex commands with pipes or\nmultiple operations, provide more context. Examples: \"Lists files in\ncurrent directory\", \"Installs package dependencies\", \"Compiles Rust\nproject with release optimizations\".",
       "type": "string",
       "nullable": true
+    },
+    "background": {
+      "description": "Run the command in the background as a daemon process using nohup.\nWhen true, the command is started in the background, and the tool\nreturns immediately with the process PID and a status check after a\nbrief delay. Use this for starting long-running services (web servers,\ndatabase daemons, VMs) that must remain running after the tool call\nreturns. Stdout/stderr of the background process are redirected to a\nlog file whose path is included in the output.",
+      "type": "boolean"
     }
   },
   "required": [

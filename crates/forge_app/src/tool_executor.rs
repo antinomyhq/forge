@@ -299,10 +299,40 @@ impl<
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
                 let normalized_cwd = self.normalize_path(cwd);
+
+                let command = if input.background {
+                    // Wrap the command to run in the background via nohup.
+                    // Stdout/stderr are redirected to a log file so the agent
+                    // can inspect them later.  The wrapper script sleeps
+                    // briefly, then checks whether the process is still alive.
+                    let log_file = format!(
+                        "/tmp/forge_bg_{}.log",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis()
+                    );
+                    let escaped_cmd = input.command.replace('\'', "'\\''");
+                    format!(
+                        "nohup sh -c '{escaped_cmd}' > {log_file} 2>&1 & \
+                         BG_PID=$!; \
+                         sleep 2; \
+                         if kill -0 $BG_PID 2>/dev/null; then \
+                           echo \"Process $BG_PID started in background (log: {log_file})\"; \
+                         else \
+                           echo \"ERROR: Process $BG_PID exited early. Log output:\"; \
+                           cat {log_file}; \
+                           exit 1; \
+                         fi"
+                    )
+                } else {
+                    input.command.clone()
+                };
+
                 let output = self
                     .services
                     .execute(
-                        input.command.clone(),
+                        command,
                         PathBuf::from(normalized_cwd),
                         input.keep_ansi,
                         false,
