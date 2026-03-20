@@ -63,18 +63,20 @@ class ForgeAgent(BaseInstalledAgent):
     FORGE_CONTAINER_CONFIG_DIR = "/root/forge"
 
     ALLOWED_TOOLS = [
+        "task",
+        "sem_search",
+        "fs_search",
         "read",
         "write",
-        "fs_search",
-        "sem_search",
+        "undo",
         "remove",
         "patch",
-        "undo",
+        "multi_patch",
         "shell",
         "fetch",
-        "followup",
-        "plan",
         "skill",
+        "todo_write",
+        "mcp_*",
     ]
 
     def __init__(

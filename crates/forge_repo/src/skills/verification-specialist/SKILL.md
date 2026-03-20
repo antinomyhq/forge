@@ -27,6 +27,8 @@ You are invoked after implementation. Your first job is to reconstruct what was 
 
 From this, produce a Requirements Matrix — one row per discrete, independently testable behavior. Do not group multiple behaviors into one row.
 
+**Separate goals from constraints**: If the task has both a goal ("achieve X") and a constraint on how to achieve it ("only by doing Y"), these MUST be separate rows. Do not assume that verifying the goal also verifies the constraint. For example, "system produces correct output" (goal) and "only allowed edits were made" (constraint) are two separate rows — passing the goal does not prove the constraint.
+
 **Format:**
 
 ```
@@ -76,8 +78,10 @@ For each row in the Requirements Matrix, run the exact verification command and 
 ## Step 3 — Cleanup & Final Audit
 
 1. **Search for missed cases**: If the task involved replacing or removing all occurrences of something, run `fs_search` to confirm no instances remain.
-2. **Task preflight check (mandatory)**: Confirm required artifact path(s) exist, output schema/format matches task contract, and threshold/metric constraints pass where applicable.
-3. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
+2. **Revert test instrumentation**: If you added timestamps, unique IDs, randomized content, or any other test-specific modifications to artifacts during TDD or mutation testing, **revert them now**. The final state of all artifacts must match the user's specification verbatim — not your test harness's instrumented version. Re-read the user prompt and compare it to the current state of every file/artifact you modified.
+3. **Service verification** (if applicable): If the task required running services (web servers, databases, daemons), verify they are still alive and serving the expected content: sleep 3-5 seconds, curl endpoints, check process status. The content served must match the user's specification exactly.
+4. **Task preflight check (mandatory)**: Confirm required artifact path(s) exist, output content matches the user's specification verbatim (not just format/schema), and threshold/metric constraints pass where applicable.
+5. **Final Requirements Matrix review**: Every row must be `verified`. Any row that is not `verified` means the task is incomplete.
 
 ---
 
@@ -101,6 +105,7 @@ Before closing the task, output the final Requirements Matrix with all statuses 
 - **Compound Requirements**: Bundling multiple behaviors into one row makes it impossible to tell which part failed.
 - **Unsafe Cleanup**: Deleting harness files, checker scripts, or required outputs during cleanup.
 - **Test Script Cleanup**: Forgetting to remove assistant-created temporary test scripts after verification.
+- **Test Instrumentation Left Behind**: Adding timestamps, unique IDs, or randomized content to artifacts for test robustness, then forgetting to revert them to the user's exact specification before completing. The verifier checks the final state, not your test state.
 - **Assuming Tests Pass**: Never mark a requirement `verified` without running its test command.
 - **Handler Invocation ≠ Handler Correctness**: Verifying that an error handler, cleanup block, or fallback path was *entered* is not the same as verifying it *completed correctly*. The handler is ordinary code — it can itself fail, block, or produce wrong output. Always write a test that asserts the handler's outcome (e.g., side effects, return value, final state), not merely that execution reached it.
 - **Rationalizing Weak Tests**: When mutation validation shows a test passes despite a broken implementation, do NOT conclude the test is "still valuable" and move on. A test that cannot catch the regression it was designed for provides no safety. Re-examine the requirement: the test may be exercising a simplified proxy for the real behavior (e.g., in-process API call vs. real network request, programmatic signal vs. OS signal). Redesign the test to operate at the same level as the actual requirement, or re-read the requirement to find untested aspects.
