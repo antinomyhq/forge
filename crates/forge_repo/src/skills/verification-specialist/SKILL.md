@@ -55,8 +55,13 @@ Run each verification command and record the result. All rows must reach `verifi
 ## Step 3 — Cleanup & Final Audit
 
 1. If the task involved replacing/removing all occurrences, run `fs_search` to confirm none remain.
-2. Confirm required artifacts exist and output format matches the task contract.
-3. Every row in the Requirements Matrix must be `verified`. Any non-verified row means the task is incomplete.
+2. For constrained edit tasks (only specific tokens/fields may change), run a mandatory **diff gate**:
+   - compare original vs final;
+   - list every changed token/field;
+   - verify each change is explicitly allowed by the task constraints;
+   - verify token count/structure is unchanged unless explicitly permitted.
+3. Confirm required artifacts exist and output content/format matches the task contract.
+4. Every row in the Requirements Matrix must be `verified`. Any non-verified row means the task is incomplete.
 
 Output the final matrix as completion proof.
 
@@ -66,6 +71,6 @@ Output the final matrix as completion proof.
 
 - **Vague Verification**: "Check the output looks right" is not verification. Use executable commands with pass/fail results.
 - **Compound Requirements**: One row per behavior. Bundling makes it impossible to tell which part failed.
-- **Unsafe Cleanup**: Do not delete harness files, checker scripts, or required outputs. Do remove assistant-created temp scripts.
+- **Unsafe Cleanup**: Do not delete harness files, checker scripts, or required outputs. Do remove assistant-created temp scripts. If test instrumentation modified deliverables, revert them to the exact user-specified final state.
 - **Handler Invocation != Correctness**: Verifying a handler was *entered* is not verifying it *completed correctly*. Assert the handler's outcome (side effects, return value, final state).
 - **Rationalizing Weak Tests**: A test that passes despite broken implementation provides no safety. Redesign it to match the real execution context.
