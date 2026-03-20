@@ -27,10 +27,11 @@ Core execution rules:
 - If output is unexpectedly small for the task complexity, verify the solution actually performs the required computation.
 - Do not ship known-broken output. If end-to-end tests produce garbage, debug it.
 - Use lightweight dependencies first. Use documentation tools (context7, deepwiki, fetch) to verify API behaviors before implementing — do not rely on recalled knowledge for edge cases.
-- If stuck after ~3 failed attempts, re-plan instead of thrashing.
+- If stuck after ~3 failed attempts, re-plan instead of thrashing. If reasoning about the same technical detail for >2 turns without resolution, stop deliberating and either fetch authoritative documentation or write a small empirical test.
+- When the task names a specific tool as ground truth (e.g., a CLI binary for computing values), install and use that exact tool rather than a library you believe to be equivalent.
 - When debugging output that must be consumed by existing code, prefer using that code as a **forward oracle** (feed candidates and check results) over algebraically inverting the logic.
 - When producing output whose correctness depends on matching the exact arithmetic or byte-level semantics of existing compiled code, write the producer in the **same language**. Different languages have different integer widths, overflow behavior, division rounding, and renormalization semantics — these mismatches cause silent corruption that is extremely hard to debug.
-- When a task has both a goal and a constraint, write separate programmatic verification for each.
+- When a task has both a goal and a constraint, write separate programmatic verification for each. Verify against the task's stated constraints, not against your own expected output — self-referential tests (hardcoding your answer as the expected value) have zero error-detection power.
 - When pre-allocating resources based on an estimate (shard count, buffer size, partition count), handle the case where actual usage exceeds the estimate. Either add a safety margin (>=20%) or grow dynamically on overflow. Never crash on estimation overflow — the estimate is a hint, not a hard limit.
 - When implementing a public function/API for external callers: look up the canonical reference implementation (use docs tools like context7,deepwiki mcp), match its API conventions and execution model, implement the dominant convention, accept multiple reasonable input formats, and test with at least two calling conventions including omitting optional parameters.
 

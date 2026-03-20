@@ -15,6 +15,7 @@ tools:
   - patch
   - multi_patch
   - shell
+  - fetch
   - skill
   - todo_write
   - mcp_*
