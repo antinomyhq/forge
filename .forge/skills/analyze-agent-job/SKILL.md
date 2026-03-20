@@ -14,6 +14,34 @@ description: >-
 
 Perform deep forensic analysis of agent benchmark job results to identify gaps in agent behavior, prompt design, and tool usage.
 
+## Remote job folders
+
+Job results may be on a remote evaluation machine. The user will provide the job folder name (e.g., `adaptive-rejection-sampler__3ywpX2e`).
+
+**Remote host**: `ubuntu@34.63.88.42` via SSH key `~/.ssh/gcp_forge_eval`
+**Base path on remote**: `~/forge/jobs/`
+
+**Read-only access** — never modify, delete, or write anything on the remote machine.
+
+**How to read remote files**: Use `ssh` via the shell tool to read files in place. Do NOT scp the entire folder locally. Read individual files as needed:
+
+```sh
+# List job folder contents
+ssh -i ~/.ssh/gcp_forge_eval -o StrictHostKeyChecking=no ubuntu@34.63.88.42 "find ~/forge/jobs/<folder> -type f | sort"
+
+# Read a specific file
+ssh -i ~/.ssh/gcp_forge_eval -o StrictHostKeyChecking=no ubuntu@34.63.88.42 "cat ~/forge/jobs/<folder>/verifier/ctrf.json"
+
+# Search within a file
+ssh -i ~/.ssh/gcp_forge_eval -o StrictHostKeyChecking=no ubuntu@34.63.88.42 "grep -n 'pattern' ~/forge/jobs/<folder>/agent/command-1/stdout.txt"
+
+# Read a large file partially (e.g., first/last N lines)
+ssh -i ~/.ssh/gcp_forge_eval -o StrictHostKeyChecking=no ubuntu@34.63.88.42 "head -100 ~/forge/jobs/<folder>/agent/command-4/dump.json"
+ssh -i ~/.ssh/gcp_forge_eval -o StrictHostKeyChecking=no ubuntu@34.63.88.42 "wc -l ~/forge/jobs/<folder>/agent/command-4/dump.json"
+```
+
+Replace `<folder>` with the user-provided folder name. Follow the same Phase 1-5 workflow below, substituting local `read` calls with `ssh cat` commands.
+
 ## Workflow
 
 ### Phase 1: Inventory the job folder

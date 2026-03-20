@@ -343,7 +343,10 @@ mod tests {
         let agent = create_test_agent().system_prompt(Template::new(
             "{{> forge-partial-background-instructions.md }}",
         ));
-        let tool_definitions = vec![ToolDefinition::new("todo_write").description("Task tracking")];
+        let tool_definitions = vec![
+            ToolDefinition::new("todo_write").description("Task tracking"),
+            ToolDefinition::new("task").description("Launch sub-agents"),
+        ];
         let system_prompt =
             SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
 
