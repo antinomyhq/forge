@@ -94,6 +94,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 TodoStatus::Completed => "[DONE]",
                 TodoStatus::InProgress => "[IN_PROGRESS]",
                 TodoStatus::Pending => "[PENDING]",
+                TodoStatus::Cancelled => "[CANCELLED]",
             };
 
             writeln!(content, "- {} {}", checkbox, todo.content)

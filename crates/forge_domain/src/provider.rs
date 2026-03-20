@@ -69,6 +69,7 @@ impl ProviderId {
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
     pub const MINIMAX: ProviderId = ProviderId(Cow::Borrowed("minimax"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
+    pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
 
     /// Returns all built-in provider IDs
     ///
@@ -98,6 +99,7 @@ impl ProviderId {
             ProviderId::BEDROCK,
             ProviderId::MINIMAX,
             ProviderId::CODEX,
+            ProviderId::OPENCODE_ZEN,
         ]
     }
 
@@ -183,6 +185,7 @@ pub enum ProviderResponse {
     Anthropic,
     Bedrock,
     Google,
+    OpenCode,
 }
 
 /// Represents the source of models for a provider
