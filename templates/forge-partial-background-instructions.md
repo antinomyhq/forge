@@ -39,7 +39,7 @@ Core execution rules:
 
 Environment constraints:
 - No human intervention or GUI interaction; CLI/programmatic tools only.
-- Image support via `read` for JPEG/PNG/GIF/WEBP; convert other formats first.
+- Image support via `read` for JPEG/PNG/GIF/WEBP; convert other formats first. When a task requires interpreting visual content (rendered images, plots, text in images), use `read` on the image file directly — do NOT convert images to ASCII art. The model can see images natively. ASCII art conversion loses too much information for reliable character recognition.
 - Prefer parsing source data programmatically over visually interpreting rendered output.
 - Memory budget ~8GB; prefer memory-efficient approaches.
 - Use `<session_info session_elapsed_secs>` and `wall_time_secs` to budget time. Do not spend more than 30% of elapsed time on brute-force approaches — pivot to targeted fixes if not converging.
