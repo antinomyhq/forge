@@ -33,6 +33,7 @@ use crate::cli::{
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
+use crate::editor::ReadLineError;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{ForgeCommandManager, SlashCommand};
@@ -304,6 +305,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Get initial input from prompt
+        // Prompt can fail if it doesn't have access to TTY. If it fails the first time,
+        // we will stop everything and bubble up the error.
         let mut command = self.prompt().await;
 
         loop {
@@ -337,9 +340,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     tracker::error(&error);
                     tracing::error!(error = ?error);
                     self.spinner.stop(None)?;
-                    self.writeln_to_stderr(
-                        TitleFormat::error(error.to_string()).display().to_string(),
-                    )?;
+
+                    match error.downcast::<ReadLineError>() {
+                        Ok(error) => {
+                            return Err(error)?;
+                        }
+                        Err(error) => self.writeln_to_stderr(
+                            TitleFormat::error(error.to_string()).display().to_string(),
+                        )?,
+                    }
                 }
             }
             // Centralized prompt call at the end of the loop
@@ -840,7 +849,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, None).await
     }
 
     async fn handle_provider_logout(
@@ -1685,10 +1694,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let doctor_result = self.on_zsh_doctor().await;
 
         if doctor_result.is_ok() {
-            self.writeln_title(TitleFormat::warning(
+            self.writeln_title(TitleFormat::action(
                 "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
             ))?;
-            self.writeln_title(TitleFormat::warning(
+            self.writeln_title(TitleFormat::action(
                 "run `: Hi` after restarting your shell to confirm everything works",
             ))?;
         }
@@ -2663,6 +2672,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Activates a provider by configuring it if needed, setting it as default,
     /// and ensuring a compatible model is selected.
     async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
+        self.activate_provider_with_model(any_provider, None).await
+    }
+
+    /// Activates a provider with an optional pre-selected model.
+    /// When `model` is provided, the interactive model selection prompt is
+    /// skipped and the specified model is set directly.
+    async fn activate_provider_with_model(
+        &mut self,
+        any_provider: AnyProvider,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
@@ -2681,12 +2701,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, model).await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
     /// a compatible model is selected.
-    async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
+    /// When `model` is `Some`, the interactive model selection is skipped and
+    /// the provided model is validated and set directly.
+    async fn finalize_provider_activation(
+        &mut self,
+        provider: Provider<Url>,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
@@ -2694,6 +2720,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::action(format!("{}", provider.id))
                 .sub_title("is now the default provider"),
         )?;
+
+        // If a model was pre-selected (e.g. from :model), validate and set it
+        // directly without prompting
+        if let Some(model) = model {
+            let model_id = self
+                .validate_model(model.as_str(), Some(&provider.id))
+                .await?;
+            self.api.set_default_model(model_id.clone()).await?;
+            self.writeln_title(
+                TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+            )?;
+            return Ok(());
+        }
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -3066,13 +3105,29 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
+            ChatResponse::ToolCallStart { tool_call, notifier } => {
+                // Scope guard to ensure notification happens even on error.
+                // If writer.finish() or spinner.stop() fails, the guard's drop
+                // will still notify orch, preventing the deadlock.
+                struct NotifyGuard<'a>(&'a tokio::sync::Notify);
+                impl<'a> Drop for NotifyGuard<'a> {
+                    fn drop(&mut self) {
+                        self.0.notify_one();
+                    }
+                }
+                let _guard = NotifyGuard(&notifier);
+
                 writer.finish()?;
 
                 // Stop spinner only for tools that require stdout/stderr access
                 if tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
                 }
+
+                // Notify orch that the UI has rendered the tool header.
+                // Orch awaits this before executing the tool, preventing tool
+                // stdout from appearing before the tool name is printed.
+                drop(_guard);
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -3338,9 +3393,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider } => {
+            ConfigSetField::Provider { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider(provider).await?;
+                self.activate_provider_with_model(provider, model).await?;
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;

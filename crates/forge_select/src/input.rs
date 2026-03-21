@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use anyhow::Result;
 use colored::Colorize;
 use rustyline::DefaultEditor;
@@ -55,6 +57,12 @@ impl InputBuilder {
     ///
     /// Returns an error if rustyline fails to initialise or read input.
     pub fn prompt(self) -> Result<Option<String>> {
+        // Bail immediately when stdin is not a terminal to prevent the process
+        // from blocking indefinitely on a detached or non-interactive session.
+        if !std::io::stdin().is_terminal() {
+            return Ok(None);
+        }
+
         let mut rl = DefaultEditor::new()?;
 
         // On Windows, rustyline miscounts ANSI escape bytes as visible characters,

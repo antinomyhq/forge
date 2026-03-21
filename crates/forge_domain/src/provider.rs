@@ -69,6 +69,7 @@ impl ProviderId {
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
     pub const MINIMAX: ProviderId = ProviderId(Cow::Borrowed("minimax"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
+    pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
 
     /// Returns all built-in provider IDs
     ///
@@ -98,6 +99,7 @@ impl ProviderId {
             ProviderId::BEDROCK,
             ProviderId::MINIMAX,
             ProviderId::CODEX,
+            ProviderId::OPENCODE_ZEN,
         ]
     }
 
@@ -183,6 +185,7 @@ pub enum ProviderResponse {
     Anthropic,
     Bedrock,
     Google,
+    OpenCode,
 }
 
 /// Represents the source of models for a provider
@@ -206,6 +209,9 @@ pub struct Provider<T> {
     #[serde(default)]
     pub url_params: Vec<crate::URLParam>,
     pub credential: Option<AuthCredential>,
+    /// Custom HTTP headers to include in API requests for this provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 /// Type alias for a provider with template URLs (not yet rendered)
@@ -346,6 +352,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
@@ -362,6 +369,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI_CODING, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
@@ -378,6 +386,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPENAI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
@@ -394,6 +403,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::XAI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.x.ai/v1/models").unwrap(),
             )),
@@ -436,6 +446,7 @@ mod test_helpers {
                 .map(|&s| s.to_string().into())
                 .collect(),
             credential: make_credential(ProviderId::VERTEX_AI, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
@@ -451,6 +462,7 @@ mod test_helpers {
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::IO_INTELLIGENCE, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(
                 Url::parse("https://api.intelligence.io.solutions/api/v1/models").unwrap(),
             )),
@@ -484,6 +496,7 @@ mod test_helpers {
                 .map(|&s| s.to_string().into())
                 .collect(),
             credential: make_credential(ProviderId::AZURE, key),
+            custom_headers: None,
             models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
@@ -558,6 +571,7 @@ mod tests {
             models: Some(ModelSource::Url(
                 Url::from_str("https://api.intelligence.io.solutions/api/v1/models").unwrap(),
             )),
+            custom_headers: None,
         };
         assert_eq!(actual, expected);
     }
@@ -581,6 +595,7 @@ mod tests {
             models: Some(ModelSource::Url(
                 Url::from_str("https://api.x.ai/v1/models").unwrap(),
             )),
+            custom_headers: None,
         };
         assert_eq!(actual, expected);
     }

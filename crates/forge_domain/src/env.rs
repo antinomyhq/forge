@@ -100,6 +100,9 @@ pub struct Environment {
     /// Controlled by FORGE_PARALLEL_FILE_READS environment variable.
     /// Caps the `buffer_unordered` concurrency to avoid EMFILE errors.
     pub parallel_file_reads: usize,
+    /// TTL in seconds for the model API list cache.
+    /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
+    pub model_cache_ttl: u64,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -339,6 +342,7 @@ fn test_command_path() {
         max_extensions: 15,
         auto_dump: None,
         parallel_file_reads: 64,
+        model_cache_ttl: 604_800,
     };
 
     let actual = fixture.command_path();
@@ -381,6 +385,7 @@ fn test_command_cwd_path() {
         max_extensions: 15,
         auto_dump: None,
         parallel_file_reads: 64,
+        model_cache_ttl: 604_800,
     };
 
     let actual = fixture.command_cwd_path();
@@ -423,6 +428,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_extensions: 15,
         auto_dump: None,
         parallel_file_reads: 64,
+        model_cache_ttl: 604_800,
     };
 
     let command_path = fixture.command_path();

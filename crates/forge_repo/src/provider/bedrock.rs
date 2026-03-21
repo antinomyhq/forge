@@ -988,6 +988,7 @@ mod tests {
                 auth_details: AuthDetails::ApiKey(ApiKey::from(token.to_string())),
                 url_params,
             }),
+            custom_headers: None,
         }
     }
 

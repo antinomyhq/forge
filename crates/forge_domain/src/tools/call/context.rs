@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 
-use crate::{ArcSender, ChatResponse, Metrics, TitleFormat, Todo};
+use crate::{ArcSender, ChatResponse, Metrics, TitleFormat, Todo, TodoItem};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
@@ -68,18 +68,19 @@ impl ToolCallContext {
         self.with_metrics(|metrics| metrics.get_todos().to_vec())
     }
 
-    /// Replaces active todos in metrics and returns only active todos.
+    /// Applies incremental todo changes using content as the matching key.
     ///
     /// # Arguments
     ///
-    /// * `todos` - New todos to store in metrics.
+    /// * `changes` - Todo items to add, update, or remove (via `cancelled`
+    ///   status).
     ///
     /// # Errors
     ///
     /// Returns an error if the metrics lock cannot be acquired or todo
     /// validation fails.
-    pub fn update_todos(&self, todos: Vec<Todo>) -> anyhow::Result<Vec<Todo>> {
-        self.try_with_metrics(|metrics| metrics.update_todos(todos))
+    pub fn update_todos(&self, changes: Vec<TodoItem>) -> anyhow::Result<Vec<Todo>> {
+        self.try_with_metrics(|metrics| metrics.apply_todo_changes(changes))
     }
 }
 

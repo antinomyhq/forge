@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use anyhow::Result;
 use console::strip_ansi_codes;
 use fzf_wrapped::{Fzf, Layout, run_with_output};
@@ -151,6 +153,12 @@ impl<T: 'static> SelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Bail immediately when stdin is not a terminal to prevent the process
+        // from blocking indefinitely on a detached or non-interactive session.
+        if !std::io::stdin().is_terminal() {
+            return Ok(None);
+        }
+
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
             return prompt_confirm(&self.message, self.default);
         }

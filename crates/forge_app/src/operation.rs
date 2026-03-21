@@ -238,7 +238,7 @@ impl ToolOperation {
                     *metrics = metrics.clone().insert(
                         input.file_path.clone(),
                         FileOperation::new(tool_kind)
-                            .content_hash(Some(output.content_hash.clone())),
+                            .content_hash(Some(output.info.content_hash.clone())),
                     );
 
                     return forge_domain::ToolOutput::image(image.clone());
@@ -248,7 +248,7 @@ impl ToolOperation {
                 let content = output.content.file_content();
                 let content = if input.show_line_numbers {
                     content
-                        .to_numbered_from(output.start_line as usize)
+                        .to_numbered_from(output.info.start_line as usize)
                         .to_string()
                 } else {
                     content.to_string()
@@ -257,7 +257,7 @@ impl ToolOperation {
                     .attr("path", &input.file_path)
                     .attr(
                         "display_lines",
-                        format!("{}-{}", output.start_line, output.end_line),
+                        format!("{}-{}", output.info.start_line, output.info.end_line),
                     )
                     .attr("total_lines", output.total_lines)
                     .cdata(content);
@@ -270,7 +270,8 @@ impl ToolOperation {
                 );
                 *metrics = metrics.clone().insert(
                     input.file_path.clone(),
-                    FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
+                    FileOperation::new(tool_kind)
+                        .content_hash(Some(output.info.content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -654,7 +655,6 @@ impl ToolOperation {
 
                 for todo in added {
                     let todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .attr("change", "added")
                         .text(&todo.content);
@@ -663,7 +663,6 @@ impl ToolOperation {
 
                 for (prev, todo) in updated {
                     let mut todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .attr("change", "updated");
                     if prev.status != todo.status {
@@ -677,7 +676,6 @@ impl ToolOperation {
 
                 for todo in removed {
                     let todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .attr("change", "removed")
                         .text(&todo.content);
@@ -691,7 +689,6 @@ impl ToolOperation {
 
                 for todo in output {
                     let todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .text(&todo.content);
                     elm = elm.append(todo_elm);
@@ -708,7 +705,7 @@ mod tests {
     use std::fmt::Write;
     use std::path::PathBuf;
 
-    use forge_domain::{FSRead, ToolValue};
+    use forge_domain::{FSRead, FileInfo, ToolValue};
 
     use super::*;
     use crate::{Content, Match, MatchResult};
@@ -828,10 +825,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 2,
-                total_lines: 2,
-                content_hash: hash,
+                info: FileInfo::new(1, 2, 2, hash),
             },
         };
 
@@ -860,10 +854,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: hash,
+                info: FileInfo::new(1, 1, 1, hash),
             },
         };
 
@@ -891,10 +882,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 2,
-                end_line: 3,
-                total_lines: 5,
-                content_hash: hash,
+                info: FileInfo::new(2, 3, 5, hash),
             },
         };
 
@@ -923,10 +911,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 100,
-                total_lines: 200,
-                content_hash: hash,
+                info: FileInfo::new(1, 100, 200, hash),
             },
         };
 
@@ -2499,10 +2484,7 @@ mod tests {
                     "base64_image_data".to_string(),
                     "image/png",
                 )),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: "hash123".to_string(),
+                info: FileInfo::new(1, 1, 1, "hash123".to_string()),
             },
         };
 
