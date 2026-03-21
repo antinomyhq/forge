@@ -81,8 +81,10 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommen
         }
 
         // Inject as a droppable user message so it can be removed during compaction.
-        let instruction = TemplateEngine::default()
-            .render("forge-skill-recommendation-message.md", &serde_json::json!({}))?;
+        let instruction = TemplateEngine::default().render(
+            "forge-skill-recommendation-message.md",
+            &serde_json::json!({}),
+        )?;
 
         let message = TextMessage::new(
             Role::User,
