@@ -1,5 +1,5 @@
 body {
-  font-family: monospace;
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", "Menlo", "Monaco", monospace;
   line-height: 1.6;
   color: #333;
   font-size: 1em;
@@ -49,8 +49,8 @@ pre {
   overflow-x: auto;
 }
 
-code {
-  font-family: monospace;
+code, pre {
+  font-family: "JetBrainsMono Nerd Font", "JetBrains Mono", "Fira Code", "Cascadia Code", "Consolas", "Menlo", "Monaco", monospace;
 }
 
 table {

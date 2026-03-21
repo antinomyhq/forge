@@ -114,10 +114,32 @@ impl ToolCallFull {
         let mut current_arguments = String::new();
         let mut current_thought_signature: Option<String> = None;
 
+        // GLM model workaround: Track the last valid tool name and call_id
+        // GLM sends malformed tool calls where subsequent chunks have:
+        // - New/different call_id
+        // - Empty name
+        // - Partial arguments
+        // We need to associate these with the last tool call that had a valid name
+        let mut last_valid_tool_name: Option<ToolName> = None;
+        let mut last_valid_call_id: Option<ToolCallId> = None;
+
         for part in parts.iter() {
-            // If we encounter a new call_id that's different from the current one,
-            // finalize the previous tool call
-            if let Some(new_call_id) = &part.call_id {
+            // Check if this part has a valid tool name
+            let has_valid_name = part.name.as_ref().is_some_and(|n| !n.as_str().is_empty());
+
+            // GLM workaround: Detect GLM-style fragmented tool call
+            // Pattern: empty name + non-empty args + different call_id = continuation of
+            // previous tool
+            let is_glm_fragment = !has_valid_name
+                && !part.arguments_part.is_empty()
+                && last_valid_tool_name.is_some()
+                && last_valid_call_id.is_some();
+
+            if is_glm_fragment {
+                // Don't change current_call_id or current_tool_name
+                // Just accumulate arguments for the existing tool
+            } else if let Some(new_call_id) = &part.call_id {
+                // Normal OpenAI-style handling
                 if let Some(ref existing_call_id) = current_call_id
                     && existing_call_id.as_str() != new_call_id.as_str()
                 {
@@ -146,6 +168,11 @@ impl ToolCallFull {
                 && !name.as_str().is_empty()
             {
                 current_tool_name = Some(name.clone());
+                last_valid_tool_name = Some(name.clone());
+                // When we get a valid name, use the current call_id as the last valid one
+                if let Some(ref cid) = current_call_id {
+                    last_valid_call_id = Some(cid.clone());
+                }
             }
 
             // Capture thought_signature from the first part that has it

@@ -7,7 +7,7 @@ use forge_app::domain::{
 };
 use forge_domain::{BoxStream, ResultStream};
 use futures::StreamExt;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 
 use crate::provider::IntoDomain;
 
@@ -17,6 +17,10 @@ use crate::provider::IntoDomain;
 /// `keepalive` heartbeat events in the stream. These events are not part of
 /// `async_openai`'s `ResponseStreamEvent` enum, so we model them here to avoid
 /// failing the entire stream.
+///
+/// Cost-bearing `ping` events from proxy servers (e.g. opencode.ai) are
+/// captured and forwarded as usage data. Other unknown events are silently
+/// ignored, matching the approach used by the Google and Anthropic providers.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub(super) enum ResponsesStreamEvent {
@@ -27,9 +31,56 @@ pub(super) enum ResponsesStreamEvent {
         sequence_number: u64,
     },
 
+    /// Cost-bearing heartbeat event sent by some proxies (e.g. opencode.ai).
+    ///
+    /// Example payload: `{"type":"ping","cost":"0.00675010"}`
+    #[serde(rename = "ping")]
+    Ping {
+        #[serde(deserialize_with = "deserialize_string_or_f64")]
+        cost: f64,
+    },
+
     /// Any standard OpenAI Responses API streaming event.
     #[serde(untagged)]
     Response(Box<oai::ResponseStreamEvent>),
+
+    /// Catch-all for any other unrecognised events. Silently ignored at the
+    /// stream level.
+    #[serde(untagged)]
+    Unknown(#[allow(dead_code)] serde_json::Value),
+}
+
+/// Deserializes a value that may be either a JSON number or a numeric string
+/// into an `f64`.
+fn deserialize_string_or_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    match value {
+        serde_json::Value::Number(n) => n
+            .as_f64()
+            .ok_or_else(|| serde::de::Error::custom("cost number is not representable as f64")),
+        serde_json::Value::String(s) => s
+            .parse::<f64>()
+            .map_err(|e| serde::de::Error::custom(format!("invalid cost value: {e}"))),
+        other => Err(serde::de::Error::custom(format!(
+            "invalid cost type: expected number or string, got {other}"
+        ))),
+    }
+}
+
+/// Items that flow through the stream pipeline before final conversion to
+/// `ChatCompletionMessage`.
+///
+/// Most events are standard OpenAI Responses API events that go through the
+/// stateful `scan` conversion. Pre-resolved messages (e.g. from proxy `ping`
+/// events carrying cost) bypass the scan and are passed through directly.
+pub(super) enum StreamItem {
+    /// A standard OpenAI Responses API streaming event.
+    Event(Box<oai::ResponseStreamEvent>),
+    /// A pre-resolved message (e.g. cost from a proxy ping event).
+    Message(Box<ChatCompletionMessage>),
 }
 
 impl IntoDomain for oai::ResponseUsage {
@@ -165,15 +216,16 @@ struct CodexStreamState {
     received_toolcall_deltas: HashSet<ToolCallIndex>,
 }
 
-impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
+impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
     type Domain = ResultStream<ChatCompletionMessage, anyhow::Error>;
 
     fn into_domain(self) -> Self::Domain {
         Ok(Box::pin(
-            self.scan(CodexStreamState::default(), move |state, event| {
+            self.scan(CodexStreamState::default(), move |state, item| {
                 futures::future::ready({
-                    let item = match event {
-                        Ok(event) => match event {
+                    let item = match item {
+                        Ok(StreamItem::Message(msg)) => Some(Ok(*msg)),
+                        Ok(StreamItem::Event(event)) => match *event {
                             oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => Some(Ok(
                                 ChatCompletionMessage::assistant(Content::part(delta.delta)),
                             )),
@@ -353,9 +405,8 @@ mod tests {
 
     // Type alias for ResponseStream in tests since it's not provided by
     // response-types
-    type ResponseStream = std::pin::Pin<
-        Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>,
-    >;
+    type ResponseStream =
+        std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<StreamItem>> + Send>>;
     use forge_app::domain::{Content, FinishReason, Reasoning, ReasoningFull, TokenCount, Usage};
     use forge_domain::{ChatCompletionMessage as Message, ToolCallId, ToolName};
     use tokio_stream::StreamExt;
@@ -363,6 +414,12 @@ mod tests {
     use super::*;
 
     // ============== Common Fixtures ==============
+
+    /// Wraps an `oai::ResponseStreamEvent` into a `StreamItem::Event` result
+    /// for use in test streams.
+    fn event(e: oai::ResponseStreamEvent) -> anyhow::Result<StreamItem> {
+        Ok(StreamItem::Event(Box::new(e)))
+    }
 
     fn fixture_response_usage() -> oai::ResponseUsage {
         oai::ResponseUsage {
@@ -840,7 +897,7 @@ mod tests {
     async fn test_stream_with_output_text_delta() -> anyhow::Result<()> {
         let delta = fixture_delta_text("hello");
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseOutputTextDelta(delta),
         )]));
 
@@ -856,7 +913,7 @@ mod tests {
     async fn test_stream_with_reasoning_text_delta() -> anyhow::Result<()> {
         let delta = fixture_delta_reasoning_text("thinking...");
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseReasoningTextDelta(delta),
         )]));
 
@@ -880,7 +937,7 @@ mod tests {
     async fn test_stream_with_reasoning_summary_text_delta() -> anyhow::Result<()> {
         let delta = fixture_delta_reasoning_summary("summary...");
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(delta),
         )]));
 
@@ -904,7 +961,7 @@ mod tests {
     async fn test_stream_with_function_call_added_with_arguments() -> anyhow::Result<()> {
         let added = fixture_function_call_added("call_123", "shell", r#"{"cmd":"echo"}"#);
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
         )]));
 
@@ -931,7 +988,7 @@ mod tests {
     async fn test_stream_with_function_call_added_without_arguments() -> anyhow::Result<()> {
         let added = fixture_function_call_added("call_123", "shell", "");
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
         )]));
 
@@ -948,7 +1005,7 @@ mod tests {
     async fn test_stream_with_reasoning_added() -> anyhow::Result<()> {
         let added = fixture_reasoning_added();
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
         )]));
 
@@ -967,8 +1024,8 @@ mod tests {
         let delta = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"}"#);
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
+            event(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -994,7 +1051,7 @@ mod tests {
     async fn test_stream_with_function_call_arguments_delta_unknown_index() -> anyhow::Result<()> {
         let delta = fixture_function_call_arguments_delta(999, r#"{"cmd":"echo"}"#);
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta),
         )]));
 
@@ -1025,7 +1082,7 @@ mod tests {
             arguments: r#"{"cmd":"echo hi"}"#.to_string(),
         };
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done),
         )]));
 
@@ -1062,9 +1119,9 @@ mod tests {
         };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+            event(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
                 done,
             )),
         ]));
@@ -1090,7 +1147,7 @@ mod tests {
         let response = fixture_response_with_text("Final message");
         let completed = oai::ResponseCompletedEvent { sequence_number: 2, response };
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseCompleted(completed),
         )]));
 
@@ -1109,7 +1166,7 @@ mod tests {
         let response = fixture_response_incomplete("Partial message");
         let incomplete = oai::ResponseIncompleteEvent { sequence_number: 2, response };
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseIncomplete(incomplete),
         )]));
 
@@ -1128,7 +1185,7 @@ mod tests {
         let response = fixture_response_failed();
         let failed = oai::ResponseFailedEvent { sequence_number: 2, response };
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseFailed(failed),
         )]));
 
@@ -1150,7 +1207,7 @@ mod tests {
     async fn test_stream_with_response_error() -> anyhow::Result<()> {
         let error = fixture_response_error_event();
 
-        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([event(
             oai::ResponseStreamEvent::ResponseError(error),
         )]));
 
@@ -1170,8 +1227,8 @@ mod tests {
         let completed = oai::ResponseCompletedEvent { sequence_number: 2, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta)),
-            Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
+            event(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta)),
+            event(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -1196,9 +1253,9 @@ mod tests {
         let delta2 = fixture_function_call_arguments_delta(0, r#" hi"}"#);
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta1)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta2)),
+            event(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta1)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta2)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -1254,10 +1311,10 @@ mod tests {
         let completed = oai::ResponseCompletedEvent { sequence_number: 4, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta1)),
-            Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta2)),
-            Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta3)),
-            Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
+            event(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta1)),
+            event(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta2)),
+            event(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta3)),
+            event(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -1306,16 +1363,16 @@ mod tests {
         let completed = oai::ResponseCompletedEvent { sequence_number: 4, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseReasoningTextDelta(
+            event(oai::ResponseStreamEvent::ResponseReasoningTextDelta(
                 reasoning_delta1,
             )),
-            Ok(oai::ResponseStreamEvent::ResponseReasoningTextDelta(
+            event(oai::ResponseStreamEvent::ResponseReasoningTextDelta(
                 reasoning_delta2,
             )),
-            Ok(oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(
+            event(oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(
                 summary_delta,
             )),
-            Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
+            event(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -1373,10 +1430,10 @@ mod tests {
         let completed = oai::ResponseCompletedEvent { sequence_number: 4, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta1)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta2)),
-            Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
+            event(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta1)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta2)),
+            event(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
@@ -1433,11 +1490,37 @@ mod tests {
     }
 
     #[test]
-    fn test_responses_stream_event_rejects_unknown_type() {
+    fn test_responses_stream_event_ignores_unknown_type() {
         let fixture = r#"{"type":"totally_unknown_event","sequence_number":1}"#;
-        let actual = serde_json::from_str::<ResponsesStreamEvent>(fixture);
+        let actual: ResponsesStreamEvent = serde_json::from_str(fixture).unwrap();
 
-        assert!(actual.is_err());
+        assert!(matches!(actual, ResponsesStreamEvent::Unknown(_)));
+    }
+
+    #[test]
+    fn test_responses_stream_event_deserializes_ping_with_cost() {
+        let fixture = r#"{"type":"ping","cost":"0.00675010"}"#;
+        let actual: ResponsesStreamEvent = serde_json::from_str(fixture).unwrap();
+
+        match actual {
+            ResponsesStreamEvent::Ping { cost } => {
+                assert!((cost - 0.00675010).abs() < f64::EPSILON);
+            }
+            other => panic!("Expected Ping, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_responses_stream_event_deserializes_ping_with_numeric_cost() {
+        let fixture = r#"{"type":"ping","cost":0.123}"#;
+        let actual: ResponsesStreamEvent = serde_json::from_str(fixture).unwrap();
+
+        match actual {
+            ResponsesStreamEvent::Ping { cost } => {
+                assert!((cost - 0.123).abs() < f64::EPSILON);
+            }
+            other => panic!("Expected Ping, got {:?}", other),
+        }
     }
 
     /// Simulates the Spark model's streaming pattern: function call arguments
@@ -1486,11 +1569,11 @@ mod tests {
         let completed = oai::ResponseCompletedEvent { sequence_number: 7, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
-            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
+            event(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            event(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(
                 done,
             )),
-            Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
+            event(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;

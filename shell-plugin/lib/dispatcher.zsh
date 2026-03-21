@@ -10,6 +10,7 @@
 function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
+    local command_type=""
     
     # Validate that the command exists in show-commands (if user_action is provided)
     if [[ -n "$user_action" ]]; then
@@ -25,7 +26,7 @@ function _forge_action_default() {
             
             # Extract the command type from the second field (TYPE column)
             # Format: "COMMAND_NAME    TYPE    DESCRIPTION"
-            local command_type=$(echo "$command_row" | awk '{print $2}')
+            command_type=$(echo "$command_row" | awk '{print $2}')
             # Case-insensitive comparison using :l (lowercase) modifier
             if [[ "${command_type:l}" == "custom" ]]; then
                 # Generate conversation ID if needed (don't track previous for auto-generation)
@@ -47,9 +48,14 @@ function _forge_action_default() {
         fi
     fi
     
-    # If input_text is empty, just set the active agent (only if user explicitly specified one)
+    # If input_text is empty, just set the active agent (only for AGENT type commands)
     if [[ -z "$input_text" ]]; then
         if [[ -n "$user_action" ]]; then
+            if [[ "${command_type:l}" != "agent" ]]; then
+                echo
+                _forge_log error "Command '\033[1m${user_action}\033[0m' not found"
+                return 0
+            fi
             echo
             # Set the agent in the local variable
             _FORGE_ACTIVE_AGENT="$user_action"
@@ -163,8 +169,14 @@ function forge-accept-line() {
         config-provider|provider|p)
             _forge_action_provider "$input_text"
         ;;
-        config-model|model|m)
+        config-model|cm)
             _forge_action_model "$input_text"
+        ;;
+        model|m)
+            _forge_action_session_model "$input_text"
+        ;;
+        model-reset|mr)
+            _forge_action_model_reset
         ;;
         config-commit-model|ccm)
             _forge_action_commit_model "$input_text"
