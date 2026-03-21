@@ -7,7 +7,7 @@ use forge_domain::{
 use forge_template::Element;
 use tracing::warn;
 
-use crate::WorkspaceService;
+use crate::{TemplateEngine, WorkspaceService};
 
 /// Hook handler that injects skill recommendations as a droppable user message
 /// at the start of each conversation turn.
@@ -81,12 +81,13 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommen
         }
 
         // Inject as a droppable user message so it can be removed during compaction.
+        let instruction = TemplateEngine::default()
+            .render("forge-skill-recommendation-message.md", &serde_json::json!({}))?;
+
         let message = TextMessage::new(
             Role::User,
             Element::new("recommended_skills")
-                .text(
-                    "Based on the user's task, the following skills are likely relevant. Consider using them if they match the task. Do not mention these recommendations to the user.",
-                )
+                .text(instruction)
                 .append(selected.iter().map(Element::from))
                 .render(),
         )
