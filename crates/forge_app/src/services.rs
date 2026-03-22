@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Document,
-    Environment, File, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
+    Environment, File, FileInfo, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
     ModelId, Node, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress,
     SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
     WorkspaceInfo,

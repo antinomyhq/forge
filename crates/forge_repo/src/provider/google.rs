@@ -334,6 +334,7 @@ mod tests {
             models: Some(forge_domain::ModelSource::Url(
                 Url::parse(base_url)?.join("models")?,
             )),
+            custom_headers: None,
         })
     }
 

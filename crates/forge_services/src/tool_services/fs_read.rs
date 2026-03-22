@@ -165,10 +165,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
                 return Ok(ReadOutput {
                     content: Content::document(document),
-                    start_line: 0,
-                    end_line: 0,
-                    total_lines: 0,
-                    content_hash: hash,
+                    info: FileInfo::new(0, 0, 0, hash),
                 });
             }
 

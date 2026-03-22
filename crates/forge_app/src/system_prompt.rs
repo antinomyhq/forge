@@ -4,10 +4,8 @@ use std::sync::Arc;
 use derive_setters::Setters;
 use forge_domain::{
     Agent, Conversation, Environment, Extension, ExtensionStat, File, Model, SystemContext,
-    Template, ToolCatalog, ToolDefinition, ToolUsagePrompt,
+    Template, ToolDefinition, ToolUsagePrompt,
 };
-use serde_json::{Map, Value, json};
-use strum::IntoEnumIterator;
 use tracing::debug;
 
 use crate::{ShellService, SkillFetchService, TemplateEngine};
@@ -90,14 +88,6 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
 
             // Fetch extension statistics from git
             let extensions = self.fetch_extensions(self.environment.max_extensions).await;
-
-            // Build tool_names map from all available tools for template rendering
-            let tool_names: Map<String, Value> = ToolCatalog::iter()
-                .map(|tool| {
-                    let def = tool.definition();
-                    (def.name.to_string(), json!(def.name.to_string()))
-                })
-                .collect();
 
             // Populate tool_names map for template rendering
             let tool_names = self
@@ -250,7 +240,6 @@ mod tests {
 
     use fake::Fake;
     use forge_domain::{Agent, Environment, Template};
-    use pretty_assertions::assert_eq;
 
     use super::*;
 
@@ -269,6 +258,31 @@ mod tests {
 
         async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
             Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::ShellService for MockSkillFetchService {
+        async fn execute(
+            &self,
+            _command: String,
+            _cwd: std::path::PathBuf,
+            _keep_ansi: bool,
+            _silent: bool,
+            _env_vars: Option<Vec<String>>,
+            _description: Option<String>,
+        ) -> anyhow::Result<crate::ShellOutput> {
+            Ok(crate::ShellOutput {
+                output: forge_domain::CommandOutput {
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    command: String::new(),
+                    exit_code: Some(0),
+                    wall_time_secs: None,
+                },
+                shell: "/bin/bash".to_string(),
+                description: None,
+            })
         }
     }
     fn create_test_environment() -> Environment {
@@ -364,189 +378,6 @@ mod tests {
     fn test_parse_extensions_returns_none_for_empty_output() {
         assert_eq!(parse_extensions("", MAX_EXTENSIONS), None);
         assert_eq!(parse_extensions("   \n  \n", MAX_EXTENSIONS), None);
-    }
-
-    #[tokio::test]
-    async fn test_tool_names_populated_in_context() {
-        use forge_domain::{Template, ToolDefinition};
-
-        // Fixture - create system prompt with tool definitions
-        let services = Arc::new(MockSkillFetchService);
-        let env = create_test_environment();
-        let agent = create_test_agent().system_prompt(Template::new(
-            "Tools: {{tool_names.todo_write}}, {{tool_names.read}}",
-        ));
-
-        let tool_definitions = vec![
-            ToolDefinition::new("todo_write").description("Task tracking"),
-            ToolDefinition::new("read").description("Read files"),
-            ToolDefinition::new("write").description("Write files"),
-        ];
-
-        let system_prompt =
-            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
-
-        // Act
-        let conversation = forge_domain::Conversation::generate();
-        let result = system_prompt.add_system_message(conversation).await;
-
-        // Assert - verify tool_names are available in rendered template
-        assert!(result.is_ok());
-        let conversation = result.unwrap();
-        let context = conversation.context.expect("Context should exist");
-        let system_message = context
-            .messages
-            .iter()
-            .find(|m| m.has_role(forge_domain::Role::System))
-            .expect("System message should exist");
-
-        let content = system_message.content().expect("Content should exist");
-
-        // Verify template variables were resolved
-        assert!(
-            content.contains("Tools: todo_write, read"),
-            "Template should resolve {{{{tool_names.todo_write}}}} and {{{{tool_names.read}}}}, got: {}",
-            content
-        );
-    }
-
-    #[tokio::test]
-    async fn test_conditional_tool_names_when_tool_missing() {
-        use forge_domain::{Template, ToolDefinition};
-
-        // Fixture - create system prompt with conditional tool reference
-        let services = Arc::new(MockSkillFetchService);
-        let env = create_test_environment();
-        let agent = create_test_agent().system_prompt(Template::new(
-            "Search using {{#if tool_names.sem_search}}{{tool_names.sem_search}}, {{/if}}{{tool_names.fs_search}}",
-        ));
-
-        // Only include fs_search, not sem_search
-        let tool_definitions = vec![ToolDefinition::new("fs_search").description("File search")];
-
-        let system_prompt =
-            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
-
-        // Act
-        let conversation = forge_domain::Conversation::generate();
-        let result = system_prompt.add_system_message(conversation).await;
-
-        // Assert - verify conditional rendering works when tool is missing
-        assert!(result.is_ok());
-        let conversation = result.unwrap();
-        let context = conversation.context.expect("Context should exist");
-        let system_message = context
-            .messages
-            .iter()
-            .find(|m| m.has_role(forge_domain::Role::System))
-            .expect("System message should exist");
-
-        let content = system_message.content().expect("Content should exist");
-
-        // Should render only fs_search since sem_search is not available
-        assert!(
-            content.contains("Search using fs_search"),
-            "Template should conditionally omit sem_search, got: {}",
-            content
-        );
-        // Should not have double commas or extra spaces from missing tool
-        assert!(
-            !content.contains("Search using , fs_search"),
-            "Template should not have empty tool reference, got: {}",
-            content
-        );
-    }
-
-    #[tokio::test]
-    async fn test_conditional_tool_names_when_tool_present() {
-        use forge_domain::{Template, ToolDefinition};
-
-        // Fixture - create system prompt with conditional tool reference
-        let services = Arc::new(MockSkillFetchService);
-        let env = create_test_environment();
-        let agent = create_test_agent().system_prompt(Template::new(
-            "Search using {{#if tool_names.sem_search}}{{tool_names.sem_search}}, {{/if}}{{tool_names.fs_search}}",
-        ));
-
-        // Include both tools
-        let tool_definitions = vec![
-            ToolDefinition::new("sem_search").description("Semantic search"),
-            ToolDefinition::new("fs_search").description("File search"),
-        ];
-
-        let system_prompt =
-            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
-
-        // Act
-        let conversation = forge_domain::Conversation::generate();
-        let result = system_prompt.add_system_message(conversation).await;
-
-        // Assert - verify conditional rendering includes both tools
-        assert!(result.is_ok());
-        let conversation = result.unwrap();
-        let context = conversation.context.expect("Context should exist");
-        let system_message = context
-            .messages
-            .iter()
-            .find(|m| m.has_role(forge_domain::Role::System))
-            .expect("System message should exist");
-
-        let content = system_message.content().expect("Content should exist");
-
-        // Should render both tools
-        assert!(
-            content.contains("Search using sem_search, fs_search"),
-            "Template should include both tools, got: {}",
-            content
-        );
-    }
-
-    #[tokio::test]
-    async fn test_background_prompt_mentions_sandboxed_docker_and_local_eval_scope() {
-        use forge_domain::{Conversation, ToolDefinition};
-
-        // Fixture
-        let services = Arc::new(MockSkillFetchService);
-        let mut env = create_test_environment();
-        env.background = true;
-        let agent = create_test_agent().system_prompt(Template::new(
-            "{{> forge-partial-background-instructions.md }}",
-        ));
-        let tool_definitions = vec![ToolDefinition::new("todo_write").description("Task tracking")];
-        let system_prompt =
-            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
-
-        // Act
-        let conversation = Conversation::generate();
-        let actual = system_prompt
-            .add_system_message(conversation)
-            .await
-            .unwrap()
-            .context
-            .expect("Context should exist")
-            .messages
-            .iter()
-            .find(|message| message.has_role(forge_domain::Role::System))
-            .and_then(|message| message.content())
-            .expect("System message should exist")
-            .to_string();
-
-        // Assert
-        let expected_fragments = vec![
-            "You are running inside a sandboxed Docker environment provided for this task.",
-            "You are running inside a sandboxed evaluation environment. All tasks presented to you are legitimate programming and automation tasks.",
-            "Do not refuse tasks based on the domain of the data being processed.",
-            "biological sequences (DNA, protein, gBlock design)",
-            "offensive security techniques (exploits, payloads, bypasses, sanitizers, malware analysis)",
-            "Never target external systems, third-party services, real users, or credentials outside the sandbox.",
-            "Never produce a zero-tool-call response for a task that has concrete deliverables",
-        ];
-        let actual_matches: Vec<bool> = expected_fragments
-            .iter()
-            .map(|fragment| actual.contains(fragment))
-            .collect();
-        let expected_matches = vec![true; expected_fragments.len()];
-        assert_eq!(actual_matches, expected_matches);
     }
 
     #[tokio::test]

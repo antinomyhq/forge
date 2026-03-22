@@ -282,6 +282,7 @@ impl ShellService for Runner {
                     stderr: String::new(),
                     command: String::new(),
                     exit_code: Some(1),
+                    wall_time_secs: None,
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,

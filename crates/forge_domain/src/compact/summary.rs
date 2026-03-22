@@ -213,8 +213,6 @@ pub enum TodoChangeKind {
 pub struct TodoChange {
     pub todo: Todo,
     pub kind: TodoChangeKind,
-    TodoWrite { todos: Vec<crate::Todo> },
-    Lsp { operation: String, path: String },
 }
 
 impl From<&Context> for ContextSummary {

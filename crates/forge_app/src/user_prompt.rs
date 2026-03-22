@@ -509,6 +509,7 @@ mod tests {
             agent.clone(),
             event,
             chrono::Local::now(),
+            fixture_env(),
         );
 
         // Execute
@@ -575,6 +576,7 @@ mod tests {
             agent.clone(),
             event,
             chrono::Local::now(),
+            fixture_env(),
         );
 
         // Execute

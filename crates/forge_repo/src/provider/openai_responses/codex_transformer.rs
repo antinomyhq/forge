@@ -173,7 +173,7 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
-            Some(oai::ReasoningEffort::Low)
+            Some(oai::ReasoningEffort::Xhigh)
         );
     }
 

@@ -8,7 +8,7 @@ use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
 
 /// Formats todos as markdown checkboxes for context injection
-fn format_todos_for_context(todos: &[forge_domain::Todo]) -> String {
+fn format_todos_for_context(todos: &[forge_domain::TodoItem]) -> String {
     use forge_domain::TodoStatus;
 
     let mut result = String::new();
@@ -18,11 +18,12 @@ fn format_todos_for_context(todos: &[forge_domain::Todo]) -> String {
             TodoStatus::Completed => "[x]",
             TodoStatus::InProgress => "[~]",
             TodoStatus::Pending => "[ ]",
+            TodoStatus::Cancelled => "[-]",
         };
 
         result.push_str(&format!(
-            "{} {} (id: {})\n",
-            checkbox, todo.content, todo.id
+            "{} {}\n",
+            checkbox, todo.content
         ));
     }
 
@@ -762,8 +763,12 @@ mod tests {
             Todo::new("Task 3").id("3").status(TodoStatus::Completed),
         ];
 
-        // Create a tool call for todo_write
-        let todo_tool_call = ToolCatalog::tool_call_todo_write(todos.clone());
+        // Create a tool call for todo_write (convert Todo -> TodoItem)
+        let todo_items: Vec<forge_domain::TodoItem> = todos
+            .iter()
+            .map(|t| forge_domain::TodoItem { content: t.content.clone(), status: t.status.clone() })
+            .collect();
+        let todo_tool_call = ToolCatalog::tool_call_todo_write(todo_items);
 
         // Create context with todo_write call in the compaction sequence
         let context = Context::default()
@@ -811,9 +816,9 @@ mod tests {
             .unwrap();
 
         if let ContextMessage::Text(text_msg) = &todo_message.message {
-            assert!(text_msg.content.contains("[ ] Task 1 (id: 1)"));
-            assert!(text_msg.content.contains("[~] Task 2 (id: 2)"));
-            assert!(text_msg.content.contains("[x] Task 3 (id: 3)"));
+            assert!(text_msg.content.contains("[ ] Task 1"));
+            assert!(text_msg.content.contains("[~] Task 2"));
+            assert!(text_msg.content.contains("[x] Task 3"));
         }
     }
 }

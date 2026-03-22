@@ -470,8 +470,8 @@ async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls_on_nex
 
     assert_eq!(
         assistant_with_tool_call_indices.len(),
-        4,
-        "Expected four assistant tool-call messages"
+        5,
+        "Expected five assistant tool-call messages: 4 original fs_read + 1 for verification skill"
     );
 
     let third_assistant_with_tool_call_index = assistant_with_tool_call_indices[2];

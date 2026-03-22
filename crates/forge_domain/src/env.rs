@@ -103,6 +103,11 @@ pub struct Environment {
     /// TTL in seconds for the model API list cache.
     /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
     pub model_cache_ttl: u64,
+    /// Whether the application is running in background (non-interactive) mode.
+    /// When true, the agent must not ask follow-up questions and should make
+    /// autonomous decisions. Controlled by FORGE_BACKGROUND environment
+    /// variable or --background CLI flag.
+    pub background: bool,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -125,11 +130,6 @@ impl FromStr for AutoDumpFormat {
             _ => Err(()),
         }
     }
-    /// Whether the application is running in background (non-interactive) mode.
-    /// When true, the agent must not ask follow-up questions and should make
-    /// autonomous decisions. Controlled by FORGE_BACKGROUND environment
-    /// variable or --background CLI flag.
-    pub background: bool,
 }
 
 impl Environment {
