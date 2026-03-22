@@ -164,7 +164,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4.1-2025-04-14",
@@ -173,7 +173,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4.1-mini",
@@ -182,7 +182,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4.1-mini-2025-04-14",
@@ -191,7 +191,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4.1-nano",
@@ -218,7 +218,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4o-2024-11-20",
@@ -227,7 +227,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4o-2024-08-06",
@@ -236,7 +236,7 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-4o-2024-05-13",
@@ -493,7 +493,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.4-2026-03-05",
@@ -1983,7 +1983,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.4",
@@ -2096,7 +2096,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "claude-opus-4-5",
@@ -2178,7 +2178,6 @@
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
       },
-
       {
         "id": "gemini-3-flash",
         "name": "Gemini 3 Flash",
@@ -2227,7 +2226,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.2",
@@ -2237,7 +2236,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.2-codex",
@@ -2247,7 +2246,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.1",
@@ -2267,7 +2266,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.1-codex",
@@ -2277,7 +2276,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.1-codex-mini",
@@ -2287,7 +2286,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5",
@@ -2349,7 +2348,6 @@
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
       },
-
       {
         "id": "mimo-v2-flash-free",
         "name": "MiMo V2 Flash Free",
@@ -2370,7 +2368,6 @@
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
       },
-
       {
         "id": "trinity-large-preview-free",
         "name": "Trinity Large Preview Free",
