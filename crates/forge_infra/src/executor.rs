@@ -40,11 +40,11 @@ impl ForgeCommandExecutorService {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
         let shell = if self.restricted && !is_windows {
-            crate::env::resolve_shell("rbash")
+            "bash"
         } else {
-            self.env.shell.clone()
+            self.env.shell.as_str()
         };
-        let mut command = Command::new(&shell);
+        let mut command = Command::new(shell);
 
         // Core color settings for general commands
         command
