@@ -16,7 +16,7 @@ Generate and run adversarial tests after the solution passes basic correctness c
 
 Invoke this skill after:
 - Basic tests pass (the "happy path" works)
-- Before running verification-specialist
+- When chained from verification-specialist's Step 4 (Edge-Case Gate)
 - Especially for: algorithms, distributed systems, parsers, regex engines, optimization, numerical code
 
 ## 1. Input Range Sweep

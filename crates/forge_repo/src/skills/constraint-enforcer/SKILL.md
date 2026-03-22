@@ -59,7 +59,6 @@ When the task says "write X", "implement X", or "create X":
    grep -r "exec\|system\|popen\|subprocess\|/app/" your_solution
    ```
 3. **Chroot test** (if feasible): Copy your binary to an empty directory and run it. If it fails because it depends on task-provided files, it's not self-contained.
-4. **Read the verifier** (if discoverable): Some tasks include test scripts. Read them to understand what isolation they use (chroot, strace, etc.).
 
 ## Step 4 -- Remediation
 
