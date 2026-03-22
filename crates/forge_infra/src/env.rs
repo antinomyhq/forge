@@ -16,8 +16,8 @@ impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with specified working directory
     ///
     /// # Arguments
-    /// * `restricted` - If true, use restricted shell mode (bash) If false,
-    ///   use unrestricted shell mode (sh/bash)
+    /// * `restricted` - If true, use restricted shell mode (bash) If false, use
+    ///   unrestricted shell mode (sh/bash)
     /// * `cwd` - Required working directory path
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         Self::dot_env(&cwd);
@@ -895,5 +895,4 @@ SIMPLE=value"#;
             env::remove_var("TEST_STRING");
         }
     }
-
 }
