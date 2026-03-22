@@ -90,6 +90,24 @@ Output the final matrix as completion proof.
 
 ---
 
+## Step 4 — Edge-Case Gate
+
+Before declaring complete, check whether the task matches ANY of these patterns:
+
+- Task specifies **multiple parameter values** (world_size, matrix sizes, num_workers, batch_size)
+- Task asks to **find ALL** valid answers (all moves, all solutions, all matches)
+- Task has **ambiguous inputs** (visual character decoding, format variations, encoding differences)
+- Task involves **distributed/parallel** execution (tensor parallelism, pipeline parallelism, multiprocessing)
+- Task has a **performance requirement** across multiple input sizes (must be faster for ALL sizes)
+- Task involves **regex, parsers, or compression** where boundary inputs cause failures
+- Task involves **embedding models, text similarity, or retrieval** (cosine similarity, nearest-neighbor search, ranking)
+
+If **any** pattern matches: invoke the `edge-case-tester` skill now and run its full checklist before completing. Do not skip this — the verifier tests the full parameter range even if your local tests only checked the trivial case.
+
+If the task involves **embedding models or retrieval**: also invoke the `ml-model-debugging` skill — it contains model-specific encoding requirements (e.g., BGE models require query instruction prefixes that change rankings).
+
+---
+
 ## Failure Patterns to Avoid
 
 - **Vague Verification**: "Check the output looks right" is not verification. Use executable commands with pass/fail results.

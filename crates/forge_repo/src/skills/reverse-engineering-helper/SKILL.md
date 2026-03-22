@@ -115,3 +115,5 @@ For multi-stage pipelines:
 - **Magic numbers/headers**: Many formats start with magic bytes. Don't skip them.
 - **Off-by-one in sizes**: Does "length" include the null terminator? The header? Read the code carefully.
 - **Signed vs unsigned**: A byte value of 0xFF is 255 unsigned but -1 signed. This matters for arithmetic.
+- **Integer overflow emulation**: When reimplementing C code in Python/JS, C's 32-bit signed arithmetic wraps silently. Python integers are arbitrary-precision and NEVER overflow — this causes silent divergence on large inputs. Always emulate C overflow: use `ctypes.c_int32(value).value` or `((value + 2**31) % 2**32) - 2**31` for every multiplication and addition in the hot loop. **Test your emulation**: run both the C binary and your reimplementation on the same 1000+ byte input and compare byte-for-byte BEFORE scaling up.
+- **EOF/padding semantics**: C code reading from stdin returns EOF (-1) after the last byte. Python `sys.stdin.buffer.read()` returns empty bytes. If the C code's behavior depends on reading past EOF (e.g., returning 0xFF or 0x00 for padding), replicate that exact behavior.
