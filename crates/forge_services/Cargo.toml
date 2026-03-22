@@ -33,7 +33,6 @@ glob.workspace = true
 grep-searcher.workspace = true
 grep-regex.workspace = true
 ignore.workspace = true
-rust-embed.workspace = true
 base64.workspace = true
 strum_macros.workspace = true
 strum.workspace = true
@@ -60,7 +59,7 @@ tonic.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 pretty_assertions.workspace = true
 tempfile.workspace = true
-fake = { version = "4.4.0", features = ["derive"] }
+fake = { version = "5.1.0", features = ["derive"] }
 forge_test_kit.workspace = true
 
 

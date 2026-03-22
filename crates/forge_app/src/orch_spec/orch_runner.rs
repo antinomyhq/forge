@@ -2,26 +2,27 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, Hook,
     FinishReason, ProviderId, ToolCallArguments, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
-use rust_embed::Embed;
+use include_dir::{Dir, include_dir};
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
+use crate::hooks::DoomLoopDetector;
 use crate::hooks::verification_reminder::VERIFICATION_REMINDER;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
-use crate::{AgentService, AttachmentService, SkillFetchService, TemplateService};
+use crate::{
+    AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
+};
 
-#[derive(Embed)]
-#[folder = "../../templates/"]
-struct Templates;
+static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
 
 pub struct Runner {
     hb: Handlebars<'static>,
@@ -34,6 +35,9 @@ pub struct Runner {
     // Mock completions from the LLM (Each value is produced as an event in the stream)
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
 
+    // Mock shell command outputs
+    test_shell_outputs: Mutex<VecDeque<ShellOutput>>,
+
     attachments: Vec<Attachment>,
 }
 
@@ -43,8 +47,8 @@ impl Runner {
         hb.set_strict_mode(true);
         hb.register_escape_fn(no_escape);
 
-        // Register all partial templates
-        hb.register_embed_templates::<Templates>().unwrap();
+        // Register all embedded templates from the templates directory
+        forge_embed::register_templates(&mut hb, &TEMPLATE_DIR);
         for (name, tpl) in &setup.templates {
             hb.register_template_string(name, tpl).unwrap();
         }
@@ -55,6 +59,7 @@ impl Runner {
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
+            test_shell_outputs: Mutex::new(VecDeque::from(setup.mock_shell_outputs.clone())),
         }
     }
 
@@ -70,6 +75,11 @@ impl Runner {
             let mut responses = Vec::new();
 
             while let Some(item) = rx.recv().await {
+                // Simulate what the real UI does: acknowledge ToolCallStart so
+                // the orchestrator can proceed with tool execution.
+                if let Ok(ChatResponse::ToolCallStart { ref notifier, .. }) = item {
+                    notifier.notify_one();
+                }
                 responses.push(item);
             }
 
@@ -112,6 +122,9 @@ impl Runner {
         let orch = Orchestrator::new(services.clone(), setup.env.clone(), conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
+            .hook(Arc::new(
+                Hook::default().on_request(DoomLoopDetector::default()),
+            ))
             .sender(tx);
 
         let (mut orch, runner) = (orch, services);
@@ -245,5 +258,34 @@ impl SkillFetchService for Runner {
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         Ok(vec![])
+    }
+}
+
+#[async_trait::async_trait]
+impl ShellService for Runner {
+    async fn execute(
+        &self,
+        _command: String,
+        _cwd: std::path::PathBuf,
+        _keep_ansi: bool,
+        _silent: bool,
+        _env_vars: Option<Vec<String>>,
+        _description: Option<String>,
+    ) -> anyhow::Result<ShellOutput> {
+        let mut outputs = self.test_shell_outputs.lock().await;
+        if let Some(output) = outputs.pop_front() {
+            Ok(output)
+        } else {
+            Ok(ShellOutput {
+                output: forge_domain::CommandOutput {
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    command: String::new(),
+                    exit_code: Some(1),
+                },
+                shell: "/bin/bash".to_string(),
+                description: None,
+            })
+        }
     }
 }

@@ -39,8 +39,10 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         use forge_domain::ProviderId;
 
-        if provider.id == ProviderId::CODEX {
-            // Codex uses the configured URL directly as the responses endpoint
+        if provider.id == ProviderId::CODEX || provider.id == ProviderId::OPENCODE_ZEN {
+            // Codex and OpenCode Zen use the configured URL directly as the
+            // responses endpoint (their URLs already contain the full path,
+            // e.g. `opencode.ai/zen/v1/responses`).
             let responses_url = provider.url.clone();
             let api_base = {
                 let mut base = provider.url.clone();
@@ -184,8 +186,19 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
 
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
+                                let usage =
+                                    forge_domain::Usage { cost: Some(cost), ..Default::default() };
+                                Some(Ok(super::response::StreamItem::Message(Box::new(
+                                    ChatCompletionMessage::assistant(forge_domain::Content::part(
+                                        "",
+                                    ))
+                                    .usage(usage),
+                                ))))
+                            }
+                            Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
-                                Some(Ok(*inner))
+                                Some(Ok(super::response::StreamItem::Event(inner)))
                             }
                             Err(_) => {
                                 // Skip events that can't be deserialized (e.g.
@@ -203,7 +216,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
 
         // Convert to domain messages using the existing conversion logic
         use crate::provider::IntoDomain;
-        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        let stream: BoxStream<super::response::StreamItem, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
     }
 
@@ -247,8 +260,19 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                         );
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
+                                let usage =
+                                    forge_domain::Usage { cost: Some(cost), ..Default::default() };
+                                Some(Ok(super::response::StreamItem::Message(Box::new(
+                                    ChatCompletionMessage::assistant(forge_domain::Content::part(
+                                        "",
+                                    ))
+                                    .usage(usage),
+                                ))))
+                            }
+                            Ok(super::response::ResponsesStreamEvent::Unknown(_)) => None,
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
-                                Some(Ok(*inner))
+                                Some(Ok(super::response::StreamItem::Event(inner)))
                             }
                             Err(_) => {
                                 // Skip events that can't be deserialized (e.g.
@@ -258,13 +282,27 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             }
                         }
                     }
-                    Err(e) => Some(Err(anyhow::anyhow!("SSE parse error: {}", e))),
+                    Err(e) => Some(Err(into_sse_parse_error(e))),
                 }
             });
 
         use crate::provider::IntoDomain;
-        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        let stream: BoxStream<super::response::StreamItem, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
+    }
+}
+
+fn into_sse_parse_error<E>(error: eventsource_stream::EventStreamError<E>) -> anyhow::Error
+where
+    E: std::fmt::Debug + std::fmt::Display + Send + Sync + 'static,
+{
+    let is_retryable = matches!(&error, eventsource_stream::EventStreamError::Transport(_));
+    let error = anyhow::anyhow!("SSE parse error: {}", error);
+
+    if is_retryable {
+        forge_domain::Error::Retryable(error).into()
+    } else {
+        error
     }
 }
 
@@ -339,10 +377,41 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponsesResponseRepositor
         })))
     }
 
-    async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        // Codex models don't support model listing via the Responses API
-        // Return empty list or hardcoded models
-        Ok(vec![])
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        match provider.models().cloned() {
+            Some(forge_domain::ModelSource::Hardcoded(models)) => Ok(models),
+            Some(forge_domain::ModelSource::Url(url)) => {
+                let provider_client = OpenAIResponsesProvider::new(provider, self.infra.clone());
+                let headers = create_headers(provider_client.get_headers());
+                let response = self
+                    .infra
+                    .http_get(&url, Some(headers))
+                    .await
+                    .with_context(|| format_http_context(None, "GET", &url))
+                    .with_context(|| "Failed to fetch models")?;
+
+                let status = response.status();
+                let ctx_message = format_http_context(Some(status), "GET", &url);
+                let response_text = response
+                    .text()
+                    .await
+                    .with_context(|| ctx_message.clone())
+                    .with_context(|| "Failed to decode response into text")?;
+
+                if !status.is_success() {
+                    return Err(anyhow::anyhow!(response_text))
+                        .with_context(|| ctx_message)
+                        .with_context(|| "Failed to fetch models");
+                }
+
+                let data: forge_app::dto::openai::ListModelResponse =
+                    serde_json::from_str(&response_text)
+                        .with_context(|| format_http_context(None, "GET", &url))
+                        .with_context(|| "Failed to deserialize models response")?;
+                Ok(data.data.into_iter().map(Into::into).collect())
+            }
+            None => Ok(vec![]),
+        }
     }
 }
 
@@ -359,6 +428,12 @@ mod tests {
 
     use super::*;
     use crate::provider::mock_server::MockServer;
+
+    fn is_retryable(error: &anyhow::Error) -> bool {
+        error
+            .downcast_ref::<forge_domain::Error>()
+            .is_some_and(|error| matches!(error, forge_domain::Error::Retryable(_)))
+    }
 
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
         Some(forge_domain::AuthCredential {
@@ -377,6 +452,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(url).unwrap(),
             credential: make_credential(ProviderId::OPENAI, key),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -576,6 +652,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -626,6 +703,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -665,6 +743,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -680,6 +759,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: None,
+            custom_headers: None,
             auth_methods: vec![],
             url_params: vec![],
             models: None,
@@ -711,6 +791,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: make_credential(ProviderId::OPENAI, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::OAuthDevice(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse("https://example.com/auth").unwrap(),
@@ -750,6 +831,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: make_credential(ProviderId::OPENAI, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::OAuthCode(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse("https://example.com/auth").unwrap(),
@@ -782,6 +864,33 @@ mod tests {
     }
 
     #[test]
+    fn test_into_sse_parse_error_marks_transport_errors_retryable() {
+        let error = into_sse_parse_error(eventsource_stream::EventStreamError::Transport(
+            anyhow::anyhow!("error decoding response body"),
+        ));
+
+        assert!(is_retryable(&error));
+        assert_eq!(
+            error.to_string(),
+            "SSE parse error: Transport error: error decoding response body"
+        );
+    }
+
+    #[test]
+    fn test_into_sse_parse_error_keeps_utf8_errors_non_retryable() {
+        let error =
+            into_sse_parse_error(eventsource_stream::EventStreamError::<anyhow::Error>::Utf8(
+                String::from_utf8(vec![0xFF]).unwrap_err(),
+            ));
+
+        assert!(!is_retryable(&error));
+        assert_eq!(
+            error.to_string(),
+            "SSE parse error: UTF8 error: invalid utf-8 sequence of 1 bytes from index 0"
+        );
+    }
+
+    #[test]
     fn test_get_headers_without_credential() {
         let provider = Provider {
             id: ProviderId::OPENAI,
@@ -789,6 +898,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: None,
+            custom_headers: None,
             auth_methods: vec![],
             url_params: vec![],
             models: None,
@@ -809,6 +919,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1").unwrap(),
             credential: make_credential(ProviderId::OPENAI, "test-key"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::OAuthDevice(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse("https://example.com/auth").unwrap(),
@@ -852,6 +963,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::CodexDevice(
                 forge_domain::OAuthConfig {
                     auth_url: Url::parse(
@@ -928,6 +1040,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -947,6 +1060,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-token"),
+            custom_headers: None,
             auth_methods: vec![],
             url_params: vec![],
             models: None,
@@ -983,6 +1097,7 @@ mod tests {
             auth_methods: vec![],
             url_params: vec![],
             models: None,
+            custom_headers: None,
         };
 
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
@@ -1000,7 +1115,7 @@ mod tests {
 
         assert_eq!(
             repo.retry_config.retry_status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522, 499]
+            vec![429, 500, 502, 503, 504, 408, 522, 499, 520, 529]
         );
     }
 
@@ -1127,6 +1242,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&codex_url).unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -1207,6 +1323,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&codex_url).unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,
@@ -1254,6 +1371,7 @@ mod tests {
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&codex_url).unwrap(),
             credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            custom_headers: None,
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: None,

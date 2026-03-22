@@ -7,7 +7,7 @@ pub struct File {
 }
 
 /// Information about a file or file range read operation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FileInfo {
     /// Starting line position of the read operation
     pub start_line: u64,
@@ -17,12 +17,17 @@ pub struct FileInfo {
 
     /// Total number of lines in the file
     pub total_lines: u64,
+
+    /// SHA-256 hash of the **full** file content.
+    /// Stored so callers have a stable hash that matches what a subsequent
+    /// whole-file read produces (used by the external-change detector).
+    pub content_hash: String,
 }
 
 impl FileInfo {
-    /// Creates a new FileInfo with the specified parameters
-    pub fn new(start_line: u64, end_line: u64, total_lines: u64) -> Self {
-        Self { start_line, end_line, total_lines }
+    /// Creates a new FileInfo with the specified parameters.
+    pub fn new(start_line: u64, end_line: u64, total_lines: u64, content_hash: String) -> Self {
+        Self { start_line, end_line, total_lines, content_hash }
     }
 
     /// Returns true if this represents a partial file read
@@ -59,6 +64,8 @@ pub enum SyncStatus {
     New,
     /// File exists on server but not locally (deleted locally)
     Deleted,
+    /// File could not be read locally (e.g. permission error, binary file)
+    Failed,
 }
 
 /// Information about a file's sync status

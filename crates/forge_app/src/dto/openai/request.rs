@@ -42,6 +42,9 @@ pub struct Message {
     pub reasoning_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_opaque: Option<String>,
+    // kimi_k2 uses reasoning_content as flat string (similar to reasoning_text but aliased)
+    #[serde(skip_serializing_if = "Option::is_none", rename = "reasoning_content")]
+    pub reasoning_content: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_content: Option<ExtraContent>,
 }
@@ -333,6 +336,8 @@ pub struct Request {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<forge_domain::ReasoningConfig>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub max_completion_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<ThinkingConfig>,
@@ -461,6 +466,7 @@ impl From<Context> for Request {
             stream_options: Some(StreamOptions { include_usage: Some(true) }),
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
+            reasoning_effort: Default::default(),
             max_completion_tokens: Default::default(),
             thinking: Default::default(),
         }
@@ -512,6 +518,7 @@ impl From<ContextMessage> for Message {
                 }),
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: chat_message.thought_signature.map(ExtraContent::from),
             },
             ContextMessage::Tool(tool_result) => Message {
@@ -523,6 +530,7 @@ impl From<ContextMessage> for Message {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: None,
             },
             ContextMessage::Image(img) => {
@@ -539,6 +547,7 @@ impl From<ContextMessage> for Message {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    reasoning_content: None,
                     extra_content: None,
                 }
             }

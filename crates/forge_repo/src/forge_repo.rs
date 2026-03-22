@@ -54,7 +54,11 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
-    pub fn new(infra: Arc<F>) -> Self {
+    pub fn new(
+        infra: Arc<F>,
+        override_model: Option<forge_domain::ModelId>,
+        override_provider: Option<forge_domain::ProviderId>,
+    ) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -64,7 +68,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
+        let app_config_repository = Arc::new(
+            AppConfigRepositoryImpl::new(infra.clone())
+                .override_model(override_model)
+                .override_provider(override_provider),
+        );
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -289,7 +297,7 @@ where
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+    ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
         self.infra.read_batch_utf8(batch_size, paths)
     }
 
@@ -399,7 +407,7 @@ where
         self.infra.prompt_question(question).await
     }
 
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,
@@ -409,7 +417,7 @@ where
 
     async fn select_one_enum<T>(&self, message: &str) -> anyhow::Result<Option<T>>
     where
-        T: std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
+        T: Clone + std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
         <T as std::str::FromStr>::Err: std::fmt::Debug,
     {
         self.infra.select_one_enum(message).await

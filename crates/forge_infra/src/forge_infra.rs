@@ -64,7 +64,8 @@ impl ForgeInfra {
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
-        let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
+        let directory_reader_service =
+            Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
         let walker_service = Arc::new(ForgeWalkerService::new());
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
@@ -121,7 +122,7 @@ impl FileReaderInfra for ForgeInfra {
         &self,
         batch_size: usize,
         paths: Vec<PathBuf>,
-    ) -> impl futures::Stream<Item = anyhow::Result<Vec<(PathBuf, String)>>> + Send {
+    ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
         self.file_read_service.read_batch_utf8(batch_size, paths)
     }
 
@@ -218,7 +219,7 @@ impl UserInfra for ForgeInfra {
         self.inquire_service.prompt_question(question).await
     }
 
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,

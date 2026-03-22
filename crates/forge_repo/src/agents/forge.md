@@ -18,6 +18,8 @@ tools:
   - fetch
   - skill
   - todo_write
+  - todo_read
+  - lsp
   - mcp_*
 user_prompt: |-
   {{event.value}}

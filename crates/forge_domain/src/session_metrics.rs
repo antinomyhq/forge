@@ -4,8 +4,10 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 pub use crate::file_operation::FileOperation;
+use crate::{Todo, TodoItem, TodoStatus};
 
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
@@ -20,6 +22,11 @@ pub struct Metrics {
     /// Tracks all files that have been read in this session
     #[serde(default, skip_serializing_if = "HashSet::is_empty")]
     pub files_accessed: HashSet<String>,
+
+    /// Tracks all known todos for the session, including historical completed
+    /// todos that were removed from active updates.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub todos: Vec<Todo>,
 }
 
 impl Metrics {
@@ -35,10 +42,71 @@ impl Metrics {
     }
 
     /// Gets the session duration if tracking has started
-    /// Gets the session duration if tracking has started
     pub fn duration(&self, now: DateTime<Utc>) -> Option<Duration> {
         self.started_at
             .map(|start| (now - start).to_std().unwrap_or_default())
+    }
+
+    /// Returns todos currently in pending or in-progress states.
+    pub fn get_active_todos(&self) -> Vec<Todo> {
+        self.todos
+            .iter()
+            .filter(|todo| matches!(todo.status, TodoStatus::Pending | TodoStatus::InProgress))
+            .cloned()
+            .collect()
+    }
+
+    /// Returns all known todos, including historical completed todos.
+    pub fn get_todos(&self) -> &[Todo] {
+        &self.todos
+    }
+
+    /// Applies a list of todo changes using content as the matching key.
+    ///
+    /// For each incoming item:
+    /// - If `status` is `cancelled`: remove the matching item (if found).
+    /// - If an item with the same content already exists: update its status.
+    /// - Otherwise: add a new item with a server-generated ID.
+    ///
+    /// Completed items that are not mentioned in the incoming list are
+    /// preserved in history. Active items (pending / in_progress) that are
+    /// not mentioned remain unchanged.
+    ///
+    /// Returns the list of currently active (pending / in_progress) todos.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any todo content is empty or exceeds 1000
+    /// characters.
+    pub fn apply_todo_changes(&mut self, changes: Vec<TodoItem>) -> anyhow::Result<Vec<Todo>> {
+        for item in &changes {
+            if item.content.trim().is_empty() {
+                anyhow::bail!("Todo content cannot be empty");
+            }
+            if item.content.len() > 1000 {
+                anyhow::bail!("Todo content exceeds maximum length of 1000 characters");
+            }
+        }
+
+        for item in changes {
+            if item.status == TodoStatus::Cancelled {
+                // Remove the item by content key
+                self.todos.retain(|t| t.content != item.content);
+            } else if let Some(existing) = self.todos.iter_mut().find(|t| t.content == item.content)
+            {
+                // Update in-place
+                existing.status = item.status;
+            } else {
+                // Add new item with server-generated ID
+                self.todos.push(Todo {
+                    id: Uuid::new_v4().to_string(),
+                    content: item.content,
+                    status: item.status,
+                });
+            }
+        }
+
+        Ok(self.get_active_todos())
     }
 }
 
@@ -155,7 +223,6 @@ mod tests {
         assert_eq!(operation.lines_removed, 0);
         assert_eq!(operation.content_hash, Some("hash1".to_string()));
     }
-
     #[test]
     fn test_files_accessed_only_tracks_reads() {
         let metrics = Metrics::default()
@@ -191,5 +258,123 @@ mod tests {
             metrics.file_operations.get("file3.rs").unwrap().tool,
             ToolKind::Patch
         );
+    }
+
+    fn todo_item(content: &str, status: TodoStatus) -> TodoItem {
+        TodoItem { content: content.to_string(), status }
+    }
+
+    #[test]
+    fn test_apply_todo_changes_adds_new_items() {
+        let mut fixture = Metrics::default();
+
+        let actual = fixture
+            .apply_todo_changes(vec![
+                todo_item("Task A", TodoStatus::Pending),
+                todo_item("Task B", TodoStatus::InProgress),
+            ])
+            .unwrap();
+
+        let expected = [
+            fixture
+                .todos
+                .iter()
+                .find(|t| t.content == "Task A")
+                .cloned()
+                .unwrap(),
+            fixture
+                .todos
+                .iter()
+                .find(|t| t.content == "Task B")
+                .cloned()
+                .unwrap(),
+        ];
+        assert_eq!(actual.len(), 2);
+        assert_eq!(actual[0].content, expected[0].content);
+        assert_eq!(actual[1].content, expected[1].content);
+    }
+
+    #[test]
+    fn test_apply_todo_changes_updates_by_content_key() {
+        let mut fixture = Metrics::default();
+        fixture
+            .apply_todo_changes(vec![todo_item("Task A", TodoStatus::Pending)])
+            .unwrap();
+
+        fixture
+            .apply_todo_changes(vec![todo_item("Task A", TodoStatus::Completed)])
+            .unwrap();
+
+        let actual = fixture.get_todos().to_vec();
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].content, "Task A");
+        assert_eq!(actual[0].status, TodoStatus::Completed);
+    }
+
+    #[test]
+    fn test_apply_todo_changes_cancelled_removes_item() {
+        let mut fixture = Metrics::default();
+        fixture
+            .apply_todo_changes(vec![
+                todo_item("Task A", TodoStatus::Pending),
+                todo_item("Task B", TodoStatus::Pending),
+            ])
+            .unwrap();
+
+        fixture
+            .apply_todo_changes(vec![todo_item("Task A", TodoStatus::Cancelled)])
+            .unwrap();
+
+        let actual = fixture.get_todos().to_vec();
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].content, "Task B");
+    }
+
+    #[test]
+    fn test_apply_todo_changes_preserves_untouched_items() {
+        let mut fixture = Metrics::default();
+        fixture
+            .apply_todo_changes(vec![
+                todo_item("Task A", TodoStatus::Pending),
+                todo_item("Task B", TodoStatus::Pending),
+            ])
+            .unwrap();
+
+        // Only update Task A; Task B should remain untouched
+        fixture
+            .apply_todo_changes(vec![todo_item("Task A", TodoStatus::InProgress)])
+            .unwrap();
+
+        let todos = fixture.get_todos().to_vec();
+        assert_eq!(todos.len(), 2);
+        let task_a = todos.iter().find(|t| t.content == "Task A").unwrap();
+        let task_b = todos.iter().find(|t| t.content == "Task B").unwrap();
+        assert_eq!(task_a.status, TodoStatus::InProgress);
+        assert_eq!(task_b.status, TodoStatus::Pending);
+    }
+
+    #[test]
+    fn test_apply_todo_changes_completed_stays_in_history() {
+        let mut fixture = Metrics::default();
+        fixture
+            .apply_todo_changes(vec![
+                todo_item("Task A", TodoStatus::InProgress),
+                todo_item("Task B", TodoStatus::Pending),
+            ])
+            .unwrap();
+
+        // Complete Task A — should remain in todos even if not sent again
+        fixture
+            .apply_todo_changes(vec![todo_item("Task A", TodoStatus::Completed)])
+            .unwrap();
+
+        // Only active todos are returned
+        let active = fixture.get_active_todos();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].content, "Task B");
+
+        // But Task A is still in the full list
+        let all = fixture.get_todos().to_vec();
+        assert_eq!(all.len(), 2);
     }
 }

@@ -411,32 +411,28 @@ expression: tools
   "type": "object",
   "properties": {
     "todos": {
-      "description": "Array of todo items to create or update",
+      "description": "List of todo items to create or update. Each item must have `content`\nand `status`. The server matches on `content` — if an item with the\nsame content exists it is updated; otherwise a new item is added.\nSet `status` to `cancelled` to remove an item.",
       "type": "array",
       "items": {
-        "description": "A todo item",
+        "description": "A single todo item sent by the model.\n\nThe model always provides `content` and `status`. The server uses `content`\nas the key: if an item with the same content already exists it is updated,\notherwise a new item is added. Setting `status` to `cancelled` removes the\nitem from the list entirely. IDs are managed by the server and never\nexposed to the model.",
         "type": "object",
         "properties": {
-          "id": {
-            "description": "Unique identifier for the todo item",
-            "type": "string"
-          },
           "content": {
-            "description": "Content/description of the todo item",
+            "description": "Description of the task. Used as the unique key to match existing todos.",
             "type": "string"
           },
           "status": {
-            "description": "Current status of the todo",
+            "description": "Current status of the task. Use `cancelled` to remove the item.",
             "type": "string",
             "enum": [
               "pending",
               "in_progress",
-              "completed"
+              "completed",
+              "cancelled"
             ]
           }
         },
         "required": [
-          "id",
           "content",
           "status"
         ]
@@ -448,73 +444,6 @@ expression: tools
   ]
 }
 {
-  "title": "TaskInput",
-  "description": "Input structure for the Task tool - delegates work to specialized agents",
-  "type": "object",
-  "properties": {
-    "tasks": {
-      "description": "A list of clear and detailed descriptions of the tasks to be performed\nby the agent in parallel. Provide sufficient context and specific\nrequirements to enable the agent to understand and execute the work\naccurately.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
-    "agent_id": {
-      "description": "The ID of the specialized agent to delegate to (e.g., \"sage\", \"forge\",\n\"muse\")",
-      "type": "string"
-    },
-    "session_id": {
-      "description": "Optional session ID to continue an existing agent session. If not\nprovided, a new stateless session will be created. Use this to\nmaintain context across multiple task invocations with the same\nagent.",
-      "type": "string",
-      "nullable": true
-    }
-  },
-  "required": [
-    "tasks",
-    "agent_id"
-  ]
-}
-{
-  "title": "LspTool",
-  "type": "object",
-  "properties": {
-    "operation": {
-      "description": "The LSP operation to perform",
-      "type": "string",
-      "enum": [
-        "go_to_definition",
-        "find_references",
-        "hover",
-        "document_symbol",
-        "workspace_symbol",
-        "go_to_implementation",
-        "prepare_call_hierarchy",
-        "incoming_calls",
-        "outgoing_calls",
-        "get_diagnostics"
-      ]
-    },
-    "file_path": {
-      "description": "The absolute or relative path to the file",
-      "type": "string"
-    },
-    "line": {
-      "description": "The line number (1-based, as shown in editors)",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    },
-    "character": {
-      "description": "The character offset (1-based, as shown in editors)",
-      "type": "integer",
-      "format": "uint32",
-      "minimum": 0,
-      "nullable": true
-    }
-  },
-  "required": [
-    "operation",
-    "file_path"
-  ]
+  "title": "TodoRead",
+  "type": "object"
 }

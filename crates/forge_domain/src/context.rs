@@ -467,7 +467,6 @@ impl Context {
 
     pub fn add_entry(mut self, content: impl Into<MessageEntry>) -> Self {
         let content = content.into();
-        debug!(content = ?content, "Adding message to context");
         self.messages.push(content);
 
         self
@@ -478,12 +477,12 @@ impl Context {
             ctx.add_message(match attachment.content {
                 AttachmentContent::Image(image) => ContextMessage::Image(image),
                 AttachmentContent::Document(document) => ContextMessage::Document(document),
-                AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
+                AttachmentContent::FileContent { content, info } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
-                        .attr("start_line", start_line)
-                        .attr("end_line", end_line)
-                        .attr("total_lines", total_lines)
+                        .attr("start_line", info.start_line)
+                        .attr("end_line", info.end_line)
+                        .attr("total_lines", info.total_lines)
                         .cdata(content);
 
                     let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
@@ -567,15 +566,30 @@ impl Context {
         self,
         content: impl ToString,
         thought_signature: Option<String>,
+        reasoning: Option<String>,
         reasoning_details: Option<Vec<ReasoningFull>>,
         usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
     ) -> Self {
+        // Convert flat reasoning string to reasoning_details if present
+        let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
+            let reasoning_entry =
+                ReasoningFull { text: Some(reasoning_text), ..Default::default() };
+            if let Some(mut existing_details) = reasoning_details {
+                existing_details.push(reasoning_entry);
+                Some(existing_details)
+            } else {
+                Some(vec![reasoning_entry])
+            }
+        } else {
+            reasoning_details
+        };
+
         // Adding tool calls
         let message: MessageEntry = ContextMessage::assistant(
             content,
             thought_signature,
-            reasoning_details,
+            merged_reasoning_details,
             Some(
                 tool_records
                     .iter()
@@ -745,7 +759,7 @@ mod tests {
 
     use super::*;
     use crate::transformer::Transformer;
-    use crate::{DirectoryEntry, estimate_token_count};
+    use crate::{DirectoryEntry, FileInfo, estimate_token_count};
 
     #[test]
     fn test_override_system_message() {
@@ -1145,9 +1159,7 @@ mod tests {
             path: "/path/to/file.rs".to_string(),
             content: AttachmentContent::FileContent {
                 content: "fn main() {}\n".to_string(),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
+                info: FileInfo::new(1, 1, 1, "hash".to_string()),
             },
         }];
 
@@ -1197,18 +1209,14 @@ mod tests {
                 path: "/path/to/file1.rs".to_string(),
                 content: AttachmentContent::FileContent {
                     content: "fn foo() {}\n".to_string(),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
+                    info: FileInfo::new(1, 1, 1, "hash1".to_string()),
                 },
             },
             Attachment {
                 path: "/path/to/file2.rs".to_string(),
                 content: AttachmentContent::FileContent {
                     content: "fn bar() {}\n".to_string(),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
+                    info: FileInfo::new(1, 1, 1, "hash2".to_string()),
                 },
             },
         ];

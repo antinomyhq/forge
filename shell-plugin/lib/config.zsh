@@ -7,7 +7,7 @@ typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
-typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:75%:wrap:border-sharp"
+typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=bottom:75%:wrap:border-sharp"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
@@ -28,3 +28,9 @@ typeset -h _FORGE_ACTIVE_AGENT
 
 # Previous conversation ID for :conversation - (like cd -)
 typeset -h _FORGE_PREVIOUS_CONVERSATION_ID
+
+# Session-scoped model and provider overrides (set via :model / :m).
+# When non-empty, these are passed as --model / --provider to every forge
+# invocation for the lifetime of the current shell session.
+typeset -h _FORGE_SESSION_MODEL
+typeset -h _FORGE_SESSION_PROVIDER

@@ -53,6 +53,10 @@ impl<I> ForgeSkillRepository<I> {
                 include_str!("skills/execute-plan/SKILL.md"),
             ),
             (
+                "forge://skills/github-pr-description/SKILL.md",
+                include_str!("skills/github-pr-description/SKILL.md"),
+            ),
+            (
                 "forge://skills/verification-specialist/SKILL.md",
                 include_str!("skills/verification-specialist/SKILL.md"),
             ),
@@ -365,6 +369,20 @@ mod tests {
                 .contains("Execute structured task plans")
         );
         assert!(execute_plan.command.contains("Execute Plan"));
+
+        // Check github-pr-description
+        let pr_description = actual
+            .iter()
+            .find(|s| s.name == "github-pr-description")
+            .unwrap();
+        assert_eq!(
+            pr_description.path,
+            Some(
+                std::path::Path::new("forge://skills/github-pr-description/SKILL.md").to_path_buf()
+            )
+        );
+        assert!(!pr_description.description.is_empty());
+        assert!(pr_description.command.contains("Create PR Description"));
 
         // Check verification-specialist
         let verification_specialist = actual

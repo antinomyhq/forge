@@ -2,17 +2,20 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use derive_setters::Setters;
+use eventsource_stream::Eventsource;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig, Transformer,
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
-    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SetCache,
+    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SanitizeToolIds,
+    SetCache,
 };
 use forge_domain::{ChatRepository, Provider, ProviderId};
+use futures::StreamExt;
 use reqwest::Url;
-use tokio_stream::StreamExt;
+use reqwest::header::HeaderMap;
 use tracing::debug;
 
 use crate::provider::event::into_chat_completion_message;
@@ -84,6 +87,12 @@ impl<H: HttpInfra> Anthropic<H> {
 }
 
 impl<T: HttpInfra> Anthropic<T> {
+    /// Determines whether this provider should bypass reqwest-eventsource
+    /// content-type validation and parse SSE from raw bytes instead.
+    fn should_use_raw_sse(&self) -> bool {
+        self.provider.id == ProviderId::OPENCODE_ZEN
+    }
+
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -105,7 +114,8 @@ impl<T: HttpInfra> Anthropic<T> {
         let pipeline = AuthSystemMessage::default()
             .when(|_| self.use_oauth)
             .pipe(CapitalizeToolNames)
-            .pipe(DropInvalidToolUse);
+            .pipe(DropInvalidToolUse)
+            .pipe(SanitizeToolIds);
 
         // Vertex AI does not support output_format, so we skip schema enforcement
         // and remove any output_format field
@@ -136,18 +146,80 @@ impl<T: HttpInfra> Anthropic<T> {
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
         let parsed_url = Url::parse(&url).with_context(|| format!("Invalid URL: {}", url))?;
+        let headers = create_headers(self.get_headers());
+
+        if self.should_use_raw_sse() {
+            return self.chat_raw_sse(&parsed_url, headers, json_bytes).await;
+        }
 
         let source = self
             .http
-            .http_eventsource(
-                &parsed_url,
-                Some(create_headers(self.get_headers())),
-                json_bytes.into(),
-            )
+            .http_eventsource(&parsed_url, Some(headers), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
         let stream = into_chat_completion_message::<EventData>(parsed_url, source);
+
+        Ok(Box::pin(stream))
+    }
+
+    /// Streams Anthropic events from a raw byte response body and parses
+    /// SSE events manually. This bypasses reqwest-eventsource content-type
+    /// validation for providers that return non-standard SSE content types.
+    async fn chat_raw_sse(
+        &self,
+        parsed_url: &Url,
+        headers: HeaderMap,
+        json_bytes: Vec<u8>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let response = self
+            .http
+            .http_post(parsed_url, Some(headers), json_bytes.into())
+            .await
+            .with_context(|| format_http_context(None, "POST", parsed_url))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read response body".to_string());
+            return Err(anyhow::anyhow!(error_body))
+                .with_context(|| format_http_context(Some(status), "POST", parsed_url));
+        }
+
+        let request_url = parsed_url.clone();
+        let stream = response
+            .bytes_stream()
+            .eventsource()
+            .filter_map(move |event_result| {
+                let request_url = request_url.clone();
+                async move {
+                    match event_result {
+                        Ok(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
+                        Ok(event) => Some(
+                            serde_json::from_str::<EventData>(&event.data)
+                                .with_context(|| {
+                                    format!("Failed to parse provider response: {}", event.data)
+                                })
+                                .and_then(|response| {
+                                    ChatCompletionMessage::try_from(response).with_context(|| {
+                                        format!(
+                                            "Failed to create completion message: {}",
+                                            event.data
+                                        )
+                                    })
+                                })
+                                .with_context(|| {
+                                    format_http_context(None, "POST", request_url.clone())
+                                }),
+                        ),
+                        Err(error) => Some(Err(into_sse_parse_error(error)).with_context(|| {
+                            format_http_context(None, "POST", request_url.clone())
+                        })),
+                    }
+                }
+            });
 
         Ok(Box::pin(stream))
     }
@@ -195,6 +267,20 @@ impl<T: HttpInfra> Anthropic<T> {
                 Ok(models.clone())
             }
         }
+    }
+}
+
+fn into_sse_parse_error<E>(error: eventsource_stream::EventStreamError<E>) -> anyhow::Error
+where
+    E: std::fmt::Debug + std::fmt::Display + Send + Sync + 'static,
+{
+    let is_retryable = matches!(&error, eventsource_stream::EventStreamError::Transport(_));
+    let error = anyhow::anyhow!("SSE parse error: {}", error);
+
+    if is_retryable {
+        forge_domain::Error::Retryable(error).into()
+    } else {
+        error
     }
 }
 
@@ -282,6 +368,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
+            custom_headers: None,
         };
 
         Ok(Anthropic::new(
@@ -349,6 +436,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url.clone())),
+            custom_headers: None,
         };
 
         let anthropic = Anthropic::new(
@@ -488,6 +576,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
+            custom_headers: None,
         };
 
         let fixture = Anthropic::new(
@@ -566,6 +655,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Url(model_url)),
+            custom_headers: None,
         };
 
         let fixture = Anthropic::new(
@@ -642,6 +732,7 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::GoogleAdc],
             url_params: vec![],
             models: Some(forge_domain::ModelSource::Hardcoded(vec![])),
+            custom_headers: None,
         };
 
         let _anthropic = Anthropic::new(
@@ -666,7 +757,8 @@ mod tests {
         let pipeline = AuthSystemMessage::default()
             .when(|_| false) // Not using OAuth
             .pipe(CapitalizeToolNames)
-            .pipe(DropInvalidToolUse);
+            .pipe(DropInvalidToolUse)
+            .pipe(SanitizeToolIds);
 
         let request = pipeline
             .pipe(RemoveOutputFormat)

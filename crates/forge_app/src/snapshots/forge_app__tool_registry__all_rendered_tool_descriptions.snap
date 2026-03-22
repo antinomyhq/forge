@@ -238,6 +238,22 @@ Fetches detailed information about a specific skill. Use this tool to load skill
 Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 
+## How It Works
+
+Each call sends only the items that changed — you do not need to repeat the whole list.
+
+Each item has two required fields:
+- `content`: The task description. This is the **unique key** — the server matches on content to decide whether to add or update.
+- `status`: One of `pending`, `in_progress`, `completed`, or `cancelled`.
+
+**Rules:**
+- Item with this `content` does **not** exist yet → **added** as a new task.
+- Item with this `content` already exists → its `status` is **updated**.
+- `status: cancelled` → the item is **removed** from the list entirely.
+- Items you do not mention are **left unchanged**.
+
+IDs are managed internally by the system and are never exposed to you.
+
 ## When to Use This Tool
 Use this tool proactively in these scenarios:
 
@@ -383,22 +399,24 @@ The assistant did not use the todo list because this is a single command executi
 ## Task States and Management
 
 1. **Task States**: Use these states to track progress:
-   - pending: Task not yet started
-   - in_progress: Currently working on (limit to ONE task at a time)
-   - completed: Task finished successfully
+   - `pending`: Task not yet started
+   - `in_progress`: Currently working on (limit to ONE task at a time)
+   - `completed`: Task finished successfully
+   - `cancelled`: Task is no longer relevant — this removes it from the list
 
 2. **Task Management**:
-   - Update task status in real-time as you work
-   - Mark tasks complete IMMEDIATELY after finishing (don't batch completions)
-   - Exactly ONE task must be in_progress at any time (not less, not more)
+   - Only send the items that changed — do not repeat unchanged items
+   - Mark tasks `in_progress` BEFORE beginning work
+   - Mark tasks `completed` IMMEDIATELY after finishing (don't batch completions)
+   - Exactly ONE task must be `in_progress` at any time
+   - Use `cancelled` to remove tasks that are no longer relevant
    - Complete current tasks before starting new ones
-   - Remove tasks that are no longer relevant from the list entirely
 
 3. **Task Completion Requirements**:
-   - ONLY mark a task as completed when you have FULLY accomplished it
-   - If you encounter errors, blockers, or cannot finish, keep the task as in_progress
+   - ONLY mark a task as `completed` when you have FULLY accomplished it
+   - If you encounter errors, blockers, or cannot finish, keep the task as `in_progress`
    - When blocked, create a new task describing what needs to be resolved
-   - Never mark a task as completed if:
+   - Never mark a task as `completed` if:
      - Tests are failing
      - Implementation is partial
      - You encountered unresolved errors
@@ -407,113 +425,23 @@ The assistant did not use the todo list because this is a single command executi
 4. **Task Breakdown**:
    - Create specific, actionable items
    - Break complex tasks into smaller, manageable steps
-   - Use clear, descriptive task names (e.g., "Fix authentication bug", "Run tests", "Build the project")
+   - Use clear, descriptive task names
 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.
 
 ---
 
-### task
+### todo_read
 
-Launch a new agent to handle complex, multi-step tasks autonomously. 
+Retrieves the current todo list for this coding session. Use this tool to check existing todos before making updates, or to review the current state of tasks at any point during the session.
 
-The task tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
+## When to Use This Tool
 
-Available agent types and the tools they have access to:
-- **debug**: Specialized in debugging issues
-  - Tools: read, shell, fs_search, sem_search, fetch
-- **sage**: Specialized in researching codebases
-  - Tools: read, fs_search, sem_search, fetch
+- Before calling `todo_write`, to understand which tasks already exist and avoid duplicates
+- When you need to know what tasks are pending, in progress, or completed
+- To resume work after a break and understand the current state of tasks
+- When the user asks about the current task list or progress
 
-When using the task tool, you must specify a agent_id parameter to select which agent type to use.
+## Output
 
-When NOT to use the task tool:
-- If you want to read a specific file path, use the read or fs_search tool instead of the task tool, to find the match more quickly
-- If you are searching for a specific class definition like "class Foo", use the fs_search tool instead, to find the match more quickly
-- If you are searching for code within a specific file or set of 2-3 files, use the read tool instead of the task tool, to find the match more quickly
-- Other tasks that are not related to the agent descriptions above
-
-
-Usage notes:
-- Always include a short description (3-5 words) summarizing what the agent will do
-- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
-- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
-- Agents can be resumed using the \`session_id\` parameter by passing the agent ID from a previous invocation. When resumed, the agent continues with its full previous context preserved. When NOT resuming, each invocation starts fresh and you should provide a detailed task description with all necessary context.
-- When the agent is done, it will return a single message back to you along with its agent ID. You can use this ID to resume the agent later if needed for follow-up work.
-- Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
-- Agents with "access to current context" can see the full conversation history before the tool call. When using these agents, you can write concise prompts that reference earlier context (e.g., "investigate the error discussed above") instead of repeating information. The agent will receive all prior messages and understand the context.
-- The agent's outputs should generally be trusted
-- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
-- If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
-- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple task tool use content blocks. For example, if you need to launch both a build-validator agent and a test-runner agent in parallel, send a single message with both tool calls.
-
-Example usage:
-
-<example_agent_descriptions>
-"test-runner": use this agent after you are done writing code to run tests
-"greeting-responder": use this agent when to respond to user greetings with a friendly joke
-</example_agent_description>
-
-<example>
-user: "Please write a function that checks if a number is prime"
-assistant: Sure let me write a function that checks if a number is prime
-assistant: First let me use the write tool to write a function that checks if a number is prime
-assistant: I'm going to use the write tool to write the following code:
-<code>
-function isPrime(n) {
-  if (n <= 1) return false
-  for (let i = 2; i * i <= n; i++) {
-    if (n % i === 0) return false
-  }
-  return true
-}
-</code>
-<commentary>
-Since a significant piece of code was written and the task was completed, now use the test-runner agent to run the tests
-</commentary>
-assistant: Now let me use the test-runner agent to run the tests
-assistant: Uses the task tool to launch the test-runner agent
-</example>
-
-<example>
-user: "Hello"
-<commentary>
-Since the user is greeting, use the greeting-responder agent to respond with a friendly joke
-</commentary>
-assistant: "I'm going to use the task tool to launch the greeting-responder agent"
-</example>
-
----
-
-### lsp
-
-The LSP tool allows you to interact with Language Server Protocol servers to understand code.
-It supports operations like Go To Definition, Find References, Hover, Document Symbols, etc.
-
-**WHEN TO USE LSP:**
-- **Precise Navigation**: When you need to find the *exact* definition of a function, class, or variable (unlike text search which finds all occurrences).
-- **Understanding Relationships**: When you need to find all references to a symbol, or see the call hierarchy (who calls this function?).
-- **Code Structure**: When you want to see a high-level outline of a file's symbols (classes, methods, variables) using `document_symbol`.
-- **Debugging**: When you need to check for syntax errors or type errors in a specific file using `get_diagnostics`.
-- **API Exploration**: When you want to see available methods or documentation for a symbol using `hover`.
-
-**WHEN NOT TO USE:**
-- **Broad Search**: When you are looking for a concept or pattern across the entire codebase (use `sem_search` or `fs_search`).
-- **Text Matching**: When you are looking for a specific string literal or comment (use `fs_search`).
-- **File Reading**: When you just need to read the raw content of a file (use `read`).
-
-Usage:
-- operation: The LSP operation to perform. Supported operations:
-  - `go_to_definition`: Jump to the definition of a symbol.
-  - `find_references`: Find all references to a symbol.
-  - `hover`: Show documentation/type information for a symbol.
-  - `document_symbol`: List all symbols in the current file.
-  - `workspace_symbol`: Search for symbols across the workspace.
-  - `go_to_implementation`: Jump to the implementation of a symbol.
-  - `prepare_call_hierarchy`: Prepare for call hierarchy.
-  - `incoming_calls`: Show incoming calls.
-  - `outgoing_calls`: Show outgoing calls.
-  - `get_diagnostics`: Get diagnostics (errors, warnings) for the file.
-- file_path: The absolute path to the file to operate on.
-- line: The line number (1-based). Required for position-based operations.
-- character: The character offset (1-based). Required for position-based operations.
+Returns all current todos with their IDs, content, and status (`pending`, `in_progress`, `completed`). If no todos exist yet, returns an empty list.

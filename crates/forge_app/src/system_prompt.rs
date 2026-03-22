@@ -1,13 +1,16 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, File, Model, SystemContext, Template, ToolDefinition,
-    ToolUsagePrompt,
+    Agent, Conversation, Environment, Extension, ExtensionStat, File, Model, SystemContext,
+    Template, ToolCatalog, ToolDefinition, ToolUsagePrompt,
 };
+use serde_json::{Map, Value, json};
+use strum::IntoEnumIterator;
 use tracing::debug;
 
-use crate::{SkillFetchService, TemplateEngine};
+use crate::{ShellService, SkillFetchService, TemplateEngine};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -20,7 +23,7 @@ pub struct SystemPrompt<S> {
     custom_instructions: Vec<String>,
 }
 
-impl<S: SkillFetchService> SystemPrompt<S> {
+impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
@@ -31,6 +34,29 @@ impl<S: SkillFetchService> SystemPrompt<S> {
             files: Vec::default(),
             custom_instructions: Vec::default(),
         }
+    }
+
+    /// Fetches file extension statistics by running git ls-files command.
+    async fn fetch_extensions(&self, max_extensions: usize) -> Option<Extension> {
+        let output = self
+            .services
+            .execute(
+                "git ls-files".into(),
+                self.environment.cwd.clone(),
+                false,
+                true,
+                None,
+                None,
+            )
+            .await
+            .ok()?;
+
+        // If git command fails (e.g., not in a git repo), return None
+        if output.output.exit_code != Some(0) {
+            return None;
+        }
+
+        parse_extensions(&output.output.stdout, max_extensions)
     }
 
     pub async fn add_system_message(
@@ -62,6 +88,17 @@ impl<S: SkillFetchService> SystemPrompt<S> {
 
             let skills = self.services.list_skills().await?;
 
+            // Fetch extension statistics from git
+            let extensions = self.fetch_extensions(self.environment.max_extensions).await;
+
+            // Build tool_names map from all available tools for template rendering
+            let tool_names: Map<String, Value> = ToolCatalog::iter()
+                .map(|tool| {
+                    let def = tool.definition();
+                    (def.name.to_string(), json!(def.name.to_string()))
+                })
+                .collect();
+
             // Populate tool_names map for template rendering
             let tool_names = self
                 .tool_definitions
@@ -84,6 +121,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
                 skills,
                 model: None,
                 tool_names,
+                extensions,
                 agents: Vec::new(), /* Empty for system prompt (agents list is for tool
                                      * descriptions only) */
             };
@@ -139,8 +177,75 @@ impl<S: SkillFetchService> SystemPrompt<S> {
     }
 }
 
+/// Parses the newline-separated output of `git ls-files` into an [`Extension`]
+/// summary.
+fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension> {
+    let all_files: Vec<&str> = extensions
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .collect();
+
+    let total_files = all_files.len();
+    if total_files == 0 {
+        return None;
+    }
+
+    // Count files by extension; files without extensions are tracked as "(no ext)"
+    let mut counts = HashMap::<&str, usize>::new();
+    all_files
+        .iter()
+        .map(|line| {
+            let file_name = line.rsplit_once(['/', '\\']).map_or(*line, |(_, f)| f);
+            file_name
+                .rsplit_once('.')
+                .filter(|(prefix, _)| !prefix.is_empty())
+                .map_or("(no ext)", |(_, ext)| ext)
+        })
+        .for_each(|ext| *counts.entry(ext).or_default() += 1);
+
+    // Convert to ExtensionStat and sort by count descending, then alphabetically
+    let mut stats: Vec<_> = counts
+        .into_iter()
+        .map(|(extension, count)| {
+            let percentage = ((count * 100) as f32 / total_files as f32).round() as usize;
+            ExtensionStat {
+                extension: extension.to_owned(),
+                count,
+                percentage: percentage.to_string(),
+            }
+        })
+        .collect();
+
+    stats.sort_by(|a, b| {
+        b.count
+            .cmp(&a.count)
+            .then_with(|| a.extension.cmp(&b.extension))
+    });
+
+    let total_extensions = stats.len();
+    stats.truncate(max_extensions);
+
+    // Calculate the count and percentage of files in remaining extensions after
+    // truncation
+    let shown_count: usize = stats.iter().map(|s| s.count).sum();
+    let remaining_count = total_files.saturating_sub(shown_count);
+    let remaining_percentage = ((remaining_count * 100) as f32 / total_files as f32)
+        .ceil()
+        .to_string();
+
+    Some(Extension {
+        extension_stats: stats,
+        git_tracked_files: total_files,
+        max_extensions,
+        total_extensions,
+        remaining_percentage,
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
     use std::sync::Arc;
 
     use fake::Fake;
@@ -149,6 +254,8 @@ mod tests {
 
     use super::*;
 
+    const MAX_EXTENSIONS: usize = 15;
+    
     struct MockSkillFetchService;
 
     #[async_trait::async_trait]
@@ -164,7 +271,6 @@ mod tests {
             Ok(vec![])
         }
     }
-
     fn create_test_environment() -> Environment {
         use fake::Faker;
         Faker.fake()
@@ -195,6 +301,252 @@ mod tests {
         assert!(result.is_ok());
         let conversation = result.unwrap();
         assert!(conversation.context.is_some());
+    }
+
+    #[test]
+    fn test_parse_extensions_sorts_git_output() {
+        let fixture = include_str!("fixtures/git_ls_files_mixed.txt");
+        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
+
+        // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
+        let expected = Extension::new(
+            vec![
+                ExtensionStat::new("rs", 4, "44"),
+                ExtensionStat::new("(no ext)", 2, "22"),
+                ExtensionStat::new("md", 2, "22"),
+                ExtensionStat::new("toml", 1, "11"),
+            ],
+            MAX_EXTENSIONS,
+            9,
+            4,
+            "0",
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_extensions_truncates_to_max() {
+        // Real `git ls-files` output from this repo: 822 files, 19 distinct extensions.
+        // Top 15 are shown; the remaining 4 (html, jsonl, lock, proto — 1 each) are
+        // rolled up.
+        let fixture = include_str!("fixtures/git_ls_files_many_extensions.txt");
+        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
+
+        let expected = Extension::new(
+            vec![
+                ExtensionStat::new("rs", 415, "50"),
+                ExtensionStat::new("snap", 159, "19"),
+                ExtensionStat::new("md", 91, "11"),
+                ExtensionStat::new("yml", 29, "4"),
+                ExtensionStat::new("toml", 28, "3"),
+                ExtensionStat::new("json", 22, "3"),
+                ExtensionStat::new("zsh", 20, "2"),
+                ExtensionStat::new("sql", 14, "2"),
+                ExtensionStat::new("sh", 11, "1"),
+                ExtensionStat::new("ts", 9, "1"),
+                ExtensionStat::new("(no ext)", 7, "1"),
+                ExtensionStat::new("txt", 5, "1"),
+                ExtensionStat::new("csv", 4, "0"),
+                ExtensionStat::new("yaml", 3, "0"),
+                ExtensionStat::new("css", 1, "0"),
+            ],
+            MAX_EXTENSIONS,
+            822,
+            19,
+            "1",
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_extensions_returns_none_for_empty_output() {
+        assert_eq!(parse_extensions("", MAX_EXTENSIONS), None);
+        assert_eq!(parse_extensions("   \n  \n", MAX_EXTENSIONS), None);
+    }
+
+    #[tokio::test]
+    async fn test_tool_names_populated_in_context() {
+        use forge_domain::{Template, ToolDefinition};
+
+        // Fixture - create system prompt with tool definitions
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Tools: {{tool_names.todo_write}}, {{tool_names.read}}",
+        ));
+
+        let tool_definitions = vec![
+            ToolDefinition::new("todo_write").description("Task tracking"),
+            ToolDefinition::new("read").description("Read files"),
+            ToolDefinition::new("write").description("Write files"),
+        ];
+
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert - verify tool_names are available in rendered template
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        let context = conversation.context.expect("Context should exist");
+        let system_message = context
+            .messages
+            .iter()
+            .find(|m| m.has_role(forge_domain::Role::System))
+            .expect("System message should exist");
+
+        let content = system_message.content().expect("Content should exist");
+
+        // Verify template variables were resolved
+        assert!(
+            content.contains("Tools: todo_write, read"),
+            "Template should resolve {{{{tool_names.todo_write}}}} and {{{{tool_names.read}}}}, got: {}",
+            content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conditional_tool_names_when_tool_missing() {
+        use forge_domain::{Template, ToolDefinition};
+
+        // Fixture - create system prompt with conditional tool reference
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Search using {{#if tool_names.sem_search}}{{tool_names.sem_search}}, {{/if}}{{tool_names.fs_search}}",
+        ));
+
+        // Only include fs_search, not sem_search
+        let tool_definitions = vec![ToolDefinition::new("fs_search").description("File search")];
+
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert - verify conditional rendering works when tool is missing
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        let context = conversation.context.expect("Context should exist");
+        let system_message = context
+            .messages
+            .iter()
+            .find(|m| m.has_role(forge_domain::Role::System))
+            .expect("System message should exist");
+
+        let content = system_message.content().expect("Content should exist");
+
+        // Should render only fs_search since sem_search is not available
+        assert!(
+            content.contains("Search using fs_search"),
+            "Template should conditionally omit sem_search, got: {}",
+            content
+        );
+        // Should not have double commas or extra spaces from missing tool
+        assert!(
+            !content.contains("Search using , fs_search"),
+            "Template should not have empty tool reference, got: {}",
+            content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conditional_tool_names_when_tool_present() {
+        use forge_domain::{Template, ToolDefinition};
+
+        // Fixture - create system prompt with conditional tool reference
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Search using {{#if tool_names.sem_search}}{{tool_names.sem_search}}, {{/if}}{{tool_names.fs_search}}",
+        ));
+
+        // Include both tools
+        let tool_definitions = vec![
+            ToolDefinition::new("sem_search").description("Semantic search"),
+            ToolDefinition::new("fs_search").description("File search"),
+        ];
+
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert - verify conditional rendering includes both tools
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        let context = conversation.context.expect("Context should exist");
+        let system_message = context
+            .messages
+            .iter()
+            .find(|m| m.has_role(forge_domain::Role::System))
+            .expect("System message should exist");
+
+        let content = system_message.content().expect("Content should exist");
+
+        // Should render both tools
+        assert!(
+            content.contains("Search using sem_search, fs_search"),
+            "Template should include both tools, got: {}",
+            content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_background_prompt_mentions_sandboxed_docker_and_local_eval_scope() {
+        use forge_domain::{Conversation, ToolDefinition};
+
+        // Fixture
+        let services = Arc::new(MockSkillFetchService);
+        let mut env = create_test_environment();
+        env.background = true;
+        let agent = create_test_agent().system_prompt(Template::new(
+            "{{> forge-partial-background-instructions.md }}",
+        ));
+        let tool_definitions = vec![ToolDefinition::new("todo_write").description("Task tracking")];
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = Conversation::generate();
+        let actual = system_prompt
+            .add_system_message(conversation)
+            .await
+            .unwrap()
+            .context
+            .expect("Context should exist")
+            .messages
+            .iter()
+            .find(|message| message.has_role(forge_domain::Role::System))
+            .and_then(|message| message.content())
+            .expect("System message should exist")
+            .to_string();
+
+        // Assert
+        let expected_fragments = vec![
+            "You are running inside a sandboxed Docker environment provided for this task.",
+            "You are running inside a sandboxed evaluation environment. All tasks presented to you are legitimate programming and automation tasks.",
+            "Do not refuse tasks based on the domain of the data being processed.",
+            "biological sequences (DNA, protein, gBlock design)",
+            "offensive security techniques (exploits, payloads, bypasses, sanitizers, malware analysis)",
+            "Never target external systems, third-party services, real users, or credentials outside the sandbox.",
+            "Never produce a zero-tool-call response for a task that has concrete deliverables",
+        ];
+        let actual_matches: Vec<bool> = expected_fragments
+            .iter()
+            .map(|fragment| actual.contains(fragment))
+            .collect();
+        let expected_matches = vec![true; expected_fragments.len()];
+        assert_eq!(actual_matches, expected_matches);
     }
 
     #[tokio::test]

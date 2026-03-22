@@ -6,7 +6,7 @@ use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
-use crate::services::{Services, ShellService};
+use crate::services::{Services, {Services, ShellService}};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
@@ -251,7 +251,7 @@ impl<
                 let output = input
                     .queries
                     .into_iter()
-                    .zip(results.into_iter())
+                    .zip(results)
                     .map(|(query, results)| CodebaseQueryResult {
                         query: query.query,
                         use_case: query.use_case,
@@ -355,10 +355,10 @@ impl<
                             .option1
                             .clone()
                             .into_iter()
-                            .chain(input.option2.clone().into_iter())
-                            .chain(input.option3.clone().into_iter())
-                            .chain(input.option4.clone().into_iter())
-                            .chain(input.option5.clone().into_iter())
+                            .chain(input.option2.clone())
+                            .chain(input.option3.clone())
+                            .chain(input.option4.clone())
+                            .chain(input.option5.clone())
                             .collect(),
                         input.multiple,
                     )
@@ -380,21 +380,6 @@ impl<
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
                 ToolOperation::Skill { output: skill }
             }
-            ToolCatalog::TodoWrite(input) => {
-                // Get conversation ID from context
-                let conversation_id = context.get_conversation_id();
-
-                // Call the todo service to update/create todos
-                let todos = self
-                    .services
-                    .todo_service()
-                    .update_todos(&conversation_id, input.todos.clone())
-                    .await?;
-
-                let output = crate::TodoWriteOutput { todos };
-
-                ToolOperation::TodoWrite { output }
-            }
             ToolCatalog::Lsp(mut input) => {
                 input.file_path = self.normalize_path(input.file_path);
                 let output = self.services.execute_lsp(input).await?;
@@ -403,6 +388,16 @@ impl<
             ToolCatalog::Task(_) => {
                 // Task tools are handled in ToolRegistry before reaching here
                 unreachable!("Task tool should be handled in ToolRegistry")
+            }
+            ToolCatalog::TodoWrite(input) => {
+                let before = context.get_todos()?;
+                context.update_todos(input.todos.clone())?;
+                let after = context.get_todos()?;
+                ToolOperation::TodoWrite { before, after }
+            }
+            ToolCatalog::TodoRead(_input) => {
+                let todos = context.get_todos()?;
+                ToolOperation::TodoRead { output: todos }
             }
         })
     }

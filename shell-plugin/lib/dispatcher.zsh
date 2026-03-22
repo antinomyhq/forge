@@ -10,6 +10,7 @@
 function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
+    local command_type=""
     
     # Validate that the command exists in show-commands (if user_action is provided)
     if [[ -n "$user_action" ]]; then
@@ -25,7 +26,7 @@ function _forge_action_default() {
             
             # Extract the command type from the second field (TYPE column)
             # Format: "COMMAND_NAME    TYPE    DESCRIPTION"
-            local command_type=$(echo "$command_row" | awk '{print $2}')
+            command_type=$(echo "$command_row" | awk '{print $2}')
             # Case-insensitive comparison using :l (lowercase) modifier
             if [[ "${command_type:l}" == "custom" ]]; then
                 # Generate conversation ID if needed (don't track previous for auto-generation)
@@ -47,9 +48,14 @@ function _forge_action_default() {
         fi
     fi
     
-    # If input_text is empty, just set the active agent (only if user explicitly specified one)
+    # If input_text is empty, just set the active agent (only for AGENT type commands)
     if [[ -z "$input_text" ]]; then
         if [[ -n "$user_action" ]]; then
+            if [[ "${command_type:l}" != "agent" ]]; then
+                echo
+                _forge_log error "Command '\033[1m${user_action}\033[0m' not found"
+                return 0
+            fi
             echo
             # Set the agent in the local variable
             _FORGE_ACTIVE_AGENT="$user_action"
@@ -73,10 +79,12 @@ function _forge_action_default() {
     fi
     
     # Execute the forge command directly with proper escaping
-    _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+    _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
+    # Start background update check
+    _forge_start_background_update
 }
 
 function forge-accept-line() {
@@ -130,6 +138,8 @@ function forge-accept-line() {
     #     crates/forge_main/src/built_in_commands.json
     #     Add a new entry: {"command": "name", "description": "Description [alias: x]"}
     #
+    # Naming convention: shell commands should follow Object-Action (e.g., provider-login).
+    #
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
@@ -156,14 +166,29 @@ function forge-accept-line() {
         conversation|c)
             _forge_action_conversation "$input_text"
         ;;
-        provider|p)
+        config-provider|provider|p)
             _forge_action_provider "$input_text"
         ;;
-        model|m)
+        config-model|cm)
             _forge_action_model "$input_text"
+        ;;
+        model|m)
+            _forge_action_session_model "$input_text"
+        ;;
+        model-reset|mr)
+            _forge_action_model_reset
+        ;;
+        config-commit-model|ccm)
+            _forge_action_commit_model "$input_text"
+        ;;
+        config-suggest-model|csm)
+            _forge_action_suggest_model "$input_text"
         ;;
         tools|t)
             _forge_action_tools
+        ;;
+        config)
+            _forge_action_config
         ;;
         skill)
             _forge_action_skill
@@ -189,6 +214,9 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        copy)
+            _forge_action_copy
+        ;;
         sync)
             _forge_action_sync
         ;;
@@ -198,7 +226,7 @@ function forge-accept-line() {
         sync-info)
             _forge_action_sync_info
         ;;
-        login)
+        provider-login|login)
             _forge_action_login "$input_text"
         ;;
         logout)

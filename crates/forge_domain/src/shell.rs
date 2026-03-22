@@ -1,5 +1,5 @@
 /// Output from a command execution
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CommandOutput {
     pub command: String,
     pub stdout: String,

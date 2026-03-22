@@ -80,7 +80,11 @@ pub enum ToolOperation {
         output: forge_domain::Skill,
     },
     TodoWrite {
-        output: TodoWriteOutput,
+        before: Vec<forge_domain::Todo>,
+        after: Vec<forge_domain::Todo>,
+    },
+    TodoRead {
+        output: Vec<forge_domain::Todo>,
     },
     Lsp {
         output: forge_domain::ToolOutput,
@@ -242,7 +246,7 @@ impl ToolOperation {
                     *metrics = metrics.clone().insert(
                         input.file_path.clone(),
                         FileOperation::new(tool_kind)
-                            .content_hash(Some(output.content_hash.clone())),
+                            .content_hash(Some(output.info.content_hash.clone())),
                     );
 
                     return forge_domain::ToolOutput::image(image.clone());
@@ -267,7 +271,9 @@ impl ToolOperation {
                 // Handle text content
                 let content = output.content.file_content();
                 let content = if input.show_line_numbers {
-                    content.to_numbered_from(output.start_line as usize)
+                    content
+                        .to_numbered_from(output.info.start_line as usize)
+                        .to_string()
                 } else {
                     content.to_string()
                 };
@@ -275,7 +281,7 @@ impl ToolOperation {
                     .attr("path", &input.file_path)
                     .attr(
                         "display_lines",
-                        format!("{}-{}", output.start_line, output.end_line),
+                        format!("{}-{}", output.info.start_line, output.info.end_line),
                     )
                     .attr("total_lines", content.lines().count())
                     .cdata(content);
@@ -288,7 +294,8 @@ impl ToolOperation {
                 );
                 *metrics = metrics.clone().insert(
                     input.file_path.clone(),
-                    FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
+                    FileOperation::new(tool_kind)
+                        .content_hash(Some(output.info.content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -461,8 +468,10 @@ impl ToolOperation {
 
                             let mut content_parts = Vec::new();
                             for chunk in chunks {
-                                let numbered =
-                                    chunk.content.to_numbered_from(chunk.start_line as usize);
+                                let numbered = chunk
+                                    .content
+                                    .to_numbered_from(chunk.start_line as usize)
+                                    .to_string();
                                 content_parts.push(numbered);
                             }
 
@@ -686,24 +695,149 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::TodoWrite { output } => {
-                // Count incomplete todos (pending + in_progress)
-                let incomplete_count = output
-                    .todos
+            ToolOperation::TodoWrite { before, after } => {
+                // Build a map of before todos by ID for diff computation
+                let before_map: std::collections::HashMap<&str, &forge_domain::Todo> =
+                    before.iter().map(|t| (t.id.as_str(), t)).collect();
+
+                let mut added = Vec::new();
+                let mut updated = Vec::new();
+
+                for todo in &after {
+                    match before_map.get(todo.id.as_str()) {
+                        None => added.push(todo),
+                        Some(prev)
+                            if prev.status != todo.status || prev.content != todo.content =>
+                        {
+                            updated.push((prev, todo))
+                        }
+                        _ => {}
+                    }
+                }
+
+                let after_ids: std::collections::HashSet<&str> =
+                    after.iter().map(|t| t.id.as_str()).collect();
+                let removed: Vec<_> = before
                     .iter()
-                    .filter(|todo| todo.status != forge_domain::TodoStatus::Completed)
-                    .count();
+                    .filter(|t| !after_ids.contains(t.id.as_str()))
+                    .collect();
 
-                // Format as JSON for output
-                let json_output = serde_json::to_string_pretty(&output.todos)
-                    .unwrap_or_else(|_| "[]".to_string());
+                let total_changes = added.len() + updated.len() + removed.len();
+                let mut elm = Element::new("todos_updated").attr("changes", total_changes);
 
-                let elm = Element::new("todo_write_result")
-                    .attr("title", format!("{} todos", incomplete_count))
-                    .append(Element::new("output").cdata(json_output))
-                    .append(Element::new("metadata").append(Element::new("todos").cdata(
-                        serde_json::to_string(&output.todos).unwrap_or_else(|_| "[]".to_string()),
-                    )));
+                for todo in added {
+                    let todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "added")
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                for (prev, todo) in updated {
+                    let mut todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "updated");
+                    if prev.status != todo.status {
+                        todo_elm = todo_elm
+                            .attr("prev_status", prev.status.to_string())
+                            .attr("new_status", todo.status.to_string());
+                    }
+                    todo_elm = todo_elm.text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                for todo in removed {
+                    let todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "removed")
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoRead { output } => {
+                let mut elm = Element::new("todos").attr("count", output.len());
+
+                for todo in output {
+                    let todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoWrite { before, after } => {
+                // Build a map of before todos by ID for diff computation
+                let before_map: std::collections::HashMap<&str, &forge_domain::Todo> =
+                    before.iter().map(|t| (t.id.as_str(), t)).collect();
+
+                let mut added = Vec::new();
+                let mut updated = Vec::new();
+
+                for todo in &after {
+                    match before_map.get(todo.id.as_str()) {
+                        None => added.push(todo),
+                        Some(prev)
+                            if prev.status != todo.status || prev.content != todo.content =>
+                        {
+                            updated.push((prev, todo))
+                        }
+                        _ => {}
+                    }
+                }
+
+                let after_ids: std::collections::HashSet<&str> =
+                    after.iter().map(|t| t.id.as_str()).collect();
+                let removed: Vec<_> = before
+                    .iter()
+                    .filter(|t| !after_ids.contains(t.id.as_str()))
+                    .collect();
+
+                let total_changes = added.len() + updated.len() + removed.len();
+                let mut elm = Element::new("todos_updated").attr("changes", total_changes);
+
+                for todo in added {
+                    let todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "added")
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                for (prev, todo) in updated {
+                    let mut todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "updated");
+                    if prev.status != todo.status {
+                        todo_elm = todo_elm
+                            .attr("prev_status", prev.status.to_string())
+                            .attr("new_status", todo.status.to_string());
+                    }
+                    todo_elm = todo_elm.text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                for todo in removed {
+                    let todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .attr("change", "removed")
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoRead { output } => {
+                let mut elm = Element::new("todos").attr("count", output.len());
+
+                for todo in output {
+                    let todo_elm = Element::new("todo")
+                        .attr("status", todo.status.to_string())
+                        .text(&todo.content);
+                    elm = elm.append(todo_elm);
+                }
 
                 forge_domain::ToolOutput::text(elm)
             }
@@ -728,7 +862,7 @@ mod tests {
     use std::fmt::Write;
     use std::path::PathBuf;
 
-    use forge_domain::{FSRead, ToolValue};
+    use forge_domain::{FSRead, FileInfo, ToolValue};
 
     use super::*;
     use crate::{Content, Match, MatchResult};
@@ -851,10 +985,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 2,
-                total_lines: 2,
-                content_hash: hash,
+                info: FileInfo::new(1, 2, 2, hash),
             },
         };
 
@@ -883,10 +1014,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: hash,
+                info: FileInfo::new(1, 1, 1, hash),
             },
         };
 
@@ -914,10 +1042,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 2,
-                end_line: 3,
-                total_lines: 5,
-                content_hash: hash,
+                info: FileInfo::new(2, 3, 5, hash),
             },
         };
 
@@ -946,10 +1071,7 @@ mod tests {
             },
             output: ReadOutput {
                 content: Content::file(content),
-                start_line: 1,
-                end_line: 100,
-                total_lines: 200,
-                content_hash: hash,
+                info: FileInfo::new(1, 100, 200, hash),
             },
         };
 
@@ -2532,10 +2654,7 @@ mod tests {
                     "base64_image_data".to_string(),
                     "image/png",
                 )),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: "hash123".to_string(),
+                info: FileInfo::new(1, 1, 1, "hash123".to_string()),
             },
         };
 

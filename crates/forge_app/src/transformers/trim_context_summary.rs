@@ -37,10 +37,10 @@ enum Operation<'a> {
     Task(&'a str),
     /// MCP tool call by name
     Mcp(&'a str),
+    /// Todo operation - each todo_write is unique and won't be deduplicated
+    Todo,
     /// LSP tool call
     Lsp { operation: &'a str, path: &'a str },
-    /// Todo write operation
-    TodoWrite,
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -62,8 +62,9 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Task { agent_id } => Operation::Task(agent_id),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
+        SummaryTool::TodoWrite { .. } => Operation::Todo,
+        SummaryTool::TodoRead => Operation::Todo,
         SummaryTool::Lsp { operation, path } => Operation::Lsp { operation, path },
-        SummaryTool::TodoWrite { .. } => Operation::TodoWrite,
     }
 }
 

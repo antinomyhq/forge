@@ -155,7 +155,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
     // Should have ToolCallStart response (1: one for fs_read)
     let tool_call_start_count = chat_responses
         .iter()
-        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart { .. }))
         .count();
     assert_eq!(
         tool_call_start_count, 1,
@@ -174,7 +174,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
 
     // Verify the content of the responses
     let tool_call_start = chat_responses.iter().find_map(|response| match response {
-        ChatResponse::ToolCallStart(tool_call) => Some(tool_call),
+        ChatResponse::ToolCallStart { tool_call, .. } => Some(tool_call),
         _ => None,
     });
     assert_eq!(
@@ -225,7 +225,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
     // Should have no ToolCallStart response for agent tools
     let tool_call_start_count = chat_responses
         .iter()
-        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart { .. }))
         .count();
     assert_eq!(
         tool_call_start_count, 0,
@@ -278,7 +278,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     // Should have exactly 1 ToolCallStart (for fs_read not for agent "must")
     let tool_call_start_count = chat_responses
         .iter()
-        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart { .. }))
         .count();
     assert_eq!(
         tool_call_start_count, 1,
@@ -299,7 +299,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     let tool_call_start_names: Vec<&str> = chat_responses
         .iter()
         .filter_map(|response| match response {
-            ChatResponse::ToolCallStart(tool_call) => Some(tool_call.name.as_str()),
+            ChatResponse::ToolCallStart { tool_call, .. } => Some(tool_call.name.as_str()),
             _ => None,
         })
         .collect();
@@ -396,6 +396,90 @@ async fn test_multiple_consecutive_tool_calls() {
         .count();
 
     assert_eq!(retry_attempts, 1, "Should complete the task");
+}
+
+#[tokio::test]
+async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls_on_next_request() {
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "loop.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Same content")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![
+            (tool_call.clone(), tool_result.clone()),
+            (tool_call.clone(), tool_result.clone()),
+            (tool_call.clone(), tool_result.clone()),
+            (tool_call.clone(), tool_result.clone()),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Call 1").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Call 2").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Call 3").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Call 4").add_tool_call(tool_call.clone()),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Test doom loop").await.unwrap();
+
+    let chat_responses: Vec<_> = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .collect();
+
+    let tool_call_results: Vec<_> = chat_responses
+        .iter()
+        .filter_map(|response| match response {
+            ChatResponse::ToolCallEnd(result) => Some(result),
+            _ => None,
+        })
+        .collect();
+
+    let actual = tool_call_results.len();
+    let expected = 4;
+    assert_eq!(actual, expected, "Should have 4 tool call results");
+
+    let actual = tool_call_results.iter().all(|result| !result.is_error());
+    let expected = true;
+    assert_eq!(actual, expected, "All tool calls should succeed");
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+
+    let reminder_message_index = context
+        .messages
+        .iter()
+        .enumerate()
+        .find(|(_, message)| {
+            message.has_role(Role::User)
+                && message
+                    .content()
+                    .is_some_and(|content| content.contains("system_reminder"))
+        })
+        .map(|(idx, _)| idx)
+        .expect("Expected reminder message in context");
+
+    let assistant_with_tool_call_indices: Vec<_> = context
+        .messages
+        .iter()
+        .enumerate()
+        .filter(|(_, message)| message.has_role(Role::Assistant) && message.has_tool_call())
+        .map(|(idx, _)| idx)
+        .collect();
+
+    assert_eq!(
+        assistant_with_tool_call_indices.len(),
+        4,
+        "Expected four assistant tool-call messages"
+    );
+
+    let third_assistant_with_tool_call_index = assistant_with_tool_call_indices[2];
+
+    assert!(
+        reminder_message_index > third_assistant_with_tool_call_index,
+        "Reminder should be appended after the triggering tool-call history is persisted"
+    );
 }
 
 #[tokio::test]

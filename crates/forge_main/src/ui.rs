@@ -20,7 +20,7 @@ use forge_domain::{
     AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
-use forge_select::ForgeSelect;
+use forge_select::ForgeWidget;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use futures::future;
@@ -33,9 +33,10 @@ use crate::cli::{
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
+use crate::editor::ReadLineError;
 use crate::info::Info;
 use crate::input::Console;
-use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
+use crate::model::{ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -150,16 +151,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(agent_id) => self.api.get_agent_model(agent_id).await,
             None => self.api.get_default_model().await,
         }
-    }
-
-    /// Filters providers to return only configured ones
-    fn get_configured_providers(&self, providers: Vec<AnyProvider>) -> Vec<CliProvider> {
-        use crate::model::CliProvider;
-        providers
-            .into_iter()
-            .filter(|p| p.is_configured())
-            .map(CliProvider)
-            .collect()
     }
 
     /// Displays banner only if user is in interactive mode.
@@ -314,6 +305,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Get initial input from prompt
+        // Prompt can fail if it doesn't have access to TTY. If it fails the first time,
+        // we will stop everything and bubble up the error.
         let mut command = self.prompt().await;
 
         loop {
@@ -347,9 +340,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     tracker::error(&error);
                     tracing::error!(error = ?error);
                     self.spinner.stop(None)?;
-                    self.writeln_to_stderr(
-                        TitleFormat::error(error.to_string()).display().to_string(),
-                    )?;
+
+                    match error.downcast::<ReadLineError>() {
+                        Ok(error) => {
+                            return Err(error)?;
+                        }
+                        Err(error) => self.writeln_to_stderr(
+                            TitleFormat::error(error.to_string()).display().to_string(),
+                        )?,
+                    }
                 }
             }
             // Centralized prompt call at the end of the loop
@@ -670,6 +669,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            TopLevelCommand::Update(args) => {
+                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                on_update(self.api.clone(), Some(&update)).await;
+                return Ok(());
+            }
+            TopLevelCommand::Setup => {
+                self.on_zsh_setup().await?;
+                return Ok(());
+            }
+            TopLevelCommand::Doctor => {
+                self.on_zsh_doctor().await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -733,10 +745,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
                 // Interactive mode will be handled by the main loop
             }
-            ConversationCommand::Show { id } => {
+            ConversationCommand::Show { id, md } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
 
-                self.on_show_last_message(conversation).await?;
+                self.on_show_last_message(conversation, md).await?;
             }
             ConversationCommand::Info { id } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
@@ -809,32 +821,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<()> {
-        use crate::model::CliProvider;
-
         // Get the provider to login to
         let any_provider = if let Some(id) = provider_id {
             // Specific provider requested
             self.api.get_provider(id).await?
         } else {
-            // Fetch all providers for selection
-            let providers = self
-                .api
-                .get_providers()
-                .await?
-                .into_iter()
-                .map(CliProvider)
-                .collect::<Vec<_>>();
+            // Fetch all providers for selection (no type filter, like shell :login)
+            let providers = self.api.get_providers().await?;
 
-            // Sort the providers by their display names
-            let mut sorted_providers = providers;
-            sorted_providers.sort_by_key(|a| a.to_string());
-
-            // Use the centralized select module
-            match ForgeSelect::select("Select a provider to login:", sorted_providers)
-                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-                .prompt()?
-            {
-                Some(provider) => provider.0,
+            match self.select_provider_from_list(providers, "Provider", None)? {
+                Some(provider) => provider,
                 None => {
                     self.writeln_title(TitleFormat::info("Cancelled"))?;
                     return Ok(());
@@ -853,7 +849,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, None).await
     }
 
     async fn handle_provider_logout(
@@ -874,25 +870,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(true);
         }
 
-        // Fetch and filter configured providers
-        let configured_providers = self.get_configured_providers(self.api.get_providers().await?);
+        // Fetch and filter configured providers (like shell :logout filters to status
+        // [yes])
+        let configured_providers: Vec<AnyProvider> = self
+            .api
+            .get_providers()
+            .await?
+            .into_iter()
+            .filter(|p| p.is_configured())
+            .collect();
 
         if configured_providers.is_empty() {
             self.writeln_title(TitleFormat::info("No configured providers found"))?;
             return Ok(false);
         }
 
-        // Sort the providers by their display names
-        let mut sorted_providers = configured_providers;
-        sorted_providers.sort_by_key(|a| a.to_string());
-
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider to logout:", sorted_providers)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        {
+        match self.select_provider_from_list(configured_providers, "Provider", None)? {
             Some(provider) => {
-                let provider_id = provider.0.id();
+                let provider_id = provider.id();
                 self.api.remove_provider(&provider_id).await?;
                 self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
@@ -1050,14 +1045,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             } else {
                 markers::EMPTY.to_string()
             };
-            let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("name", display_name)
                 .add_key_value("id", id)
-                .add_key_value("host", domain)
-                .add_key_value("type", provider_type);
+                .add_key_value("host", domain);
             if configured {
                 info = info.add_key_value("logged in", status::YES);
             };
@@ -1075,61 +1068,79 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let models = self.get_models().await?;
+        self.spinner.start(Some("Fetching Models"))?;
 
-        if models.is_empty() {
+        let mut all_provider_models = match self.api.get_all_provider_models().await {
+            Ok(provider_models) => provider_models,
+            Err(err) => {
+                self.spinner.stop(None)?;
+                return Err(err);
+            }
+        };
+
+        if all_provider_models.is_empty() {
             return Ok(());
         }
 
+        // Sort models and then providers
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
+
         let mut info = Info::new();
+        for pm in &all_provider_models {
+            let provider_id: &str = &pm.provider_id;
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
+                info = info
+                    .add_title(&id)
+                    .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Provider", &provider_display)
+                    .add_key_value("Provider Id", provider_id);
 
-        for model in models.iter() {
-            let id = model.id.to_string();
-
-            info = info
-                .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id);
-
-            // Add context length if available, otherwise use "unknown"
-            if let Some(limit) = model.context_length {
-                let context = if limit >= 1_000_000 {
-                    format!("{}M", limit / 1_000_000)
-                } else if limit >= 1000 {
-                    format!("{}k", limit / 1000)
+                // Add context length if available, otherwise use "unknown"
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
                 } else {
-                    format!("{limit}")
-                };
-                info = info.add_key_value("Context Window", context);
-            } else {
-                info = info.add_key_value("Context Window", markers::EMPTY)
-            }
+                    info = info.add_key_value("Context Window", markers::EMPTY)
+                }
 
-            // Add tools support indicator if explicitly supported
-            if let Some(supported) = model.tools_supported {
+                // Add tools support indicator if explicitly supported
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    )
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY)
+                }
+
+                // Add image modality support indicator
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
                 info = info.add_key_value(
-                    "Tool Supported",
-                    if supported { status::YES } else { status::NO },
-                )
-            } else {
-                info = info.add_key_value("Tools", markers::EMPTY)
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
             }
-
-            // Add image modality support indicator
-            let supports_image = model
-                .input_modalities
-                .contains(&forge_domain::InputModality::Image);
-            info = info.add_key_value(
-                "Image",
-                if supports_image {
-                    status::YES
-                } else {
-                    status::NO
-                },
-            );
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).swap_cols(0, 1).uppercase_headers())?;
+            self.writeln(Porcelain::from(&info).truncate(1, 40).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -1294,11 +1305,36 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .ok()
             .map(|p| p.id.to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
+        let commit_config = self.api.get_commit_config().await.ok().flatten();
+        let commit_provider = commit_config
+            .as_ref()
+            .and_then(|c| c.provider.as_ref())
+            .map(|p| p.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+        let commit_model = commit_config
+            .as_ref()
+            .and_then(|c| c.model.as_ref())
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
+        let suggest_config = self.api.get_suggest_config().await.ok().flatten();
+        let suggest_provider = suggest_config
+            .as_ref()
+            .map(|c| c.provider.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+        let suggest_model = suggest_config
+            .as_ref()
+            .map(|c| c.model.as_str().to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
             .add_key_value("Default Model", model)
-            .add_key_value("Default Provider", provider);
+            .add_key_value("Default Provider", provider)
+            .add_key_value("Commit Provider", commit_provider)
+            .add_key_value("Commit Model", commit_model)
+            .add_key_value("Suggest Provider", suggest_provider)
+            .add_key_value("Suggest Model", suggest_model);
 
         if porcelain {
             self.writeln(
@@ -1575,7 +1611,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         );
 
         let can_see_nerd_fonts =
-            ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
+            ForgeWidget::confirm("Can you see all the icons clearly without any overlap?")
                 .with_default(true)
                 .prompt()?;
 
@@ -1620,7 +1656,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "Skip - I'll configure it later",
         ];
 
-        let selected_editor = ForgeSelect::select(
+        let selected_editor = ForgeWidget::select(
             "Which editor would you like to use for editing prompts?",
             editor_options,
         )
@@ -1655,7 +1691,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
-        self.on_zsh_doctor().await
+        let doctor_result = self.on_zsh_doctor().await;
+
+        if doctor_result.is_ok() {
+            self.writeln_title(TitleFormat::action(
+                "run `exec zsh` now (or open a new terminal window) to load the updated shell config",
+            ))?;
+            self.writeln_title(TitleFormat::action(
+                "run `: Hi` after restarting your shell to confirm everything works",
+            ))?;
+        }
+
+        doctor_result
     }
 
     /// Handle the cmd command - generates shell command from natural language
@@ -1689,13 +1736,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if let Some(conversation) =
-            ConversationSelector::select_conversation(&conversations).await?
+            ConversationSelector::select_conversation(&conversations, self.state.conversation_id)
+                .await?
         {
             let conversation_id = conversation.id;
             self.state.conversation_id = Some(conversation_id);
 
             // Show conversation content
-            self.on_show_last_message(conversation).await?;
+            self.on_show_last_message(conversation, false).await?;
 
             // Print log about conversation switching
             self.writeln_title(TitleFormat::info(format!(
@@ -1866,33 +1914,55 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Reuse the same Info building logic as list agents
                 let info = self.build_agents_info(false).await?;
 
-                // Convert to porcelain format (same as list agents --porcelain)
+                // Convert to porcelain format matching shell plugin's :agent
+                // Shell uses --with-nth="1,2,4,5,6" hiding Location (col 3).
+                // Original cols: 0=Title, 1=Id, 2=Title, 3=Location, 4=Provider, 5=Model,
+                // 6=Reasoning Drop cols 0 (title) and 3 (location)
                 let porcelain_output = Porcelain::from(&info)
-                    .drop_col(0)
+                    .drop_cols(&[0, 3])
                     .truncate(3, 30)
                     .uppercase_headers();
+                let porcelain_str = porcelain_output.to_string();
 
-                // Split the porcelain output into lines and create agents
-                let porcelain_lines: Vec<String> = porcelain_output
-                    .to_string()
-                    .lines()
-                    .skip(1) // Skip header row
-                    .map(|s| s.to_string())
-                    .collect();
+                let all_lines: Vec<&str> = porcelain_str.lines().collect();
+                if all_lines.is_empty() {
+                    return Ok(false);
+                }
 
                 let mut display_agents = Vec::new();
-                for line in porcelain_lines {
-                    // Extract agent id from the beginning of the line
+                // Header row (non-selectable via header_lines=1)
+                display_agents.push(Agent {
+                    id: AgentId::new("__header__".to_string()),
+                    label: all_lines[0].to_string(),
+                });
+                // Data rows
+                for line in all_lines.iter().skip(1) {
                     if let Some(id_str) = line.split_whitespace().next() {
                         display_agents.push(Agent {
-                            label: line.clone(),
+                            label: line.to_string(),
                             id: AgentId::new(id_str.to_string()),
                         });
                     }
                 }
 
-                if let Some(selected_agent) =
-                    ForgeSelect::select("Select an agent", display_agents.clone()).prompt()?
+                // Find starting cursor for the current agent
+                let current_agent = self.api.get_active_agent().await;
+                let starting_cursor = current_agent
+                    .and_then(|current| {
+                        // Skip header row (index 0) when searching
+                        all_lines.iter().skip(1).position(|line| {
+                            line.split_whitespace()
+                                .next()
+                                .map(|id| id == current.as_str())
+                                .unwrap_or(false)
+                        })
+                    })
+                    .unwrap_or(0);
+
+                if let Some(selected_agent) = ForgeWidget::select("Agent", display_agents)
+                    .with_starting_cursor(starting_cursor)
+                    .with_header_lines(1)
+                    .prompt()?
                 {
                     self.on_agent_change(selected_agent.id).await?;
                 }
@@ -1947,9 +2017,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Select a model from the available models
-    /// Returns Some(ModelId) if a model was selected, or None if selection was
-    /// canceled
+    /// Select a model from all configured providers using porcelain-style
+    /// tabular display matching the shell plugin's `:model` UI.
+    ///
+    /// Shows columns: MODEL, PROVIDER, CONTEXT WINDOW, TOOL SUPPORTED, IMAGE
+    /// with a non-selectable header row.
+    ///
+    /// # Returns
+    /// - `Ok(Some(ModelId))` if a model was selected
+    /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
@@ -1964,36 +2040,138 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Fetch available models
-        let mut models = self
-            .get_models()
-            .await?
-            .into_iter()
-            .map(CliModel)
-            .collect::<Vec<_>>();
+        // Fetch models from ALL configured providers (matches shell plugin's
+        // `forge list models --porcelain`)
+        self.spinner.start(Some("Loading"))?;
+        let mut all_provider_models = self.api.get_all_provider_models().await?;
+        self.spinner.stop(None)?;
 
-        // Sort the models by their names in ascending order
-        models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+        if all_provider_models.is_empty() {
+            return Ok(None);
+        }
 
-        // Find the index of the current model
+        // Sort models and providers (same as on_show_models)
+        all_provider_models
+            .iter_mut()
+            .for_each(|pm| pm.models.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str())));
+        all_provider_models.sort_by(|a, b| a.provider_id.as_ref().cmp(b.provider_id.as_ref()));
+
+        // Build the same Info structure as on_show_models, then convert to
+        // Porcelain for tabular display.
+        let mut info = Info::new();
+        for pm in &all_provider_models {
+            let provider_display = pm.provider_id.to_string();
+            for model in &pm.models {
+                let id = model.id.to_string();
+                info = info
+                    .add_title(&id)
+                    .add_key_value("Model", model.name.as_ref().unwrap_or(&id))
+                    .add_key_value("Provider", &provider_display);
+
+                if let Some(limit) = model.context_length {
+                    let context = if limit >= 1_000_000 {
+                        format!("{}M", limit / 1_000_000)
+                    } else if limit >= 1000 {
+                        format!("{}k", limit / 1000)
+                    } else {
+                        format!("{limit}")
+                    };
+                    info = info.add_key_value("Context Window", context);
+                } else {
+                    info = info.add_key_value("Context Window", markers::EMPTY);
+                }
+
+                if let Some(supported) = model.tools_supported {
+                    info = info.add_key_value(
+                        "Tool Supported",
+                        if supported { status::YES } else { status::NO },
+                    );
+                } else {
+                    info = info.add_key_value("Tools", markers::EMPTY);
+                }
+
+                let supports_image = model
+                    .input_modalities
+                    .contains(&forge_domain::InputModality::Image);
+                info = info.add_key_value(
+                    "Image",
+                    if supports_image {
+                        status::YES
+                    } else {
+                        status::NO
+                    },
+                );
+            }
+        }
+
+        // Convert to porcelain format (same as on_show_models --porcelain)
+        let porcelain_output = Porcelain::from(&info)
+            .drop_col(0)
+            .truncate(0, 40)
+            .uppercase_headers();
+        let porcelain_str = porcelain_output.to_string();
+
+        // Split into header + data lines
+        let all_lines: Vec<&str> = porcelain_str.lines().collect();
+        if all_lines.is_empty() {
+            return Ok(None);
+        }
+
+        // Build a flat list of (ModelId, display_line) for the data rows.
+        // The first line is the header; data rows follow in the same order as
+        // the Info entries (sorted by provider, then model within provider).
+        let mut model_ids: Vec<ModelId> = Vec::new();
+        for pm in &all_provider_models {
+            for model in &pm.models {
+                model_ids.push(model.id.clone());
+            }
+        }
+
+        // Create display items: header line first, then data lines paired with
+        // model IDs.
+        #[derive(Clone)]
+        struct ModelRow {
+            model_id: Option<ModelId>,
+            display: String,
+        }
+        impl std::fmt::Display for ModelRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.display)
+            }
+        }
+
+        let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
+        // Header row (non-selectable via header_lines=1)
+        rows.push(ModelRow { model_id: None, display: all_lines[0].to_string() });
+        // Data rows
+        for (i, line) in all_lines.iter().skip(1).enumerate() {
+            rows.push(ModelRow {
+                model_id: model_ids.get(i).cloned(),
+                display: line.to_string(),
+            });
+        }
+
+        // Find starting cursor position for the current model.
+        // The cursor position is relative to the data rows (header is excluded
+        // by fzf's --header-lines), so index 0 = first data row.
         let current_model = self
             .get_agent_model(self.api.get_active_agent().await)
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| models.iter().position(|m| &m.0.id == current))
+            .and_then(|current| model_ids.iter().position(|id| id == current))
             .unwrap_or(0);
 
-        // Use the centralized select module
-        match ForgeSelect::select("Select a model:", models)
+        match ForgeWidget::select("Model", rows)
             .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .with_header_lines(1)
             .prompt()?
         {
-            Some(model) => Ok(Some(model.0.id)),
+            Some(row) => Ok(row.model_id),
             None => Ok(None),
         }
     }
+
     async fn handle_api_key_input(
         &mut self,
         provider_id: ProviderId,
@@ -2010,7 +2188,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let mut input = ForgeSelect::input(format!("Enter {param}:"));
+                let mut input = ForgeWidget::input(format!("Enter {param}"));
 
                 // Add default value if it exists in the credential
                 if let Some(params) = existing_url_params
@@ -2038,7 +2216,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 key_str.to_string()
             } else {
                 // For other providers, show the existing key as default (autofill)
-                let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                let input = ForgeWidget::input(format!("Enter your {provider_id} API key"))
                     .with_default(key_str);
                 let api_key = input.prompt()?.context("API key input cancelled")?;
                 let api_key_str = api_key.trim();
@@ -2047,7 +2225,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         } else {
             // Prompt for API key input (no existing key)
-            let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"));
+            let input = ForgeWidget::input(format!("Enter your {provider_id} API key"));
             let api_key = input.prompt()?.context("API key input cancelled")?;
             let api_key_str = api_key.trim();
             anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
@@ -2160,7 +2338,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         )))?;
 
         // Prompt user to set as active provider
-        let should_set_active = ForgeSelect::confirm(format!(
+        let should_set_active = ForgeWidget::confirm(format!(
             "Would you like to set {provider_id} as the active provider?"
         ))
         .with_default(true)
@@ -2198,7 +2376,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Prompt user to paste authorization code
-        let code = ForgeSelect::input("Paste the authorization code:")
+        let code = ForgeWidget::input("Paste the authorization code")
             .prompt()?
             .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
@@ -2259,7 +2437,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect();
 
-        match ForgeSelect::select("Select authentication method:", method_names.clone())
+        match ForgeWidget::select("Select authentication method:", method_names.clone())
             .with_help_message("Use arrow keys to navigate and Enter to select")
             .prompt()?
         {
@@ -2275,14 +2453,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    /// Creates Forge Services credentials if not already authenticated and
+    /// Creates ForgeCode Services credentials if not already authenticated and
     /// displays the credentials file location to the user.
     async fn init_forge_services(&mut self) -> Result<()> {
         self.api.create_auth_credentials().await?;
         let env = self.api.environment();
         let credentials_path = crate::info::format_path_for_display(&env, &env.credentials_path());
         self.writeln_title(
-            TitleFormat::info("Forge Services enabled").sub_title(&credentials_path),
+            TitleFormat::info("ForgeCode Services enabled").sub_title(&credentials_path),
         )?;
         Ok(())
     }
@@ -2340,10 +2518,97 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(provider.into_configured())
     }
 
+    /// Builds a porcelain-style provider selection list from a set of
+    /// providers, displays it in fzf, and returns the selected provider.
+    ///
+    /// The display matches the shell plugin's `_forge_select_provider`:
+    /// columns NAME, HOST, TYPE, LOGGED IN (hiding the raw ID column).
+    fn select_provider_from_list(
+        &self,
+        providers: Vec<AnyProvider>,
+        prompt: &str,
+        current_provider_id: Option<ProviderId>,
+    ) -> Result<Option<AnyProvider>> {
+        if providers.is_empty() {
+            return Ok(None);
+        }
+
+        // Sort providers alphabetically by display name
+        let mut sorted = providers;
+        sorted.sort_by_key(|a| a.id().to_string());
+
+        // Build Info structure (same as on_show_providers)
+        let mut info = Info::new();
+        for provider in &sorted {
+            let id: &str = &provider.id();
+            let display_name = provider.id().to_string();
+            let domain = if let Some(url) = provider.url() {
+                url.domain().map(|d| d.to_string()).unwrap_or_default()
+            } else {
+                markers::EMPTY.to_string()
+            };
+            let provider_type = provider.provider_type().to_string();
+            let configured = provider.is_configured();
+            info = info
+                .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("name", display_name)
+                .add_key_value("id", id)
+                .add_key_value("host", domain)
+                .add_key_value("type", provider_type);
+            if configured {
+                info = info.add_key_value("logged in", status::YES);
+            }
+        }
+
+        // Convert to porcelain, drop title (col 0) and raw id (col 2)
+        let porcelain_output = Porcelain::from(&info)
+            .drop_cols(&[0, 2])
+            .uppercase_headers();
+        let porcelain_str = porcelain_output.to_string();
+
+        let all_lines: Vec<&str> = porcelain_str.lines().collect();
+        if all_lines.is_empty() {
+            return Ok(None);
+        }
+
+        // Build display rows: header + data
+        #[derive(Clone)]
+        struct ProviderRow {
+            provider: Option<AnyProvider>,
+            display: String,
+        }
+        impl std::fmt::Display for ProviderRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.display)
+            }
+        }
+
+        let mut rows: Vec<ProviderRow> = Vec::with_capacity(all_lines.len());
+        // Header row (non-selectable via header_lines=1)
+        rows.push(ProviderRow { provider: None, display: all_lines[0].to_string() });
+        // Data rows
+        for (i, line) in all_lines.iter().skip(1).enumerate() {
+            rows.push(ProviderRow { provider: sorted.get(i).cloned(), display: line.to_string() });
+        }
+
+        // Find starting cursor for the current provider
+        let starting_cursor = current_provider_id
+            .and_then(|current| sorted.iter().position(|p| p.id() == current))
+            .unwrap_or(0);
+
+        match ForgeWidget::select(prompt, rows)
+            .with_starting_cursor(starting_cursor)
+            .with_header_lines(1)
+            .prompt()?
+        {
+            Some(row) => Ok(row.provider),
+            None => Ok(None),
+        }
+    }
+
     /// Selects a provider, optionally configuring it if not already configured.
     async fn select_provider(&mut self) -> Result<Option<AnyProvider>> {
-        // Fetch and sort available providers
-        let mut providers = self
+        let providers: Vec<AnyProvider> = self
             .api
             .get_providers()
             .await?
@@ -2355,33 +2620,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     AnyProvider::Template(provider) => provider.provider_type == filter,
                 }
             })
-            .map(CliProvider)
-            .collect::<Vec<_>>();
+            .collect();
 
         if providers.is_empty() {
             return Err(anyhow::anyhow!("No AI provider API keys configured"));
         }
 
-        providers.sort_by_key(|a| a.to_string());
-
-        // Find starting cursor position
-        let starting_cursor = self
+        let current_provider_id = self
             .get_provider(self.api.get_active_agent().await)
             .await
             .ok()
-            .and_then(|current| providers.iter().position(|p| p.0.id() == current.id))
-            .unwrap_or(0);
+            .map(|p| p.id);
 
-        // Prompt user to select a provider
-        let Some(provider) = ForgeSelect::select("Select a provider:", providers)
-            .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
-        else {
-            return Ok(None);
-        };
-
-        Ok(Some(provider.0))
+        self.select_provider_from_list(providers, "Provider", current_provider_id)
     }
 
     // Helper method to handle model selection and update the conversation
@@ -2421,6 +2672,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Activates a provider by configuring it if needed, setting it as default,
     /// and ensuring a compatible model is selected.
     async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
+        self.activate_provider_with_model(any_provider, None).await
+    }
+
+    /// Activates a provider with an optional pre-selected model.
+    /// When `model` is provided, the interactive model selection prompt is
+    /// skipped and the specified model is set directly.
+    async fn activate_provider_with_model(
+        &mut self,
+        any_provider: AnyProvider,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
@@ -2439,12 +2701,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, model).await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
     /// a compatible model is selected.
-    async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
+    /// When `model` is `Some`, the interactive model selection is skipped and
+    /// the provided model is validated and set directly.
+    async fn finalize_provider_activation(
+        &mut self,
+        provider: Provider<Url>,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
@@ -2452,6 +2720,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::action(format!("{}", provider.id))
                 .sub_title("is now the default provider"),
         )?;
+
+        // If a model was pre-selected (e.g. from :model), validate and set it
+        // directly without prompting
+        if let Some(model) = model {
+            let model_id = self
+                .validate_model(model.as_str(), Some(&provider.id))
+                .await?;
+            self.api.set_default_model(model_id.clone()).await?;
+            self.writeln_title(
+                TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+            )?;
+            return Ok(());
+        }
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -2824,13 +3105,29 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
+            ChatResponse::ToolCallStart { tool_call, notifier } => {
+                // Scope guard to ensure notification happens even on error.
+                // If writer.finish() or spinner.stop() fails, the guard's drop
+                // will still notify orch, preventing the deadlock.
+                struct NotifyGuard<'a>(&'a tokio::sync::Notify);
+                impl<'a> Drop for NotifyGuard<'a> {
+                    fn drop(&mut self) {
+                        self.0.notify_one();
+                    }
+                }
+                let _guard = NotifyGuard(&notifier);
+
                 writer.finish()?;
 
                 // Stop spinner only for tools that require stdout/stderr access
                 if tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
                 }
+
+                // Notify orch that the UI has rendered the tool header.
+                // Orch awaits this before executing the tool, preventing tool
+                // stdout from appearing before the tool name is printed.
+                drop(_guard);
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2871,7 +3168,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
 
                 self.writeln_title(TitleFormat::action(title))?;
-                self.should_continue().await?;
+                let continued = self.should_continue().await?;
+                if !continued && let Some(conversation_id) = self.state.conversation_id {
+                    self.writeln_title(
+                        TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
+                    )?;
+                }
             }
             ChatResponse::TaskReasoning { content } => {
                 writer.write_dimmed(&content)?;
@@ -2883,22 +3185,27 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
+                if let Some(format) = self.api.environment().auto_dump {
+                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                    self.on_dump(html).await?;
+                }
             }
         }
         Ok(())
     }
 
-    async fn should_continue(&mut self) -> anyhow::Result<()> {
-        let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
+    async fn should_continue(&mut self) -> anyhow::Result<bool> {
+        let should_continue = ForgeWidget::confirm("Do you want to continue anyway?")
             .with_default(true)
             .prompt()?;
 
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+            Ok(true)
+        } else {
+            Ok(false)
         }
-
-        Ok(())
     }
 
     async fn on_show_conv_info(&mut self, conversation: Conversation) -> anyhow::Result<()> {
@@ -3083,26 +3390,43 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle config set command
     async fn handle_config_set(&mut self, args: crate::cli::ConfigSetArgs) -> Result<()> {
-        use crate::cli::ConfigField;
+        use crate::cli::ConfigSetField;
 
-        // Set the specified field
         match args.field {
-            ConfigField::Provider => {
-                // Parse provider ID (any string is valid for custom providers)
-                let provider_id =
-                    ProviderId::from_str(&args.value).expect("from_str is infallible");
-
-                // Get the provider
-                let provider = self.api.get_provider(&provider_id).await?;
-                // Activate the provider (will configure if needed and set as default)
-                self.activate_provider(provider).await?;
+            ConfigSetField::Provider { provider, model } => {
+                let provider = self.api.get_provider(&provider).await?;
+                self.activate_provider_with_model(provider, model).await?;
             }
-            ConfigField::Model => {
-                let model_id = self.validate_model(&args.value).await?;
+            ConfigSetField::Model { model } => {
+                let model_id = self.validate_model(model.as_str(), None).await?;
                 self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
+            }
+            ConfigSetField::Commit { provider, model } => {
+                // Validate provider exists and model belongs to that specific provider
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let commit_config = forge_domain::CommitConfig::default()
+                    .provider(provider.clone())
+                    .model(validated_model.clone());
+                self.api.set_commit_config(commit_config).await?;
+                self.writeln_title(
+                    TitleFormat::action(validated_model.as_str())
+                        .sub_title(format!("is now the commit model for provider '{provider}'")),
+                )?;
+            }
+            ConfigSetField::Suggest { provider, model } => {
+                // Validate provider exists and model belongs to that specific provider
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let suggest_config = forge_domain::SuggestConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api.set_suggest_config(suggest_config).await?;
+                self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
+                    format!("is now the suggest model for provider '{provider}'"),
+                ))?;
             }
         }
 
@@ -3111,11 +3435,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle config get command
     async fn handle_config_get(&mut self, args: crate::cli::ConfigGetArgs) -> Result<()> {
-        use crate::cli::ConfigField;
+        use crate::cli::ConfigGetField;
 
-        // Get specific field
         match args.field {
-            ConfigField::Model => {
+            ConfigGetField::Model => {
                 let model = self
                     .api
                     .get_default_model()
@@ -3126,7 +3449,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     None => self.writeln("Model: Not set")?,
                 }
             }
-            ConfigField::Provider => {
+            ConfigGetField::Provider => {
                 let provider = self
                     .api
                     .get_default_provider()
@@ -3136,6 +3459,34 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
                     None => self.writeln("Provider: Not set")?,
+                }
+            }
+            ConfigGetField::Commit => {
+                let commit_config = self.api.get_commit_config().await?;
+                match commit_config {
+                    Some(config) => {
+                        let provider = config
+                            .provider
+                            .map(|p| p.as_ref().to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
+                        let model = config
+                            .model
+                            .map(|m| m.as_str().to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
+                        self.writeln(provider)?;
+                        self.writeln(model)?;
+                    }
+                    None => self.writeln("Commit: Not set")?,
+                }
+            }
+            ConfigGetField::Suggest => {
+                let suggest_config = self.api.get_suggest_config().await?;
+                match suggest_config {
+                    Some(config) => {
+                        self.writeln(config.provider.as_ref())?;
+                        self.writeln(config.model.as_str().to_string())?;
+                    }
+                    None => self.writeln("Suggest: Not set")?,
                 }
             }
         }
@@ -3205,34 +3556,58 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Some(rprompt.to_string())
     }
 
-    /// Validate model exists
-    async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
-        let models = self.api.get_models().await?;
+    /// Validates that a model exists, optionally scoped to a specific provider.
+    /// When `provider` is `None`, models are fetched from the default provider.
+    async fn validate_model(
+        &self,
+        model_str: &str,
+        provider: Option<&forge_domain::ProviderId>,
+    ) -> Result<ModelId> {
+        let models = match provider {
+            None => self.api.get_models().await?,
+            Some(provider_id) => {
+                self.api
+                    .get_all_provider_models()
+                    .await?
+                    .into_iter()
+                    .find(|pm| &pm.provider_id == provider_id)
+                    .with_context(|| {
+                        format!("Provider '{provider_id}' not found or returned no models")
+                    })?
+                    .models
+            }
+        };
         let model_id = ModelId::new(model_str);
-
-        if models.iter().any(|m| m.id == model_id) {
-            Ok(model_id)
-        } else {
-            // Show first 10 models as suggestions
-            let available: Vec<_> = models.iter().take(10).map(|m| m.id.as_str()).collect();
-            let suggestion = if models.len() > 10 {
-                format!("{} (and {} more)", available.join(", "), models.len() - 10)
-            } else {
-                available.join(", ")
-            };
-
-            Err(anyhow::anyhow!(
-                "Model '{model_str}' not found. Available models: {suggestion}"
-            ))
-        }
+        models
+            .iter()
+            .find(|m| m.id == model_id)
+            .map(|_| model_id)
+            .with_context(|| {
+                let hints = models
+                    .iter()
+                    .take(10)
+                    .map(|m| m.id.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let suggestion = if models.len() > 10 {
+                    format!("{hints} (and {} more)", models.len() - 10)
+                } else {
+                    hints
+                };
+                format!("Model '{model_str}' not found. Available models: {suggestion}")
+            })
     }
 
     /// Shows the last message from a conversation
     ///
+    /// When `md` is true, the raw markdown content is printed without
+    /// rendering. When `md` is false, the content is rendered through the
+    /// markdown renderer.
+    ///
     /// # Errors
     /// - If the conversation doesn't exist
     /// - If the conversation has no messages
-    async fn on_show_last_message(&mut self, conversation: Conversation) -> Result<()> {
+    async fn on_show_last_message(&mut self, conversation: Conversation, md: bool) -> Result<()> {
         let context = conversation
             .context
             .as_ref()
@@ -3248,7 +3623,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Format and display the message using the message_display module
         if let Some(message) = message {
-            self.writeln(self.markdown.render(message))?;
+            if md {
+                self.writeln(message)?;
+            } else {
+                self.writeln(self.markdown.render(message))?;
+            }
         }
 
         Ok(())
@@ -3461,6 +3840,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .iter()
                     .filter(|s| s.status == SyncStatus::Deleted)
                     .count();
+                let failed = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::Failed)
+                    .count();
 
                 // Add sync status section
                 info = info.add_title("Sync Status");
@@ -3476,6 +3859,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 if deleted > 0 {
                     info = info.add_key_value("Deleted", deleted.to_string());
+                }
+                if failed > 0 {
+                    info = info.add_key_value("Failed", failed.to_string());
                 }
 
                 self.writeln(info)
@@ -3553,6 +3939,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 s.status == SyncStatus::Modified
                     || s.status == SyncStatus::New
                     || s.status == SyncStatus::Deleted
+                    || s.status == SyncStatus::Failed
             })
             .count();
 
@@ -3585,6 +3972,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SyncStatus::Modified => Some((status, "modified")),
             SyncStatus::New => Some((status, "added")),
             SyncStatus::Deleted => Some((status, "deleted")),
+            SyncStatus::Failed => Some((status, "failed")),
         }) {
             info = info.add_key_value(&status.path, label);
         }

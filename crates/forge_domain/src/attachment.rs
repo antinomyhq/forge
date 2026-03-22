@@ -1,32 +1,47 @@
 use nom::Parser;
 use nom::bytes::complete::tag;
 
-use crate::{Document, Image};
+use crate::{FileInfo, {Document, Image}};
 
+/// A file or directory attachment included in a chat message.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct Attachment {
+    /// The resolved content of the attachment (image, file text, or directory
+    /// listing).
     pub content: AttachmentContent,
+    /// The original path or URL string used to reference this attachment.
     pub path: String,
 }
 
+/// The resolved content of an attachment, discriminated by the type of resource
+/// it represents.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub enum AttachmentContent {
+    /// A binary image file encoded for inline display.
     Image(Image),
+    /// A text file, optionally restricted to a line range.
     Document(Document),
     FileContent {
+        /// Line-numbered display text shown to the model. May represent only a
+        /// slice of the full file when a range was requested.
         content: String,
-        start_line: u64,
-        end_line: u64,
-        total_lines: u64,
+        /// Metadata about the file read: line positions and full-file content
+        /// hash for external-change detection.
+        info: FileInfo,
     },
+    /// A directory listing showing the immediate children of a directory.
     DirectoryListing {
+        /// Entries contained in the directory.
         entries: Vec<DirectoryEntry>,
     },
 }
 
+/// A single entry within a directory listing attachment.
 #[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
 pub struct DirectoryEntry {
+    /// Path of the entry relative to the listed directory.
     pub path: String,
+    /// Whether this entry is itself a directory.
     pub is_dir: bool,
 }
 
@@ -63,8 +78,8 @@ impl AttachmentContent {
 
     pub fn range_info(&self) -> Option<(u64, u64, u64)> {
         match self {
-            AttachmentContent::FileContent { start_line, end_line, total_lines, .. } => {
-                Some((*start_line, *end_line, *total_lines))
+            AttachmentContent::FileContent { info, .. } => {
+                Some((info.start_line, info.end_line, info.total_lines))
             }
             _ => None,
         }

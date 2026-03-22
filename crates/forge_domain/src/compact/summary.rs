@@ -5,8 +5,8 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId, ToolCatalog,
-    ToolResult,
+    Context, ContextMessage, Role, SearchQuery, TextMessage, Todo, ToolCallFull, ToolCallId,
+    ToolCatalog, ToolResult,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
@@ -193,6 +193,26 @@ pub enum SummaryTool {
     Skill { name: String },
     Task { agent_id: String },
     Mcp { name: String },
+    TodoWrite { changes: Vec<TodoChange> },
+    Lsp { operation: String, path: String },
+    TodoRead,
+}
+
+/// The kind of change applied to a todo item
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TodoChangeKind {
+    Added,
+    Updated,
+    Removed,
+}
+
+/// A single todo change entry capturing what changed and how
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct TodoChange {
+    pub todo: Todo,
+    pub kind: TodoChangeKind,
     TodoWrite { todos: Vec<crate::Todo> },
     Lsp { operation: String, path: String },
 }
@@ -203,6 +223,8 @@ impl From<&Context> for ContextSummary {
         let mut buffer: Vec<SummaryMessage> = vec![];
         let mut tool_results: HashMap<&ToolCallId, &ToolResult> = Default::default();
         let mut current_role = Role::System;
+        // Track the current todo state to compute diffs across tool calls
+        let mut current_todos: Vec<Todo> = vec![];
         for msg in &value.messages {
             match msg.deref() {
                 ContextMessage::Text(text_msg) => {
@@ -223,7 +245,32 @@ impl From<&Context> for ContextSummary {
                         current_role = text_msg.role;
                     }
 
-                    buffer.extend(Vec::<SummaryMessage>::from(text_msg));
+                    buffer.extend(extract_summary_messages(text_msg, &current_todos));
+
+                    // Update current_todos if this is a TodoWrite call
+                    if let Some(calls) = &text_msg.tool_calls {
+                        for call in calls {
+                            if let Ok(ToolCatalog::TodoWrite(input)) =
+                                ToolCatalog::try_from(call.clone())
+                            {
+                                for item in &input.todos {
+                                    if item.status == crate::TodoStatus::Cancelled {
+                                        current_todos.retain(|t| t.content != item.content);
+                                    } else if let Some(existing) =
+                                        current_todos.iter_mut().find(|t| t.content == item.content)
+                                    {
+                                        existing.status = item.status;
+                                    } else {
+                                        current_todos.push(Todo {
+                                            id: String::new(),
+                                            content: item.content.clone(),
+                                            status: item.status,
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 ContextMessage::Tool(tool_result) => {
                     if let Some(ref call_id) = tool_result.call_id {
@@ -257,34 +304,41 @@ impl From<&Context> for ContextSummary {
     }
 }
 
+/// Extracts summary messages from a text message, using current_todos for diff
+/// computation
+fn extract_summary_messages(text_msg: &TextMessage, current_todos: &[Todo]) -> Vec<SummaryMessage> {
+    let mut blocks = vec![];
+
+    // Add content block if there's text content
+    if !text_msg.content.is_empty() {
+        blocks.push(SummaryMessage::Text(text_msg.content.clone()));
+    }
+
+    // Add tool call blocks if present
+    if let Some(calls) = &text_msg.tool_calls {
+        blocks.extend(calls.iter().filter_map(|tool_call| {
+            extract_tool_info(tool_call, current_todos).map(|call| {
+                SummaryMessage::ToolCall(SummaryToolCall {
+                    id: tool_call.call_id.clone(),
+                    tool: call,
+                    is_success: false,
+                })
+            })
+        }));
+    }
+
+    blocks
+}
+
 impl From<&TextMessage> for Vec<SummaryMessage> {
     fn from(text_msg: &TextMessage) -> Self {
-        let mut blocks = vec![];
-
-        // Add content block if there's text content
-        if !text_msg.content.is_empty() {
-            blocks.push(SummaryMessage::Text(text_msg.content.clone()));
-        }
-
-        // Add tool call blocks if present
-        if let Some(calls) = &text_msg.tool_calls {
-            blocks.extend(calls.iter().filter_map(|tool_call| {
-                extract_tool_info(tool_call).map(|call| {
-                    SummaryMessage::ToolCall(SummaryToolCall {
-                        id: tool_call.call_id.clone(),
-                        tool: call,
-                        is_success: false,
-                    })
-                })
-            }));
-        }
-
-        blocks
+        extract_summary_messages(text_msg, &[])
     }
 }
 
-/// Extracts tool information from a tool call
-fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
+/// Extracts tool information from a tool call, using current_todos as the
+/// before-state for diffs
+fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<SummaryTool> {
     // Try to parse as a Tools enum variant
     if let Ok(tool) = ToolCatalog::try_from(call.clone()) {
         return match tool {
@@ -311,7 +365,50 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
-            ToolCatalog::TodoWrite(input) => Some(SummaryTool::TodoWrite { todos: input.todos }),
+            ToolCatalog::TodoWrite(input) => {
+                let before_map: HashMap<&str, &Todo> = current_todos
+                    .iter()
+                    .map(|t| (t.content.as_str(), t))
+                    .collect();
+
+                let mut changes = vec![];
+
+                for item in &input.todos {
+                    if item.status == crate::TodoStatus::Cancelled {
+                        if let Some(prev) = before_map.get(item.content.as_str()) {
+                            changes.push(TodoChange {
+                                todo: (*prev).clone(),
+                                kind: TodoChangeKind::Removed,
+                            });
+                        }
+                    } else {
+                        match before_map.get(item.content.as_str()) {
+                            None => changes.push(TodoChange {
+                                todo: Todo {
+                                    id: String::new(),
+                                    content: item.content.clone(),
+                                    status: item.status,
+                                },
+                                kind: TodoChangeKind::Added,
+                            }),
+                            Some(prev) if prev.status != item.status => {
+                                changes.push(TodoChange {
+                                    todo: Todo {
+                                        id: prev.id.clone(),
+                                        content: item.content.clone(),
+                                        status: item.status,
+                                    },
+                                    kind: TodoChangeKind::Updated,
+                                });
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                Some(SummaryTool::TodoWrite { changes })
+            }
+            ToolCatalog::TodoRead(_) => Some(SummaryTool::TodoRead),
             ToolCatalog::Task(input) => Some(SummaryTool::Task { agent_id: input.agent_id }),
             ToolCatalog::Lsp(input) => Some(SummaryTool::Lsp {
                 operation: input.operation.as_ref().to_string(),
@@ -812,7 +909,7 @@ mod tests {
             thought_signature: None,
         };
 
-        let actual = extract_tool_info(&fixture);
+        let actual = extract_tool_info(&fixture, &[]);
 
         assert_eq!(
             actual,
