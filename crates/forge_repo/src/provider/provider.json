@@ -2289,7 +2289,6 @@
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
       },
-
       {
         "id": "minimax-m2.5",
         "name": "MiniMax M2.5",
@@ -2361,6 +2360,26 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text"]
+      },
+      {
+        "id": "mimo-v2-pro-free",
+        "name": "Mimo V2 pro Free",
+        "description": "MiMo-V2-Pro is Xiaomi's flagship foundation model, featuring over 1T total parameters and a 1M context length",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "mimo-v2-omni-free",
+        "name": "Mimi V2 omni Free",
+        "description": "MiMo-V2-Omni is a frontier omni-modal model that natively processes image, video, and audio inputs within a unified architecture",
+        "context_length": 262100,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       }
     ],
     "auth_methods": ["api_key"]
