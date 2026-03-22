@@ -503,7 +503,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.4-pro-2026-03-05",
@@ -513,7 +513,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gpt-5.4-mini",
@@ -1004,7 +1004,7 @@
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
-        "input_modalities": ["text", "image"]
+        "input_modalities": ["text", "image", "file"]
       },
       {
         "id": "gemini-3-flash-preview",
