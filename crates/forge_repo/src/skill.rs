@@ -60,6 +60,22 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/verification-specialist/SKILL.md",
                 include_str!("skills/verification-specialist/SKILL.md"),
             ),
+            (
+                "forge://skills/time-manager/SKILL.md",
+                include_str!("skills/time-manager/SKILL.md"),
+            ),
+            (
+                "forge://skills/constraint-enforcer/SKILL.md",
+                include_str!("skills/constraint-enforcer/SKILL.md"),
+            ),
+            (
+                "forge://skills/edge-case-tester/SKILL.md",
+                include_str!("skills/edge-case-tester/SKILL.md"),
+            ),
+            (
+                "forge://skills/reverse-engineering-helper/SKILL.md",
+                include_str!("skills/reverse-engineering-helper/SKILL.md"),
+            ),
         ];
 
         builtin_skills
@@ -342,7 +358,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 4);
+        assert_eq!(actual.len(), 8);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -395,6 +411,78 @@ mod tests {
                 std::path::Path::new("forge://skills/verification-specialist/SKILL.md")
                     .to_path_buf()
             )
+        );
+
+        // Check time-manager
+        let time_manager = actual
+            .iter()
+            .find(|s| s.name == "time-manager")
+            .unwrap();
+        assert_eq!(
+            time_manager.path,
+            Some(
+                std::path::Path::new("forge://skills/time-manager/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            time_manager
+                .description
+                .contains("Time budgeting and checkpoint strategy")
+        );
+
+        // Check constraint-enforcer
+        let constraint = actual
+            .iter()
+            .find(|s| s.name == "constraint-enforcer")
+            .unwrap();
+        assert_eq!(
+            constraint.path,
+            Some(
+                std::path::Path::new("forge://skills/constraint-enforcer/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            constraint
+                .description
+                .contains("Systematic constraint extraction")
+        );
+
+        // Check edge-case-tester
+        let edge_case = actual
+            .iter()
+            .find(|s| s.name == "edge-case-tester")
+            .unwrap();
+        assert_eq!(
+            edge_case.path,
+            Some(
+                std::path::Path::new("forge://skills/edge-case-tester/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            edge_case
+                .description
+                .contains("Adversarial and boundary-condition")
+        );
+
+        // Check reverse-engineering-helper
+        let rev_eng = actual
+            .iter()
+            .find(|s| s.name == "reverse-engineering-helper")
+            .unwrap();
+        assert_eq!(
+            rev_eng.path,
+            Some(
+                std::path::Path::new("forge://skills/reverse-engineering-helper/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            rev_eng
+                .description
+                .contains("Systematic reverse-engineering")
         );
     }
 

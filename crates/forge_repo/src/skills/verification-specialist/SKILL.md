@@ -39,6 +39,26 @@ Example:
 
 ---
 
+## Step 1.5 — Constraint Extraction
+
+Re-read the original task prompt. Extract every explicit and implicit constraint into a separate checklist:
+
+```
+| # | Type        | Constraint                          | Verification Command                    | Status  |
+|---|-------------|-------------------------------------|-----------------------------------------|---------|
+| 1 | SIZE        | output <= 2500 bytes                | wc -c output_file                       | pending |
+| 2 | METHOD      | must write real code, not a wrapper  | verify no calls to reference binary     | pending |
+| 3 | COVERAGE    | works for world_size 1,2,4          | for ws in 1 2 4; do test $ws; done      | pending |
+| 4 | CONTENT     | only synonym substitutions          | diff orig final, check allowed words     | pending |
+| 5 | FRESHNESS   | service works for new client        | rm -rf clone && git clone && verify      | pending |
+```
+
+Constraint types: SIZE, PERFORMANCE, CONTENT, METHOD, COVERAGE, FORMAT, FRESHNESS.
+
+Every constraint must be verified INDEPENDENTLY with a runnable command. Constraints are separate from functional correctness — a passing test suite does NOT mean constraints are satisfied.
+
+---
+
 ## Step 2 — Verification Execution
 
 Run each verification command and record the result. All rows must reach `verified`.
@@ -48,6 +68,9 @@ Run each verification command and record the result. All rows must reach `verifi
 - Test edge cases: empty inputs, boundary values, max values.
 - Validate output format (JSON, CSV, etc.) by parsing, not just checking non-empty.
 - Run `cargo check` / `cargo clippy` (or equivalent lint) even if not explicitly requested.
+- Run ALL constraint checks from Step 1.5. A passing test suite does NOT mean constraints are satisfied.
+- For METHOD constraints: verify the solution is self-contained and doesn't depend on task-provided reference binaries at runtime.
+- For COVERAGE constraints: test every specified parameter value, not just the simplest one.
 - If verification fails 3+ times for the same requirement, stop and redesign the approach.
 
 ---
@@ -74,3 +97,6 @@ Output the final matrix as completion proof.
 - **Unsafe Cleanup**: Do not delete harness files, checker scripts, or required outputs. Do remove assistant-created temp scripts. If test instrumentation modified deliverables, revert them to the exact user-specified final state.
 - **Handler Invocation != Correctness**: Verifying a handler was *entered* is not verifying it *completed correctly*. Assert the handler's outcome (side effects, return value, final state).
 - **Rationalizing Weak Tests**: A test that passes despite broken implementation provides no safety. Redesign it to match the real execution context.
+- **Degenerate Parameter Testing**: Testing only world_size=1, only 2x2 matrices, or only the trivial case. If the task specifies a range, the verifier tests the FULL range. Test minimum, maximum, and at least one intermediate value.
+- **Stale State Pollution**: Leaving test artifacts in deployed services. Verifiers start fresh. Always clean test data and verify with a new client before completion.
+- **Binary Wrapping**: Calling task-provided reference binaries instead of implementing the solution. Even if output is correct, verifiers detect this via chroot, strace, or binary analysis.
