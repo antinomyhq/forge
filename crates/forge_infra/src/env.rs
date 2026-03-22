@@ -12,6 +12,25 @@ pub struct ForgeEnvironmentInfra {
     cwd: PathBuf,
 }
 
+/// Falls back from rbash to an available shell.
+/// Fallback order: /bin/bash → /bin/zsh → /bin/sh
+pub(crate) fn resolve_shell(shell: &str) -> String {
+    let basename = Path::new(shell)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or(shell);
+
+    if basename == "rbash" {
+        for fallback in ["/bin/bash", "/bin/zsh", "/bin/sh"] {
+            if Path::new(fallback).exists() {
+                return fallback.to_string();
+            }
+        }
+    }
+
+    shell.to_string()
+}
+
 impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with specified working directory
     ///
@@ -29,11 +48,10 @@ impl ForgeEnvironmentInfra {
         if cfg!(target_os = "windows") {
             std::env::var("COMSPEC").unwrap_or("cmd.exe".to_string())
         } else if self.restricted {
-            // Default to rbash in restricted mode
-            "/bin/rbash".to_string()
+            resolve_shell("/bin/rbash")
         } else {
-            // Use user's preferred shell or fallback to sh
-            std::env::var("SHELL").unwrap_or("/bin/sh".to_string())
+            let shell = std::env::var("SHELL").unwrap_or("/bin/sh".to_string());
+            resolve_shell(&shell)
         }
     }
 
@@ -896,5 +914,40 @@ SIMPLE=value"#;
             env::remove_var("TEST_F64");
             env::remove_var("TEST_STRING");
         }
+    }
+
+    #[test]
+    fn test_resolve_shell_non_rbash_unchanged() {
+        assert_eq!(resolve_shell("/bin/bash"), "/bin/bash");
+        assert_eq!(resolve_shell("/bin/zsh"), "/bin/zsh");
+        assert_eq!(resolve_shell("/bin/sh"), "/bin/sh");
+        assert_eq!(resolve_shell("bash"), "bash");
+    }
+
+    #[test]
+    fn test_resolve_shell_rbash_falls_back() {
+        // rbash (bare name) should fall back
+        let result = resolve_shell("rbash");
+        assert_ne!(result, "rbash");
+        assert!(
+            result == "/bin/bash" || result == "/bin/zsh" || result == "/bin/sh",
+            "expected a fallback shell, got: {result}"
+        );
+
+        // /bin/rbash should fall back
+        let result = resolve_shell("/bin/rbash");
+        assert_ne!(result, "/bin/rbash");
+        assert!(
+            result == "/bin/bash" || result == "/bin/zsh" || result == "/bin/sh",
+            "expected a fallback shell, got: {result}"
+        );
+
+        // /usr/bin/rbash should fall back
+        let result = resolve_shell("/usr/bin/rbash");
+        assert_ne!(result, "/usr/bin/rbash");
+        assert!(
+            result == "/bin/bash" || result == "/bin/zsh" || result == "/bin/sh",
+            "expected a fallback shell, got: {result}"
+        );
     }
 }
