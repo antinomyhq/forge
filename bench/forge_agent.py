@@ -89,6 +89,7 @@ class ForgeAgent(BaseInstalledAgent):
         self._payload_dir = Path(payload_dir) if payload_dir else None
         self._conversation_id: str | None = None
         self._cached_template_path: Path | None = None
+        self._task_timeout_secs: float | None = None
 
     def __del__(self):
         """Clean up temporary template file if it was created."""
@@ -677,6 +678,10 @@ class ForgeAgent(BaseInstalledAgent):
         # Run in background (non-interactive) mode for benchmarks
         env["FORGE_BACKGROUND"] = "true"
 
+        # Pass task timeout so the agent can budget its time
+        if self._task_timeout_secs is not None:
+            env["FORGE_TASK_TIMEOUT_SECS"] = str(int(self._task_timeout_secs))
+
         # Pass through API keys
         api_key_vars = [
             "FORGE_API_KEY",
@@ -789,9 +794,85 @@ class ForgeAgent(BaseInstalledAgent):
                                 source_path=payload_md_path,
                                 target_path="/root/AGENTS.md",
                             )
+                    # Resolve and store the effective agent timeout so Forge
+                    # can budget its time.  The timeout is defined per-task in
+                    # task.toml ([agent] timeout_sec) and may be overridden or
+                    # scaled by the trial config.
+                    self._resolve_task_timeout(config_data)
                 except Exception as e:
                     self.logger.warning(f"Failed to load specific agent md from payload: {e}")
 
+
+    def _resolve_task_timeout(self, config_data: dict) -> None:
+        """Compute the effective agent timeout from trial config + task.toml.
+
+        Harbor calculates the timeout as:
+            min(override_timeout or task_timeout, max_timeout) * multiplier
+
+        The task.toml file (which contains [agent] timeout_sec) lives in
+        Harbor's task cache.  We locate it via the task path recorded in
+        config.json and search well-known cache directories.
+        """
+        try:
+            import tomllib
+        except ModuleNotFoundError:
+            # Python < 3.11 fallback
+            try:
+                import tomli as tomllib  # type: ignore[no-redef]
+            except ModuleNotFoundError:
+                return
+
+        # 1. Check for an explicit override in the trial config
+        agent_cfg = config_data.get("agent", {})
+        override = agent_cfg.get("override_timeout_sec")
+        if override is not None:
+            max_timeout = agent_cfg.get("max_timeout_sec") or float("inf")
+            multiplier = (
+                config_data.get("agent_timeout_multiplier")
+                or config_data.get("timeout_multiplier")
+                or 1.0
+            )
+            self._task_timeout_secs = min(override, max_timeout) * multiplier
+            return
+
+        # 2. Find task.toml in the harbor cache
+        task_path = config_data.get("task", {}).get("path")
+        if not task_path:
+            return
+
+        cache_bases = [
+            Path.home() / ".cache" / "harbor" / "tasks",
+            Path("/tmp") / "harbor" / "tasks",
+        ]
+
+        task_toml_path = None
+        for cache_base in cache_bases:
+            if not cache_base.is_dir():
+                continue
+            # Harbor stores tasks under <cache>/tasks/<hash>/<task_path>/task.toml
+            for candidate in cache_base.iterdir():
+                toml_candidate = candidate / task_path / "task.toml"
+                if toml_candidate.is_file():
+                    task_toml_path = toml_candidate
+                    break
+            if task_toml_path:
+                break
+
+        if task_toml_path is None:
+            return
+
+        # 3. Parse the timeout from task.toml
+        with open(task_toml_path, "rb") as f:
+            task_config = tomllib.load(f)
+
+        base_timeout = task_config.get("agent", {}).get("timeout_sec", 600.0)
+        max_timeout = agent_cfg.get("max_timeout_sec") or float("inf")
+        multiplier = (
+            config_data.get("agent_timeout_multiplier")
+            or config_data.get("timeout_multiplier")
+            or 1.0
+        )
+        self._task_timeout_secs = min(base_timeout, max_timeout) * multiplier
 
     def populate_context_post_run(self, context: AgentContext) -> None:
         pass

@@ -143,6 +143,7 @@ impl ForgeEnvironmentInfra {
             ),
             model_cache_ttl: parse_env::<u64>("FORGE_MODEL_CACHE_TTL").unwrap_or(604_800), /* 1 week */
             background: parse_env::<bool>("FORGE_BACKGROUND").unwrap_or(false),
+            task_timeout_secs: parse_env::<u64>("FORGE_TASK_TIMEOUT_SECS"),
         }
     }
 

@@ -775,6 +775,7 @@ impl ToolOperation {
         if let Some(elapsed) = metrics.duration(chrono::Utc::now()) {
             let session_info = Element::new("session_info")
                 .attr("session_elapsed_secs", format!("{:.1}", elapsed.as_secs_f64()));
+
             result
                 .values
                 .push(forge_domain::ToolValue::Text(session_info.to_string()));

@@ -15,7 +15,7 @@ Strategy for completing tasks within a fixed time budget without losing partial 
 
 ## Phase Budget
 
-Read `session_elapsed_secs` from `<session_info>` on any tool output. Estimate the total budget from the task complexity (default assumption: ~15 minutes for complex tasks). Divide into four phases:
+Read `session_elapsed_secs` from the `<session_info>` element appended to every tool output. The total budget is the `task_timeout_secs` value rendered in your system prompt (if present); otherwise estimate from task complexity (default: ~15 minutes). Divide into four phases:
 
 | Phase | Budget | Goal |
 |-------|--------|------|

@@ -76,6 +76,10 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/reverse-engineering-helper/SKILL.md",
                 include_str!("skills/reverse-engineering-helper/SKILL.md"),
             ),
+            (
+                "forge://skills/ml-model-debugging/SKILL.md",
+                include_str!("skills/ml-model-debugging/SKILL.md"),
+            ),
         ];
 
         builtin_skills
@@ -358,7 +362,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 8);
+        assert_eq!(actual.len(), 9);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -483,6 +487,24 @@ mod tests {
             rev_eng
                 .description
                 .contains("Systematic reverse-engineering")
+        );
+
+        // Check ml-model-debugging
+        let ml_debug = actual
+            .iter()
+            .find(|s| s.name == "ml-model-debugging")
+            .unwrap();
+        assert_eq!(
+            ml_debug.path,
+            Some(
+                std::path::Path::new("forge://skills/ml-model-debugging/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            ml_debug
+                .description
+                .contains("debugging ML model loading")
         );
     }
 

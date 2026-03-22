@@ -108,6 +108,11 @@ pub struct Environment {
     /// autonomous decisions. Controlled by FORGE_BACKGROUND environment
     /// variable or --background CLI flag.
     pub background: bool,
+    /// Optional task-level timeout in seconds, set by the benchmark harness
+    /// via FORGE_TASK_TIMEOUT_SECS. When present, the agent should budget
+    /// its time to finish before this hard kill deadline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_timeout_secs: Option<u64>,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -349,6 +354,7 @@ fn test_command_path() {
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
         background: false,
+        task_timeout_secs: None,
     };
 
     let actual = fixture.command_path();
@@ -393,6 +399,7 @@ fn test_command_cwd_path() {
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
         background: false,
+        task_timeout_secs: None,
     };
 
     let actual = fixture.command_cwd_path();
@@ -437,6 +444,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
         background: false,
+        task_timeout_secs: None,
     };
 
     let command_path = fixture.command_path();

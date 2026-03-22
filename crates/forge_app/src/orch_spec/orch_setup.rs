@@ -97,6 +97,7 @@ impl Default for TestContext {
                 parallel_file_reads: 64,
                 model_cache_ttl: 604_800,
                 background: false,
+                task_timeout_secs: None,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(
