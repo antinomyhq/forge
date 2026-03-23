@@ -9,8 +9,8 @@ use crate::jobs::{sync_issue_job, sync_pr_job};
 /// - `sync-issue`: reconciles all bounty labels on an issue (generic label,
 ///   claimed status) whenever the issue is assigned, unassigned, labeled, or
 ///   unlabeled.
-/// - `sync-pr`: propagates bounty value labels from linked issues to the PR
-///   on open/edit, and applies the rewarded lifecycle on merge.
+/// - `sync-pr`: propagates bounty value labels from linked issues to the PR on
+///   open/edit, and applies the rewarded lifecycle on merge.
 pub fn generate_bounty_workflow() {
     let events = Event::default()
         .pull_request(
@@ -19,9 +19,7 @@ pub fn generate_bounty_workflow() {
                 .add_type(PullRequestType::Edited)
                 .add_type(PullRequestType::Reopened),
         )
-        .pull_request_target(
-            PullRequestTarget::default().add_type(PullRequestType::Closed),
-        )
+        .pull_request_target(PullRequestTarget::default().add_type(PullRequestType::Closed))
         .issues(
             Issues::default()
                 .add_type(IssuesType::Assigned)
