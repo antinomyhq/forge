@@ -245,58 +245,64 @@
     "aliases": ["ci:build-all-targets", "build-all-targets"]
   },
   {
-    "name": "bounty: 💰 $100",
+    "name": "bounty",
+    "color": "F9C74F",
+    "description": "This issue has a bounty attached.",
+    "aliases": ["bounty:open"]
+  },
+  {
+    "name": "bounty: $100",
     "color": "F9C74F",
     "description": "This issue has a $100 bounty attached.",
-    "aliases": ["bounty:100"]
+    "aliases": ["bounty:100", "bounty: 💰 $100"]
   },
   {
-    "name": "bounty: 💰 $200",
+    "name": "bounty: $200",
     "color": "F9C74F",
     "description": "This issue has a $200 bounty attached.",
-    "aliases": ["bounty:200"]
+    "aliases": ["bounty:200", "bounty: 💰 $200"]
   },
   {
-    "name": "bounty: 💰 $300",
+    "name": "bounty: $300",
     "color": "F9C74F",
     "description": "This issue has a $300 bounty attached.",
-    "aliases": ["bounty:300"]
+    "aliases": ["bounty:300", "bounty: 💰 $300"]
   },
   {
-    "name": "bounty: 💰 $500",
+    "name": "bounty: $500",
     "color": "F9C74F",
     "description": "This issue has a $500 bounty attached.",
-    "aliases": ["bounty:500"]
+    "aliases": ["bounty:500", "bounty: 💰 $500"]
   },
   {
-    "name": "bounty: 💰 $800",
+    "name": "bounty: $800",
     "color": "F9C74F",
     "description": "This issue has a $800 bounty attached.",
-    "aliases": ["bounty:800"]
+    "aliases": ["bounty:800", "bounty: 💰 $800"]
   },
   {
-    "name": "bounty: 💰 $1300",
+    "name": "bounty: $1300",
     "color": "F9C74F",
     "description": "This issue has a $1300 bounty attached.",
-    "aliases": ["bounty:1300"]
+    "aliases": ["bounty:1300", "bounty: 💰 $1300"]
   },
   {
-    "name": "bounty: 💰 $2100",
+    "name": "bounty: $2100",
     "color": "F9C74F",
     "description": "This issue has a $2100 bounty attached.",
-    "aliases": ["bounty:2100"]
+    "aliases": ["bounty:2100", "bounty: 💰 $2100"]
   },
   {
-    "name": "bounty: 💰 $3400",
+    "name": "bounty: $3400",
     "color": "F9C74F",
     "description": "This issue has a $3400 bounty attached.",
-    "aliases": ["bounty:3400"]
+    "aliases": ["bounty:3400", "bounty: 💰 $3400"]
   },
   {
-    "name": "bounty: 💰 $5500",
+    "name": "bounty: $5500",
     "color": "F9C74F",
     "description": "This issue has a $5500 bounty attached.",
-    "aliases": ["bounty:5500"]
+    "aliases": ["bounty:5500", "bounty: 💰 $5500"]
   },
   {
     "name": "bounty: claimed",
