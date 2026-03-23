@@ -47,7 +47,7 @@ jobs:
     - name: Install npm packages
       run: npm install
     - name: Sync bounty labels
-      run: npx tsx .github/scripts/bounty/src/sync-issue.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+      run: npx tsx .github/scripts/bounty/src/sync-issue.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --execute
   sync-pr:
     if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target'
     name: Sync PR bounty labels
@@ -61,4 +61,4 @@ jobs:
     - name: Install npm packages
       run: npm install
     - name: Sync bounty labels
-      run: npx tsx .github/scripts/bounty/src/sync-pr.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+      run: npx tsx .github/scripts/bounty/src/sync-pr.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --execute

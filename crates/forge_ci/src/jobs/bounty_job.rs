@@ -38,7 +38,8 @@ pub fn sync_issue_job() -> Job {
         "sync-issue.ts",
         "--issue ${{ github.event.issue.number }} \
             --repo ${{ github.repository }} \
-            --token ${{ secrets.GITHUB_TOKEN }}"
+            --token ${{ secrets.GITHUB_TOKEN }} \
+            --execute"
             .to_string(),
     )
     .permissions(Permissions::default().issues(Level::Write))
@@ -56,7 +57,8 @@ pub fn sync_pr_job() -> Job {
         "sync-pr.ts",
         "--pr ${{ github.event.pull_request.number }} \
             --repo ${{ github.repository }} \
-            --token ${{ secrets.GITHUB_TOKEN }}"
+            --token ${{ secrets.GITHUB_TOKEN }} \
+            --execute"
             .to_string(),
     )
     .permissions(
