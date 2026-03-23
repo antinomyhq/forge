@@ -1,7 +1,7 @@
 mod env;
-mod http_config;
-mod retry_config;
+mod http_env;
+mod retry_env;
 
 pub use env::*;
-pub use http_config::*;
-pub use retry_config::*;
+pub use http_env::*;
+pub use retry_env::*;
