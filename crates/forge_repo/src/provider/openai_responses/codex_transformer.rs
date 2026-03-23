@@ -31,16 +31,8 @@ impl CodexTransformer {
                 )
             })
             .count();
-
-        if assistant_msg_count >= 50 {
-            oai::ReasoningEffort::Xhigh
-        } else if assistant_msg_count >= 20 {
-            oai::ReasoningEffort::High
-        } else if assistant_msg_count >= 10 {
-            oai::ReasoningEffort::Medium
-        } else {
-            oai::ReasoningEffort::Xhigh
-        }
+        oai::ReasoningEffort::Medium
+        
     }
 }
 
