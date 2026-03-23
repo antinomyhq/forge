@@ -9,7 +9,9 @@
   "scripts": {
     "eval": "tsx benchmarks/cli.ts",
     "test:bounty": "tsx --test .github/scripts/bounty/*.test.ts",
-    "test:bounty:v2": "tsx --test .github/scripts/bounty/v2/tests/*.test.ts"
+    "test:bounty:v2": "tsx --test .github/scripts/bounty/v2/tests/*.test.ts",
+    "bounty:sync-issue": "tsx .github/scripts/bounty/v2/sync-issue.ts",
+    "bounty:sync-pr": "tsx .github/scripts/bounty/v2/sync-pr.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.47",

@@ -10,11 +10,32 @@
 //   tsx sync-issue.ts --issue <number> --repo <owner/repo> --token <token> [--execute]
 
 import * as url from "url";
+import { execSync } from "child_process";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { GitHubRestApi, type GitHubApi } from "./api.js";
 import { computeIssuePatch } from "./rules.js";
 import type { Patch } from "./types.js";
+
+/// Resolves a GitHub token from the provided value, the GITHUB_TOKEN env var,
+/// or by invoking `gh auth token` as a fallback. Exits with an error if none
+/// can be found.
+export function resolveToken(flag: string | undefined): string {
+  const token = flag || process.env["GITHUB_TOKEN"] || (() => {
+    try {
+      return execSync("gh auth token", { encoding: "utf8" }).trim();
+    } catch {
+      return "";
+    }
+  })();
+  if (!token) {
+    console.error(
+      "Error: no GitHub token found. Pass --token, set GITHUB_TOKEN, or run `gh auth login`."
+    );
+    process.exit(1);
+  }
+  return token;
+}
 
 export interface PlanIssueInput {
   issueNumber: number;
@@ -80,7 +101,7 @@ if (process.argv[1] === url.fileURLToPath(import.meta.url)) {
   const argv = await yargs(hideBin(process.argv))
     .option("issue", { type: "number", demandOption: true, description: "Issue number" })
     .option("repo", { type: "string", demandOption: true, description: "owner/repo" })
-    .option("token", { type: "string", demandOption: true, description: "GitHub token" })
+    .option("token", { type: "string", description: "GitHub token (falls back to GITHUB_TOKEN env var or `gh auth token`)" })
     .option("execute", {
       type: "boolean",
       default: false,
@@ -90,7 +111,8 @@ if (process.argv[1] === url.fileURLToPath(import.meta.url)) {
     .parseAsync();
 
   const [owner, repo] = argv.repo.split("/") as [string, string];
-  const api = new GitHubRestApi(owner, repo, argv.token);
+  const token = resolveToken(argv.token);
+  const api = new GitHubRestApi(owner, repo, token);
 
   if (argv.execute) {
     const patch = await syncIssue({ issueNumber: argv.issue, api });

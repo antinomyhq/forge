@@ -14,7 +14,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { GitHubRestApi, type GitHubApi } from "./api.js";
 import { computePrPatch, linkedIssueNumbers } from "./rules.js";
-import { applyPatch, printPlan } from "./sync-issue.js";
+import { applyPatch, printPlan, resolveToken } from "./sync-issue.js";
 import type { Patch } from "./types.js";
 
 export interface PlanPrInput {
@@ -57,7 +57,7 @@ if (process.argv[1] === url.fileURLToPath(import.meta.url)) {
   const argv = await yargs(hideBin(process.argv))
     .option("pr", { type: "number", demandOption: true, description: "PR number" })
     .option("repo", { type: "string", demandOption: true, description: "owner/repo" })
-    .option("token", { type: "string", demandOption: true, description: "GitHub token" })
+    .option("token", { type: "string", description: "GitHub token (falls back to GITHUB_TOKEN env var or `gh auth token`)" })
     .option("execute", {
       type: "boolean",
       default: false,
@@ -67,7 +67,8 @@ if (process.argv[1] === url.fileURLToPath(import.meta.url)) {
     .parseAsync();
 
   const [owner, repo] = argv.repo.split("/") as [string, string];
-  const api = new GitHubRestApi(owner, repo, argv.token);
+  const token = resolveToken(argv.token);
+  const api = new GitHubRestApi(owner, repo, token);
 
   if (argv.execute) {
     const patch = await syncPr({ prNumber: argv.pr, api });
