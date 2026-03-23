@@ -6,18 +6,6 @@ use strum_macros::EnumString;
 /// Used with `HttpConfig` to specify TLS version constraints for HTTP
 /// connections.
 ///
-/// # Example
-/// ```
-/// use forge_domain::{HttpConfig, TlsVersion, TlsBackend};
-///
-/// let config = HttpConfig {
-///     min_tls_version: Some(TlsVersion::V1_2),
-///     max_tls_version: Some(TlsVersion::V1_3),
-///     tls_backend: TlsBackend::Rustls,
-///     ..HttpConfig::default()
-/// };
-/// ```
-///
 /// # Environment Variables
 /// - `FORGE_HTTP_MIN_TLS_VERSION`: Set minimum TLS version (e.g., "1.2")
 /// - `FORGE_HTTP_MAX_TLS_VERSION`: Set maximum TLS version (e.g., "1.3")
@@ -118,21 +106,6 @@ impl std::fmt::Display for TlsBackend {
 ///   false) - USE WITH CAUTION
 /// - `FORGE_HTTP_ROOT_CERT_PATHS`: Paths to root certificate files (PEM, CRT,
 ///   CER format), multiple paths separated by commas
-///
-/// # Example
-/// ```
-/// use forge_domain::{HttpConfig, TlsVersion, TlsBackend};
-///
-/// let config = HttpConfig {
-///     connect_timeout: 30,
-///     min_tls_version: Some(TlsVersion::V1_2),
-///     max_tls_version: Some(TlsVersion::V1_3),
-///     tls_backend: TlsBackend::Rustls,
-///     adaptive_window: true,
-///     keep_alive_interval: Some(60),
-///     ..HttpConfig::default()
-/// };
-/// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpConfig {

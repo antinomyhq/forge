@@ -128,55 +128,77 @@ impl FromStr for AutoDumpFormat {
 }
 
 impl Environment {
+    /// Returns the path to the log directory.
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
 
+    /// Returns the path to the history file, using custom path if configured.
     pub fn history_path(&self) -> PathBuf {
         self.custom_history_path
             .clone()
             .unwrap_or(self.base_path.join(".forge_history"))
     }
+
+    /// Returns the path to the snapshots directory.
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
     }
+
+    /// Returns the path to the user-level MCP configuration file.
     pub fn mcp_user_config(&self) -> PathBuf {
         self.base_path.join(".mcp.json")
     }
 
+    /// Returns the path to the templates directory.
     pub fn templates(&self) -> PathBuf {
         self.base_path.join("templates")
     }
+
+    /// Returns the global agent directory path (typically ~/.forge/agents).
     pub fn agent_path(&self) -> PathBuf {
         self.base_path.join("agents")
     }
+
+    /// Returns the project-local agent directory path (.forge/agents relative
+    /// to cwd).
     pub fn agent_cwd_path(&self) -> PathBuf {
         self.cwd.join(".forge/agents")
     }
 
+    /// Returns the global commands directory path.
     pub fn command_path(&self) -> PathBuf {
         self.base_path.join("commands")
     }
 
+    /// Returns the project-local commands directory path (.forge/commands
+    /// relative to cwd).
     pub fn command_cwd_path(&self) -> PathBuf {
         self.cwd.join(".forge/commands")
     }
+
+    /// Returns the path to the permissions configuration file.
     pub fn permissions_path(&self) -> PathBuf {
         self.base_path.join("permissions.yaml")
     }
 
+    /// Returns the path to the local MCP configuration file (.mcp.json in
+    /// cwd).
     pub fn mcp_local_config(&self) -> PathBuf {
         self.cwd.join(".mcp.json")
     }
 
+    /// Returns the application version string.
     pub fn version(&self) -> String {
         VERSION.to_string()
     }
 
+    /// Returns the path to the application configuration file.
     pub fn app_config(&self) -> PathBuf {
         self.base_path.join(".config.json")
     }
 
+    /// Returns the path to the SQLite database file.
     pub fn database_path(&self) -> PathBuf {
         self.base_path.join(".forge.db")
     }
@@ -202,6 +224,7 @@ impl Environment {
         self.base_path.join(".credentials.json")
     }
 
+    /// Returns a hash derived from the current working directory.
     pub fn workspace_hash(&self) -> WorkspaceHash {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
@@ -210,13 +233,17 @@ impl Environment {
     }
 }
 
+/// A hash value derived from the workspace (cwd) path.
 #[derive(Clone, Copy, Display)]
 pub struct WorkspaceHash(u64);
+
 impl WorkspaceHash {
+    /// Creates a new [`WorkspaceHash`] from the given id.
     pub fn new(id: u64) -> Self {
         WorkspaceHash(id)
     }
 
+    /// Returns the raw hash value.
     pub fn id(&self) -> u64 {
         self.0
     }
