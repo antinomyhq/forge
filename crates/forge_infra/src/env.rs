@@ -16,8 +16,8 @@ impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with specified working directory
     ///
     /// # Arguments
-    /// * `restricted` - If true, enable restricted mode using the permissions feature. If false,
-    ///   use unrestricted mode
+    /// * `restricted` - If true, enable restricted mode using the permissions
+    ///   feature. If false, use unrestricted mode
     /// * `cwd` - Required working directory path
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         Self::dot_env(&cwd);
