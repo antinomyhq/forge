@@ -201,7 +201,7 @@ function _forge_action_copy() {
     echo
 
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _forge_log error "No active conversation. Start a conversation first or use :list to see existing ones"
+        _forge_log error "No active conversation. Start a conversation first or use :conversation to see existing ones"
         return 0
     fi
 
