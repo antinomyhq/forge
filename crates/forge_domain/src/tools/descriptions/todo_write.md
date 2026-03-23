@@ -1,6 +1,22 @@
 Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 
+## How It Works
+
+Each call sends only the items that changed — you do not need to repeat the whole list.
+
+Each item has two required fields:
+- `content`: The task description. This is the **unique key** — the server matches on content to decide whether to add or update.
+- `status`: One of `pending`, `in_progress`, `completed`, or `cancelled`.
+
+**Rules:**
+- Item with this `content` does **not** exist yet → **added** as a new task.
+- Item with this `content` already exists → its `status` is **updated**.
+- `status: cancelled` → the item is **removed** from the list entirely.
+- Items you do not mention are **left unchanged**.
+
+IDs are managed internally by the system and are never exposed to you.
+
 ## When to Use This Tool
 Use this tool proactively in these scenarios:
 
@@ -146,26 +162,24 @@ The assistant did not use the todo list because this is a single command executi
 ## Task States and Management
 
 1. **Task States**: Use these states to track progress:
-   - pending: Task not yet started
-   - in_progress: Currently working on (limit to ONE task at a time)
-   - completed: Task finished successfully
-
-   **IMPORTANT**: Task descriptions must have two forms:
-   - content: The imperative form describing what needs to be done (e.g., "Run tests", "Build the project")
-   - activeForm: The present continuous form shown during execution (e.g., "Running tests", "Building the project")
+   - `pending`: Task not yet started
+   - `in_progress`: Currently working on (limit to ONE task at a time)
+   - `completed`: Task finished successfully
+   - `cancelled`: Task is no longer relevant — this removes it from the list
 
 2. **Task Management**:
-   - Update task status in real-time as you work
-   - Mark tasks complete IMMEDIATELY after finishing (don't batch completions)
-   - Exactly ONE task must be in_progress at any time (not less, not more)
+   - Only send the items that changed — do not repeat unchanged items
+   - Mark tasks `in_progress` BEFORE beginning work
+   - Mark tasks `completed` IMMEDIATELY after finishing (don't batch completions)
+   - Exactly ONE task must be `in_progress` at any time
+   - Use `cancelled` to remove tasks that are no longer relevant
    - Complete current tasks before starting new ones
-   - Remove tasks that are no longer relevant from the list entirely
 
 3. **Task Completion Requirements**:
-   - ONLY mark a task as completed when you have FULLY accomplished it
-   - If you encounter errors, blockers, or cannot finish, keep the task as in_progress
+   - ONLY mark a task as `completed` when you have FULLY accomplished it
+   - If you encounter errors, blockers, or cannot finish, keep the task as `in_progress`
    - When blocked, create a new task describing what needs to be resolved
-   - Never mark a task as completed if:
+   - Never mark a task as `completed` if:
      - Tests are failing
      - Implementation is partial
      - You encountered unresolved errors
@@ -175,8 +189,5 @@ The assistant did not use the todo list because this is a single command executi
    - Create specific, actionable items
    - Break complex tasks into smaller, manageable steps
    - Use clear, descriptive task names
-   - Always provide both forms:
-     - content: "Fix authentication bug"
-     - activeForm: "Fixing authentication bug"
 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.

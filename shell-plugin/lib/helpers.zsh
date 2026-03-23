@@ -21,7 +21,10 @@ function _forge_fzf() {
 function _forge_exec() {
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     local -a cmd
-    cmd=($_FORGE_BIN --agent "$agent_id" "$@")
+    cmd=($_FORGE_BIN --agent "$agent_id")
+    [[ -n "$_FORGE_SESSION_MODEL" ]] && cmd+=(--model "$_FORGE_SESSION_MODEL")
+    [[ -n "$_FORGE_SESSION_PROVIDER" ]] && cmd+=(--provider "$_FORGE_SESSION_PROVIDER")
+    cmd+=("$@")
     "${cmd[@]}"
 }
 
@@ -34,7 +37,10 @@ function _forge_exec() {
 function _forge_exec_interactive() {
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     local -a cmd
-    cmd=($_FORGE_BIN --agent "$agent_id" "$@")
+    cmd=($_FORGE_BIN --agent "$agent_id")
+    [[ -n "$_FORGE_SESSION_MODEL" ]] && cmd+=(--model "$_FORGE_SESSION_MODEL")
+    [[ -n "$_FORGE_SESSION_PROVIDER" ]] && cmd+=(--provider "$_FORGE_SESSION_PROVIDER")
+    cmd+=("$@")
     "${cmd[@]}" </dev/tty >/dev/tty
 }
 

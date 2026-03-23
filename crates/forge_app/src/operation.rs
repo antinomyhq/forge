@@ -655,7 +655,6 @@ impl ToolOperation {
 
                 for todo in added {
                     let todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .attr("change", "added")
                         .text(&todo.content);
@@ -664,7 +663,6 @@ impl ToolOperation {
 
                 for (prev, todo) in updated {
                     let mut todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .attr("change", "updated");
                     if prev.status != todo.status {
@@ -678,7 +676,6 @@ impl ToolOperation {
 
                 for todo in removed {
                     let todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .attr("change", "removed")
                         .text(&todo.content);
@@ -692,7 +689,6 @@ impl ToolOperation {
 
                 for todo in output {
                     let todo_elm = Element::new("todo")
-                        .attr("id", &todo.id)
                         .attr("status", todo.status.to_string())
                         .text(&todo.content);
                     elm = elm.append(todo_elm);
