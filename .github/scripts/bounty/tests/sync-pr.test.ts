@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { syncPr } from "../sync-pr.js";
-import type { GitHubApi } from "../api.js";
-import type { Issue, PullRequest } from "../types.js";
-import { BOUNTY_CLAIMED, BOUNTY_REWARDED } from "../rules.js";
+import { syncPr } from "../src/sync-pr.js";
+import type { GitHubApi } from "../src/api.js";
+import type { Issue, PullRequest } from "../src/types.js";
+import { BOUNTY_CLAIMED, BOUNTY_REWARDED } from "../src/rules.js";
 
 // ---------------------------------------------------------------------------
 // Mock API

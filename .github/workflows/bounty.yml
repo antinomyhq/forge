@@ -44,7 +44,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Sync bounty labels
-      run: npx tsx .github/scripts/bounty/v2/sync-issue.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+      run: npx tsx .github/scripts/bounty/src/sync-issue.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
   sync-pr:
     name: Sync PR bounty labels
     runs-on: ubuntu-latest
@@ -55,4 +55,4 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
     - name: Sync bounty labels
-      run: npx tsx .github/scripts/bounty/v2/sync-pr.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+      run: npx tsx .github/scripts/bounty/src/sync-pr.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}

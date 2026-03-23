@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { syncIssue } from "../sync-issue.js";
-import type { GitHubApi } from "../api.js";
-import type { Issue, PullRequest } from "../types.js";
+import { syncIssue } from "../src/sync-issue.js";
+import type { GitHubApi } from "../src/api.js";
+import type { Issue, PullRequest } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
 // Mock API

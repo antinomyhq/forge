@@ -7,8 +7,8 @@ import {
   BOUNTY_GENERIC,
   BOUNTY_CLAIMED,
   BOUNTY_REWARDED,
-} from "../rules.js";
-import type { Issue, PullRequest, IssueState, PrState } from "../types.js";
+} from "../src/rules.js";
+import type { Issue, PullRequest, IssueState, PrState } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
 // Fixtures
