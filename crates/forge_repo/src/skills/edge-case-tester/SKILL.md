@@ -96,9 +96,10 @@ for ws in [1, 2, 4]:
 When a reference implementation or binary exists:
 
 1. Generate 20+ random inputs spanning the full input space.
-2. Run both your solution and the reference on each input.
-3. Diff the outputs.
-4. Any mismatch = bug. Investigate before declaring complete.
+2. Include adversarial hand-picked cases from the domain-specific checklist, not just random inputs.
+3. Run both your solution and the reference on each input.
+4. Diff the outputs.
+5. Any mismatch = bug. Investigate before declaring complete.
 
 ```bash
 for i in $(seq 1 20); do
@@ -121,3 +122,5 @@ After running edge case tests, answer:
 - [ ] For optimization: is the solution faster than the reference at EVERY input size?
 - [ ] For distributed: does it work with world_size > 1?
 - [ ] Have I tested at least 3 adversarial inputs from the domain-specific list?
+- [ ] If the task requires ALL outputs, have I compared against an oracle/reference on randomized inputs rather than relying only on the public sample/checker?
+- [ ] Did I avoid sample-specific hardcoding or one-off mappings that bypass the general algorithm?

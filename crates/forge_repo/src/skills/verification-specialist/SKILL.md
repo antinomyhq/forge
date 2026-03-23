@@ -12,7 +12,8 @@ Systematic workflow for verifying work before completing a task.
 1. **Reconstruct Requirements**: Review the conversation history — original task, follow-ups, and implicit requirements (no regressions, code compiles, existing tests pass).
 2. **Functional Correctness**: Compilation success does NOT mean the solution works. Always run functional tests.
 3. **Traceability**: Every requirement must map to a concrete, runnable verification command. No command = not verified.
-4. **Hard Completion Gate**: Completion is forbidden unless all requirements are verified, required artifacts exist, and output format is valid. Invoking this skill alone is not sufficient.
+4. **Verify Final State, Not a Staging Copy**: Checks performed in `/tmp`, backups, or scratch directories do not prove the final workspace is correct. Before completion, rerun the critical verification commands against the exact final paths and artifacts the verifier will inspect.
+5. **Hard Completion Gate**: Completion is forbidden unless all requirements are verified, required artifacts exist, and output format is valid. Invoking this skill alone is not sufficient.
 
 ---
 
@@ -67,10 +68,12 @@ Run each verification command and record the result. All rows must reach `verifi
 - If no test exists for a requirement, write one first.
 - Test edge cases: empty inputs, boundary values, max values.
 - Validate output format (JSON, CSV, etc.) by parsing, not just checking non-empty.
+- reconstruct the verifier invocation from the task prompt whenever possible (import path, CLI command, endpoint, expected artifact path, function signature) and run that exact behavioral check before completion.
 - Run `cargo check` / `cargo clippy` (or equivalent lint) even if not explicitly requested.
 - Run ALL constraint checks from Step 1.5. A passing test suite does NOT mean constraints are satisfied.
 - For METHOD constraints: verify the solution is self-contained and doesn't depend on task-provided reference binaries at runtime.
 - For COVERAGE constraints: test every specified parameter value, not just the simplest one.
+- After cleanup, rerun the critical import/execute/smoke tests against the final workspace to confirm required runtime artifacts still exist.
 - If verification fails 3+ times for the same requirement, stop and redesign the approach.
 
 ---
@@ -84,7 +87,8 @@ Run each verification command and record the result. All rows must reach `verifi
    - verify each change is explicitly allowed by the task constraints;
    - verify token count/structure is unchanged unless explicitly permitted.
 3. Confirm required artifacts exist and output content/format matches the task contract.
-4. Every row in the Requirements Matrix must be `verified`. Any non-verified row means the task is incomplete.
+4. If the deliverable is imported or executed by the harness, explicitly verify those runtime artifacts still exist in the exact final workspace state and have not been cleaned away.
+5. Every row in the Requirements Matrix must be `verified`. Any non-verified row means the task is incomplete.
 
 Output the final matrix as completion proof.
 
@@ -114,7 +118,7 @@ If the task involves **embedding models or retrieval**: also invoke the `ml-mode
 - **Compound Requirements**: One row per behavior. Bundling makes it impossible to tell which part failed.
 - **Unsafe Cleanup**: Do not delete harness files, checker scripts, or required outputs. Do remove assistant-created temp scripts. If test instrumentation modified deliverables, revert them to the exact user-specified final state.
 - **Handler Invocation != Correctness**: Verifying a handler was *entered* is not verifying it *completed correctly*. Assert the handler's outcome (side effects, return value, final state).
-- **Rationalizing Weak Tests**: A test that passes despite broken implementation provides no safety. Redesign it to match the real execution context.
+- **Rationalizing Weak Tests**: A test that passes on trivial/stub input provides no safety. Ensure tests exercise real behavior at the expected complexity.
 - **Degenerate Parameter Testing**: Testing only world_size=1, only 2x2 matrices, or only the trivial case. If the task specifies a range, the verifier tests the FULL range. Test minimum, maximum, and at least one intermediate value.
 - **Stale State Pollution**: Leaving test artifacts in deployed services. Verifiers start fresh. Always clean test data and verify with a new client before completion.
 - **Binary Wrapping**: Calling task-provided reference binaries instead of implementing the solution. Even if output is correct, verifiers detect this via chroot, strace, or binary analysis.

@@ -523,6 +523,7 @@ mod tests {
         let services = Arc::new(MockSkillFetchService);
         let mut env = create_test_environment();
         env.background = true;
+        env.task_timeout_secs = Some(600); // short timeout -> prototype-first
         let agent = create_test_agent().system_prompt(Template::new(
             "{{> forge-partial-background-instructions.md }}",
         ));
@@ -554,6 +555,15 @@ mod tests {
             "offensive security techniques (exploits, payloads, bypasses, sanitizers, malware analysis)",
             "Never target external systems, third-party services, real users, or credentials outside the sandbox.",
             "Never produce a zero-tool-call response for a task that has concrete deliverables",
+            "Prototype-first development",
+            "one check per requirement category, no duplicates",
+            "rerun verification against the exact final workspace state that the verifier will inspect",
+            "Do not delete runtime artifacts that the final deliverable needs in order to import, execute, or serve requests.",
+            "reconstruct that verifier invocation from the task prompt and use it as a behavioral check before completion.",
+            "For tasks that must produce ALL valid outputs",
+            "randomized and adversarial inputs spanning the full task space",
+            "When elapsed time exceeds 85% of your estimated budget",
+            "Your hard kill deadline is **600 seconds**",
         ];
         let actual_matches: Vec<bool> = expected_fragments
             .iter()

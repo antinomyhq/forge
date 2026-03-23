@@ -358,7 +358,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 9);
+        assert_eq!(actual.len(), 8);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -412,6 +412,16 @@ mod tests {
                     .to_path_buf()
             )
         );
+        assert!(
+            verification_specialist
+                .command
+                .contains("exact final workspace state")
+        );
+        assert!(
+            verification_specialist
+                .command
+                .contains("reconstruct the verifier invocation")
+        );
 
         // Check constraint-enforcer
         let constraint = actual
@@ -447,6 +457,11 @@ mod tests {
             edge_case
                 .description
                 .contains("Adversarial and boundary-condition")
+        );
+        assert!(
+            edge_case
+                .command
+                .contains("Include adversarial hand-picked cases from the domain-specific checklist")
         );
 
         // Check reverse-engineering-helper

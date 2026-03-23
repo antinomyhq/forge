@@ -10,6 +10,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Deserializer};
 
 use crate::provider::IntoDomain;
+use forge_app::dto::openai::{Error as OpenAIError, ErrorCode, ErrorResponse};
 
 /// Wrapper enum for SSE events from the OpenAI Responses API.
 ///
@@ -378,13 +379,26 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                 Some(Ok(message))
                             }
                             oai::ResponseStreamEvent::ResponseFailed(failed) => {
-                                Some(Err(anyhow::anyhow!(
-                                    "Upstream response failed: {:?}",
-                                    failed.response.error
-                                )))
+                                // Build a typed error so the retry classifier
+                                // can inspect the code (e.g. server_error,
+                                // insufficient_quota, rate_limit).
+                                let error_response = match failed.response.error {
+                                    Some(err) => ErrorResponse::default()
+                                        .code(ErrorCode::String(err.code.clone()))
+                                        .message(err.message.clone()),
+                                    None => ErrorResponse::default()
+                                        .message("Upstream response failed".to_string()),
+                                };
+                                Some(Err(OpenAIError::Response(error_response).into()))
                             }
                             oai::ResponseStreamEvent::ResponseError(err) => {
-                                Some(Err(anyhow::anyhow!("Upstream error: {}", err.message)))
+                                let mut error_response = ErrorResponse::default()
+                                    .message(err.message.clone());
+                                if let Some(code) = err.code.clone() {
+                                    error_response = error_response
+                                        .code(ErrorCode::String(code));
+                                }
+                                Some(Err(OpenAIError::Response(error_response).into()))
                             }
                             _ => None,
                         },
@@ -408,6 +422,7 @@ mod tests {
     type ResponseStream =
         std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<StreamItem>> + Send>>;
     use forge_app::domain::{Content, FinishReason, Reasoning, ReasoningFull, TokenCount, Usage};
+    use forge_app::dto::openai::Error as OpenAIError;
     use forge_domain::{ChatCompletionMessage as Message, ToolCallId, ToolName};
     use tokio_stream::StreamExt;
 
@@ -1193,12 +1208,16 @@ mod tests {
         let actual = stream_domain.next().await.unwrap();
 
         assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("Upstream response failed")
-        );
+        let err = actual.unwrap_err();
+        // Should be a typed OpenAI error with the code preserved
+        let openai_err = err.downcast_ref::<OpenAIError>().expect("expected typed OpenAI error");
+        match openai_err {
+            OpenAIError::Response(resp) => {
+                assert_eq!(resp.code.as_ref().unwrap().as_str(), Some("rate_limit"));
+                assert_eq!(resp.message.as_deref(), Some("Rate limit exceeded"));
+            }
+            _ => panic!("expected Response variant"),
+        }
 
         Ok(())
     }
@@ -1215,7 +1234,16 @@ mod tests {
         let actual = stream_domain.next().await.unwrap();
 
         assert!(actual.is_err());
-        assert!(actual.unwrap_err().to_string().contains("Upstream error"));
+        let err = actual.unwrap_err();
+        // Should be a typed OpenAI error with the code preserved
+        let openai_err = err.downcast_ref::<OpenAIError>().expect("expected typed OpenAI error");
+        match openai_err {
+            OpenAIError::Response(resp) => {
+                assert_eq!(resp.code.as_ref().unwrap().as_str(), Some("connection_error"));
+                assert_eq!(resp.message.as_deref(), Some("Connection error"));
+            }
+            _ => panic!("expected Response variant"),
+        }
 
         Ok(())
     }

@@ -4,6 +4,11 @@ use forge_app::dto::openai::{Error, ErrorResponse};
 
 const TRANSPORT_ERROR_CODES: [&str; 3] = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
 
+/// OpenAI API error codes (string-based) that indicate transient server-side
+/// failures and should be retried. These arrive as `code` fields in
+/// `ResponseFailed` / `ResponseError` SSE events from the Responses API.
+const RETRYABLE_API_ERROR_CODES: [&str; 3] = ["server_error", "rate_limit", "insufficient_quota"];
+
 pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::Error {
     if let Some(code) = get_req_status_code(&error)
         .or(get_event_req_status_code(&error))
@@ -14,6 +19,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     }
 
     if is_api_transport_error(&error)
+        || is_api_server_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
         || is_empty_error(&error)
@@ -91,6 +97,41 @@ fn is_api_transport_error(error: &anyhow::Error) -> bool {
             Error::Response(error) => has_transport_error_code(error),
             _ => false,
         })
+}
+
+/// Checks if the error has a string error code that indicates a transient
+/// server-side failure (e.g. `server_error`, `insufficient_quota`,
+/// `rate_limit`). These codes arrive from the OpenAI Responses API via
+/// `ResponseFailed` / `ResponseError` SSE events.
+fn is_api_server_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<Error>()
+        .is_some_and(|error| match error {
+            Error::Response(error) => has_retryable_api_error_code(error),
+            _ => false,
+        })
+}
+
+fn has_retryable_api_error_code(error: &ErrorResponse) -> bool {
+    let has_direct_code = error
+        .code
+        .as_ref()
+        .and_then(|code| code.as_str())
+        .is_some_and(|code| {
+            RETRYABLE_API_ERROR_CODES
+                .into_iter()
+                .any(|retryable| retryable == code)
+        });
+
+    if has_direct_code {
+        return true;
+    }
+
+    // Recursively check nested errors
+    error
+        .error
+        .as_deref()
+        .is_some_and(has_retryable_api_error_code)
 }
 
 fn is_empty_error(error: &anyhow::Error) -> bool {
@@ -317,6 +358,46 @@ mod tests {
         // Generic errors are still not retryable
         let error = anyhow!("Generic error");
         assert!(!is_retryable(into_retry(error, &retry_config)));
+    }
+
+    #[test]
+    fn test_openai_responses_api_server_errors_are_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+
+        // server_error from Responses API ResponseFailed event
+        for code in ["server_error", "insufficient_quota", "rate_limit"] {
+            let error = anyhow::Error::from(Error::Response(
+                ErrorResponse::default()
+                    .code(ErrorCode::String(code.to_string()))
+                    .message(format!("{code} error")),
+            ));
+            assert!(
+                is_retryable(into_retry(error, &retry_config)),
+                "code '{code}' should be retryable"
+            );
+        }
+
+        // Non-retryable string codes are NOT retried
+        for code in ["invalid_api_key", "model_not_found", "invalid_request_error"] {
+            let error = anyhow::Error::from(Error::Response(
+                ErrorResponse::default()
+                    .code(ErrorCode::String(code.to_string()))
+                    .message(format!("{code} error")),
+            ));
+            assert!(
+                !is_retryable(into_retry(error, &retry_config)),
+                "code '{code}' should NOT be retryable"
+            );
+        }
+
+        // Nested server_error is also retryable
+        let inner = ErrorResponse::default()
+            .code(ErrorCode::String("server_error".to_string()))
+            .message("Internal error".to_string());
+        let error = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().error(Box::new(inner)),
+        ));
+        assert!(is_retryable(into_retry(error, &retry_config)));
     }
 
     #[tokio::test]
