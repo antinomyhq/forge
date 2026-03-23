@@ -18,7 +18,7 @@ use crate::truncation::{
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
     FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput, WriteStdinOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -88,6 +88,9 @@ pub enum ToolOperation {
     },
     Lsp {
         output: forge_domain::ToolOutput,
+    },
+    WriteStdin {
+        output: WriteStdinOutput,
     },
 }
 
@@ -769,6 +772,25 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Lsp { output } => output,
+            ToolOperation::WriteStdin { output } => {
+                let mut elm = forge_template::Element::new("write_stdin_result")
+                    .attr("session_id", &output.session_id)
+                    .attr("bytes_written", output.bytes_written)
+                    .attr("is_alive", output.is_alive);
+                if !output.stdout.is_empty() {
+                    elm = elm.append(
+                        forge_template::Element::new("stdout")
+                            .cdata(&output.stdout),
+                    );
+                }
+                if !output.stderr.is_empty() {
+                    elm = elm.append(
+                        forge_template::Element::new("stderr")
+                            .cdata(&output.stderr),
+                    );
+                }
+                forge_domain::ToolOutput::text(elm)
+            }
         };
 
         // Append session elapsed time to the tool output if tracking has started

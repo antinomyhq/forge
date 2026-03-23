@@ -6,7 +6,8 @@ use bytes::Bytes;
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
     FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
-    KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    InteractiveSessionInfra, KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile,
+    Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
@@ -673,6 +674,39 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
 
     fn hydrate(&self) {
         self.infra.hydrate();
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: InteractiveSessionInfra + Send + Sync> InteractiveSessionInfra for ForgeRepo<F> {
+    async fn get_or_create_session(
+        &self,
+        session_id: &str,
+        command: Option<&str>,
+        cwd: Option<&std::path::Path>,
+    ) -> anyhow::Result<()> {
+        self.infra
+            .get_or_create_session(session_id, command, cwd)
+            .await
+    }
+
+    async fn write_and_read(
+        &self,
+        session_id: &str,
+        input: Option<&str>,
+        timeout: std::time::Duration,
+    ) -> anyhow::Result<(String, String, bool)> {
+        self.infra
+            .write_and_read(session_id, input, timeout)
+            .await
+    }
+
+    async fn close_session(&self, session_id: &str) -> anyhow::Result<(String, String)> {
+        self.infra.close_session(session_id).await
+    }
+
+    async fn is_alive(&self, session_id: &str) -> bool {
+        self.infra.is_alive(session_id).await
     }
 }
 

@@ -554,3 +554,24 @@ Usage:
 - file_path: The absolute path to the file to operate on.
 - line: The line number (1-based). Required for position-based operations.
 - character: The character offset (1-based). Required for position-based operations.
+
+---
+
+### write_stdin
+
+Writes data to the standard input (stdin) of a running background process.
+
+This tool sends input to processes started with `background=true` in the shell tool. It is essential for interacting with interactive programs (REPLs, database CLIs, game engines, etc.) that read from stdin.
+
+Usage:
+  - The `session_id` must match a PID returned by a prior `shell` call with `background=true`.
+  - The `input` string is written directly to the process's stdin pipe, followed by a newline.
+  - Use `command` to provide a short human-readable description of what the input does.
+
+Examples:
+  - session_id: "12345", input: "SELECT * FROM users;", command: "Query users table"
+  - session_id: "67890", input: "exit", command: "Exit the REPL"
+
+Notes:
+  - The process must still be running; writing to a dead process returns an error.
+  - There is no direct stdout capture per write; use `read` on the background log file to see output.

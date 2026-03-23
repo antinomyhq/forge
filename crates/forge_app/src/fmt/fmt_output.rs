@@ -55,7 +55,8 @@ impl FormatContent for ToolOperation {
             | ToolOperation::NetFetch { input: _, output: _ }
             | ToolOperation::Shell { output: _ }
             | ToolOperation::FollowUp { output: _ }
-            | ToolOperation::Skill { output: _ } => None,
+            | ToolOperation::Skill { output: _ }
+            | ToolOperation::WriteStdin { .. } => None,
         }
     }
 }

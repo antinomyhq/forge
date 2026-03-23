@@ -195,6 +195,7 @@ pub enum SummaryTool {
     Mcp { name: String },
     TodoWrite { changes: Vec<TodoChange> },
     Lsp { operation: String, path: String },
+    WriteStdin { session_id: String, command: Option<String> },
     TodoRead,
 }
 
@@ -411,6 +412,10 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             ToolCatalog::Lsp(input) => Some(SummaryTool::Lsp {
                 operation: input.operation.as_ref().to_string(),
                 path: input.file_path,
+            }),
+            ToolCatalog::WriteStdin(input) => Some(SummaryTool::WriteStdin {
+                session_id: input.session_id,
+                command: input.command,
             }),
         };
     }

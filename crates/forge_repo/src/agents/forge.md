@@ -15,6 +15,7 @@ tools:
   - patch
   - multi_patch
   - shell
+  - write_stdin
   - fetch
   - skill
   - todo_write

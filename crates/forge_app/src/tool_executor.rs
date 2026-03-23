@@ -6,7 +6,7 @@ use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
-use crate::services::{Services, ShellService};
+use crate::services::{Services, ShellService, WriteStdinService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
@@ -29,6 +29,7 @@ impl<
         + FsPatchService
         + FsUndoService
         + ShellService
+        + WriteStdinService
         + FollowUpService
         + ConversationService
         + EnvironmentService
@@ -388,6 +389,17 @@ impl<
             ToolCatalog::Task(_) => {
                 // Task tools are handled in ToolRegistry before reaching here
                 unreachable!("Task tool should be handled in ToolRegistry")
+            }
+            ToolCatalog::WriteStdin(input) => {
+                let output = self
+                    .services
+                    .write_stdin(
+                        input.session_id.clone(),
+                        input.shell_command.clone(),
+                        input.input.clone(),
+                    )
+                    .await?;
+                ToolOperation::WriteStdin { output }
             }
             ToolCatalog::TodoWrite(input) => {
                 let before = context.get_todos()?;

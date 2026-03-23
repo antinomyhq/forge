@@ -59,6 +59,7 @@ pub enum ToolCatalog {
     #[serde(alias = "Task")]
     Task(TaskInput),
     Lsp(LspTool),
+    WriteStdin(WriteStdin),
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -669,6 +670,30 @@ pub struct Shell {
     pub background: bool,
 }
 
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/write_stdin.md"]
+pub struct WriteStdin {
+    /// A unique session identifier. Choose any string (e.g. "python-repl",
+    /// "db-cli"). Re-use the same ID to send more input to an existing session.
+    pub session_id: String,
+
+    /// The shell command to start the interactive process (e.g. "python3 -i",
+    /// "cat", "sqlite3 db.sqlite"). Required on the FIRST call for a new
+    /// session_id. Ignored on subsequent calls to the same session.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shell_command: Option<String>,
+
+    /// The input string to send to the process's stdin. A trailing newline is
+    /// appended automatically.
+    pub input: String,
+
+    /// Optional human-readable description of what this input does.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub command: Option<String>,
+}
+
 /// Input type for the net fetch tool
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/net_fetch.md"]
@@ -873,6 +898,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::TodoRead(v) => v.description(),
             ToolCatalog::Task(v) => v.description(),
             ToolCatalog::Lsp(v) => v.description(),
+            ToolCatalog::WriteStdin(v) => v.description(),
         }
     }
 }
@@ -933,6 +959,7 @@ impl ToolCatalog {
             ToolCatalog::TodoRead(_) => r#gen.into_root_schema_for::<TodoRead>(),
             ToolCatalog::Task(_) => r#gen.into_root_schema_for::<TaskInput>(),
             ToolCatalog::Lsp(_) => r#gen.into_root_schema_for::<LspTool>(),
+            ToolCatalog::WriteStdin(_) => r#gen.into_root_schema_for::<WriteStdin>(),
         };
 
         // Apply transform to add nullable property and remove null from type
@@ -961,7 +988,7 @@ impl ToolCatalog {
     pub fn requires_stdout(tool_name: &ToolName) -> bool {
         // Tools that require direct stdout/stderr access
         let normalized = normalize_tool_name(tool_name);
-        [ToolKind::Shell]
+        [ToolKind::Shell, ToolKind::WriteStdin]
             .iter()
             .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
@@ -1058,6 +1085,10 @@ impl ToolCatalog {
                     input.operation,
                     display_path_for(&input.file_path)
                 ),
+            }),
+            ToolCatalog::WriteStdin(input) => Some(crate::policies::PermissionOperation::Execute {
+                command: format!("write_stdin(pid={})", input.session_id),
+                cwd,
             }),
             // Operations that don't require permission checks
             ToolCatalog::SemSearch(_)

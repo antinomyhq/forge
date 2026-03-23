@@ -11,6 +11,7 @@ mod lsp;
 mod plan_create;
 mod shell;
 mod skill;
+mod write_stdin;
 
 pub use fetch::*;
 pub use followup::*;
@@ -25,3 +26,4 @@ pub use lsp::*;
 pub use plan_create::*;
 pub use shell::*;
 pub use skill::*;
+pub use write_stdin::*;

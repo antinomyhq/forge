@@ -6,8 +6,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
-    StrategyFactory, UserInfra, WalkerInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, InteractiveSessionInfra,
+    McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -32,6 +32,7 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
+use crate::interactive_session::InteractiveSessionManager;
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
@@ -53,6 +54,7 @@ pub struct ForgeInfra {
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
     grpc_client: Arc<ForgeGrpcClient>,
     output_printer: Arc<StdConsoleWriter>,
+    session_manager: Arc<InteractiveSessionManager>,
 }
 
 impl ForgeInfra {
@@ -69,6 +71,10 @@ impl ForgeInfra {
         let walker_service = Arc::new(ForgeWalkerService::new());
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
+        let session_manager = Arc::new(InteractiveSessionManager::new(
+            env.clone(),
+            restricted,
+        ));
 
         Self {
             file_read_service,
@@ -90,6 +96,7 @@ impl ForgeInfra {
             http_service,
             grpc_client,
             output_printer,
+            session_manager,
         }
     }
 }
@@ -364,5 +371,38 @@ impl forge_domain::ConsoleWriter for ForgeInfra {
 
     fn flush_err(&self) -> std::io::Result<()> {
         self.output_printer.flush_err()
+    }
+}
+
+#[async_trait::async_trait]
+impl InteractiveSessionInfra for ForgeInfra {
+    async fn get_or_create_session(
+        &self,
+        session_id: &str,
+        command: Option<&str>,
+        cwd: Option<&std::path::Path>,
+    ) -> anyhow::Result<()> {
+        self.session_manager
+            .get_or_create_session(session_id, command, cwd)
+            .await
+    }
+
+    async fn write_and_read(
+        &self,
+        session_id: &str,
+        input: Option<&str>,
+        timeout: std::time::Duration,
+    ) -> anyhow::Result<(String, String, bool)> {
+        self.session_manager
+            .write_and_read(session_id, input, timeout)
+            .await
+    }
+
+    async fn close_session(&self, session_id: &str) -> anyhow::Result<(String, String)> {
+        self.session_manager.close_session(session_id).await
+    }
+
+    async fn is_alive(&self, session_id: &str) -> bool {
+        self.session_manager.is_alive(session_id).await
     }
 }

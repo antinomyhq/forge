@@ -144,6 +144,11 @@ impl FormatContent for ToolCatalog {
                         .into(),
                 )
             }
+            ToolCatalog::WriteStdin(input) => Some(
+                TitleFormat::debug("Write Stdin")
+                    .sub_title(format!("pid={}", input.session_id))
+                    .into(),
+            ),
         }
     }
 }

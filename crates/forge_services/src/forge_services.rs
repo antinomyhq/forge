@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
-    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra,
+    InteractiveSessionInfra, KVStore, McpServerInfra, Services, StrategyFactory, UserInfra,
+    WalkerInfra,
 };
 use forge_domain::{
     AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
@@ -29,7 +30,7 @@ use crate::todo_service::ForgeTodoService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
     ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgeLspService, ForgePlanCreate, ForgeShell,
-    ForgeSkillFetch,
+    ForgeSkillFetch, ForgeWriteStdin,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -49,6 +50,7 @@ pub struct ForgeServices<
         + EnvironmentInfra
         + McpServerInfra
         + WalkerInfra
+        + InteractiveSessionInfra
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
@@ -92,6 +94,7 @@ pub struct ForgeServices<
     skill_service: Arc<ForgeSkillFetch<F>>,
     todo_service: Arc<ForgeTodoService<F>>,
     lsp_service: Arc<ForgeLspService<F>>,
+    write_stdin_service: Arc<ForgeWriteStdin<F>>,
 }
 
 impl<
@@ -105,6 +108,7 @@ impl<
         + DirectoryReaderInfra
         + CommandInfra
         + UserInfra
+        + InteractiveSessionInfra
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
@@ -153,6 +157,7 @@ impl<
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
         let todo_service = Arc::new(ForgeTodoService::new(infra.clone()));
         let lsp_service = Arc::new(ForgeLspService::new(infra.clone()));
+        let write_stdin_service = Arc::new(ForgeWriteStdin::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -186,6 +191,7 @@ impl<
             chat_service,
             todo_service,
             lsp_service,
+            write_stdin_service,
         }
     }
 }
@@ -203,6 +209,7 @@ impl<
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
+        + InteractiveSessionInfra
         + Clone
         + SnapshotRepository
         + ConversationRepository
@@ -256,6 +263,7 @@ impl<
     type SkillFetchService = ForgeSkillFetch<F>;
     type TodoService = ForgeTodoService<F>;
     type LspService = ForgeLspService<F>;
+    type WriteStdinService = ForgeWriteStdin<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -373,5 +381,9 @@ impl<
 
     fn lsp_service(&self) -> &Self::LspService {
         &self.lsp_service
+    }
+
+    fn write_stdin_service(&self) -> &Self::WriteStdinService {
+        &self.write_stdin_service
     }
 }

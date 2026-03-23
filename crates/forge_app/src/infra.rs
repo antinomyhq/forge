@@ -387,3 +387,31 @@ pub trait GrpcInfra: Send + Sync {
     /// connection
     fn hydrate(&self);
 }
+
+/// Infrastructure for managing interactive process sessions with piped stdin/stdout/stderr
+#[async_trait::async_trait]
+pub trait InteractiveSessionInfra: Send + Sync {
+    /// Ensures a session exists. If the session doesn't exist and command is provided,
+    /// spawns a new process. Returns error if session doesn't exist and no command given.
+    async fn get_or_create_session(
+        &self,
+        session_id: &str,
+        command: Option<&str>,
+        cwd: Option<&Path>,
+    ) -> anyhow::Result<()>;
+
+    /// Writes input to the session's stdin (if provided) and reads output with timeout.
+    /// Returns (stdout, stderr, is_alive).
+    async fn write_and_read(
+        &self,
+        session_id: &str,
+        input: Option<&str>,
+        timeout: std::time::Duration,
+    ) -> anyhow::Result<(String, String, bool)>;
+
+    /// Closes the session, killing the process. Returns any remaining (stdout, stderr).
+    async fn close_session(&self, session_id: &str) -> anyhow::Result<(String, String)>;
+
+    /// Checks if a session's process is still running.
+    async fn is_alive(&self, session_id: &str) -> bool;
+}

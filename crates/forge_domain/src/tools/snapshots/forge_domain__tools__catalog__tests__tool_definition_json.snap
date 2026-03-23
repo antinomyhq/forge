@@ -518,3 +518,26 @@ expression: tools
     "file_path"
   ]
 }
+{
+  "title": "WriteStdin",
+  "type": "object",
+  "properties": {
+    "session_id": {
+      "description": "The session ID (PID) of the background process to write to.",
+      "type": "string"
+    },
+    "input": {
+      "description": "The input string to send to the process's stdin. A trailing newline is\nappended automatically.",
+      "type": "string"
+    },
+    "command": {
+      "description": "Optional human-readable description of what this input does.",
+      "type": "string",
+      "nullable": true
+    }
+  },
+  "required": [
+    "session_id",
+    "input"
+  ]
+}

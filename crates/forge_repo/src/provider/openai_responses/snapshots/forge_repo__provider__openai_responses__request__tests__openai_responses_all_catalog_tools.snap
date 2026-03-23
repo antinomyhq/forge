@@ -838,6 +838,43 @@ expression: actual.tools
     "description": "The LSP tool allows you to interact with Language Server Protocol servers to understand code.\nIt supports operations like Go To Definition, Find References, Hover, Document Symbols, etc.\n\n**WHEN TO USE LSP:**\n- **Precise Navigation**: When you need to find the *exact* definition of a function, class, or variable (unlike text search which finds all occurrences).\n- **Understanding Relationships**: When you need to find all references to a symbol, or see the call hierarchy (who calls this function?).\n- **Code Structure**: When you want to see a high-level outline of a file's symbols (classes, methods, variables) using `document_symbol`.\n- **Debugging**: When you need to check for syntax errors or type errors in a specific file using `get_diagnostics`.\n- **API Exploration**: When you want to see available methods or documentation for a symbol using `hover`.\n\n**WHEN NOT TO USE:**\n- **Broad Search**: When you are looking for a concept or pattern across the entire codebase (use `sem_search` or `fs_search`).\n- **Text Matching**: When you are looking for a specific string literal or comment (use `fs_search`).\n- **File Reading**: When you just need to read the raw content of a file (use `read`).\n\nUsage:\n- operation: The LSP operation to perform. Supported operations:\n  - `go_to_definition`: Jump to the definition of a symbol.\n  - `find_references`: Find all references to a symbol.\n  - `hover`: Show documentation/type information for a symbol.\n  - `document_symbol`: List all symbols in the current file.\n  - `workspace_symbol`: Search for symbols across the workspace.\n  - `go_to_implementation`: Jump to the implementation of a symbol.\n  - `prepare_call_hierarchy`: Prepare for call hierarchy.\n  - `incoming_calls`: Show incoming calls.\n  - `outgoing_calls`: Show outgoing calls.\n  - `get_diagnostics`: Get diagnostics (errors, warnings) for the file.\n- file_path: The absolute path to the file to operate on.\n- line: The line number (1-based). Required for position-based operations.\n- character: The character offset (1-based). Required for position-based operations."
   },
   {
+    "type": "function",
+    "name": "write_stdin",
+    "parameters": {
+      "title": "WriteStdin",
+      "type": "object",
+      "properties": {
+        "session_id": {
+          "description": "The session ID (PID) of the background process to write to.",
+          "type": "string"
+        },
+        "input": {
+          "description": "The input string to send to the process's stdin. A trailing newline is\nappended automatically.",
+          "type": "string"
+        },
+        "command": {
+          "description": "Optional human-readable description of what this input does.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "command",
+        "input",
+        "session_id"
+      ],
+      "additionalProperties": false
+    },
+    "strict": true,
+    "description": "Writes data to the standard input (stdin) of a running background process.\n\nThis tool sends input to processes started with `background=true` in the shell tool. It is essential for interacting with interactive programs (REPLs, database CLIs, game engines, etc.) that read from stdin.\n\nUsage:\n  - The `session_id` must match a PID returned by a prior `shell` call with `background=true`.\n  - The `input` string is written directly to the process's stdin pipe, followed by a newline.\n  - Use `command` to provide a short human-readable description of what the input does.\n\nExamples:\n  - session_id: \"12345\", input: \"SELECT * FROM users;\", command: \"Query users table\"\n  - session_id: \"67890\", input: \"exit\", command: \"Exit the REPL\"\n\nNotes:\n  - The process must still be running; writing to a dead process returns an error.\n  - There is no direct stdout capture per write; use `read` on the background log file to see output."
+  },
+  {
     "type": "web_search"
   }
 ]

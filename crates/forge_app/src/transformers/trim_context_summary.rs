@@ -41,6 +41,8 @@ enum Operation<'a> {
     Todo,
     /// LSP tool call
     Lsp { operation: &'a str, path: &'a str },
+    /// WriteStdin tool call
+    WriteStdin(&'a str),
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -65,6 +67,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::TodoWrite { .. } => Operation::Todo,
         SummaryTool::TodoRead => Operation::Todo,
         SummaryTool::Lsp { operation, path } => Operation::Lsp { operation, path },
+        SummaryTool::WriteStdin { session_id, .. } => Operation::WriteStdin(session_id),
     }
 }
 

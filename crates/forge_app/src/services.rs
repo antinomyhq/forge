@@ -507,6 +507,29 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 }
 
+/// Output from write_stdin tool execution
+#[derive(Debug, Clone)]
+pub struct WriteStdinOutput {
+    pub session_id: String,
+    pub bytes_written: usize,
+    pub stdout: String,
+    pub stderr: String,
+    pub is_alive: bool,
+}
+
+#[async_trait::async_trait]
+pub trait WriteStdinService: Send + Sync {
+    /// Sends input to the stdin of an interactive process session.
+    /// On first call for a session_id, shell_command must be provided to spawn
+    /// the process. Subsequent calls reuse the existing session.
+    async fn write_stdin(
+        &self,
+        session_id: String,
+        shell_command: Option<String>,
+        input: String,
+    ) -> anyhow::Result<WriteStdinOutput>;
+}
+
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
@@ -667,6 +690,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type SkillFetchService: SkillFetchService;
     type TodoService: TodoService;
     type LspService: LspService;
+    type WriteStdinService: WriteStdinService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -699,6 +723,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
     fn todo_service(&self) -> &Self::TodoService;
     fn lsp_service(&self) -> &Self::LspService;
+    fn write_stdin_service(&self) -> &Self::WriteStdinService;
 }
 
 #[async_trait::async_trait]
@@ -1259,5 +1284,19 @@ impl<I: Services> TodoService for I {
 impl<I: Services> LspService for I {
     async fn execute_lsp(&self, tool: forge_domain::LspTool) -> anyhow::Result<ToolOutput> {
         self.lsp_service().execute_lsp(tool).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> WriteStdinService for I {
+    async fn write_stdin(
+        &self,
+        session_id: String,
+        shell_command: Option<String>,
+        input: String,
+    ) -> anyhow::Result<WriteStdinOutput> {
+        self.write_stdin_service()
+            .write_stdin(session_id, shell_command, input)
+            .await
     }
 }
