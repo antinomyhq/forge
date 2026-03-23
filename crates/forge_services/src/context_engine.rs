@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkedFile, Walker,
+    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter,
     WalkerInfra, WorkspaceService, WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
@@ -17,7 +17,7 @@ use futures::future::join_all;
 use futures::stream::{Stream, StreamExt};
 use tracing::{info, warn};
 
-use crate::error::Error as ServiceError;
+use crate::fd::{FileDiscovery, discover_sync_file_paths};
 
 /// Error type for a single file that could not be read during workspace
 /// operations, carrying the file path for downstream reporting.
@@ -29,36 +29,11 @@ struct FileReadError {
     source: anyhow::Error,
 }
 
-static ALLOWED_EXTENSIONS: LazyLock<HashSet<String>> = LazyLock::new(|| {
-    let extensions_str = include_str!("allowed_extensions.txt");
-    extensions_str
-        .lines()
-        .map(|line| line.trim().to_lowercase())
-        .filter(|line| !line.is_empty())
-        .collect()
-});
-
-/// Loads allowed file extensions from allowed_extensions.txt into a HashSet
-fn allowed_extensions() -> &'static HashSet<String> {
-    &ALLOWED_EXTENSIONS
-}
-
 /// Canonicalizes `path`, attaching a context message that includes the original
 /// path on failure.
 fn canonicalize_path(path: PathBuf) -> Result<PathBuf> {
     path.canonicalize()
         .with_context(|| format!("Failed to resolve path: {}", path.display()))
-}
-
-/// Checks if a file has an allowed extension for workspace syncing (O(1)
-/// lookup)
-fn has_allowed_extension(path: &Path) -> bool {
-    if let Some(extension) = path.extension() {
-        let ext = extension.to_string_lossy().to_lowercase();
-        allowed_extensions().contains(&ext)
-    } else {
-        false
-    }
 }
 
 /// Extracts [`forge_domain::FileStatus`] entries with
@@ -78,21 +53,29 @@ fn extract_failed_statuses(results: &[Result<FileNode>]) -> Vec<forge_domain::Fi
         .collect()
 }
 
-/// Service for indexing workspaces and performing semantic search
-pub struct ForgeWorkspaceService<F> {
+/// Service for indexing workspaces and performing semantic search.
+///
+/// `F` provides infrastructure capabilities (file I/O, environment, etc.) and
+/// `D` is the file-discovery strategy used to enumerate workspace files.
+pub struct ForgeWorkspaceService<F, D> {
     infra: Arc<F>,
+    discovery: Arc<D>,
 }
 
-impl<F> Clone for ForgeWorkspaceService<F> {
+impl<F, D> Clone for ForgeWorkspaceService<F, D> {
     fn clone(&self) -> Self {
-        Self { infra: Arc::clone(&self.infra) }
+        Self {
+            infra: Arc::clone(&self.infra),
+            discovery: Arc::clone(&self.discovery),
+        }
     }
 }
 
-impl<F> ForgeWorkspaceService<F> {
-    /// Creates a new indexing service with the provided infrastructure.
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { infra }
+impl<F, D> ForgeWorkspaceService<F, D> {
+    /// Creates a new workspace service with the provided infrastructure and
+    /// file-discovery strategy.
+    pub fn new(infra: Arc<F>, discovery: Arc<D>) -> Self {
+        Self { infra, discovery }
     }
 }
 
@@ -104,7 +87,8 @@ impl<
         + EnvironmentInfra
         + CommandInfra
         + WalkerInfra,
-> ForgeWorkspaceService<F>
+    D: FileDiscovery + 'static,
+> ForgeWorkspaceService<F, D>
 {
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(
@@ -442,129 +426,6 @@ impl<
             .context("Workspace not indexed. Please run `forge workspace init` first.")
     }
 
-    /// Runs `git ls-files` in `dir_path` and returns the tracked files as
-    /// `WalkedFile` entries.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error when the command fails to execute or exits with a
-    /// non-zero status code (e.g. when the directory is not a git repository).
-    async fn git_ls_files(&self, dir_path: &Path) -> anyhow::Result<Vec<WalkedFile>>
-    {
-        let output = self
-            .infra
-            .execute_command(
-                "git ls-files".to_string(),
-                dir_path.to_path_buf(),
-                true,
-                None,
-            )
-            .await?;
-
-        if output.exit_code != Some(0) {
-            let err = anyhow::anyhow!(output.stderr);
-            return Err(match output.exit_code {
-                Some(code) => err.context(format!("'git ls-files' exited with code {}", code)),
-                None => err,
-            });
-        }
-
-        let files = output
-            .stdout
-            .lines()
-            .filter(|line| !line.is_empty())
-            .map(|line| {
-                let path = line.trim().to_string();
-                let file_name = std::path::Path::new(&path)
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string());
-                WalkedFile { path, file_name, size: 0 }
-            })
-            .collect();
-
-        Ok(files)
-    }
-
-    /// Walks a directory using the file-system walker and returns all
-    /// non-directory entries.
-    async fn walk_directory(
-        &self,
-        dir_path: &Path,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Vec<WalkedFile>>
-    {
-        let walker_config = Walker::unlimited()
-            .cwd(dir_path.to_path_buf())
-            .skip_binary(true);
-        match self
-            .infra
-            .walk(walker_config)
-            .await
-            .context("Failed to walk directory")
-        {
-            Ok(files) => {
-                let files: Vec<_> = files.into_iter().filter(|f| !f.is_dir()).collect();
-                info!(workspace_id = %workspace_id, file_count = files.len(), "Discovered files via walker fallback");
-                Ok(files)
-            }
-            Err(err) => {
-                warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via walker fallback");
-                Err(err)
-            }
-        }
-    }
-
-    /// Discovers workspace files and filters them by allowed source extensions.
-    async fn discover_sync_file_paths(
-        &self,
-        dir_path: &Path,
-        workspace_id: &WorkspaceId,
-    ) -> anyhow::Result<Vec<PathBuf>>
-    {
-        info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
-        // `git ls-files` can succeed yet return an empty list (e.g. a freshly
-        // initialized repo with no commits, or a directory outside the working
-        // tree). Treat that the same as a failure and fall back to the walker so
-        // we still discover files on disk.
-        let walked_files: Vec<WalkedFile> = match self.git_ls_files(dir_path).await {
-            Ok(walked_files) if !walked_files.is_empty() => {
-                info!(workspace_id = %workspace_id, file_count = walked_files.len(), "Discovered files via git ls-files");
-                walked_files
-            }
-            Ok(_) => {
-                warn!(workspace_id = %workspace_id, "git ls-files returned no files, falling back to walker");
-                self.walk_directory(dir_path, workspace_id).await?
-            }
-            Err(err) => {
-                warn!(workspace_id = %workspace_id, error = ?err, "Failed to get files via git ls-files, falling back to walker");
-                self.walk_directory(dir_path, workspace_id).await?
-            }
-        };
-
-        let filtered_files: Vec<_> = walked_files
-            .into_iter()
-            .filter(|walked| {
-                let file_path = dir_path.join(&walked.path);
-                has_allowed_extension(&file_path)
-            })
-            .collect();
-
-        info!(
-            workspace_id = %workspace_id,
-            filtered_count = filtered_files.len(),
-            "Files after extension filtering"
-        );
-
-        if filtered_files.is_empty() {
-            return Err(ServiceError::NoSourceFilesFound.into());
-        }
-
-        Ok(filtered_files
-            .iter()
-            .map(|walked| dir_path.join(&walked.path))
-            .collect())
-    }
-
     /// Only includes files with allowed extensions.
     fn read_files(
         &self,
@@ -575,11 +436,15 @@ impl<
     {
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
-        let service = self.clone();
+        let discovery = self.discovery.clone();
         let workspace_id = workspace_id.clone();
 
         async_stream::stream! {
-            let file_paths: Vec<PathBuf> = match service.discover_sync_file_paths(&dir_path, &workspace_id).await {
+            let file_paths: Vec<PathBuf> = match discover_sync_file_paths(
+                discovery.as_ref(),
+                &dir_path,
+                &workspace_id,
+            ).await {
                 Ok(file_paths) => file_paths,
                 Err(err) => {
                     yield Err(err);
@@ -587,8 +452,8 @@ impl<
                 }
             };
 
-            // Use read_batch_utf8 with streaming for better memory efficiency with large
-            // file sets
+            // Use read_batch_utf8 with streaming for better memory efficiency
+            // with large file sets
             let stream = infra.read_batch_utf8(batch_size, file_paths);
             futures::pin_mut!(stream);
 
@@ -649,7 +514,8 @@ impl<
         + CommandInfra
         + WalkerInfra
         + 'static,
-> WorkspaceService for ForgeWorkspaceService<F>
+    D: FileDiscovery + 'static,
+> WorkspaceService for ForgeWorkspaceService<F, D>
 {
     async fn sync_workspace(&self, path: PathBuf) -> Result<MpscStream<Result<SyncProgress>>> {
         let service = Clone::clone(self);
