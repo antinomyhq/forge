@@ -1,23 +1,16 @@
 use gh_workflow::generate::Generate;
 use gh_workflow::*;
 
-use crate::jobs::{
-    mark_bounty_rewarded_job, propagate_bounty_label_job, sync_claimed_label_job,
-    sync_generic_bounty_label_job,
-};
+use crate::jobs::{sync_issue_job, sync_pr_job};
 
-/// Generate the bounty management workflow.
+/// Generate the bounty management workflow (v2).
 ///
-/// Produces three jobs:
-/// - `propagate-bounty-label`: copies the bounty USD value label from a linked
-///   issue to the PR when a PR is opened or edited.
-/// - `sync-claimed-label`: adds `bounty: claimed` to an issue when it is
-///   assigned, and removes it when all assignees are removed.
-/// - `sync-generic-bounty-label`: adds the generic `bounty` label when a value
-///   label is applied to an issue, and removes it when the last value label is
-///   removed.
-/// - `mark-bounty-rewarded`: applies `bounty: rewarded` to the merged PR and
-///   its linked issues, and removes `bounty: claimed` from those issues.
+/// Two jobs cover the full bounty lifecycle:
+/// - `sync-issue`: reconciles all bounty labels on an issue (generic label,
+///   claimed status) whenever the issue is assigned, unassigned, labeled, or
+///   unlabeled.
+/// - `sync-pr`: propagates bounty value labels from linked issues to the PR
+///   on open/edit, and applies the rewarded lifecycle on merge.
 pub fn generate_bounty_workflow() {
     let events = Event::default()
         .pull_request(
@@ -45,10 +38,8 @@ pub fn generate_bounty_workflow() {
                 .issues(Level::Write)
                 .pull_requests(Level::Write),
         )
-        .add_job("propagate-bounty-label", propagate_bounty_label_job())
-        .add_job("sync-claimed-label", sync_claimed_label_job())
-        .add_job("sync-generic-bounty-label", sync_generic_bounty_label_job())
-        .add_job("mark-bounty-rewarded", mark_bounty_rewarded_job());
+        .add_job("sync-issue", sync_issue_job())
+        .add_job("sync-pr", sync_pr_job());
 
     Generate::new(workflow)
         .name("bounty.yml")

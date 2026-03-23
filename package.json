@@ -8,7 +8,8 @@
   "type": "module",
   "scripts": {
     "eval": "tsx benchmarks/cli.ts",
-    "test:bounty": "tsx --test .github/scripts/bounty/*.test.ts"
+    "test:bounty": "tsx --test .github/scripts/bounty/*.test.ts",
+    "test:bounty:v2": "tsx --test .github/scripts/bounty/v2/tests/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.47",

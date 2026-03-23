@@ -44,55 +44,57 @@ maintainer removes last  bounty: $N  label
 
 Bounty values follow the Fibonacci sequence: **$100, $200, $300, $500, $800, $1300, $2100, $3400, $5500**.
 
-## Three-Step Pipeline
+## Pipeline
 
-Each workflow job runs three steps in sequence, passing JSON through temp files:
+Each workflow job runs a single Node process (`run.ts`) that executes all three stages in memory — no temp files, no shell piping:
 
 ```
-parse  →  intent.json  →  plan  →  plan.json  →  execute
+parse  →  ParsedIntent (in memory)  →  plan  →  BatchPlan (in memory)  →  execute
 ```
 
-**Step 1 — parse** (`parse-*.ts`): Reads the GitHub Actions event payload from `GITHUB_EVENT_PATH` and emits a `ParsedIntent` JSON to stdout. Pure — makes no API calls.
+**Stage 1 — parse** (`parse-*.ts`): Reads the GitHub Actions event payload from `GITHUB_EVENT_PATH` and returns a `ParsedIntent` object. Pure — makes no API calls.
 
-**Step 2 — plan** (`plan.ts`): Reads `ParsedIntent`, fetches current labels only for targets not already known from the event payload, diffs desired vs actual state, and emits a `BatchPlan` JSON. Minimises API calls by using label data already present in the event.
+**Stage 2 — plan** (`plan.ts`): Receives the `ParsedIntent`, fetches current labels only for targets not already known from the event payload, diffs desired vs actual state, and returns a `BatchPlan`. Minimises API calls by reusing label data already present in the event.
 
-**Step 3 — execute** (`execute.ts`): Reads `BatchPlan` and applies all mutations. Label additions per target are sent as a single batched `POST /labels` call. Each removal is a separate `DELETE` (GitHub has no bulk-remove endpoint). Comments are posted last.
+**Stage 3 — execute** (`execute.ts`): Receives the `BatchPlan` and applies all mutations. Label additions per target are sent as a single batched `POST /labels` call. Each removal is a separate `DELETE` (GitHub has no bulk-remove endpoint). Comments are posted last.
 
 This design means:
-- The parse step is trivially unit-testable (pure function, no mocks needed).
-- The plan step is testable with a minimal mock that only needs `getLabels`.
-- The execute step is testable with a mock that tracks calls — no HTTP.
+- The parse stage is trivially unit-testable (pure function, no mocks needed).
+- The plan stage is testable with a minimal mock that only needs `getLabels`.
+- The execute stage is testable with a mock that tracks calls — no HTTP.
 - API calls are minimised: additions are batched per target; label state already in the event payload is never re-fetched.
 
 ## Scripts
 
-All scripts are invoked by `bounty.yml` via `npx tsx`. They read `GITHUB_EVENT_PATH` (set automatically by the runner) and accept CLI args parsed with `yargs`.
+The workflow invokes a single orchestrator script (`run.ts`) per job. The parse, plan, and execute modules are called directly in the same Node process, passing objects in memory.
+
+### `run.ts`
+
+The entrypoint used by `bounty.yml`. Accepts a `--script` flag to select which parse module to run, then calls `plan` and `execute` in sequence — all in-process.
+
+```sh
+npx tsx .github/scripts/bounty/run.ts \
+  --script <parse-script> \
+  --repo <owner/repo> \
+  --token <github-token> \
+  [--pr <number> | --issue <number>]
+```
 
 ### `parse-propagate-label.ts`
 
 Triggered by: `pull_request` — opened, edited, reopened.
 
 1. Parses the PR body for closing keywords (`closes`, `fixes`, `resolves`, case-insensitive).
-2. Emits a `ParsedIntent` with a `labelCopies` field — the plan step fetches each linked issue's labels and copies any `bounty: $N` ones onto the PR.
-3. Includes a comment mutation per linked issue (the plan step drops it if the issue has no bounty labels).
-
-```sh
-npx tsx .github/scripts/bounty/parse-propagate-label.ts \
-  --pr <number> < event.json > intent.json
-```
+2. Returns a `ParsedIntent` with a `labelCopies` field — the plan stage fetches each linked issue's labels and copies any `bounty: $N` ones onto the PR.
+3. Includes a comment mutation per linked issue (the plan stage drops it if the issue has no bounty labels).
 
 ### `parse-sync-claimed.ts`
 
 Triggered by: `issues` — assigned, unassigned.
 
-- **assigned**: emits `add: ["bounty: claimed"]` if the issue has a `bounty: $N` label.
-- **unassigned**: emits `remove: ["bounty: claimed"]` only when no assignees remain.
+- **assigned**: returns `add: ["bounty: claimed"]` if the issue has a `bounty: $N` label.
+- **unassigned**: returns `remove: ["bounty: claimed"]` only when no assignees remain.
 - Issue labels are already in the event payload and supplied as `knownLabels` — no extra fetch.
-
-```sh
-npx tsx .github/scripts/bounty/parse-sync-claimed.ts \
-  --issue <number> < event.json > intent.json
-```
 
 ### `parse-sync-generic-bounty.ts`
 
@@ -100,47 +102,27 @@ Triggered by: `issues` — labeled, unlabeled.
 
 Keeps the generic `bounty` label in sync with value labels. Inspects `event.label` (the label that just changed) and only acts when it matches `bounty: $`.
 
-- **labeled**: emits `add: ["bounty"]`.
-- **unlabeled**: emits `remove: ["bounty"]` only when no value labels remain (guards against mid-tier-swap removal when a maintainer swaps one value label for another).
+- **labeled**: returns `add: ["bounty"]`.
+- **unlabeled**: returns `remove: ["bounty"]` only when no value labels remain (guards against mid-tier-swap removal when a maintainer swaps one value label for another).
 - Issue labels from the event are supplied as `knownLabels` — no extra fetch.
-
-```sh
-npx tsx .github/scripts/bounty/parse-sync-generic-bounty.ts \
-  --issue <number> < event.json > intent.json
-```
 
 ### `parse-mark-rewarded.ts`
 
 Triggered by: `pull_request_target` — closed (merged only).
 
 1. Returns empty intent if the PR was not merged or has no `bounty: $N` label.
-2. Emits `add: ["bounty: rewarded"]` for the PR (labels known from event, no fetch).
-3. Parses the PR body for linked issues; emits `add: ["bounty: rewarded"], remove: ["bounty: claimed"]` for each (plan step fetches their labels).
+2. Returns `add: ["bounty: rewarded"]` for the PR (labels known from event, no fetch).
+3. Parses the PR body for linked issues; returns `add: ["bounty: rewarded"], remove: ["bounty: claimed"]` for each (plan stage fetches their labels).
 
 Uses `pull_request_target` so the job has write access to issues and PRs from forks.
 
-```sh
-npx tsx .github/scripts/bounty/parse-mark-rewarded.ts \
-  --pr <number> < event.json > intent.json
-```
-
 ### `plan.ts`
 
-```sh
-INTENT_FILE=intent.json npx tsx .github/scripts/bounty/plan.ts \
-  --repo <owner/repo> --token <github-token> > plan.json
-```
-
-Reads `INTENT_FILE` (falls back to stdin). Resolves `labelCopies` by fetching source issue labels. Fetches current labels for any target not already in `knownLabels`. Filters out no-op adds and removes.
+Receives a `ParsedIntent` from the parse stage. Resolves `labelCopies` by fetching source issue labels. Fetches current labels for any target not already in `knownLabels`. Filters out no-op adds and removes. Returns a `BatchPlan`.
 
 ### `execute.ts`
 
-```sh
-PLAN_FILE=plan.json npx tsx .github/scripts/bounty/execute.ts \
-  --repo <owner/repo> --token <github-token>
-```
-
-Reads `PLAN_FILE` (falls back to stdin). For each mutation: one batched `POST` for all additions, one `DELETE` per removal, one `POST` per comment.
+Receives a `BatchPlan` from the plan stage. For each mutation: one batched `POST` for all additions, one `DELETE` per removal, one `POST` per comment.
 
 ## Shared Module
 

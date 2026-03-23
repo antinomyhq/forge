@@ -1,0 +1,104 @@
+#!/usr/bin/env tsx
+// Syncs all bounty labels on a single issue.
+//
+// Without --execute: fetches current state, computes the patch, and prints
+// a plan showing exactly what would change. No writes are made.
+//
+// With --execute: fetches, computes, and applies the patch.
+//
+// Usage:
+//   tsx sync-issue.ts --issue <number> --repo <owner/repo> --token <token> [--execute]
+
+import * as url from "url";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
+import { GitHubRestApi, type GitHubApi } from "./api.js";
+import { computeIssuePatch } from "./rules.js";
+import type { Patch } from "./types.js";
+
+export interface PlanIssueInput {
+  issueNumber: number;
+  api: GitHubApi;
+}
+
+/// Fetches the current issue state and computes the minimal label patch.
+/// Makes no writes — safe to call at any time.
+export async function planIssue({ issueNumber, api }: PlanIssueInput): Promise<Patch> {
+  const issue = await api.getIssue(issueNumber);
+  const currentLabels = new Set(issue.labels.map((l) => l.name));
+  return computeIssuePatch({ issue, currentLabels });
+}
+
+/// Fetches, computes, and applies the label patch for a single issue.
+/// Returns the patch that was applied (useful for tests and logging).
+export async function syncIssue({ issueNumber, api }: PlanIssueInput): Promise<Patch> {
+  const patch = await planIssue({ issueNumber, api });
+  await applyPatch(patch, api);
+  return patch;
+}
+
+/// Applies a Patch against the GitHub API.
+/// Each target gets one batched addLabels call; each removal is individual.
+export async function applyPatch(patch: Patch, api: GitHubApi): Promise<void> {
+  for (const op of patch.ops) {
+    if (op.add.length > 0) {
+      await api.addLabels(op.target, op.add);
+      console.log(`#${op.target}: added [${op.add.join(", ")}]`);
+    }
+    for (const label of op.remove) {
+      await api.removeLabel(op.target, label);
+      console.log(`#${op.target}: removed "${label}"`);
+    }
+    if (op.comment) {
+      await api.addComment(op.target, op.comment);
+      console.log(`#${op.target}: posted comment`);
+    }
+  }
+}
+
+/// Prints a human-readable plan to stdout without making any API calls.
+export function printPlan(patch: Patch, subject: string): void {
+  if (patch.ops.length === 0) {
+    console.log(`${subject}: already in sync — no changes needed.`);
+    return;
+  }
+  console.log(`${subject}: plan (${patch.ops.length} target(s) to update)\n`);
+  for (const op of patch.ops) {
+    console.log(`  #${op.target}:`);
+    if (op.add.length > 0) console.log(`    + add:    ${op.add.join(", ")}`);
+    if (op.remove.length > 0) console.log(`    - remove: ${op.remove.join(", ")}`);
+    if (op.comment) console.log(`    ~ comment: ${op.comment.slice(0, 80)}…`);
+  }
+  console.log("\nRun with --execute to apply.");
+}
+
+// ---------------------------------------------------------------------------
+// CLI entrypoint
+// ---------------------------------------------------------------------------
+
+if (process.argv[1] === url.fileURLToPath(import.meta.url)) {
+  const argv = await yargs(hideBin(process.argv))
+    .option("issue", { type: "number", demandOption: true, description: "Issue number" })
+    .option("repo", { type: "string", demandOption: true, description: "owner/repo" })
+    .option("token", { type: "string", demandOption: true, description: "GitHub token" })
+    .option("execute", {
+      type: "boolean",
+      default: false,
+      description: "Apply the patch. Without this flag only the plan is printed.",
+    })
+    .strict()
+    .parseAsync();
+
+  const [owner, repo] = argv.repo.split("/") as [string, string];
+  const api = new GitHubRestApi(owner, repo, argv.token);
+
+  if (argv.execute) {
+    const patch = await syncIssue({ issueNumber: argv.issue, api });
+    if (patch.ops.length === 0) {
+      console.log(`Issue #${argv.issue}: already in sync, no changes needed.`);
+    }
+  } else {
+    const patch = await planIssue({ issueNumber: argv.issue, api });
+    printPlan(patch, `Issue #${argv.issue}`);
+  }
+}
