@@ -1,6 +1,6 @@
 ---
 name: verification-specialist
-description: MANDATORY verification workflow that MUST be invoked before marking ANY task as complete, especially in background/automated environments. Proactively call this skill when you have finished implementing a solution — do NOT wait for the user to ask. Covers running tests, checking builds, validating outputs, and ensuring robustness. Skipping this skill and marking a task complete without verification is a critical failure.
+description: MANDATORY verification workflow that MUST be invoked before marking ANY task as complete, especially in background/automated environments. Proactively call this skill when you have finished implementing a solution — do NOT wait for the user to ask. Covers running tests, checking builds, validating outputs, and ensuring robustness. Skipping this skill and marking a task complete without verification is a critical failure. **Only invoke AFTER you have a working implementation — never at the start of a task.**
 ---
 
 # Verification Specialist

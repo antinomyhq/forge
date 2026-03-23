@@ -51,10 +51,15 @@ Read ALL provided source code carefully. Annotate:
 
 ## Phase 2 -- Forward Oracle Strategy (Preferred)
 
+**Do not build an analysis framework first.** Your first reverse-engineering milestone is a crude working artifact (even if oversized or buggy), not a theory document, optimizer, or search script. If the deliverable is a file, create that file early and keep replacing it with better versions.
+
 Instead of perfectly reverse-engineering the algorithm, use the existing code/binary as a **black-box oracle**:
 
-1. **Build a test harness:**
+1. **Build a minimal producer and a tiny test harness immediately:**
    ```bash
+   # Create a smallest-possible candidate output first, then iterate
+   ./my_encoder > /app/output_file || true
+
    # Feed known input, capture expected output
    echo "test input" | /app/reference_binary > /tmp/expected_output
    ```
@@ -94,6 +99,8 @@ When byte-level or arithmetic-level compatibility matters:
 4. If it doesn't match, debug in your simulator where you have full visibility — not via "segfault" from the C binary
 
 This avoids the trap of spending 10+ minutes debugging blind segfaults.
+
+**Hard rule:** if you have spent >20% of the task budget without producing a candidate deliverable file, stop analysis and write the simplest end-to-end producer immediately. Do not spend the remaining budget in Python notebooks/REPLs proving properties of the format.
 
 ## Phase 4 -- Incremental Verification
 

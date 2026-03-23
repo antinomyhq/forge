@@ -2,11 +2,12 @@
 name: time-manager
 description: >-
   Time budgeting and checkpoint strategy for time-constrained tasks.
-  Use when the task has a fixed time limit, when session_elapsed_secs
-  shows >40% of expected budget consumed, or when the task involves
-  iterative compilation/testing cycles that risk timeout. Provides
-  phase-based budgeting, early artifact checkpointing, and graceful
-  degradation strategies.
+  Use when session_elapsed_secs shows >40% of expected budget consumed,
+  or when the task involves iterative compilation/testing cycles that
+  risk timeout. Do NOT invoke at the start of a task — start working
+  first, then invoke this skill when you notice time pressure.
+  Provides phase-based budgeting, early artifact checkpointing, and
+  graceful degradation strategies.
 ---
 
 # Time Manager

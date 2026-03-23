@@ -1,17 +1,22 @@
 ---
 name: constraint-enforcer
 description: >-
-  Systematic constraint extraction and verification for tasks with
-  explicit rules, size limits, allowed-edit restrictions, performance
-  requirements, or anti-shortcut constraints. Invoke before
-  verification-specialist when the task prompt contains words like
-  "must", "only", "do not", "at most", "limit", size/performance
-  bounds, or anti-shortcut rules.
+  Systematic constraint verification for tasks with explicit rules,
+  size limits, allowed-edit restrictions, performance requirements,
+  or anti-shortcut constraints. Invoke AFTER you have a working
+  implementation, BEFORE declaring completion — never at the start
+  of a task. Use when the task prompt contains words like "must",
+  "only", "do not", "at most", "limit", size/performance bounds,
+  or anti-shortcut rules.
 ---
 
 # Constraint Enforcer
 
-Extract and verify every constraint from the task prompt before declaring completion.
+Extract and verify every constraint from the task prompt AFTER you have a working implementation.
+
+**IMPORTANT**: This skill is for the VERIFICATION phase, not the planning phase.
+Do NOT invoke this skill before you have written and tested your solution.
+Implement first, then use this skill to check that all constraints are satisfied.
 
 ## Step 1 -- Extract Constraints
 

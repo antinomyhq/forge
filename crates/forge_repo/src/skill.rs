@@ -450,7 +450,7 @@ mod tests {
         assert!(
             constraint
                 .description
-                .contains("Systematic constraint extraction")
+                .contains("Systematic constraint verification")
         );
 
         // Check edge-case-tester
