@@ -242,9 +242,10 @@ pub enum WorkspaceCommand {
         #[arg(default_value = ".")]
         path: PathBuf,
 
-        /// Number of files to process concurrently
-        #[arg(long, default_value = "100")]
-        batch_size: usize,
+        /// Automatically initialize the workspace before syncing if it has not
+        /// been initialized yet.
+        #[arg(long)]
+        init: bool,
     },
     /// List all workspaces.
     List {
