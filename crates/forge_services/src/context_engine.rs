@@ -43,6 +43,13 @@ fn allowed_extensions() -> &'static HashSet<String> {
     &ALLOWED_EXTENSIONS
 }
 
+/// Canonicalizes `path`, attaching a context message that includes the original
+/// path on failure.
+fn canonicalize_path(path: PathBuf) -> Result<PathBuf> {
+    path.canonicalize()
+        .with_context(|| format!("Failed to resolve path: {}", path.display()))
+}
+
 /// Checks if a file has an allowed extension for workspace syncing (O(1)
 /// lookup)
 fn has_allowed_extension(path: &Path) -> bool {
@@ -215,9 +222,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         let (token, user_id) = self.get_workspace_credentials().await?;
         let batch_size = self.infra.get_environment().max_file_read_batch_size;
-        let path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        let path = canonicalize_path(path)?;
 
         // Find existing workspace - do NOT auto-create
         let workspace = self.get_workspace_by_path(path, &token).await?;
@@ -412,9 +417,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     where
         F: WorkspaceIndexRepository,
     {
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        let canonical_path = canonicalize_path(path)?;
 
         // Get all workspaces from remote server
         let workspaces = self.infra.list_workspaces(token).await?;
@@ -640,9 +643,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
     async fn _init_workspace(&self, path: PathBuf) -> Result<(bool, WorkspaceId)> {
         let (token, _user_id) = self.get_workspace_credentials().await?;
-        let path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        let path = canonicalize_path(path)?;
 
         // Find workspace by exact match or ancestor from remote server
         let workspace = self.find_workspace_by_path(path.clone(), &token).await?;
