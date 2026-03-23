@@ -78,6 +78,7 @@ impl ForgeInfra {
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
+                restricted,
                 env.clone(),
                 output_printer.clone(),
             )),

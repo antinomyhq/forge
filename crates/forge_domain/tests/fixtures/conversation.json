@@ -299,10 +299,10 @@
       },
       {
         "name": "shell",
-        "description": "Executes shell commands with safety measures using restricted bash (rbash).\n Prevents potentially harmful operations like absolute path execution and\n directory changes. Use for file system interaction, running utilities,\n installing packages, or executing build commands. For operations requiring\n unrestricted access, advise users to run forge CLI with \\'-u\\' flag. Returns\n complete output including stdout, stderr, and exit code for diagnostic\n purposes.",
+        "description": "Executes shell commands with safety measures using the permissions feature.\n Prevents potentially harmful operations. Use for file system interaction, running utilities,\n installing packages, or executing build commands. For operations requiring\n unrestricted access, advise users to run forge CLI with \\'-u\\' flag. Returns\n complete output including stdout, stderr, and exit code for diagnostic\n purposes.",
         "input_schema": {
           "title": "Shell",
-          "description": "Executes shell commands with safety measures using restricted bash (rbash). Prevents potentially harmful operations like absolute path execution and directory changes. Use for file system interaction, running utilities, installing packages, or executing build commands. For operations requiring unrestricted access, advise users to run forge CLI with '-u' flag. Returns complete output including stdout, stderr, and exit code for diagnostic purposes.",
+          "description": "Executes shell commands with safety measures using the permissions feature. Prevents potentially harmful operations. Use for file system interaction, running utilities, installing packages, or executing build commands. For operations requiring unrestricted access, advise users to run forge CLI with '-u' flag. Returns complete output including stdout, stderr, and exit code for diagnostic purposes.",
           "type": "object",
           "required": [
             "command",
