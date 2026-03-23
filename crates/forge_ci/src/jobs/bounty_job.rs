@@ -42,6 +42,7 @@ pub fn sync_issue_job() -> Job {
             .to_string(),
     )
     .permissions(Permissions::default().issues(Level::Write))
+    .cond(Expression::new("github.event_name == 'issues'"))
 }
 
 /// Creates a job that propagates bounty labels from linked issues to the PR
@@ -63,4 +64,7 @@ pub fn sync_pr_job() -> Job {
             .issues(Level::Write)
             .pull_requests(Level::Write),
     )
+    .cond(Expression::new(
+        "github.event_name == 'pull_request' || github.event_name == 'pull_request_target'",
+    ))
 }
