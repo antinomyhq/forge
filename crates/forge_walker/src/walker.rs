@@ -66,16 +66,17 @@ impl Walker {
 
     /// Creates a new Walker instance with all settings set to maximum values.
     /// NOTE: This could produce a large number of files and should be used with
-    /// carefully.
+    /// caution. Even in "max" mode, we set a safety ceiling to prevent 
+    /// OOM (Out Of Memory) crashes on massive directories like /home or /.
     pub fn max_all() -> Self {
         Self {
             cwd: PathBuf::new(),
-            max_depth: usize::MAX,
-            max_breadth: usize::MAX,
-            max_file_size: u64::MAX,
-            max_files: usize::MAX,
-            max_total_size: u64::MAX,
-            skip_binary: false,
+            max_depth: 100,              // Safety ceiling: 100 levels deep
+            max_breadth: 10_000,         // Safety ceiling: 10k files per dir
+            max_file_size: 50 * 1024 * 1024, // 50MB per file
+            max_files: 50_000,           // 50k files total
+            max_total_size: 1024 * 1024 * 1024, // 1GB total
+            skip_binary: true,           // Default to true for safety
         }
     }
 }
