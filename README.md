@@ -50,7 +50,7 @@ On first run, Forge will guide you through setting up your AI provider credentia
 # Configure your provider credentials interactively
 forge provider login
 
-# Then start Forge
+# Then start Forge (Avoid running in large directories like ~ or /)
 forge
 ```
 That's it! Forge is now ready to assist you with your development tasks.
