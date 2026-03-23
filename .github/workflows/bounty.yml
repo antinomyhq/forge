@@ -21,6 +21,8 @@ name: Bounty Management
     types:
     - assigned
     - unassigned
+    - labeled
+    - unlabeled
   pull_request:
     types:
     - opened
@@ -54,6 +56,16 @@ jobs:
       uses: actions/checkout@v4
     - name: Add or remove bounty claimed label
       run: npx tsx .github/scripts/bounty/sync-claimed.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+  sync-generic-bounty-label:
+    name: Sync generic bounty label on value label change
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Add or remove generic bounty label
+      run: npx tsx .github/scripts/bounty/sync-generic-bounty.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
   mark-bounty-rewarded:
     name: Mark bounty as rewarded on PR merge
     runs-on: ubuntu-latest

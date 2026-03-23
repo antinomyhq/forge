@@ -21,6 +21,8 @@ export interface PullRequestEvent {
 
 export interface IssuesEvent {
   action: string;
+  /// The label that was added or removed — present on `labeled` and `unlabeled` actions only.
+  label?: Label;
   issue: {
     number: number;
     labels: Label[];

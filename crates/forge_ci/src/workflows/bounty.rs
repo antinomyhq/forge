@@ -1,7 +1,10 @@
 use gh_workflow::generate::Generate;
 use gh_workflow::*;
 
-use crate::jobs::{mark_bounty_rewarded_job, propagate_bounty_label_job, sync_claimed_label_job};
+use crate::jobs::{
+    mark_bounty_rewarded_job, propagate_bounty_label_job, sync_claimed_label_job,
+    sync_generic_bounty_label_job,
+};
 
 /// Generate the bounty management workflow.
 ///
@@ -10,6 +13,9 @@ use crate::jobs::{mark_bounty_rewarded_job, propagate_bounty_label_job, sync_cla
 ///   issue to the PR when a PR is opened or edited.
 /// - `sync-claimed-label`: adds `bounty: claimed` to an issue when it is
 ///   assigned, and removes it when all assignees are removed.
+/// - `sync-generic-bounty-label`: adds the generic `bounty` label when a value
+///   label is applied to an issue, and removes it when the last value label is
+///   removed.
 /// - `mark-bounty-rewarded`: applies `bounty: rewarded` to the merged PR and
 ///   its linked issues, and removes `bounty: claimed` from those issues.
 pub fn generate_bounty_workflow() {
@@ -26,7 +32,9 @@ pub fn generate_bounty_workflow() {
         .issues(
             Issues::default()
                 .add_type(IssuesType::Assigned)
-                .add_type(IssuesType::Unassigned),
+                .add_type(IssuesType::Unassigned)
+                .add_type(IssuesType::Labeled)
+                .add_type(IssuesType::Unlabeled),
         );
 
     let workflow = Workflow::default()
@@ -39,6 +47,7 @@ pub fn generate_bounty_workflow() {
         )
         .add_job("propagate-bounty-label", propagate_bounty_label_job())
         .add_job("sync-claimed-label", sync_claimed_label_job())
+        .add_job("sync-generic-bounty-label", sync_generic_bounty_label_job())
         .add_job("mark-bounty-rewarded", mark_bounty_rewarded_job());
 
     Generate::new(workflow)
