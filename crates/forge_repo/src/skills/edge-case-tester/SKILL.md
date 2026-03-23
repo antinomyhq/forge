@@ -91,7 +91,17 @@ for ws in [1, 2, 4]:
 - Unicode characters (multi-byte UTF-8)
 - Files with no trailing newline
 
-## 4. Oracle Comparison
+## 4. Multi-Input Generalization
+
+When the task says "must work on any input" or provides a single example:
+
+1. **Never test only the provided example.** The verifier will test on different, freshly generated inputs.
+2. **Create at least 2 additional test inputs yourself** that differ structurally from the example (different sizes, different properties, compiled with different flags).
+3. **For binary/file format tasks**: compile/generate a second test file with `gcc -o test2 test2.c` and run your solution on it. The verifier does exactly this.
+4. **For game/position tasks**: test on mid-game positions (move 15+), not just the opening. Complex positions expose bugs that simple ones hide.
+5. If you only pass on the provided example, you are likely overfitting to it.
+
+## 5. Oracle Comparison
 
 When a reference implementation or binary exists:
 
@@ -112,7 +122,7 @@ for i in $(seq 1 20); do
 done
 ```
 
-## 5. Output Checklist
+## 6. Output Checklist
 
 After running edge case tests, answer:
 - [ ] Does the solution handle the minimum input size?

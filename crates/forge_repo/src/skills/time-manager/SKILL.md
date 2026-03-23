@@ -37,6 +37,16 @@ Once Phase 2 produces a working (even partial) solution:
 4. If the rewrite fails or time runs short, restore from backup.
 5. Continue improving only via safe overwrites that preserve prior correctness.
 
+## Late-Stage Focus (>80% Tests Pass)
+
+When your solution passes most tests but a few fail, and you are past Phase 2:
+
+1. **Identify the exact failing tests** — run the checker/verifier and note which specific inputs or conditions fail.
+2. **Write targeted regression tests** for ONLY the failing cases.
+3. **Do NOT refactor passing code.** Isolate the failure to the minimal code path and fix only that.
+4. **Do NOT rewrite the architecture.** If 58/63 tests pass, the architecture is correct — the remaining 5 failures are edge-case bugs, not design flaws.
+5. If fixing one failure breaks a passing test, revert and try a different approach for that specific case.
+
 ## Timeout Escape Hatch
 
 When elapsed time exceeds **85%** of your estimated budget:
