@@ -30,6 +30,56 @@ export interface IssuesEvent {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Pipeline types
+// ---------------------------------------------------------------------------
+
+/// A mutation to apply to a single issue or PR number.
+/// Labels to add are batched into one API call. Each removal is a separate call
+/// (GitHub has no bulk remove endpoint).
+export interface TargetMutation {
+  target: number;
+  /// Labels to add in a single batched API call.
+  add: string[];
+  /// Labels to remove, one call each.
+  remove: string[];
+  /// Comments to post, one call each.
+  comment?: string;
+}
+
+/// Output of the parse step. Describes what the script *wants* to happen,
+/// before any API state is known.
+///
+/// `knownLabels` carries label sets already present in the event payload
+/// (so the plan step can skip fetching those). Keys are issue/PR numbers.
+///
+/// `labelCopies` is used when labels must be copied from source issues to a
+/// target PR — the plan step fetches source labels and merges them.
+export interface ParsedIntent {
+  mutations: TargetMutation[];
+  /// Label sets already known from the event payload, keyed by target number.
+  /// The plan step uses these to avoid redundant GET calls.
+  knownLabels: Record<number, string[]>;
+  /// Copy bounty labels from source issues onto a PR target.
+  /// The plan step fetches each source issue's labels and adds any matching
+  /// bounty: $N labels to the PR mutation, deduplicating against what the PR
+  /// already has (supplied via knownLabels[prTarget]).
+  labelCopies?: {
+    sources: number[];
+    prTarget: number;
+  };
+}
+
+/// Output of the plan step. All redundant operations have been removed
+/// (no-op adds/removes filtered out). Ready to execute.
+export interface BatchPlan {
+  mutations: TargetMutation[];
+}
+
+// ---------------------------------------------------------------------------
+// GitHub REST API abstraction
+// ---------------------------------------------------------------------------
+
 /// Abstraction over the GitHub REST API — injectable for testing.
 export interface GitHubApi {
   getLabels(issueOrPr: number): Promise<Label[]>;

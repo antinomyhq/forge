@@ -44,8 +44,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    - name: Copy bounty label from linked issue to PR
-      run: npx tsx .github/scripts/bounty/propagate-label.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+    - name: Parse event into intent
+      run: npx tsx .github/scripts/bounty/parse-propagate-label.ts --pr ${{ github.event.pull_request.number }} > /tmp/intent.json
+    - name: Plan — diff desired vs current labels
+      run: INTENT_FILE=/tmp/intent.json npx tsx .github/scripts/bounty/plan.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} > /tmp/plan.json
+    - name: Execute batch label mutations
+      run: PLAN_FILE=/tmp/plan.json npx tsx .github/scripts/bounty/execute.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
   sync-claimed-label:
     name: Sync bounty claimed label on assignment
     runs-on: ubuntu-latest
@@ -54,8 +58,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    - name: Add or remove bounty claimed label
-      run: npx tsx .github/scripts/bounty/sync-claimed.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+    - name: Parse event into intent
+      run: npx tsx .github/scripts/bounty/parse-sync-claimed.ts --issue ${{ github.event.issue.number }} > /tmp/intent.json
+    - name: Plan — diff desired vs current labels
+      run: INTENT_FILE=/tmp/intent.json npx tsx .github/scripts/bounty/plan.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} > /tmp/plan.json
+    - name: Execute batch label mutations
+      run: PLAN_FILE=/tmp/plan.json npx tsx .github/scripts/bounty/execute.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
   sync-generic-bounty-label:
     name: Sync generic bounty label on value label change
     runs-on: ubuntu-latest
@@ -64,8 +72,12 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    - name: Add or remove generic bounty label
-      run: npx tsx .github/scripts/bounty/sync-generic-bounty.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+    - name: Parse event into intent
+      run: npx tsx .github/scripts/bounty/parse-sync-generic-bounty.ts --issue ${{ github.event.issue.number }} > /tmp/intent.json
+    - name: Plan — diff desired vs current labels
+      run: INTENT_FILE=/tmp/intent.json npx tsx .github/scripts/bounty/plan.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} > /tmp/plan.json
+    - name: Execute batch label mutations
+      run: PLAN_FILE=/tmp/plan.json npx tsx .github/scripts/bounty/execute.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
   mark-bounty-rewarded:
     name: Mark bounty as rewarded on PR merge
     runs-on: ubuntu-latest
@@ -75,5 +87,9 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-    - name: Apply rewarded label to PR and linked issue
-      run: npx tsx .github/scripts/bounty/mark-rewarded.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+    - name: Parse event into intent
+      run: npx tsx .github/scripts/bounty/parse-mark-rewarded.ts --pr ${{ github.event.pull_request.number }} > /tmp/intent.json
+    - name: Plan — diff desired vs current labels
+      run: INTENT_FILE=/tmp/intent.json npx tsx .github/scripts/bounty/plan.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} > /tmp/plan.json
+    - name: Execute batch label mutations
+      run: PLAN_FILE=/tmp/plan.json npx tsx .github/scripts/bounty/execute.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
