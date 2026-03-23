@@ -76,7 +76,7 @@ function _forge_handle_conversation_command() {
     
     # Check if FORGE_CONVERSATION_ID is set
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _forge_log error "No active conversation. Start a conversation first or use :list to see existing ones"
+        _forge_log error "No active conversation. Start a conversation first or use :conversation to see existing ones"
         return 0
     fi
     
