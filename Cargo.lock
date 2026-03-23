@@ -1825,6 +1825,7 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_embed",
+ "forge_env",
  "forge_stream",
  "forge_template",
  "forge_test_kit",
