@@ -22,11 +22,7 @@ pub struct ForgeCommandExecutorService {
 
 impl ForgeCommandExecutorService {
     pub fn new(env: Environment, output_printer: Arc<StdConsoleWriter>) -> Self {
-        Self {
-            env,
-            output_printer,
-            ready: Arc::new(Mutex::new(())),
-        }
+        Self { env, output_printer, ready: Arc::new(Mutex::new(())) }
     }
 
     fn prepare_command(
