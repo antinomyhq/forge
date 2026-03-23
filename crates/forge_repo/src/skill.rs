@@ -415,12 +415,12 @@ mod tests {
         assert!(
             verification_specialist
                 .command
-                .contains("exact final workspace state")
+                .contains("Reconstruct the Verifier")
         );
         assert!(
             verification_specialist
                 .command
-                .contains("reconstruct the verifier invocation")
+                .contains("Sanity-Check Outputs")
         );
 
         // Check constraint-enforcer
@@ -438,7 +438,7 @@ mod tests {
         assert!(
             constraint
                 .description
-                .contains("Systematic constraint extraction")
+                .contains("Extract hidden constraints")
         );
 
         // Check edge-case-tester
@@ -461,7 +461,7 @@ mod tests {
         assert!(
             edge_case
                 .command
-                .contains("Include adversarial hand-picked cases from the domain-specific checklist")
+                .contains("MOST COMMON FAILURE SOURCE")
         );
 
         // Check reverse-engineering-helper
@@ -497,7 +497,7 @@ mod tests {
         assert!(
             ml_debug
                 .description
-                .contains("debugging ML model loading")
+                .contains("MUST invoke on ANY task involving machine learning")
         );
     }
 

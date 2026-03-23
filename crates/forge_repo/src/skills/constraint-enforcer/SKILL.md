@@ -1,70 +1,51 @@
 ---
 name: constraint-enforcer
 description: >-
-  Systematic constraint extraction and verification for tasks with
-  explicit rules, size limits, allowed-edit restrictions, performance
-  requirements, or anti-shortcut constraints. Invoke before
-  verification-specialist when the task prompt contains words like
-  "must", "only", "do not", "at most", "limit", size/performance
-  bounds, or anti-shortcut rules.
+  Extract hidden constraints from task prompts that cause silent
+  verification failures. Invoke ONCE at the start of a task — before
+  writing any code — when the prompt contains words like "must",
+  "only", "do not", "at most", "limit", size/performance bounds,
+  anti-shortcut rules, or specifies exact output formats. Produces
+  a compact checklist of constraints with verification commands.
+  Do NOT invoke this skill at the end of a task or during verification.
 ---
 
 # Constraint Enforcer
 
-Extract and verify every constraint from the task prompt before declaring completion.
+Extract constraints BEFORE coding. This skill runs once at task start, not at the end.
 
-## Step 1 -- Extract Constraints
+## What To Do
 
-Re-read the original task prompt. Extract every constraint into a typed checklist:
+Re-read the task prompt carefully. Extract every constraint into a **short** checklist — one line per constraint with a verification command. Focus on constraints that are **easy to miss**:
+
+### Hidden constraint patterns (these cause most failures):
+
+1. **Output format**: Does the task specify JSON, CSV, a specific schema, exact field names, or a file path? Verifiers parse the output — wrong field names = 0 points.
+2. **Size limits**: "at most N bytes", "under N lines", "compressed size <= N". Check with `wc -c`.
+3. **Parameter coverage**: "works for world_size 1,2,4" means test ALL three, not just 1. "matrix sizes up to 100x100" means test 100x100 specifically.
+4. **Anti-shortcut rules**: "write real code, not a wrapper", "implement from scratch", "no external libraries". Verifiers use strace/chroot to enforce these.
+5. **Exact tool requirements**: "use tool X to compute Y" means install X, don't use a substitute.
+6. **Implicit freshness**: Service tasks are tested from a clean client. Your test cookies/state don't carry over.
+7. **Taxonomy specificity**: "classify using CWE IDs" means pick the most specific CWE, not the generic parent.
+8. **Byte-identical preservation**: "only change X" means everything else must be byte-identical. Use surgical edits.
+
+### Output format
+
+Print your checklist as a compact list — NOT a markdown table. Example:
 
 ```
-| # | Type        | Constraint                          | Verification Command                    | Status  |
-|---|-------------|-------------------------------------|-----------------------------------------|---------|
-| 1 | SIZE        | output <= 2500 bytes                | wc -c /app/data.comp                    | pending |
-| 2 | PERFORMANCE | faster than reference for ALL sizes | for s in 2 3 5 10; do bench $s; done    | pending |
-| 3 | CONTENT     | only synonym substitutions allowed  | diff orig final | check_allowed_words   | pending |
-| 4 | METHOD      | write real C code, not a wrapper    | file ./image && no calls to /app/orig   | pending |
-| 5 | COVERAGE    | works for world_size 1,2,4          | for ws in 1 2 4; do test $ws; done      | pending |
-| 6 | FORMAT      | output is valid JSON                | python3 -c "import json; json.load(...)"| pending |
-| 7 | FRESHNESS   | service works for fresh client      | rm -rf /tmp/clone && git clone && test   | pending |
+CONSTRAINTS:
+1. SIZE: output <= 2500 bytes → wc -c /app/data.comp
+2. COVERAGE: world_size 1,2,4 → for ws in 1 2 4; do test.py --ws=$ws; done
+3. FORMAT: valid JSON with keys "G" and "2D" → python3 -c "import json; d=json.load(open('/app/results.json')); assert set(d)=={'G','2D'}"
+4. METHOD: no wrapping /app/orig → grep -r '/app/orig' my_code (must return empty)
 ```
 
-### Constraint Types
+Then proceed to implementation. Verify each constraint AFTER the first working artifact is ready — not before.
 
-- **SIZE**: Output file must be <= N bytes/lines/tokens. Check with `wc -c`, `wc -l`, or `stat --format=%s`.
-- **PERFORMANCE**: Must beat a baseline or run within N seconds. Test at ALL specified input sizes, not just the easiest. Small inputs often have different optimal strategies than large ones.
-- **CONTENT**: Only specific edits are allowed (synonyms, allowed fields). Diff the original against the final and verify every changed token is in the allowed set.
-- **METHOD**: Must write real code, not wrap existing binaries. Verify with `file`, `strace`, or by checking the solution works in an isolated directory without reference binaries.
-- **COVERAGE**: Must work for ALL specified parameter values. world_size=1 is a degenerate case; 2x2 matrices differ from 100x100. Loop over every value in the spec.
-- **FORMAT**: Output must match a specific schema. Parse it with the expected consumer, not just check non-empty.
-- **FRESHNESS**: Verifiers always start from clean state. Clean all test artifacts, then verify with a completely new client/session.
+## What NOT To Do
 
-## Step 2 -- Verify Each Constraint
-
-For each row, run the verification command and record pass/fail.
-
-Rules:
-- **Every constraint gets its own runnable check.** "Looks correct" is not verification.
-- **Test the boundary.** If the limit is 2500 bytes, ensure your output is safely under (not 2499).
-- **Test ALL parameter values.** If the task says "sizes 2 to 10", test 2, 3, 4, ..., 10. If the task says "world_size 1, 2, 4", test all three.
-- **Constraints are independent of correctness.** A passing test suite does NOT mean constraints are satisfied. You can have correct output that violates a size limit.
-
-## Step 3 -- Anti-Shortcut Hardening
-
-When the task says "write X", "implement X", or "create X":
-
-1. **Self-containment check**: Does the solution work without ANY pre-existing task binaries? Would it work if you moved it to an empty directory?
-2. **No binary wrapping**: Verify your solution doesn't shell out to reference binaries (`/app/orig`, `/app/decomp`, etc.) at runtime. Check with:
-   ```
-   grep -r "exec\|system\|popen\|subprocess\|/app/" your_solution
-   ```
-3. **Chroot test** (if feasible): Copy your binary to an empty directory and run it. If it fails because it depends on task-provided files, it's not self-contained.
-4. **Read the verifier** (if discoverable): Some tasks include test scripts. Read them to understand what isolation they use (chroot, strace, etc.).
-
-## Step 4 -- Remediation
-
-If any constraint fails:
-1. Do NOT mark the task complete.
-2. Fix the specific violation.
-3. Re-run ALL constraint checks (fixing one may break another).
-4. Only proceed to verification-specialist after all constraints pass.
+- Do NOT invoke this skill at the end of a task. It's for planning, not verification.
+- Do NOT build elaborate multi-column markdown tables. A numbered list is sufficient.
+- Do NOT repeat constraints already obvious from the task (e.g., "produce the output file" is not a hidden constraint).
+- Do NOT block implementation on constraint analysis — extract constraints in under 30 seconds, then start coding.
