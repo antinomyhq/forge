@@ -61,6 +61,22 @@ fn has_allowed_extension(path: &Path) -> bool {
     }
 }
 
+/// Extracts [`forge_domain::FileStatus`] entries with [`forge_domain::SyncStatus::Failed`]
+/// from a slice of file-read results by downcasting errors to [`FileReadError`].
+fn extract_failed_statuses(results: &[Result<FileNode>]) -> Vec<forge_domain::FileStatus> {
+    results
+        .iter()
+        .filter_map(|r| r.as_ref().err())
+        .filter_map(|e| e.downcast_ref::<FileReadError>())
+        .map(|e| {
+            forge_domain::FileStatus::new(
+                e.path.to_string_lossy().into_owned(),
+                forge_domain::SyncStatus::Failed,
+            )
+        })
+        .collect()
+}
+
 /// Service for indexing workspaces and performing semantic search
 pub struct ForgeWorkspaceService<F> {
     infra: Arc<F>,
@@ -245,17 +261,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .read_files(batch_size, &workspace_root, &workspace_id)
             .collect()
             .await;
-        let failed_statuses: Vec<forge_domain::FileStatus> = results
-            .iter()
-            .filter_map(|r| r.as_ref().err())
-            .filter_map(|e| e.downcast_ref::<FileReadError>())
-            .map(|e| {
-                forge_domain::FileStatus::new(
-                    e.path.to_string_lossy().into_owned(),
-                    forge_domain::SyncStatus::Failed,
-                )
-            })
-            .collect();
+        let failed_statuses = extract_failed_statuses(&results);
         let local_files: Vec<FileNode> = results.into_iter().flatten().collect();
 
         let total_file_count = local_files.len() + failed_statuses.len();
@@ -823,18 +829,7 @@ impl<
             .collect()
             .await;
 
-        let mut failed_statuses: Vec<forge_domain::FileStatus> = results
-            .iter()
-            .filter_map(|r| r.as_ref().err())
-            .filter_map(|e| e.downcast_ref::<FileReadError>())
-            .map(|e| {
-                forge_domain::FileStatus::new(
-                    e.path.to_string_lossy().into_owned(),
-                    forge_domain::SyncStatus::Failed,
-                )
-            })
-            .collect();
-
+        let mut failed_statuses = extract_failed_statuses(&results);
         let local_files: Vec<FileNode> = results.into_iter().flatten().collect();
 
         let remote_files = self
