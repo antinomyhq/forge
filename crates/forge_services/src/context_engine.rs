@@ -61,8 +61,9 @@ fn has_allowed_extension(path: &Path) -> bool {
     }
 }
 
-/// Extracts [`forge_domain::FileStatus`] entries with [`forge_domain::SyncStatus::Failed`]
-/// from a slice of file-read results by downcasting errors to [`FileReadError`].
+/// Extracts [`forge_domain::FileStatus`] entries with
+/// [`forge_domain::SyncStatus::Failed`] from a slice of file-read results by
+/// downcasting errors to [`FileReadError`].
 fn extract_failed_statuses(results: &[Result<FileNode>]) -> Vec<forge_domain::FileStatus> {
     results
         .iter()
