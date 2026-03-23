@@ -67,7 +67,10 @@ impl<F: CommandInfra + 'static> FileDiscovery for FsGit<F> {
         if paths.is_empty() {
             return Err(anyhow::anyhow!("git ls-files returned no files"));
         }
-        info!(file_count = paths.len(), "Discovered files via git ls-files");
+        info!(
+            file_count = paths.len(),
+            "Discovered files via git ls-files"
+        );
         filter_and_resolve(dir_path, paths)
     }
 }

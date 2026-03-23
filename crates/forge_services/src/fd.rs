@@ -100,10 +100,7 @@ impl<F> FdDefault<F> {
     /// Creates a new `RoutingFileDiscovery` using the provided infrastructure
     /// for both the git and walker strategies.
     pub fn new(infra: Arc<F>) -> Self {
-        Self {
-            git: FsGit::new(infra.clone()),
-            walker: FdWalker::new(infra),
-        }
+        Self { git: FsGit::new(infra.clone()), walker: FdWalker::new(infra) }
     }
 }
 

@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter,
-    WalkerInfra, WorkspaceService, WorkspaceStatus, compute_hash,
+    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkerInfra,
+    WorkspaceService, WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -96,8 +96,7 @@ impl<
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
-    ) -> anyhow::Result<Vec<FileHash>>
-    {
+    ) -> anyhow::Result<Vec<FileHash>> {
         info!(workspace_id = %workspace_id, "Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
@@ -116,8 +115,7 @@ impl<
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         files_to_delete: Vec<String>,
-    ) -> Result<usize>
-    {
+    ) -> Result<usize> {
         if files_to_delete.is_empty() {
             return Ok(0);
         }
@@ -150,8 +148,7 @@ impl<
         token: &forge_domain::ApiKey,
         files: Vec<forge_domain::FileNode>,
         batch_size: usize,
-    ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send
-    {
+    ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send {
         let user_id = user_id.clone();
         let workspace_id = workspace_id.clone();
         let token = token.clone();
@@ -336,8 +333,7 @@ impl<
     /// # Errors
     /// Returns an error if the credential is not found, if there's a database
     /// error, or if the credential format is invalid
-    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
-    {
+    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)> {
         let credential = self
             .infra
             .get_credential(&ProviderId::FORGE_SERVICES)
@@ -376,8 +372,7 @@ impl<
         &self,
         path: PathBuf,
         token: &forge_domain::ApiKey,
-    ) -> Result<Option<forge_domain::WorkspaceInfo>>
-    {
+    ) -> Result<Option<forge_domain::WorkspaceInfo>> {
         let canonical_path = canonicalize_path(path)?;
 
         // Get all workspaces from remote server
@@ -419,8 +414,7 @@ impl<
         &self,
         path: PathBuf,
         token: &forge_domain::ApiKey,
-    ) -> Result<forge_domain::WorkspaceInfo>
-    {
+    ) -> Result<forge_domain::WorkspaceInfo> {
         self.find_workspace_by_path(path, token)
             .await?
             .context("Workspace not indexed. Please run `forge workspace init` first.")
@@ -432,8 +426,7 @@ impl<
         batch_size: usize,
         dir_path: &Path,
         workspace_id: &WorkspaceId,
-    ) -> impl Stream<Item = Result<FileNode>> + Send
-    {
+    ) -> impl Stream<Item = Result<FileNode>> + Send {
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
         let discovery = self.discovery.clone();
@@ -578,8 +571,10 @@ impl<
     }
 
     /// Retrieves workspace information for a specific path.
-    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
-    {
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>> {
         let (token, _user_id) = self.get_workspace_credentials().await?;
         let workspace = self.find_workspace_by_path(path, &token).await?;
 
