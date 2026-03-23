@@ -89,12 +89,23 @@ impl<F> Clone for ForgeWorkspaceService<F> {
     }
 }
 
-impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceService<F> {
+impl<F> ForgeWorkspaceService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
+}
 
+impl<
+    F: 'static
+        + ProviderRepository
+        + WorkspaceIndexRepository
+        + FileReaderInfra
+        + EnvironmentInfra
+        + CommandInfra
+        + WalkerInfra,
+> ForgeWorkspaceService<F>
+{
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(
         &self,
@@ -102,8 +113,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<FileHash>>
-    where
-        F: WorkspaceIndexRepository,
     {
         info!(workspace_id = %workspace_id, "Fetching existing file hashes from server to detect changes...");
         let workspace_files =
@@ -124,8 +133,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         token: &forge_domain::ApiKey,
         files_to_delete: Vec<String>,
     ) -> Result<usize>
-    where
-        F: WorkspaceIndexRepository,
     {
         if files_to_delete.is_empty() {
             return Ok(0);
@@ -160,8 +167,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         files: Vec<forge_domain::FileNode>,
         batch_size: usize,
     ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send
-    where
-        F: WorkspaceIndexRepository,
     {
         let user_id = user_id.clone();
         let workspace_id = workspace_id.clone();
@@ -199,12 +204,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Internal sync implementation that emits progress events.
     async fn sync_codebase_internal<E, Fut>(&self, path: PathBuf, emit: E) -> Result<()>
     where
-        F: ProviderRepository
-            + WorkspaceIndexRepository
-            + FileReaderInfra
-            + EnvironmentInfra
-            + CommandInfra
-            + WalkerInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -354,8 +353,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Returns an error if the credential is not found, if there's a database
     /// error, or if the credential format is invalid
     async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
-    where
-        F: ProviderRepository,
     {
         let credential = self
             .infra
@@ -396,8 +393,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         path: PathBuf,
         token: &forge_domain::ApiKey,
     ) -> Result<Option<forge_domain::WorkspaceInfo>>
-    where
-        F: WorkspaceIndexRepository,
     {
         let canonical_path = canonicalize_path(path)?;
 
@@ -441,8 +436,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         path: PathBuf,
         token: &forge_domain::ApiKey,
     ) -> Result<forge_domain::WorkspaceInfo>
-    where
-        F: WorkspaceIndexRepository,
     {
         self.find_workspace_by_path(path, token)
             .await?
@@ -457,8 +450,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// Returns an error when the command fails to execute or exits with a
     /// non-zero status code (e.g. when the directory is not a git repository).
     async fn git_ls_files(&self, dir_path: &Path) -> anyhow::Result<Vec<WalkedFile>>
-    where
-        F: CommandInfra,
     {
         let output = self
             .infra
@@ -501,8 +492,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         dir_path: &Path,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Vec<WalkedFile>>
-    where
-        F: WalkerInfra,
     {
         let walker_config = Walker::unlimited()
             .cwd(dir_path.to_path_buf())
@@ -531,8 +520,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         dir_path: &Path,
         workspace_id: &WorkspaceId,
     ) -> anyhow::Result<Vec<PathBuf>>
-    where
-        F: CommandInfra + WalkerInfra,
     {
         info!(workspace_id = %workspace_id, "Discovering files for sync via git ls-files");
         // `git ls-files` can succeed yet return an empty list (e.g. a freshly
@@ -585,8 +572,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         dir_path: &Path,
         workspace_id: &WorkspaceId,
     ) -> impl Stream<Item = Result<FileNode>> + Send
-    where
-        F: FileReaderInfra + EnvironmentInfra + CommandInfra + WalkerInfra,
     {
         let dir_path = dir_path.to_path_buf();
         let infra = self.infra.clone();
@@ -728,8 +713,6 @@ impl<
 
     /// Retrieves workspace information for a specific path.
     async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
-    where
-        F: WorkspaceIndexRepository + ProviderRepository,
     {
         let (token, _user_id) = self.get_workspace_credentials().await?;
         let workspace = self.find_workspace_by_path(path, &token).await?;
