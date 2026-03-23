@@ -31,7 +31,7 @@ impl CodexTransformer {
                 )
             })
             .count();
-        oai::ReasoningEffort::Medium
+        oai::ReasoningEffort::Xhigh
         
     }
 }
