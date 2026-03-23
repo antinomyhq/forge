@@ -43,6 +43,8 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+    - name: Install npm packages
+      run: npm install
     - name: Sync bounty labels
       run: npx tsx .github/scripts/bounty/src/sync-issue.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
   sync-pr:
@@ -54,5 +56,7 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+    - name: Install npm packages
+      run: npm install
     - name: Sync bounty labels
       run: npx tsx .github/scripts/bounty/src/sync-pr.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
