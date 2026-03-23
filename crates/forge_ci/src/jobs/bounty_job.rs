@@ -19,7 +19,8 @@ fn checkout_step() -> Step<Use> {
     Step::new("Checkout").uses("actions", "checkout", "v4")
 }
 
-/// Builds a three-step job: checkout + npm install + a single script invocation.
+/// Builds a three-step job: checkout + npm install + a single script
+/// invocation.
 fn sync_job(job_name: &str, script: &str, args: String) -> Job {
     let cmd = format!("{TSX} {SCRIPTS_DIR}/{script} {args}");
     Job::new(job_name)
