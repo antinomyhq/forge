@@ -148,26 +148,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         Ok(files_to_delete.len())
     }
 
-    /// Uploads a batch of files to the server.
-    async fn upload(
-        &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        token: &forge_domain::ApiKey,
-        files: Vec<forge_domain::FileRead>,
-    ) -> Result<()>
-    where
-        F: WorkspaceIndexRepository,
-    {
-        let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
-
-        self.infra
-            .upload_files(&upload, token)
-            .await
-            .context("Failed to upload files")?;
-        Ok(())
-    }
-
     /// Uploads files in parallel, returning a stream of results.
     ///
     /// The caller is responsible for processing the stream and tracking
@@ -200,8 +180,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
                 let file_path = file.path.clone();
                 async move {
                     info!(workspace_id = %workspace_id, path = %file_path, "File sync started");
-                    self.upload(&user_id, &workspace_id, &token, vec![file])
-                        .await?;
+                    let upload = forge_domain::CodeBase::new(
+                        user_id.clone(),
+                        workspace_id.clone(),
+                        vec![file],
+                    );
+                    self.infra
+                        .upload_files(&upload, &token)
+                        .await
+                        .context("Failed to upload files")?;
                     info!(workspace_id = %workspace_id, path = %file_path, "File sync completed");
                     Ok::<_, anyhow::Error>(1)
                 }
