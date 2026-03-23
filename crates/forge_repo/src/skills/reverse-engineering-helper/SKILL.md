@@ -78,21 +78,22 @@ Instead of perfectly reverse-engineering the algorithm, use the existing code/bi
 
 This is faster and more reliable than trying to understand every implementation detail.
 
-## Phase 3 -- Language Matching Rule
+## Phase 3 -- Language Matching Rule (CRITICAL)
 
 When byte-level or arithmetic-level compatibility matters:
 
-- **C reference -> implement in C** (not Python). Integer overflow, pointer arithmetic, and struct packing differ.
+- **C reference -> implement encoder/generator in C or Perl** (NOT Python). Python's arbitrary-precision integers NEVER overflow — after enough multiplications, your values silently diverge from C's 32-bit wrapping. This is the #1 cause of "encoder works in simulation but segfaults in the real decoder."
+- **If you MUST use Python**: wrap EVERY arithmetic operation in the hot loop with `ctypes.c_int32(value).value`. Not just some — ALL of them. One unwrapped multiply destroys the entire output.
 - **Python reference -> implement in Python** (not C). Float precision, integer division, and string handling differ.
-- **Same library versions.** If the reference uses numpy, use numpy. Don't substitute with a different linear algebra library.
+- **Same library versions.** If the reference uses numpy, use numpy.
 
-Why this matters: Different languages have different:
-- Integer overflow behavior (wrapping vs exception vs undefined)
-- Float rounding (IEEE 754 modes differ across implementations)
-- Division semantics (C truncates toward zero, Python floors toward negative infinity)
-- String encoding (UTF-8 byte boundaries, normalization forms)
+**Build a decoder simulator FIRST.** Before testing with the real binary:
+1. Translate the C decoder line-by-line into the SAME language as your encoder
+2. Feed your compressed output to the simulator
+3. If the simulator's output matches the original data, the real binary will too
+4. If it doesn't match, debug in your simulator where you have full visibility — not via "segfault" from the C binary
 
-These mismatches cause silent corruption that is extremely hard to debug.
+This avoids the trap of spending 10+ minutes debugging blind segfaults.
 
 ## Phase 4 -- Incremental Verification
 
