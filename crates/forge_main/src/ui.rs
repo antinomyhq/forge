@@ -3992,6 +3992,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            self.init_forge_services().await?;
+        }
+        
         self.spinner.start(Some("Initializing workspace"))?;
 
         let workspace_id = self.api.init_workspace(path.clone()).await?;
