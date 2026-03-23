@@ -14,8 +14,10 @@ export const BOUNTY_GENERIC = "bounty";
 export const BOUNTY_CLAIMED = "bounty: claimed";
 export const BOUNTY_REWARDED = "bounty: rewarded";
 
-/// Matches bounty value labels: "bounty: 💰 $100", "bounty: 💰 $5500", etc.
-export const VALUE_LABEL_RE = /^bounty: 💰 \$/;
+/// Matches bounty value labels in both formats:
+/// - new: "bounty: 💰 $100", "bounty: 💰 $5500"
+/// - legacy: "bounty: $300", "bounty: $500"
+export const VALUE_LABEL_RE = /^bounty: (?:💰 )?\$\d/;
 
 // ---------------------------------------------------------------------------
 // Helpers

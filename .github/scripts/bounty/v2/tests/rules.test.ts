@@ -85,6 +85,14 @@ describe("computeIssuePatch", () => {
       assert.deepEqual(patch.ops[0]!.remove, []);
     });
 
+    it("recognises legacy label format (no emoji) as a value label", () => {
+      const issue = makeIssue({ number: 1, labels: labelNames("bounty: $300") });
+      const patch = computeIssuePatch(issueState(issue));
+      assert.equal(patch.ops.length, 1);
+      assert.deepEqual(patch.ops[0]!.add, [BOUNTY_GENERIC]);
+      assert.deepEqual(patch.ops[0]!.remove, []);
+    });
+
     it("produces no patch when generic already present and no assignees", () => {
       const issue = makeIssue({
         number: 1,
