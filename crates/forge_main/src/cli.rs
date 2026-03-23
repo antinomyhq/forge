@@ -241,6 +241,11 @@ pub enum WorkspaceCommand {
         /// Path to the directory to sync
         #[arg(default_value = ".")]
         path: PathBuf,
+
+        /// Automatically initialize the workspace before syncing if it has not
+        /// been initialized yet.
+        #[arg(long)]
+        init: bool,
     },
     /// List all workspaces.
     List {
