@@ -74,6 +74,11 @@ impl Runner {
             let mut responses = Vec::new();
 
             while let Some(item) = rx.recv().await {
+                // Simulate what the real UI does: acknowledge ToolCallStart so
+                // the orchestrator can proceed with tool execution.
+                if let Ok(ChatResponse::ToolCallStart { ref notifier, .. }) = item {
+                    notifier.notify_one();
+                }
                 responses.push(item);
             }
 
