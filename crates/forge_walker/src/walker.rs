@@ -453,6 +453,55 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_walker_enforces_max_files_limit() {
+        // Create more files than the limit
+        let file_limit = 10;
+        let total_files = 25;
+        let fixture = fixtures::Fixture::default();
+        for i in 0..total_files {
+            fixture
+                .add_file(&format!("file{i}.txt"), "content")
+                .unwrap();
+        }
+
+        let actual = Walker::max_all()
+            .cwd(fixture.as_path().to_path_buf())
+            .max_files(file_limit)
+            .get()
+            .await
+            .unwrap();
+
+        let file_count = actual.iter().filter(|f| !f.is_dir()).count();
+        assert!(
+            file_count <= file_limit,
+            "Walker should stop at max_files limit ({file_limit}), but found {file_count} files"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_walker_enforces_max_total_size_limit() {
+        // Each file is 1KB; total limit is 3KB, so at most 3 files
+        let fixture = fixtures::Fixture::default();
+        for i in 0..10 {
+            let content = "a".repeat(1024);
+            fixture.add_file(&format!("file{i}.txt"), &content).unwrap();
+        }
+
+        let actual = Walker::max_all()
+            .cwd(fixture.as_path().to_path_buf())
+            .max_total_size(3 * 1024)
+            .get()
+            .await
+            .unwrap();
+
+        let total_size: u64 = actual.iter().filter(|f| !f.is_dir()).map(|f| f.size).sum();
+        assert!(
+            total_size <= 3 * 1024,
+            "Walker should stop before exceeding total size limit, but total was {total_size}"
+        );
+    }
+
     #[test]
     fn test_is_likely_binary_detects_binary_files() {
         use std::path::Path;
