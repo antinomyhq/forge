@@ -449,7 +449,8 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     /// # Errors
     ///
     /// Returns an error when the underlying repository lookup fails, or when no
-    /// matching workspace is found (i.e. the workspace has not been indexed yet).
+    /// matching workspace is found (i.e. the workspace has not been indexed
+    /// yet).
     async fn get_workspace_by_path(
         &self,
         path: PathBuf,
