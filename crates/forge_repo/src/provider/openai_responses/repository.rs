@@ -134,7 +134,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
         request.model = Some(model.as_str().to_string());
 
         // Apply Codex-specific request adjustments via the transformer pipeline.
-        if self.provider.id == forge_domain::ProviderId::CODEX {
+        if self.provider.id == forge_domain::ProviderId::CODEX || model.as_str().contains("gpt-5") {
             use forge_domain::Transformer;
             request = super::codex_transformer::CodexTransformer.transform(request);
         }

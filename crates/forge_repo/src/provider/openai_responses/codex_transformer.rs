@@ -12,7 +12,9 @@ use forge_domain::Transformer;
 /// - `include` always contains `reasoning.encrypted_content` for stateless
 ///   reasoning continuity.
 /// - `text.verbosity` is forced to `Low` for concise output.
-/// - `reasoning.effort` is forced to `High` and `reasoning.summary` to `Auto`.
+/// - `reasoning.effort` starts at `Medium` (< 10 assistant messages) and ramps
+///   to `High` (>= 10) to bias towards action over deliberation.
+/// - `reasoning.summary` is forced to `Concise`.
 pub struct CodexTransformer;
 
 impl CodexTransformer {
@@ -32,14 +34,13 @@ impl CodexTransformer {
             })
             .count();
 
-        if assistant_msg_count >= 50 {
-            oai::ReasoningEffort::Xhigh
-        } else if assistant_msg_count >= 20 {
+        // Start with Medium effort to bias towards action over deliberation.
+        // Ramp up as the conversation grows and the agent likely needs deeper
+        // reasoning to debug or refine its approach.
+        if assistant_msg_count >= 10 {
             oai::ReasoningEffort::High
-        } else if assistant_msg_count >= 10 {
-            oai::ReasoningEffort::Medium
         } else {
-            oai::ReasoningEffort::Xhigh
+            oai::ReasoningEffort::Medium
         }
     }
 }
@@ -160,9 +161,9 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_low_initially() {
+    fn test_codex_transformer_sets_reasoning_effort_medium_initially() {
         let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Medium),
+            effort: Some(oai::ReasoningEffort::High),
             summary: Some(oai::ReasoningSummary::Detailed),
         };
 
@@ -173,12 +174,12 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
-            Some(oai::ReasoningEffort::Xhigh)
+            Some(oai::ReasoningEffort::Medium)
         );
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_medium_after_10_messages() {
+    fn test_codex_transformer_sets_reasoning_effort_high_after_10_messages() {
         let reasoning = oai::Reasoning {
             effort: Some(oai::ReasoningEffort::Low),
             summary: Some(oai::ReasoningSummary::Detailed),
@@ -205,7 +206,7 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
-            Some(oai::ReasoningEffort::Medium)
+            Some(oai::ReasoningEffort::High)
         );
     }
 
@@ -242,7 +243,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_xhigh_after_50_messages() {
+    fn test_codex_transformer_sets_reasoning_effort_high_after_50_messages() {
         let reasoning = oai::Reasoning {
             effort: Some(oai::ReasoningEffort::Low),
             summary: Some(oai::ReasoningSummary::Detailed),
@@ -269,7 +270,7 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
-            Some(oai::ReasoningEffort::Xhigh)
+            Some(oai::ReasoningEffort::High)
         );
     }
 

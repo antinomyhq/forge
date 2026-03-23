@@ -61,10 +61,6 @@ impl<I> ForgeSkillRepository<I> {
                 include_str!("skills/verification-specialist/SKILL.md"),
             ),
             (
-                "forge://skills/time-manager/SKILL.md",
-                include_str!("skills/time-manager/SKILL.md"),
-            ),
-            (
                 "forge://skills/constraint-enforcer/SKILL.md",
                 include_str!("skills/constraint-enforcer/SKILL.md"),
             ),
@@ -415,24 +411,6 @@ mod tests {
                 std::path::Path::new("forge://skills/verification-specialist/SKILL.md")
                     .to_path_buf()
             )
-        );
-
-        // Check time-manager
-        let time_manager = actual
-            .iter()
-            .find(|s| s.name == "time-manager")
-            .unwrap();
-        assert_eq!(
-            time_manager.path,
-            Some(
-                std::path::Path::new("forge://skills/time-manager/SKILL.md")
-                    .to_path_buf()
-            )
-        );
-        assert!(
-            time_manager
-                .description
-                .contains("Time budgeting and checkpoint strategy")
         );
 
         // Check constraint-enforcer
