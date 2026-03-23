@@ -198,11 +198,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     }
 
     /// Internal sync implementation that emits progress events.
-    async fn sync_codebase_internal<E, Fut>(
-        &self,
-        path: PathBuf,
-        emit: E,
-    ) -> Result<()>
+    async fn sync_codebase_internal<E, Fut>(&self, path: PathBuf, emit: E) -> Result<()>
     where
         F: ProviderRepository
             + WorkspaceIndexRepository
@@ -668,10 +664,7 @@ impl<
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
-    async fn sync_workspace(
-        &self,
-        path: PathBuf,
-    ) -> Result<MpscStream<Result<SyncProgress>>> {
+    async fn sync_workspace(&self, path: PathBuf) -> Result<MpscStream<Result<SyncProgress>>> {
         let service = Clone::clone(self);
 
         let stream = MpscStream::spawn(move |tx| async move {

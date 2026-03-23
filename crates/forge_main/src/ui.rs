@@ -3632,10 +3632,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_index(
-        &mut self,
-        path: std::path::PathBuf,
-    ) -> anyhow::Result<()> {
+    async fn on_index(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 

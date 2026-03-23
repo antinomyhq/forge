@@ -1110,9 +1110,7 @@ impl<I: Services> WorkspaceService for I {
         &self,
         path: PathBuf,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
-        self.workspace_service()
-            .sync_workspace(path)
-            .await
+        self.workspace_service().sync_workspace(path).await
     }
 
     async fn query_workspace(
