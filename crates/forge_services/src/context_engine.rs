@@ -114,25 +114,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .await
     }
 
-    /// Deletes a batch of files from the server.
-    async fn delete(
-        &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        token: &forge_domain::ApiKey,
-        paths: Vec<String>,
-    ) -> Result<()>
-    where
-        F: WorkspaceIndexRepository,
-    {
-        let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
-
-        self.infra
-            .delete_files(&deletion, token)
-            .await
-            .context("Failed to delete files")
-    }
-
     /// Deletes files from the workspace and updates the progress counter.
     ///
     /// Returns the number of files that were successfully deleted.
@@ -150,8 +131,15 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             return Ok(0);
         }
 
-        self.delete(user_id, workspace_id, token, files_to_delete.clone())
-            .await?;
+        let deletion = forge_domain::CodeBase::new(
+            user_id.clone(),
+            workspace_id.clone(),
+            files_to_delete.clone(),
+        );
+        self.infra
+            .delete_files(&deletion, token)
+            .await
+            .context("Failed to delete files")?;
 
         for path in &files_to_delete {
             info!(workspace_id = %workspace_id, path = %path, "File deleted successfully");
