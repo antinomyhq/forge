@@ -220,10 +220,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Find existing workspace - do NOT auto-create
-        let workspace = self
-            .find_workspace_by_path(path, &token)
-            .await?
-            .context("Workspace not indexed. Please run `forge workspace init` first.")?;
+        let workspace = self.get_workspace_by_path(path, &token).await?;
 
         let workspace_id = workspace.workspace_id.clone();
 
@@ -445,6 +442,27 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
 
         Ok(best_match.map(|(w, _)| w.clone()))
     }
+
+    /// Looks up the workspace for `path` and returns it, or an error if no
+    /// workspace has been indexed for that path.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the underlying repository lookup fails, or when no
+    /// matching workspace is found (i.e. the workspace has not been indexed yet).
+    async fn get_workspace_by_path(
+        &self,
+        path: PathBuf,
+        token: &forge_domain::ApiKey,
+    ) -> Result<forge_domain::WorkspaceInfo>
+    where
+        F: WorkspaceIndexRepository,
+    {
+        self.find_workspace_by_path(path, token)
+            .await?
+            .context("Workspace not indexed. Please run `forge workspace init` first.")
+    }
+
     /// Runs `git ls-files` in `dir_path` and returns the tracked files as
     /// `WalkedFile` entries.
     ///
@@ -791,10 +809,7 @@ impl<
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
         let (token, user_id) = self.get_workspace_credentials().await?;
 
-        let workspace = self
-            .find_workspace_by_path(path, &token)
-            .await?
-            .context("Workspace not indexed. Please run `workspace sync` first.")?;
+        let workspace = self.get_workspace_by_path(path, &token).await?;
 
         // Reuse the canonical path already stored in the workspace (resolved during
         // sync), avoiding a redundant canonicalize() IO call.
