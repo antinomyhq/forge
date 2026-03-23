@@ -305,7 +305,6 @@ pub trait WorkspaceService: Send + Sync {
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>>;
 
     /// Query the indexed workspace with semantic search
@@ -1110,10 +1109,9 @@ impl<I: Services> WorkspaceService for I {
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
         self.workspace_service()
-            .sync_workspace(path, batch_size)
+            .sync_workspace(path)
             .await
     }
 

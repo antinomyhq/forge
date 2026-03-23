@@ -241,10 +241,6 @@ pub enum WorkspaceCommand {
         /// Path to the directory to sync
         #[arg(default_value = ".")]
         path: PathBuf,
-
-        /// Number of files to process concurrently
-        #[arg(long, default_value = "100")]
-        batch_size: usize,
     },
     /// List all workspaces.
     List {

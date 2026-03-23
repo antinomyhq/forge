@@ -599,8 +599,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
-                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
-                        self.on_index(path, batch_size).await?;
+                    crate::cli::WorkspaceCommand::Sync { path } => {
+                        self.on_index(path).await?;
                     }
                     crate::cli::WorkspaceCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
@@ -1979,8 +1979,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 100 for slash command
-                self.on_index(working_dir, 100).await?;
+                self.on_index(working_dir).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -3636,7 +3635,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_index(
         &mut self,
         path: std::path::PathBuf,
-        batch_size: usize,
     ) -> anyhow::Result<()> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
@@ -3646,7 +3644,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.init_forge_services().await?;
         }
 
-        let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
+        let mut stream = self.api.sync_workspace(path.clone()).await?;
         let mut progress_bar = ProgressBarManager::default();
 
         while let Some(event) = stream.next().await {

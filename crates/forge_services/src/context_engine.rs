@@ -201,7 +201,6 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
     async fn sync_codebase_internal<E, Fut>(
         &self,
         path: PathBuf,
-        batch_size: usize,
         emit: E,
     ) -> Result<()>
     where
@@ -219,6 +218,7 @@ impl<F: 'static + ProviderRepository + WorkspaceIndexRepository> ForgeWorkspaceS
         emit(SyncProgress::Starting).await;
 
         let (token, user_id) = self.get_workspace_credentials().await?;
+        let batch_size = self.infra.get_environment().max_file_read_batch_size;
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -671,7 +671,6 @@ impl<
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> Result<MpscStream<Result<SyncProgress>>> {
         let service = Clone::clone(self);
 
@@ -685,7 +684,7 @@ impl<
             };
 
             // Run the sync and emit progress events
-            let result = service.sync_codebase_internal(path, batch_size, emit).await;
+            let result = service.sync_codebase_internal(path, emit).await;
 
             // If there was an error, send it through the channel
             if let Err(e) = result {
