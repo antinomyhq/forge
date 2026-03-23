@@ -7,7 +7,8 @@
   "author": "Tushar Mathur <tusharmath@gmail.com>",
   "type": "module",
   "scripts": {
-    "eval": "tsx benchmarks/cli.ts"
+    "eval": "tsx benchmarks/cli.ts",
+    "test:bounty": "tsx --test .github/scripts/bounty/*.test.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.47",
