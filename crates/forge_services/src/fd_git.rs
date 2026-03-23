@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use forge_app::CommandInfra;
-use tracing::info;
+use forge_app::{CommandInfra, EnvironmentInfra};
+use tracing::{info, warn};
 
 use crate::fd::{FileDiscovery, filter_and_resolve};
 
@@ -23,14 +23,18 @@ impl<F> FsGit<F> {
     }
 }
 
-impl<F: CommandInfra> FsGit<F> {
+impl<F: CommandInfra + EnvironmentInfra> FsGit<F> {
     /// Runs `git ls-files` in `dir_path` and returns the resulting file paths.
     ///
     /// # Errors
     ///
     /// Returns an error when the command cannot be executed or exits with a
     /// non-zero status (e.g. the directory is not a git repository).
-    async fn git_ls_files(&self, dir_path: &Path) -> anyhow::Result<Vec<String>> {
+    async fn git_ls_files(
+        &self,
+        dir_path: &Path,
+        max_files: usize,
+    ) -> anyhow::Result<Vec<String>> {
         let output = self
             .infra
             .execute_command(
@@ -49,10 +53,11 @@ impl<F: CommandInfra> FsGit<F> {
             });
         }
 
-        let paths = output
+        let paths: Vec<String> = output
             .stdout
             .lines()
             .filter(|line| !line.is_empty())
+            .take(max_files)
             .map(|line| line.trim().to_string())
             .collect();
 
@@ -61,11 +66,20 @@ impl<F: CommandInfra> FsGit<F> {
 }
 
 #[async_trait]
-impl<F: CommandInfra + 'static> FileDiscovery for FsGit<F> {
+impl<F: CommandInfra + EnvironmentInfra + 'static> FileDiscovery for FsGit<F> {
     async fn discover(&self, dir_path: &Path) -> anyhow::Result<Vec<PathBuf>> {
-        let paths = self.git_ls_files(dir_path).await?;
+        let max_files = self.infra.get_environment().max_workspace_files;
+        let paths = self.git_ls_files(dir_path, max_files).await?;
         if paths.is_empty() {
             return Err(anyhow::anyhow!("git ls-files returned no files"));
+        }
+        if paths.len() >= max_files {
+            warn!(
+                max_files = max_files,
+                path = %dir_path.display(),
+                "git ls-files reached the maximum file limit; results are truncated. \
+                 Set FORGE_MAX_WORKSPACE_FILES to increase the limit."
+            );
         }
         info!(
             file_count = paths.len(),

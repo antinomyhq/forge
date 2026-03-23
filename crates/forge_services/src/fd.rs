@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock};
 
 use async_trait::async_trait;
-use forge_app::{CommandInfra, WalkerInfra};
+use forge_app::{CommandInfra, EnvironmentInfra, WalkerInfra};
 use forge_domain::WorkspaceId;
 use tracing::{info, warn};
 
@@ -105,7 +105,7 @@ impl<F> FdDefault<F> {
 }
 
 #[async_trait]
-impl<F: CommandInfra + WalkerInfra + 'static> FileDiscovery for FdDefault<F> {
+impl<F: CommandInfra + WalkerInfra + EnvironmentInfra + 'static> FileDiscovery for FdDefault<F> {
     async fn discover(&self, dir_path: &Path) -> anyhow::Result<Vec<PathBuf>> {
         match self.git.discover(dir_path).await {
             Ok(files) => Ok(files),

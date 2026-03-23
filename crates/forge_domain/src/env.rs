@@ -103,6 +103,12 @@ pub struct Environment {
     /// TTL in seconds for the model API list cache.
     /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
     pub model_cache_ttl: u64,
+    /// Maximum number of files to discover and process during workspace
+    /// operations (sync, status, etc.). Protects against excessive memory
+    /// usage when a workspace inadvertently covers a very large directory
+    /// tree (e.g. a user's home directory).
+    /// Controlled by FORGE_MAX_WORKSPACE_FILES environment variable.
+    pub max_workspace_files: usize,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -343,6 +349,7 @@ fn test_command_path() {
         auto_dump: None,
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
+        max_workspace_files: 50_000,
     };
 
     let actual = fixture.command_path();
@@ -386,6 +393,7 @@ fn test_command_cwd_path() {
         auto_dump: None,
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
+        max_workspace_files: 50_000,
     };
 
     let actual = fixture.command_cwd_path();
@@ -429,6 +437,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         auto_dump: None,
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
+        max_workspace_files: 50_000,
     };
 
     let command_path = fixture.command_path();

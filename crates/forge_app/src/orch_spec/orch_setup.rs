@@ -96,6 +96,7 @@ impl Default for TestContext {
                 max_extensions: 15,
                 parallel_file_reads: 64,
                 model_cache_ttl: 604_800,
+                max_workspace_files: 50_000,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

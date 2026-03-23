@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use async_trait::async_trait;
-use forge_app::{Walker, WalkerInfra};
-use tracing::info;
+use forge_app::{EnvironmentInfra, Walker, WalkerInfra};
+use tracing::{info, warn};
 
 use crate::fd::{FileDiscovery, filter_and_resolve};
 
@@ -25,11 +25,17 @@ impl<F> FdWalker<F> {
 }
 
 #[async_trait]
-impl<F: WalkerInfra + 'static> FileDiscovery for FdWalker<F> {
+impl<F: WalkerInfra + EnvironmentInfra + 'static> FileDiscovery for FdWalker<F> {
     async fn discover(&self, dir_path: &Path) -> anyhow::Result<Vec<PathBuf>> {
+        let max_files = self.infra.get_environment().max_workspace_files;
+
+        // Use the workspace file limit instead of unlimited to prevent
+        // excessive memory usage when the workspace covers a very large
+        // directory tree (e.g. a user's home directory).
         let walker_config = Walker::unlimited()
             .cwd(dir_path.to_path_buf())
-            .skip_binary(true);
+            .skip_binary(true)
+            .max_files(max_files);
 
         let files = self
             .infra
@@ -42,6 +48,15 @@ impl<F: WalkerInfra + 'static> FileDiscovery for FdWalker<F> {
             .filter(|f| !f.is_dir())
             .map(|f| f.path)
             .collect();
+
+        if paths.len() >= max_files {
+            warn!(
+                max_files = max_files,
+                path = %dir_path.display(),
+                "File discovery reached the maximum file limit; results are truncated. \
+                 Set FORGE_MAX_WORKSPACE_FILES to increase the limit."
+            );
+        }
 
         info!(file_count = paths.len(), "Discovered files via walker");
         filter_and_resolve(dir_path, paths)
