@@ -13,13 +13,20 @@ description: >-
 
 Fast, targeted verification before completing a task. Skip ceremony — run checks.
 
+> **CRITICAL**: Any test you ran BEFORE invoking this skill does not count. You must re-run the verifier NOW, following the steps below. Prior runs often had their output swallowed by parallel tool calls — you likely never saw the actual result.
+
 ## Step 1 — Reconstruct the Verifier
 
 Re-read the task prompt. Figure out exactly how the verifier will test your output:
 
 1. **Check for test scripts**: `ls /app/test* /app/check* /app/verify* /app/grade* 2>/dev/null` — if they exist, READ them.
 2. **Infer from the prompt**: If the task says "write X that passes the tests", "the grader checks Y", or mentions import paths / CLI invocations / HTTP endpoints — reconstruct that exact invocation.
-3. **Run it and read the output**: Execute the verifier command **as the sole tool call** (not in parallel with anything else). Read the actual output. Look for explicit pass/fail evidence (e.g., "OK", "passed", "FAILED", non-zero exit code, assertion errors). Never assume a test passed — you must see proof in the output. If it passes, proceed to Step 1.5. If it fails, fix the failures.
+3. **Run it — ALONE — and read the output**:
+   - Send a response that contains ONLY the shell command to run the verifier. No other tool calls in that same response.
+   - Wait for the output. Read it. Look for explicit pass/fail evidence (e.g., "OK", "passed", "FAILED", non-zero exit code, assertion errors).
+   - If you do not see test output (e.g., the response is empty or only shows unrelated output), the test did not finish. Re-run it alone.
+   - Never assume a test passed — you must see the word "pass" or equivalent in the output.
+   - If it passes, proceed to Step 1.5. If it fails, fix the failures.
 
 **Do NOT build a requirements matrix.** Just run the verifier. If there is no discoverable verifier, write a minimal smoke test that exercises the critical output path.
 
@@ -62,7 +69,7 @@ Before declaring complete, catch common silent failures:
 1. Remove your test scripts, temp files, compilation artifacts.
 2. **Do NOT remove**: deployed content (webroot files, database records, git repos, config files, .so files the deliverable imports).
 3. `ls` every output directory — only requested deliverables should remain.
-4. **Run the verifier one final time** against the cleaned workspace, as the sole tool call. Read the output and confirm it passes. This is the state the real verifier sees.
+4. **Run the verifier one final time** against the cleaned workspace. This MUST be the only tool call in your response — no parallel reads, no parallel ls, nothing else. Read the output and confirm it passes with explicit evidence. This is the state the real verifier sees.
 
 ## What NOT To Do
 
@@ -72,3 +79,5 @@ Before declaring complete, catch common silent failures:
 - Do NOT leave test artifacts in the workspace. But also do NOT delete runtime dependencies the deliverable needs.
 - Do NOT accept curve-fit results without sanity-checking the fitted parameters are physically plausible.
 - Do NOT rationalize away test failures. If a test you wrote fails, the code is broken on that code path — fix it. Never dismiss a failure because the test input "seems artificial" or "edge-case-y". The real verifier WILL test edge cases.
+- Do NOT run the verifier in parallel with other tool calls. Tests that use browsers, network, or subprocesses take seconds to complete. If you run them in parallel, you will never see their output and will falsely assume they passed.
+- Do NOT claim a test passed unless you can point to the specific output line that shows the pass. "I ran it earlier" is not evidence.
