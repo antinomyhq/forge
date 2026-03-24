@@ -54,15 +54,15 @@ Read ALL provided source code carefully. Annotate:
 Before writing the producer, choose the implementation language.
 
 - If the provided consumer/reference is written in **C** and correctness depends on exact arithmetic or byte semantics, your producer must default to **C as well**.
-- Do **not** start with Python just because it is faster to prototype.
-- Python is allowed for auxiliary analysis, search heuristics, and test harnesses, but not as the default final producer for a C interop task.
+- For a C interop task, start with C.
+- Python is allowed for auxiliary analysis, search heuristics, and test harnesses, but not as the default producer for a C interop task.
 - If you believe same-language implementation is impossible or too costly, prove that with a minimal same-language spike first; only then fall back.
 
 This gate takes priority over artifact-first and oracle-first guidance.
 
 ## Phase 3 -- Forward Oracle Strategy (Preferred After Language Choice)
 
-After choosing the implementation language, prefer using the existing code/binary as a **black-box oracle** to validate your implementation's output. For deliverable-producing tasks, do not spend more than **2 consecutive analysis turns** without either generating a candidate artifact at the final path or running a forward-oracle experiment. **This does NOT mean brute-forcing the input space** — if the output is more than a few bytes, the search space is astronomically large and enumeration will never finish. Build a proper encoder/generator and test its output against the oracle.
+After choosing the implementation language, prefer using the existing code/binary as a **black-box oracle** to validate your implementation's output. For C interop tasks, the oracle should usually validate your C producer or C harness first, not a Python-first encoder. For deliverable-producing tasks, do not spend more than **2 consecutive analysis turns** without either generating a candidate artifact at the final path or running a forward-oracle experiment. **This does NOT mean brute-forcing the input space** — if the output is more than a few bytes, the search space is astronomically large and enumeration will never finish. Build a proper encoder/generator and test its output against the oracle.
 
 1. **Build a test harness:**
    ```bash
