@@ -20,6 +20,7 @@ use crate::command::CommandLoaderService as ForgeCommandLoaderService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
+use crate::fd::FdDefault;
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
@@ -85,7 +86,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
-    workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F>>,
+    workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
 }
 
@@ -141,8 +142,10 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let discovery = Arc::new(FdDefault::new(infra.clone()));
         let workspace_service = Arc::new(crate::context_engine::ForgeWorkspaceService::new(
             infra.clone(),
+            discovery,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
 
@@ -241,7 +244,7 @@ impl<
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
     type ProviderService = ForgeProviderService<F>;
-    type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F>;
+    type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>;
     type SkillFetchService = ForgeSkillFetch<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {

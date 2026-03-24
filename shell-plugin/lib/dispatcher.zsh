@@ -217,13 +217,16 @@ function forge-accept-line() {
         copy)
             _forge_action_copy
         ;;
-        sync)
+        workspace-sync|sync)
             _forge_action_sync
         ;;
-        sync-status)
+        workspace-init|sync-init)
+            _forge_action_sync_init
+        ;;
+        workspace-status|sync-status)
             _forge_action_sync_status
         ;;
-        sync-info)
+        workspace-info|sync-info)
             _forge_action_sync_info
         ;;
         provider-login|login)

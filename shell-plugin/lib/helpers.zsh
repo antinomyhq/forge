@@ -163,6 +163,7 @@ function _forge_start_background_sync() {
         if ! _forge_is_workspace_indexed "$workspace_path"; then
             return 0
         fi
+        # Should fail if sync-init or sync --init has not been performed even once
         $_FORGE_BIN workspace sync "$workspace_path"
     } &!
 }
