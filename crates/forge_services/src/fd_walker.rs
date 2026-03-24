@@ -27,9 +27,14 @@ impl<F> FdWalker<F> {
 #[async_trait]
 impl<F: WalkerInfra + 'static> FileDiscovery for FdWalker<F> {
     async fn discover(&self, dir_path: &Path) -> anyhow::Result<Vec<PathBuf>> {
+        // Use reasonable limits to prevent memory explosion on large directories
+        // (e.g. home directory with hundreds of thousands of files).
         let walker_config = Walker::unlimited()
             .cwd(dir_path.to_path_buf())
-            .skip_binary(true);
+            .skip_binary(true)
+            .max_depth(7)
+            .max_files(50_000)
+            .max_total_size(500 * 1024 * 1024); // 500MB total
 
         let files = self
             .infra
