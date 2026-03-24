@@ -103,6 +103,20 @@ impl ForgeCommandExecutorService {
 
         // Spawn the command
         let mut child = prepared_command.spawn()?;
+        // Handle background execution if requested
+        if command.contains("&") || command.contains("nohup") {
+            let mut child = prepared_command.spawn()?;
+            let pid = child.id();
+            return Ok(CommandOutput {
+                stdout: format!("[Spawned] Process PID: {}", pid.unwrap_or(0)),
+                stderr: "".into(),
+                exit_code: Some(0),
+                command,
+                pid,
+                log_path: Some("/tmp/forge-job.log".into()),
+            });
+        }
+
 
         let mut stdout_pipe = child.stdout.take();
         let mut stderr_pipe = child.stderr.take();

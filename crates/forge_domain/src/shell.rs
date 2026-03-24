@@ -1,6 +1,8 @@
 /// Output from a command execution
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
+    pub pid: Option<u32>,
+    pub log_path: Option<String>,
     pub command: String,
     pub stdout: String,
     pub stderr: String,
