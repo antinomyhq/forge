@@ -13,6 +13,9 @@ source "${0:A:h}/lib/highlight.zsh"
 # Core utilities (includes logging)
 source "${0:A:h}/lib/helpers.zsh"
 
+# Shell context tracking (preexec/precmd hooks)
+source "${0:A:h}/lib/shell_context.zsh"
+
 # Completion widget
 source "${0:A:h}/lib/completion.zsh"
 

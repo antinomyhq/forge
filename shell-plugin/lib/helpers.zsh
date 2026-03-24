@@ -40,6 +40,10 @@ function _forge_exec_interactive() {
     cmd=($_FORGE_BIN --agent "$agent_id")
     [[ -n "$_FORGE_SESSION_MODEL" ]] && cmd+=(--model "$_FORGE_SESSION_MODEL")
     [[ -n "$_FORGE_SESSION_PROVIDER" ]] && cmd+=(--provider "$_FORGE_SESSION_PROVIDER")
+    # Pass shell context (last command + exit code) when available
+    if [[ -n "$_FORGE_LAST_COMMAND" ]]; then
+        cmd+=(--shell-context "${_FORGE_LAST_COMMAND}"$'\n'"${_FORGE_LAST_EXIT_CODE}")
+    fi
     cmd+=("$@")
     "${cmd[@]}" </dev/tty >/dev/tty
 }

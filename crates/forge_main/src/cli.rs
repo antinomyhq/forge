@@ -90,6 +90,15 @@ pub struct Cli {
     /// Event to dispatch to the workflow in JSON format.
     #[arg(long, short = 'e')]
     pub event: Option<String>,
+
+    /// Shell context from the terminal environment.
+    ///
+    /// When provided by the shell plugin, this contains information about
+    /// the last command executed in the terminal and its exit code. This
+    /// helps the AI understand what the user was doing before asking for
+    /// help. Format: "command\nexit_code"
+    #[arg(long)]
+    pub shell_context: Option<String>,
 }
 
 impl Cli {

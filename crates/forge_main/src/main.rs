@@ -121,6 +121,25 @@ mod tests {
     }
 
     #[test]
+    fn test_cli_parsing_shell_context() {
+        let cli = Cli::parse_from([
+            "forge",
+            "-p",
+            "fix it",
+            "--shell-context",
+            "rm test\n1",
+        ]);
+        assert_eq!(cli.prompt, Some("fix it".to_string()));
+        assert_eq!(cli.shell_context, Some("rm test\n1".to_string()));
+    }
+
+    #[test]
+    fn test_cli_shell_context_not_required() {
+        let cli = Cli::parse_from(["forge", "-p", "hello"]);
+        assert_eq!(cli.shell_context, None);
+    }
+
+    #[test]
     fn test_commit_command_diff_field_initially_none() {
         // Test that the diff field in CommitCommandGroup starts as None
         let cli = Cli::parse_from(["forge", "commit", "--preview"]);

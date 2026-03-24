@@ -2955,6 +2955,39 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             event = event.additional_context(piped);
         }
 
+        // Add shell context from the terminal environment if provided.
+        // The shell plugin captures the last command and its exit code,
+        // passing them via --shell-context so the AI knows what happened
+        // before the user's request.
+        if let Some(ref shell_ctx) = self.cli.shell_context {
+            let mut parts = shell_ctx.splitn(2, '\n');
+            let last_command = parts.next().unwrap_or_default();
+            let exit_code = parts.next().unwrap_or_default();
+
+            if !last_command.is_empty() {
+                let context_text = if exit_code == "0" {
+                    format!(
+                        "Terminal context — the user just ran this command successfully:\n$ {}",
+                        last_command,
+                    )
+                } else {
+                    format!(
+                        "Terminal context — the user just ran this command and it failed (exit code {}):\n$ {}",
+                        exit_code,
+                        last_command,
+                    )
+                };
+
+                // If additional_context is already set (from piped input),
+                // prepend the shell context to it
+                if let Some(existing) = event.additional_context.take() {
+                    event = event.additional_context(format!("{}\n\n{}", context_text, existing));
+                } else {
+                    event = event.additional_context(context_text);
+                }
+            }
+        }
+
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
 
