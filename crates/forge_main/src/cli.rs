@@ -54,7 +54,8 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
-    /// Use restricted shell (rbash) for enhanced security.
+    /// Enable restricted mode for enhanced security using the permissions
+    /// feature.
     #[arg(long, default_value_t = false, short = 'r')]
     pub restricted: bool,
 
