@@ -1,3 +1,5 @@
+use config::Config;
+
 use crate::ForgeConfig;
 
 /// Reads and merges [`ForgeConfig`] from multiple sources: embedded defaults,
@@ -17,7 +19,15 @@ impl ConfigReader {
     /// # Panics
     ///
     /// Panics if the embedded default configuration cannot be parsed.
-    pub async fn read(&self) -> ForgeConfig {
+    pub async fn read(&self) -> crate::Result<ForgeConfig> {
+        let config = Config::builder()
+            .add_source(
+                config::Environment::with_prefix("FORGE")
+                    .try_parsing(true)
+                    .separator("_")
+                    .list_separator(","),
+            )
+            .build()?;
         todo!("implement multi-source config loading")
     }
 }

@@ -1,3 +1,4 @@
+use merge::Merge;
 use serde::{Deserialize, Serialize};
 
 /// TLS version enum for configuring TLS protocol versions.
@@ -25,31 +26,46 @@ pub enum TlsBackend {
 }
 
 /// HTTP client configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy, Merge)]
 #[serde(rename_all = "snake_case")]
 pub struct HttpConfig {
+    #[merge(strategy = merge::num::overwrite_zero)]
     pub connect_timeout_secs: u64,
+    #[merge(strategy = merge::num::overwrite_zero)]
     pub read_timeout_secs: u64,
+    #[merge(strategy = merge::num::overwrite_zero)]
     pub pool_idle_timeout_secs: u64,
+    #[merge(strategy = merge::num::overwrite_zero)]
     pub pool_max_idle_per_host: usize,
+    #[merge(strategy = merge::num::overwrite_zero)]
     pub max_redirects: usize,
+    #[merge(strategy = merge::bool::overwrite_false)]
     pub hickory: bool,
+    #[merge(strategy = crate::merge::overwrite)]
     pub tls_backend: TlsBackend,
     /// Minimum TLS protocol version to use
+    #[merge(strategy = merge::option::overwrite_none)]
     pub min_tls_version: Option<TlsVersion>,
     /// Maximum TLS protocol version to use
+    #[merge(strategy = merge::option::overwrite_none)]
     pub max_tls_version: Option<TlsVersion>,
     /// Adaptive window sizing for improved flow control
+    #[merge(strategy = merge::bool::overwrite_false)]
     pub adaptive_window: bool,
     /// Keep-alive interval in seconds
+    #[merge(strategy = merge::option::overwrite_none)]
     pub keep_alive_interval_secs: Option<u64>,
     /// Keep-alive timeout in seconds
+    #[merge(strategy = merge::num::overwrite_zero)]
     pub keep_alive_timeout_secs: u64,
     /// Keep-alive while connection is idle
+    #[merge(strategy = merge::bool::overwrite_false)]
     pub keep_alive_while_idle: bool,
     /// Accept invalid certificates
+    #[merge(strategy = merge::bool::overwrite_false)]
     pub accept_invalid_certs: bool,
     /// Paths to root certificate files
+    #[merge(strategy = merge::option::overwrite_none)]
     pub root_cert_paths: Option<Vec<String>>,
 }
 
