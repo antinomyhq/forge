@@ -101,9 +101,19 @@ impl SummaryToolCall {
     pub fn shell(command: impl Into<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::Shell { command: command.into() },
+            tool: SummaryTool::Shell { command: command.into(), log_file: None },
             is_success: true,
         }
+    }
+
+    /// Sets the log file path for a background shell command (nohup). This
+    /// preserves the log file path through compaction so the agent can still
+    /// read background process output after context is compressed.
+    pub fn log_file(mut self, path: impl Into<String>) -> Self {
+        if let SummaryTool::Shell { ref mut log_file, .. } = self.tool {
+            *log_file = Some(path.into());
+        }
+        self
     }
 
     /// Creates a Search tool call with default values (id: None, is_success:
@@ -183,7 +193,7 @@ pub enum SummaryTool {
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
-    Shell { command: String },
+    Shell { command: String, log_file: Option<String> },
     Search { pattern: String },
     SemSearch { queries: Vec<SearchQuery> },
     Undo { path: String },
@@ -283,7 +293,9 @@ impl From<&Context> for ContextSummary {
                 .push(SummaryBlock { role: current_role, contents: std::mem::take(&mut buffer) });
         }
 
-        // Update tool call success status based on results
+        // Update tool call success status based on results, and extract
+        // nohup log file paths from shell tool results so they survive
+        // compaction
         messages
             .iter_mut()
             .flat_map(|message| message.contents.iter_mut())
@@ -293,6 +305,18 @@ impl From<&Context> for ContextSummary {
                     && let Some(result) = tool_results.get(call_id)
                 {
                     tool_data.is_success = !result.is_error();
+
+                    // Extract log file path from nohup shell results
+                    if let SummaryTool::Shell { ref mut log_file, .. } = tool_data.tool {
+                        if let Some(content) = result.output.as_str() {
+                            for line in content.lines() {
+                                if let Some(path) = line.strip_prefix("Log file: ") {
+                                    *log_file = Some(path.to_string());
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
             });
 
@@ -342,7 +366,10 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
-            ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
+            ToolCatalog::Shell(input) => Some(SummaryTool::Shell {
+                command: input.command,
+                log_file: None,
+            }),
             ToolCatalog::FsSearch(input) => {
                 // Use glob, file_type, or pattern as the search identifier
                 let pattern = input.glob.or(input.file_type).unwrap_or(input.pattern);
@@ -911,7 +938,7 @@ mod tests {
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
-            tool: SummaryTool::Shell { command: "cargo build".to_string() },
+            tool: SummaryTool::Shell { command: "cargo build".to_string(), log_file: None },
             is_success: true,
         });
 

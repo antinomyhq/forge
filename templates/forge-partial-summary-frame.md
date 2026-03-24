@@ -28,10 +28,13 @@ Use the following summary frames as the authoritative reference for all coding s
 - `{{use_case}}`
 {{/each}}
 {{else if tool_call.tool.shell}}
-**Execute:** 
+**Execute:**
 ```
 {{tool_call.tool.shell.command}}
 ```
+{{#if tool_call.tool.shell.log_file}}
+**Background log:** `{{tool_call.tool.shell.log_file}}`
+{{/if}}
 {{else if tool_call.tool.mcp}}
 **MCP:** `{{tool_call.tool.mcp.name}}`
 {{else if tool_call.tool.todo_write}}

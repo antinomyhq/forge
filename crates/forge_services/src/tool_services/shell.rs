@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::bail;
-use forge_app::domain::Environment;
+use chrono::Local;
+use forge_app::domain::{CommandOutput, Environment};
 use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
 
@@ -47,8 +48,13 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         silent: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
+        nohup: bool,
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
+
+        if nohup {
+            return self.execute_nohup(command, cwd, env_vars, description).await;
+        }
 
         let mut output = self
             .infra
@@ -61,6 +67,59 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         }
 
         Ok(ShellOutput { output, shell: self.env.shell.clone(), description })
+    }
+}
+
+impl<I: CommandInfra + EnvironmentInfra> ForgeShell<I> {
+    /// Sanitize a command string for use in a filename.
+    fn sanitize_for_filename(command: &str) -> String {
+        command
+            .chars()
+            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .take(50)
+            .collect()
+    }
+
+    /// Execute a command in the background using nohup, returning the log file
+    /// path and PID.
+    async fn execute_nohup(
+        &self,
+        command: String,
+        cwd: PathBuf,
+        env_vars: Option<Vec<String>>,
+        description: Option<String>,
+    ) -> anyhow::Result<ShellOutput> {
+        let sanitized = Self::sanitize_for_filename(&command);
+        let timestamp = Local::now().format("%Y%m%d-%H%M%S");
+        let log_path = format!("/tmp/{}-{}.log", sanitized, timestamp);
+
+        let nohup_command = format!(
+            "nohup {} > {} 2>&1 & echo $!",
+            command, log_path
+        );
+
+        let output = self
+            .infra
+            .execute_command(nohup_command, cwd, true, env_vars)
+            .await?;
+
+        let pid = output.stdout.trim().to_string();
+
+        let result_stdout = format!(
+            "Background process started.\nPID: {}\nLog file: {}",
+            pid, log_path
+        );
+
+        Ok(ShellOutput {
+            output: CommandOutput {
+                stdout: result_stdout,
+                stderr: String::new(),
+                command,
+                exit_code: Some(0),
+            },
+            shell: self.env.shell.clone(),
+            description,
+        })
     }
 }
 #[cfg(test)]
@@ -143,6 +202,7 @@ mod tests {
                 false,
                 Some(vec!["PATH".to_string(), "HOME".to_string()]),
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -163,6 +223,7 @@ mod tests {
                 false,
                 None,
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -185,6 +246,7 @@ mod tests {
                 false,
                 Some(vec![]),
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -205,6 +267,7 @@ mod tests {
                 false,
                 None,
                 Some("Prints hello to stdout".to_string()),
+                false,
             )
             .await
             .unwrap();
@@ -229,6 +292,7 @@ mod tests {
                 false,
                 None,
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -236,5 +300,50 @@ mod tests {
         assert_eq!(actual.output.stdout, "Mock output");
         assert_eq!(actual.output.exit_code, Some(0));
         assert_eq!(actual.description, None);
+    }
+
+    #[tokio::test]
+    async fn test_shell_service_nohup() {
+        let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
+
+        let actual = fixture
+            .execute(
+                "npm start".to_string(),
+                PathBuf::from("."),
+                false,
+                false,
+                None,
+                Some("Start the dev server".to_string()),
+                true,
+            )
+            .await
+            .unwrap();
+
+        assert!(actual.output.stdout.contains("PID:"));
+        assert!(actual.output.stdout.contains("Log file: /tmp/"));
+        assert!(actual.output.stdout.contains("npm_start"));
+        assert_eq!(actual.output.exit_code, Some(0));
+        assert_eq!(
+            actual.description,
+            Some("Start the dev server".to_string())
+        );
+    }
+
+    #[test]
+    fn test_sanitize_for_filename() {
+        assert_eq!(
+            ForgeShell::<MockCommandInfra>::sanitize_for_filename("npm start"),
+            "npm_start"
+        );
+        assert_eq!(
+            ForgeShell::<MockCommandInfra>::sanitize_for_filename("ls -la /tmp"),
+            "ls_-la__tmp"
+        );
+        assert_eq!(
+            ForgeShell::<MockCommandInfra>::sanitize_for_filename(
+                "a_very_long_command_that_exceeds_the_fifty_character_limit_by_quite_a_bit"
+            ),
+            "a_very_long_command_that_exceeds_the_fifty_charact"
+        );
     }
 }

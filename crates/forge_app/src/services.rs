@@ -482,6 +482,7 @@ pub trait ShellService: Send + Sync {
         silent: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
+        nohup: bool,
     ) -> anyhow::Result<ShellOutput>;
 }
 
@@ -908,9 +909,10 @@ impl<I: Services> ShellService for I {
         silent: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
+        nohup: bool,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, silent, env_vars, description)
+            .execute(command, cwd, keep_ansi, silent, env_vars, description, nohup)
             .await
     }
 }

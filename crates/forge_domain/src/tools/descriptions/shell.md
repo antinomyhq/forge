@@ -44,4 +44,6 @@ Good examples:
 Bad example:
   cd /foo/bar && pytest tests
 
+When `nohup` is set to `true`, the command runs in the background and the tool returns immediately with the log file path and process ID. The command's stdout and stderr are redirected to a log file at `/tmp/<sanitized-command>-<datetime>.log`. Use this for long-running processes like web servers, watchers, or build processes that should continue running while you perform other tasks. You can later read the log file to check the command's output.
+
 Returns complete output including stdout, stderr, and exit code for diagnostic purposes.

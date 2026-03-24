@@ -257,6 +257,10 @@ expression: tools
     "keep_ansi": {
       "description": "Whether to preserve ANSI escape codes in the output.\nIf true, ANSI escape codes will be preserved in the output.\nIf false (default), ANSI escape codes will be stripped from the output.",
       "type": "boolean"
+    },
+    "nohup": {
+      "description": "If true, runs the command in the background using nohup. The command\nwill continue running even after the tool returns. Output is redirected\nto a log file in /tmp. Returns the log file path and process ID instead\nof command output. Use this for long-running processes like web servers,\nwatchers, or build processes.",
+      "type": "boolean"
     }
   },
   "required": [
