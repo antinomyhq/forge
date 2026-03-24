@@ -219,4 +219,37 @@ mod tests {
         assert_eq!(context.event.name, "task");
         assert_eq!(context.event.value, "initial content");
     }
+
+    #[test]
+    fn test_event_additional_context() {
+        let event = Event::new("fix it").additional_context("shell context info");
+
+        assert_eq!(
+            event.additional_context.as_deref(),
+            Some("shell context info")
+        );
+    }
+
+    #[test]
+    fn test_event_additional_context_appended() {
+        // Simulate piped input as additional context, then shell context appended
+        let event = Event::new("fix it").additional_context("piped input");
+        let combined = match &event.additional_context {
+            Some(existing) => format!("{existing}\n\nshell context"),
+            None => "shell context".to_string(),
+        };
+        let event = event.additional_context(combined);
+
+        assert_eq!(
+            event.additional_context.as_deref(),
+            Some("piped input\n\nshell context")
+        );
+    }
+
+    #[test]
+    fn test_event_no_additional_context() {
+        let event = Event::new("hello");
+
+        assert!(event.additional_context.is_none());
+    }
 }

@@ -2955,6 +2955,27 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             event = event.additional_context(piped);
         }
 
+        // Inject shell command context when provided by the ZSH plugin.
+        // This gives the agent context about the last command the user ran
+        // (e.g., a failed `rm test`) so it can act on `: fix it` prompts.
+        if let Some(ref shell_cmd) = self.cli.shell_command {
+            let exit_status = self.cli.shell_exit_status.unwrap_or(0);
+            let status_label = if exit_status == 0 {
+                "success"
+            } else {
+                "failure"
+            };
+            let shell_context = format!(
+                "The user's last shell command was: `{shell_cmd}` (exit status: {exit_status}, {status_label})"
+            );
+            // Append to existing additional_context or set it
+            let combined = match &event.additional_context {
+                Some(existing) => format!("{existing}\n\n{shell_context}"),
+                None => shell_context,
+            };
+            event = event.additional_context(combined);
+        }
+
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
 

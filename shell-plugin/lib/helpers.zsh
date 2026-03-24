@@ -2,6 +2,24 @@
 
 # Core utility functions for forge plugin
 
+# Shell command context capture via ZSH hooks.
+# preexec fires before each command executes - we save the command string.
+# precmd fires before each prompt - we save the exit status of the last command.
+# These are passed to forge CLI as --shell-command / --shell-exit-status so the
+# agent has context about what the user just ran.
+function _forge_preexec() {
+    _FORGE_LAST_COMMAND="$1"
+}
+
+function _forge_precmd() {
+    _FORGE_LAST_EXIT_STATUS="$?"
+}
+
+# Register hooks using ZSH hook arrays (safe for multiple plugins)
+autoload -Uz add-zsh-hook
+add-zsh-hook preexec _forge_preexec
+add-zsh-hook precmd _forge_precmd
+
 # Lazy loader for commands cache
 # Loads the commands list only when first needed, avoiding startup cost
 function _forge_get_commands() {
@@ -40,6 +58,10 @@ function _forge_exec_interactive() {
     cmd=($_FORGE_BIN --agent "$agent_id")
     [[ -n "$_FORGE_SESSION_MODEL" ]] && cmd+=(--model "$_FORGE_SESSION_MODEL")
     [[ -n "$_FORGE_SESSION_PROVIDER" ]] && cmd+=(--provider "$_FORGE_SESSION_PROVIDER")
+    # Pass last shell command context if available
+    if [[ -n "$_FORGE_LAST_COMMAND" ]]; then
+        cmd+=(--shell-command "$_FORGE_LAST_COMMAND" --shell-exit-status "$_FORGE_LAST_EXIT_STATUS")
+    fi
     cmd+=("$@")
     "${cmd[@]}" </dev/tty >/dev/tty
 }

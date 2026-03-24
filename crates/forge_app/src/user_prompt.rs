@@ -538,6 +538,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_shell_context_added_as_additional_context() {
+        let agent = fixture_agent_without_user_prompt();
+        let shell_context =
+            "The user's last shell command was: `rm test` (exit status: 1, failure)";
+        let event = Event::new("fix it").additional_context(shell_context);
+        let conversation = fixture_conversation();
+        let generator = fixture_generator(agent.clone(), event);
+
+        let actual = generator.add_user_prompt(conversation).await.unwrap();
+
+        let messages = actual.context.unwrap().messages;
+        assert_eq!(messages.len(), 2, "Should have user message and shell context");
+
+        // First message is the user prompt
+        assert_eq!(messages[0].content().unwrap(), "fix it");
+        assert!(!messages[0].is_droppable());
+
+        // Second message is the shell context (droppable)
+        let ctx_msg = &messages[1];
+        assert!(ctx_msg.content().unwrap().contains("rm test"));
+        assert!(ctx_msg.content().unwrap().contains("exit status: 1"));
+        assert!(ctx_msg.is_droppable(), "Shell context should be droppable");
+    }
+
+    #[tokio::test]
     async fn test_todos_not_injected_on_new_conversation() {
         // Setup - Simple mock with no attachments
         struct MockServiceNoTodos;

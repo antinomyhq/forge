@@ -90,6 +90,20 @@ pub struct Cli {
     /// Event to dispatch to the workflow in JSON format.
     #[arg(long, short = 'e')]
     pub event: Option<String>,
+
+    /// The last shell command that was executed before invoking forge.
+    ///
+    /// Populated by the ZSH plugin's preexec hook to provide context about
+    /// what the user just ran. Used together with --shell-exit-status.
+    #[arg(long)]
+    pub shell_command: Option<String>,
+
+    /// The exit status of the last shell command (0 = success, non-zero = failure).
+    ///
+    /// Populated by the ZSH plugin's precmd hook to provide context about
+    /// whether the previous command succeeded or failed.
+    #[arg(long)]
+    pub shell_exit_status: Option<i32>,
 }
 
 impl Cli {
