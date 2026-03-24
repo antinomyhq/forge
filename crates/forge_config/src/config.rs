@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    AutoDumpFormat, HttpConfig, ModelConfig, ModelId, ProviderId, RetryConfig,
-    reader::ConfigReader, writer::ConfigWriter,
+    AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, ModelId, ProviderId, RetryConfig,
+    Temperature, TopK, TopP, Update, reader::ConfigReader, writer::ConfigWriter,
 };
 
 /// Forge configuration containing all the fields from the Environment struct.
@@ -122,6 +122,80 @@ pub struct ForgeConfig {
     /// Identifier of the authentication provider used for login
     #[serde(default)]
     pub auth_provider_id: Option<String>,
+
+    // --- Workflow fields ---
+
+    /// Configuration for automatic forge updates
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[dummy(default)]
+    pub updates: Option<Update>,
+
+    /// Temperature used for all agents.
+    ///
+    /// Temperature controls the randomness in the model's output.
+    /// - Lower values (e.g., 0.1) make responses more focused, deterministic,
+    ///   and coherent
+    /// - Higher values (e.g., 0.8) make responses more creative, diverse, and
+    ///   exploratory
+    /// - Valid range is 0.0 to 2.0
+    /// - If not specified, each agent's individual setting or the model
+    ///   provider's default will be used
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[dummy(expr = "Some(Temperature::new(1.0).unwrap())")]
+    pub temperature: Option<Temperature>,
+
+    /// Top-p (nucleus sampling) used for all agents.
+    ///
+    /// Controls the diversity of the model's output by considering only the
+    /// most probable tokens up to a cumulative probability threshold.
+    /// - Lower values (e.g., 0.1) make responses more focused
+    /// - Higher values (e.g., 0.9) make responses more diverse
+    /// - Valid range is 0.0 to 1.0
+    /// - If not specified, each agent's individual setting or the model
+    ///   provider's default will be used
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[dummy(expr = "Some(TopP::new(0.9).unwrap())")]
+    pub top_p: Option<TopP>,
+
+    /// Top-k used for all agents.
+    ///
+    /// Controls the number of highest probability vocabulary tokens to keep.
+    /// - Lower values (e.g., 10) make responses more focused
+    /// - Higher values (e.g., 100) make responses more diverse
+    /// - Valid range is 1 to 1000
+    /// - If not specified, each agent's individual setting or the model
+    ///   provider's default will be used
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[dummy(expr = "Some(TopK::new(50).unwrap())")]
+    pub top_k: Option<TopK>,
+
+    /// Maximum number of tokens the model can generate for all agents.
+    ///
+    /// Controls the maximum length of the model's response.
+    /// - Lower values (e.g., 100) limit response length for concise outputs
+    /// - Higher values (e.g., 4000) allow for longer, more detailed responses
+    /// - Valid range is 1 to 100,000
+    /// - If not specified, each agent's individual setting or the model
+    ///   provider's default will be used
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[dummy(expr = "Some(MaxTokens::new(4000).unwrap())")]
+    pub max_tokens: Option<MaxTokens>,
+
+    /// Maximum number of times a tool can fail before the orchestrator
+    /// forces the completion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tool_failure_per_turn: Option<usize>,
+
+    /// Maximum number of requests that can be made in a single turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_requests_per_turn: Option<usize>,
+
+    /// Configuration for automatic context compaction for all agents.
+    /// If specified, this will be applied to all agents in the workflow.
+    /// If not specified, each agent's individual setting will be used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[dummy(default)]
+    pub compact: Option<Compact>,
 }
 
 impl ForgeConfig {
