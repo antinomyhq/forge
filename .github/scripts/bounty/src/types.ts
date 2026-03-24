@@ -20,6 +20,7 @@ export interface User {
 export interface Issue {
   number: number;
   title: string;
+  html_url: string;
   state: "open" | "closed";
   labels: Label[];
   assignees: User[];
@@ -29,6 +30,7 @@ export interface Issue {
 /// Full pull request as returned by GET /repos/:owner/:repo/pulls/:number
 export interface PullRequest {
   number: number;
+  title: string;
   state: "open" | "closed";
   merged: boolean;
   body: string | null;
@@ -64,6 +66,10 @@ export interface PrState {
 /// A label operation on a single target (issue or PR number).
 export interface LabelOp {
   target: number;
+  /// Human-readable title of the issue or PR, for display in plan output.
+  title?: string;
+  /// URL of the issue or PR, for display in plan output.
+  url?: string;
   add: string[];
   remove: string[];
   /// Optional comment to post on the target after label ops.

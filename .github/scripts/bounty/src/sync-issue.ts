@@ -85,7 +85,9 @@ export function printPlan(patch: Patch, subject: string): void {
   }
   console.log(`${subject}: plan (${patch.ops.length} target(s) to update)\n`);
   for (const op of patch.ops) {
-    console.log(`  #${op.target}:`);
+    const title = op.title ? ` — ${op.title}` : "";
+    const url = op.url ? `\n    ${op.url}` : "";
+    console.log(`  #${op.target}${title}${url}`);
     if (op.add.length > 0) console.log(`    + add:    ${op.add.join(", ")}`);
     if (op.remove.length > 0) console.log(`    - remove: ${op.remove.join(", ")}`);
     if (op.comment) console.log(`    ~ comment: ${op.comment.slice(0, 80)}…`);
