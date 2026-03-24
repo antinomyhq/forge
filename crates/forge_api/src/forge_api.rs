@@ -415,8 +415,13 @@ impl<
         app.execute(data_parameters).await
     }
 
-    async fn list_background_processes(&self) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
-        self.services.shell_service().list_background_processes().await
+    async fn list_background_processes(
+        &self,
+    ) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
+        self.services
+            .shell_service()
+            .list_background_processes()
+            .await
     }
 
     async fn kill_background_process(&self, pid: u32, delete_log: bool) -> Result<()> {

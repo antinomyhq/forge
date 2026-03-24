@@ -254,7 +254,9 @@ pub trait API: Sync + Send {
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
 
     /// Returns all tracked background processes with their alive status.
-    async fn list_background_processes(&self) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>>;
+    async fn list_background_processes(
+        &self,
+    ) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>>;
 
     /// Kills a background process by PID and optionally deletes its log file.
     async fn kill_background_process(&self, pid: u32, delete_log: bool) -> Result<()>;

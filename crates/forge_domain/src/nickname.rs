@@ -122,15 +122,18 @@ mod tests {
 
     #[test]
     fn test_two_paths_same_last_component() {
-        let paths = vec![
-            PathBuf::from("/a/b/server"),
-            PathBuf::from("/c/d/server"),
-        ];
+        let paths = vec![PathBuf::from("/a/b/server"), PathBuf::from("/c/d/server")];
 
         let actual = resolve_nicknames(&paths);
 
-        assert_eq!(actual[&paths[0]], format!("b{}server", std::path::MAIN_SEPARATOR));
-        assert_eq!(actual[&paths[1]], format!("d{}server", std::path::MAIN_SEPARATOR));
+        assert_eq!(
+            actual[&paths[0]],
+            format!("b{}server", std::path::MAIN_SEPARATOR)
+        );
+        assert_eq!(
+            actual[&paths[1]],
+            format!("d{}server", std::path::MAIN_SEPARATOR)
+        );
     }
 
     #[test]
@@ -160,10 +163,7 @@ mod tests {
 
     #[test]
     fn test_identical_paths() {
-        let paths = vec![
-            PathBuf::from("/a/b/c"),
-            PathBuf::from("/a/b/c"),
-        ];
+        let paths = vec![PathBuf::from("/a/b/c"), PathBuf::from("/a/b/c")];
 
         let actual = resolve_nicknames(&paths);
 
@@ -201,10 +201,7 @@ mod tests {
 
     #[test]
     fn test_nickname_for_helper() {
-        let paths = vec![
-            PathBuf::from("/a/b/server"),
-            PathBuf::from("/c/d/client"),
-        ];
+        let paths = vec![PathBuf::from("/a/b/server"), PathBuf::from("/c/d/client")];
         let nicknames = resolve_nicknames(&paths);
 
         let actual = nickname_for(&PathBuf::from("/a/b/server"), &nicknames);

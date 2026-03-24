@@ -173,7 +173,10 @@ mod tests {
 
         fixture.save_process(&p1).await.unwrap();
         fixture.save_process(&p2).await.unwrap();
-        fixture.remove_process(&PathBuf::from("/proj"), 10).await.unwrap();
+        fixture
+            .remove_process(&PathBuf::from("/proj"), 10)
+            .await
+            .unwrap();
 
         let actual = fixture.list_all_processes().await.unwrap();
         assert_eq!(actual.len(), 1);
@@ -190,7 +193,10 @@ mod tests {
         fixture.save_process(&process).await.unwrap();
         assert!(ForgeFS::exists(&meta_path));
 
-        fixture.remove_process(&PathBuf::from("/proj"), 100).await.unwrap();
+        fixture
+            .remove_process(&PathBuf::from("/proj"), 100)
+            .await
+            .unwrap();
         assert!(!ForgeFS::exists(&meta_path));
     }
 

@@ -2036,8 +2036,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Resolve disambiguated nicknames for all CWD paths.
-        let cwds: Vec<std::path::PathBuf> =
-            processes.iter().map(|(p, _)| p.cwd.clone()).collect();
+        let cwds: Vec<std::path::PathBuf> = processes.iter().map(|(p, _)| p.cwd.clone()).collect();
         let nicknames = forge_domain::resolve_nicknames(&cwds);
 
         // Build a tabular Info display (same pattern as model selector).
@@ -2047,7 +2046,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let elapsed = humanize_time(p.started_at);
             let dir = forge_domain::nickname_for(&p.cwd, &nicknames);
             info = info
-                .add_title(&p.pid.to_string())
+                .add_title(p.pid.to_string())
                 .add_key_value("Command", &p.command)
                 .add_key_value("Directory", dir)
                 .add_key_value("Uptime", elapsed)
@@ -2082,12 +2081,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             rows.push(ProcessRow { index: Some(i), display: line.to_string() });
         }
 
-        let selected = ForgeWidget::select(
-            "Background processes (select to kill, Esc to cancel)",
-            rows,
-        )
-        .with_header_lines(1)
-        .prompt()?;
+        let selected =
+            ForgeWidget::select("Background processes (select to kill, Esc to cancel)", rows)
+                .with_header_lines(1)
+                .prompt()?;
 
         let Some(row) = selected else {
             return Ok(());

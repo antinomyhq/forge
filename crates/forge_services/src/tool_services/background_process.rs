@@ -150,9 +150,7 @@ impl BackgroundProcessManager {
         // Give the OS a moment to reap the process, then verify it's gone.
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         if is_process_alive(pid) {
-            anyhow::bail!(
-                "process {pid} is still alive after kill signal; metadata preserved"
-            );
+            anyhow::bail!("process {pid} is still alive after kill signal; metadata preserved");
         }
 
         self.remove(pid, delete_log).await?;
@@ -216,8 +214,7 @@ fn is_process_alive(pid: u32) -> bool {
 /// npm start` which spawns `node`) are also terminated.
 fn kill_process(pid: u32) -> anyhow::Result<()> {
     let s = sysinfo::System::new_with_specifics(
-        sysinfo::RefreshKind::nothing()
-            .with_processes(sysinfo::ProcessRefreshKind::nothing()),
+        sysinfo::RefreshKind::nothing().with_processes(sysinfo::ProcessRefreshKind::nothing()),
     );
 
     let target = sysinfo::Pid::from_u32(pid);

@@ -140,7 +140,8 @@ impl Environment {
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
     }
-    /// Returns the directory where background process metadata files are stored.
+    /// Returns the directory where background process metadata files are
+    /// stored.
     pub fn processes_path(&self) -> PathBuf {
         self.base_path.join("processes")
     }

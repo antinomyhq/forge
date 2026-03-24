@@ -64,13 +64,15 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
 
             // Register with the background process manager which takes
             // ownership of the temp-file handle (keeps the log file alive).
-            self.bg_manager.register(
-                bg_output.pid,
-                bg_output.command.clone(),
-                cwd,
-                bg_output.log_file.clone(),
-                bg_output.log_handle,
-            ).await?;
+            self.bg_manager
+                .register(
+                    bg_output.pid,
+                    bg_output.command.clone(),
+                    cwd,
+                    bg_output.log_file.clone(),
+                    bg_output.log_handle,
+                )
+                .await?;
 
             return Ok(ShellOutput {
                 kind: ShellOutputKind::Background {
