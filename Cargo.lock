@@ -1940,7 +1940,6 @@ name = "forge_config"
 version = "0.1.0"
 dependencies = [
  "config",
- "derive_more",
  "derive_setters",
  "dirs",
  "fake",

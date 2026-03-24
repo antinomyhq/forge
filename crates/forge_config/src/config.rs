@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, ModelId, ProviderId, RetryConfig,
-    Temperature, TopK, TopP, Update, reader::ConfigReader, writer::ConfigWriter,
+    AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, RetryConfig, Temperature, TopK,
+    TopP, Update, reader::ConfigReader, writer::ConfigWriter,
 };
 
 /// Forge configuration containing all the fields from the Environment struct.
@@ -92,12 +92,9 @@ pub struct ForgeConfig {
     pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
-    /// Default provider ID to use for AI operations
-    #[serde(default)]
-    pub provider: Option<ProviderId>,
     /// Map of provider ID to model ID for per-provider model selection
     #[serde(default)]
-    pub model: HashMap<ProviderId, ModelId>,
+    pub model: Option<ModelConfig>,
     /// Provider and model to use for commit message generation
     #[serde(default)]
     pub commit: Option<ModelConfig>,
@@ -124,7 +121,6 @@ pub struct ForgeConfig {
     pub auth_provider_id: Option<String>,
 
     // --- Workflow fields ---
-
     /// Configuration for automatic forge updates
     #[serde(skip_serializing_if = "Option::is_none")]
     #[dummy(default)]
