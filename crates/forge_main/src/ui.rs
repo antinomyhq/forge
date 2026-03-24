@@ -2042,16 +2042,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Build a tabular Info display (same pattern as model selector).
         let mut info = Info::new();
-        for (p, alive) in &processes {
-            let status = if *alive { status::YES } else { status::NO };
+        for (p, _alive) in &processes {
             let elapsed = humanize_time(p.started_at);
             let dir = forge_domain::nickname_for(&p.cwd, &nicknames);
             info = info
                 .add_title(p.pid.to_string())
                 .add_key_value("Command", &p.command)
-                .add_key_value("Directory", dir)
+                .add_key_value("Name", dir)
                 .add_key_value("Uptime", elapsed)
-                .add_key_value("Alive", status)
                 .add_key_value("Log", p.log_file.display().to_string());
         }
 
@@ -2135,18 +2133,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let processes = self.api.list_background_processes().await?;
         if porcelain {
-            // Tab-separated output for machine consumption
-            for (p, alive) in &processes {
-                let status = if *alive { "running" } else { "stopped" };
-                println!(
-                    "{}\t{}\t{}\t{}\t{}",
-                    p.pid,
-                    status,
-                    p.command,
-                    p.started_at.to_rfc3339(),
-                    p.log_file.display()
-                );
+            // Porcelain output with aligned columns and header (matches
+            // provider list format).  Columns: PID, COMMAND, NAME, LOG.
+            let cwds: Vec<std::path::PathBuf> =
+                processes.iter().map(|(p, _)| p.cwd.clone()).collect();
+            let nicknames = forge_domain::resolve_nicknames(&cwds);
+            let mut info = Info::new();
+            for (p, _) in &processes {
+                let dir = forge_domain::nickname_for(&p.cwd, &nicknames);
+                info = info
+                    .add_title(p.pid.to_string())
+                    .add_key_value("command", &p.command)
+                    .add_key_value("name", dir)
+                    .add_key_value("log", p.log_file.display().to_string());
             }
+            let porcelain_output = Porcelain::from(&info).uppercase_headers();
+            print!("{porcelain_output}");
         } else if processes.is_empty() {
             self.writeln_title(TitleFormat::debug("No background processes running"))?;
         } else {

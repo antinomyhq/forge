@@ -1,11 +1,11 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
+use super::ProcessMetadataService;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use forge_domain::BackgroundProcess;
-
-use super::ProcessMetadataService;
+use forge_fs::ForgeFS;
 
 /// Owns the temp-file handles for background process log files so that they
 /// are automatically cleaned up when the manager is dropped.
@@ -187,8 +187,9 @@ impl BackgroundProcessManager {
         for p in &all {
             let alive = is_process_alive(p.pid);
             if !alive && !in_memory_pids.contains(&p.pid) {
-                // Dead process from another session -- remove from disk.
-                let _ = self.metadata.remove_process(&p.cwd, p.pid).await;
+                // Dead process from another session -- remove metadata and log.
+                self.metadata.remove_process(&p.cwd, p.pid).await.ok();
+                ForgeFS::remove_file(&p.log_file).await.ok();
             } else {
                 result.push((p.clone(), alive));
             }

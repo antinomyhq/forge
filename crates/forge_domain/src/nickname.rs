@@ -18,8 +18,19 @@ pub fn resolve_nicknames(paths: &[PathBuf]) -> HashMap<PathBuf, String> {
         return HashMap::new();
     }
 
-    // Collect the components of each path in reverse order (leaf first).
-    let components: Vec<Vec<String>> = paths
+    // Deduplicate: the algorithm only needs to disambiguate *distinct* paths.
+    // Identical paths share the same nickname by definition.
+    let unique_paths: Vec<PathBuf> = {
+        let mut seen = std::collections::HashSet::new();
+        paths
+            .iter()
+            .filter(|p| seen.insert((*p).clone()))
+            .cloned()
+            .collect()
+    };
+
+    // Collect the components of each unique path in reverse order (leaf first).
+    let components: Vec<Vec<String>> = unique_paths
         .iter()
         .map(|p| {
             p.components()
@@ -30,7 +41,7 @@ pub fn resolve_nicknames(paths: &[PathBuf]) -> HashMap<PathBuf, String> {
         .collect();
 
     // Start with 1 component (just the leaf) for every path.
-    let mut depths: Vec<usize> = vec![1; paths.len()];
+    let mut depths: Vec<usize> = vec![1; unique_paths.len()];
 
     loop {
         // Build current nicknames at each path's depth.
@@ -62,8 +73,8 @@ pub fn resolve_nicknames(paths: &[PathBuf]) -> HashMap<PathBuf, String> {
 
         if !any_extended {
             // No further disambiguation possible or all unique.
-            let mut result = HashMap::with_capacity(paths.len());
-            for (i, path) in paths.iter().enumerate() {
+            let mut result = HashMap::with_capacity(unique_paths.len());
+            for (i, path) in unique_paths.iter().enumerate() {
                 result
                     .entry(path.clone())
                     .or_insert_with(|| nicknames[i].clone());
@@ -168,10 +179,8 @@ mod tests {
         let actual = resolve_nicknames(&paths);
 
         // Both map to the same key so only one entry in the HashMap.
-        // The nickname should be the full path since they cannot be
-        // disambiguated.
-        let sep = std::path::MAIN_SEPARATOR;
-        assert_eq!(actual[&paths[0]], format!("{sep}a{sep}b{sep}c"));
+        // Duplicates are collapsed, so the nickname is just the leaf.
+        assert_eq!(actual[&paths[0]], "c");
     }
 
     #[test]
