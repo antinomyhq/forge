@@ -1,0 +1,43 @@
+use serde::{Deserialize, Serialize};
+
+/// Configuration for retry mechanism.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[serde(rename_all = "camelCase")]
+pub struct RetryConfig {
+    /// Initial backoff delay in milliseconds for retry operations
+    pub initial_backoff_ms: u64,
+    /// Minimum delay in milliseconds between retry attempts
+    pub min_delay_ms: u64,
+    /// Backoff multiplication factor for each retry attempt
+    pub backoff_factor: u64,
+    /// Maximum number of retry attempts
+    pub max_retry_attempts: usize,
+    /// HTTP status codes that should trigger retries
+    pub retry_status_codes: Vec<u16>,
+    /// Maximum delay between retries in seconds
+    pub max_delay: Option<u64>,
+    /// Whether to suppress retry error logging and events
+    pub suppress_retry_errors: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_retry_config_fields() {
+        let config = RetryConfig {
+            initial_backoff_ms: 200,
+            min_delay_ms: 1000,
+            backoff_factor: 2,
+            max_retry_attempts: 8,
+            retry_status_codes: vec![429, 500, 502, 503, 504, 408, 522, 520, 529],
+            max_delay: None,
+            suppress_retry_errors: false,
+        };
+        assert_eq!(config.initial_backoff_ms, 200);
+        assert_eq!(config.suppress_retry_errors, false);
+    }
+}

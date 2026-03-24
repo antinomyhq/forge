@@ -1,0 +1,17 @@
+[package]
+name = "forge_config"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+config = "0.15"
+derive_more.workspace = true
+derive_setters.workspace = true
+serde.workspace = true
+url.workspace = true
+fake = { version = "5.1.0", features = ["derive"] }
+
+[dev-dependencies]
+pretty_assertions.workspace = true
