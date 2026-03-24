@@ -5,9 +5,11 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
+use crate::reader::ConfigReader;
+use crate::writer::ConfigWriter;
 use crate::{
     AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, RetryConfig, Temperature, TopK,
-    TopP, Update, reader::ConfigReader, writer::ConfigWriter,
+    TopP, Update,
 };
 
 /// Forge configuration containing all the fields from the Environment struct.

@@ -444,7 +444,8 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
 
         // Set up a config with a specific provider
-        let config = forge_domain::AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
+        let config =
+            forge_domain::AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
@@ -560,7 +561,8 @@ mod tests {
         let expected = ModelId::new("override-model");
 
         // Set up config with provider but no model
-        let config = forge_domain::AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
+        let config =
+            forge_domain::AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
