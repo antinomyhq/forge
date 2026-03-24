@@ -268,6 +268,14 @@ mod tests {
         async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
             Ok(())
         }
+
+        async fn get_agent_model_config(&self, _agent_id: &str) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+            Ok(None)
+        }
+
+        async fn set_agent_model_config(&self, _agent_id: String, _config: forge_domain::AgentModelConfig) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
