@@ -190,6 +190,9 @@ function forge-accept-line() {
         config)
             _forge_action_config
         ;;
+        config-env|ce)
+            _forge_action_config_env "$input_text"
+        ;;
         skill)
             _forge_action_skill
         ;;

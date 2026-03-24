@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
@@ -307,6 +308,26 @@ impl<
 
     async fn set_suggest_config(&self, config: SuggestConfig) -> anyhow::Result<()> {
         self.services.set_suggest_config(config).await
+    }
+
+    async fn get_env_overrides(&self) -> anyhow::Result<HashMap<String, String>> {
+        self.services.get_env_overrides().await
+    }
+
+    async fn set_env_override(&self, key: String, value: String) -> anyhow::Result<()> {
+        self.services.set_env_override(key, value).await
+    }
+
+    async fn remove_env_override(&self, key: &str) -> anyhow::Result<()> {
+        self.services.remove_env_override(key).await
+    }
+
+    fn list_forge_env_vars(&self) -> BTreeMap<String, String> {
+        self.infra
+            .get_env_vars()
+            .into_iter()
+            .filter(|(key, _)| key.starts_with("FORGE_"))
+            .collect()
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

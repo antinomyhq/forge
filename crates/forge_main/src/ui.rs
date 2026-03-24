@@ -3384,6 +3384,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             crate::cli::ConfigCommand::List => {
                 self.on_show_config(porcelain).await?;
             }
+            crate::cli::ConfigCommand::ListEnv => {
+                self.handle_list_env().await?;
+            }
+            crate::cli::ConfigCommand::UnsetEnv { key } => {
+                self.api.remove_env_override(&key).await?;
+                self.writeln(format!("Removed persistent override for {key}"))?;
+            }
         }
         Ok(())
     }
@@ -3427,6 +3434,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
+            }
+            ConfigSetField::Env { key, value } => {
+                if !key.starts_with("FORGE_") {
+                    anyhow::bail!(
+                        "Only FORGE_* environment variables can be set. Got: {key}"
+                    );
+                }
+                self.api
+                    .set_env_override(key.clone(), value.clone())
+                    .await?;
+                self.writeln(format!("Set {key}={value} (persisted to config)"))?;
             }
         }
 
@@ -3489,12 +3507,79 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     None => self.writeln("Suggest: Not set")?,
                 }
             }
+            ConfigGetField::Env { key } => {
+                let overrides = self.api.get_env_overrides().await?;
+                match overrides.get(&key) {
+                    Some(value) => self.writeln(format!("{key}={value}"))?,
+                    None => match std::env::var(&key) {
+                        Ok(value) => {
+                            self.writeln(format!("{key}={value} (from environment)"))?
+                        }
+                        Err(_) => self.writeln(format!("{key}: Not set"))?,
+                    },
+                }
+            }
         }
 
         Ok(())
     }
 
-    /// Handle prompt command - returns model and conversation stats for shell
+    /// Handle list-env: shows all FORGE_* vars with values and overrides
+    async fn handle_list_env(&mut self) -> Result<()> {
+        let overrides = self.api.get_env_overrides().await?;
+        let env_vars = self.api.list_forge_env_vars();
+
+        let known_vars = [
+            "FORGE_API_URL", "FORGE_AUTO_DUMP", "FORGE_DEBUG_REQUESTS",
+            "FORGE_DUMP_AUTO_OPEN", "FORGE_HISTORY_FILE",
+            "FORGE_HTTP_ACCEPT_INVALID_CERTS", "FORGE_HTTP_ADAPTIVE_WINDOW",
+            "FORGE_HTTP_CONNECT_TIMEOUT", "FORGE_HTTP_KEEP_ALIVE_INTERVAL",
+            "FORGE_HTTP_KEEP_ALIVE_TIMEOUT", "FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE",
+            "FORGE_HTTP_MAX_REDIRECTS", "FORGE_HTTP_MIN_TLS_VERSION",
+            "FORGE_HTTP_MAX_TLS_VERSION", "FORGE_HTTP_POOL_IDLE_TIMEOUT",
+            "FORGE_HTTP_POOL_MAX_IDLE_PER_HOST", "FORGE_HTTP_READ_TIMEOUT",
+            "FORGE_HTTP_ROOT_CERT_PATHS", "FORGE_HTTP_TLS_BACKEND",
+            "FORGE_HTTP_USE_HICKORY", "FORGE_MAX_CONVERSATIONS",
+            "FORGE_MAX_EXTENSIONS", "FORGE_MAX_FILE_READ_BATCH_SIZE",
+            "FORGE_MAX_IMAGE_SIZE", "FORGE_MAX_LINE_LENGTH",
+            "FORGE_MAX_SEARCH_RESULT_BYTES", "FORGE_MODEL_CACHE_TTL",
+            "FORGE_PARALLEL_FILE_READS", "FORGE_RETRY_BACKOFF_FACTOR",
+            "FORGE_RETRY_INITIAL_BACKOFF_MS", "FORGE_RETRY_MAX_ATTEMPTS",
+            "FORGE_RETRY_STATUS_CODES", "FORGE_SEM_SEARCH_LIMIT",
+            "FORGE_SEM_SEARCH_TOP_K", "FORGE_STDOUT_MAX_LINE_LENGTH",
+            "FORGE_SUPPRESS_RETRY_ERRORS", "FORGE_TOOL_TIMEOUT",
+            "FORGE_WORKSPACE_SERVER_URL",
+        ];
+
+        let mut all_vars: std::collections::BTreeSet<String> =
+            known_vars.iter().map(|s| s.to_string()).collect();
+        for key in env_vars.keys() {
+            all_vars.insert(key.clone());
+        }
+        for key in overrides.keys() {
+            all_vars.insert(key.clone());
+        }
+
+        for key in &all_vars {
+            let env_value = env_vars.get(key);
+            let override_value = overrides.get(key);
+            match (override_value, env_value) {
+                (Some(ov), _) => {
+                    self.writeln(format!("{key}={ov}  [persisted]"))?;
+                }
+                (None, Some(ev)) => {
+                    self.writeln(format!("{key}={ev}"))?;
+                }
+                (None, None) => {
+                    self.writeln(format!("{key}=  [not set]"))?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+        /// Handle prompt command - returns model and conversation stats for shell
     /// integration
     async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
         let cid = std::env::var("_FORGE_CONVERSATION_ID")

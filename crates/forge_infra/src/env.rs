@@ -21,6 +21,7 @@ impl ForgeEnvironmentInfra {
     /// * `cwd` - Required working directory path
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         Self::dot_env(&cwd);
+        Self::load_persisted_env_overrides();
         Self { restricted, cwd }
     }
 
@@ -102,6 +103,26 @@ impl ForgeEnvironmentInfra {
                 },
             ),
             model_cache_ttl: parse_env::<u64>("FORGE_MODEL_CACHE_TTL").unwrap_or(604_800), /* 1 week */
+        }
+    }
+
+    /// Load persisted environment variable overrides from the config file.
+    fn load_persisted_env_overrides() {
+        let config_path = dirs::home_dir()
+            .map(|a| a.join("forge"))
+            .unwrap_or(PathBuf::from(".").join("forge"))
+            .join(".config.json");
+
+        if let Ok(content) = std::fs::read_to_string(&config_path) {
+            if let Ok(config) = serde_json::from_str::<forge_domain::AppConfig>(&content) {
+                for (key, value) in &config.env_overrides {
+                    if key.starts_with("FORGE_") {
+                        unsafe {
+                            std::env::set_var(key, value);
+                        }
+                    }
+                }
+            }
         }
     }
 

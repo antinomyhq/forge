@@ -173,6 +173,20 @@ pub trait API: Sync + Send {
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 
+    /// Gets all persistent environment variable overrides.
+    async fn get_env_overrides(
+        &self,
+    ) -> anyhow::Result<std::collections::HashMap<String, String>>;
+
+    /// Sets a persistent environment variable override.
+    async fn set_env_override(&self, key: String, value: String) -> anyhow::Result<()>;
+
+    /// Removes a persistent environment variable override.
+    async fn remove_env_override(&self, key: &str) -> anyhow::Result<()>;
+
+    /// Gets all FORGE_* environment variables with current effective values.
+    fn list_forge_env_vars(&self) -> std::collections::BTreeMap<String, String>;
+
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 

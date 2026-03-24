@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
@@ -107,6 +108,26 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     ) -> anyhow::Result<()> {
         self.update(|config| {
             config.suggest = Some(suggest_config);
+        })
+        .await
+    }
+
+    async fn get_env_overrides(&self) -> anyhow::Result<HashMap<String, String>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.env_overrides)
+    }
+
+    async fn set_env_override(&self, key: String, value: String) -> anyhow::Result<()> {
+        self.update(|config| {
+            config.env_overrides.insert(key, value);
+        })
+        .await
+    }
+
+    async fn remove_env_override(&self, key: &str) -> anyhow::Result<()> {
+        let key = key.to_string();
+        self.update(|config| {
+            config.env_overrides.remove(&key);
         })
         .await
     }

@@ -519,6 +519,15 @@ pub enum ConfigCommand {
 
     /// List configuration values.
     List,
+
+    /// List all FORGE_* environment variables with current values and overrides.
+    ListEnv,
+
+    /// Remove a persistent environment variable override.
+    UnsetEnv {
+        /// Environment variable name to remove from persistent overrides.
+        key: String,
+    },
 }
 
 /// Arguments for `forge config set`.
@@ -567,6 +576,13 @@ pub enum ConfigSetField {
         /// Model ID to use for command suggestion generation.
         model: ModelId,
     },
+    /// Set a persistent FORGE_* environment variable override.
+    Env {
+        /// Environment variable name (e.g. FORGE_TOOL_TIMEOUT).
+        key: String,
+        /// Value to set.
+        value: String,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -580,6 +596,11 @@ pub enum ConfigGetField {
     Commit,
     /// Get the command suggestion generation config.
     Suggest,
+    /// Get a persistent environment variable override.
+    Env {
+        /// Environment variable name (e.g. FORGE_TOOL_TIMEOUT).
+        key: String,
+    },
 }
 
 /// Command group for conversation management.

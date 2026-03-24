@@ -25,6 +25,9 @@ pub struct AppConfig {
     pub commit: Option<CommitConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<SuggestConfig>,
+    /// Persistent overrides for FORGE_* environment variables.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub env_overrides: HashMap<String, String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]

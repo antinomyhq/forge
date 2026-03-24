@@ -227,6 +227,17 @@ pub trait AppConfigService: Send + Sync {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    /// Gets all persistent environment variable overrides.
+    async fn get_env_overrides(
+        &self,
+    ) -> anyhow::Result<std::collections::HashMap<String, String>>;
+
+    /// Sets a persistent environment variable override.
+    async fn set_env_override(&self, key: String, value: String) -> anyhow::Result<()>;
+
+    /// Removes a persistent environment variable override.
+    async fn remove_env_override(&self, key: &str) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1059,6 +1070,20 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
         self.config_service().set_suggest_config(config).await
+    }
+
+    async fn get_env_overrides(
+        &self,
+    ) -> anyhow::Result<std::collections::HashMap<String, String>> {
+        self.config_service().get_env_overrides().await
+    }
+
+    async fn set_env_override(&self, key: String, value: String) -> anyhow::Result<()> {
+        self.config_service().set_env_override(key, value).await
+    }
+
+    async fn remove_env_override(&self, key: &str) -> anyhow::Result<()> {
+        self.config_service().remove_env_override(key).await
     }
 }
 

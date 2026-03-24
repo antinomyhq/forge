@@ -382,6 +382,41 @@ function _forge_action_config() {
     $_FORGE_BIN config list
 }
 
+# Action handler: Set or list FORGE_* environment variable overrides
+# Usage: :config-env               - list all FORGE_* vars with values
+#        :config-env KEY VALUE     - persist a FORGE_* env var override
+#        :config-env --unset KEY   - remove a persisted override
+function _forge_action_config_env() {
+    local input_text="$1"
+    echo
+
+    if [[ -z "$input_text" ]]; then
+        # No arguments: list all env vars
+        _forge_exec config list-env
+        return
+    fi
+
+    # Check for --unset flag
+    if [[ "$input_text" == --unset\ * ]]; then
+        local key="${input_text#--unset }"
+        key="${key## }"  # trim leading spaces
+        _forge_exec config unset-env "$key"
+        return
+    fi
+
+    # Parse KEY VALUE from input
+    local key="${input_text%% *}"
+    local value="${input_text#* }"
+
+    if [[ "$key" == "$value" ]]; then
+        # Only one argument provided - show current value
+        _forge_exec config get env "$key"
+        return
+    fi
+
+    _forge_exec config set env "$key" "$value"
+}
+
 # Action handler: Show tools
 function _forge_action_tools() {
     echo
