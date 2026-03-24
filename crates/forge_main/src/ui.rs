@@ -683,6 +683,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_zsh_doctor().await?;
                 return Ok(());
             }
+            TopLevelCommand::Processes { porcelain, kill, delete_log } => {
+                self.on_processes_cli(porcelain, kill, delete_log).await?;
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -1995,6 +1999,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ));
                 }
             }
+            SlashCommand::Processes => {
+                self.on_processes().await?;
+            }
         }
 
         Ok(false)
@@ -2014,6 +2021,121 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_delete_conversation(&mut self) -> anyhow::Result<()> {
         let conversation_id = self.init_conversation().await?;
         self.on_conversation_delete(conversation_id).await?;
+        Ok(())
+    }
+
+    /// Shows all tracked background processes and lets the user select one to
+    /// kill. After killing, asks whether to also delete the log file.
+    async fn on_processes(&mut self) -> anyhow::Result<()> {
+        let processes = self.api.list_background_processes()?;
+        if processes.is_empty() {
+            self.writeln_title(TitleFormat::debug("No background processes running"))?;
+            return Ok(());
+        }
+
+        // Build display strings for the picker.
+        // Format: "command | dir | elapsed | status"
+        let display_items: Vec<String> = processes
+            .iter()
+            .map(|(p, alive)| {
+                let status = if *alive { "running" } else { "stopped" };
+                let elapsed = humanize_time(p.started_at);
+                let dir = p.cwd.file_name()
+                    .map(|n| n.to_string_lossy().to_string())
+                    .unwrap_or_else(|| p.cwd.display().to_string());
+                format!(
+                    "{} | {} | {} | {}",
+                    p.command,
+                    dir,
+                    elapsed,
+                    status,
+                )
+            })
+            .collect();
+
+        let selected =
+            ForgeWidget::select("Select a background process to kill", display_items.clone())
+                .prompt()?;
+
+        let Some(selected_str) = selected else {
+            return Ok(());
+        };
+
+        // Find the PID by matching the selected display string back to the
+        // processes list (same order as display_items).
+        let idx = display_items
+            .iter()
+            .position(|s| s == &selected_str)
+            .ok_or_else(|| anyhow::anyhow!("Failed to match selection"))?;
+        let pid = processes[idx].0.pid;
+        let log_file = processes[idx].0.log_file.clone();
+
+        // Kill the process and remove from manager, keeping log file for now
+        self.api.kill_background_process(pid, false)?;
+        self.writeln_title(TitleFormat::action(format!("Killed process {pid}")))?;
+
+        // Ask about log file deletion
+        let delete_log = ForgeWidget::confirm("Delete the log file?")
+            .with_default(false)
+            .prompt()?;
+
+        if delete_log == Some(true) {
+            let _ = std::fs::remove_file(&log_file);
+            self.writeln_title(TitleFormat::debug(format!(
+                "Deleted log file: {}",
+                log_file.display()
+            )))?;
+        }
+
+        Ok(())
+    }
+
+    /// CLI handler for `forge processes`. Supports porcelain output and
+    /// --kill/--delete-log flags.
+    async fn on_processes_cli(
+        &mut self,
+        porcelain: bool,
+        kill_pid: Option<u32>,
+        delete_log: bool,
+    ) -> anyhow::Result<()> {
+        if let Some(pid) = kill_pid {
+            self.api.kill_background_process(pid, delete_log)?;
+            if !porcelain {
+                self.writeln_title(TitleFormat::action(format!("Killed process {pid}")))?;
+            }
+            return Ok(());
+        }
+
+        let processes = self.api.list_background_processes()?;
+        if porcelain {
+            // Tab-separated output for machine consumption
+            for (p, alive) in &processes {
+                let status = if *alive { "running" } else { "stopped" };
+                println!(
+                    "{}\t{}\t{}\t{}\t{}",
+                    p.pid,
+                    status,
+                    p.command,
+                    p.started_at.to_rfc3339(),
+                    p.log_file.display()
+                );
+            }
+        } else if processes.is_empty() {
+            self.writeln_title(TitleFormat::debug("No background processes running"))?;
+        } else {
+            for (p, alive) in &processes {
+                let status = if *alive { "running" } else { "stopped" };
+                let elapsed = humanize_time(p.started_at);
+                self.writeln_title(TitleFormat::debug(format!(
+                    "PID {} | {} | {} | {} | log: {}",
+                    p.pid,
+                    status,
+                    p.command,
+                    elapsed,
+                    p.log_file.display()
+                )))?;
+            }
+        }
         Ok(())
     }
 

@@ -19,11 +19,42 @@ use url::Url;
 use crate::Walker;
 use crate::user::{User, UserUsage};
 
+/// Distinguishes foreground (ran to completion) from background (spawned and
+/// still running) shell execution results.
+#[derive(Debug, Clone)]
+pub enum ShellOutputKind {
+    /// Command ran to completion (or timed out). Contains the full output.
+    Foreground(CommandOutput),
+    /// Command was spawned in the background. Contains process metadata.
+    Background {
+        /// The command string that was executed.
+        command: String,
+        /// OS process ID of the background process.
+        pid: u32,
+        /// Absolute path to the log file capturing stdout/stderr.
+        log_file: PathBuf,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct ShellOutput {
-    pub output: CommandOutput,
+    /// The execution result -- either foreground output or background metadata.
+    pub kind: ShellOutputKind,
+    /// Shell used to execute the command (e.g. "bash", "zsh").
     pub shell: String,
+    /// Optional human-readable description of the command.
     pub description: Option<String>,
+}
+
+impl ShellOutput {
+    /// Returns a reference to the foreground `CommandOutput` if this is a
+    /// foreground result, or `None` if this is a background result.
+    pub fn foreground(&self) -> Option<&CommandOutput> {
+        match &self.kind {
+            ShellOutputKind::Foreground(output) => Some(output),
+            ShellOutputKind::Background { .. } => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -480,9 +511,16 @@ pub trait ShellService: Send + Sync {
         cwd: PathBuf,
         keep_ansi: bool,
         silent: bool,
+        background: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
     ) -> anyhow::Result<ShellOutput>;
+
+    /// Returns all tracked background processes with their alive status.
+    fn list_background_processes(&self) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>>;
+
+    /// Kills a background process by PID and removes it from tracking.
+    fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -906,12 +944,21 @@ impl<I: Services> ShellService for I {
         cwd: PathBuf,
         keep_ansi: bool,
         silent: bool,
+        background: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, silent, env_vars, description)
+            .execute(command, cwd, keep_ansi, silent, background, env_vars, description)
             .await
+    }
+
+    fn list_background_processes(&self) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
+        self.shell_service().list_background_processes()
+    }
+
+    fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()> {
+        self.shell_service().kill_background_process(pid, delete_log)
     }
 }
 

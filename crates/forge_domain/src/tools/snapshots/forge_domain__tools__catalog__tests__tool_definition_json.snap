@@ -232,6 +232,10 @@ expression: tools
   "title": "Shell",
   "type": "object",
   "properties": {
+    "background": {
+      "description": "If true, runs the command in the background as a detached process.\nThe command's stdout/stderr are redirected to a temporary log file.\nThe tool returns immediately with the log file path and process ID\ninstead of waiting for the command to complete.\nUse this for long-running processes like web servers or file watchers.",
+      "type": "boolean"
+    },
     "command": {
       "description": "The shell command to execute.",
       "type": "string"
