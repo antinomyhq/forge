@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{ForgeConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
+use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -19,7 +19,7 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
     /// Helper method to update app configuration atomically.
     async fn update<U>(&self, updater: U) -> anyhow::Result<()>
     where
-        U: FnOnce(&mut ForgeConfig),
+        U: FnOnce(&mut AppConfig),
     {
         let mut config = self.infra.get_app_config().await?;
         updater(&mut config);
@@ -118,7 +118,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, ForgeConfig, ChatRepository, InputModality, MigrationResult, Model, ModelSource,
+        AnyProvider, AppConfig, ChatRepository, InputModality, MigrationResult, Model, ModelSource,
         Provider, ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
@@ -128,14 +128,14 @@ mod tests {
 
     #[derive(Clone)]
     struct MockInfra {
-        app_config: Arc<Mutex<ForgeConfig>>,
+        app_config: Arc<Mutex<AppConfig>>,
         providers: Vec<Provider<Url>>,
     }
 
     impl MockInfra {
         fn new() -> Self {
             Self {
-                app_config: Arc::new(Mutex::new(ForgeConfig::default())),
+                app_config: Arc::new(Mutex::new(AppConfig::default())),
                 providers: vec![
                     Provider {
                         id: ProviderId::OPENAI,
@@ -196,11 +196,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AppConfigRepository for MockInfra {
-        async fn get_app_config(&self) -> anyhow::Result<ForgeConfig> {
+        async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
             Ok(self.app_config.lock().unwrap().clone())
         }
 
-        async fn set_app_config(&self, config: &ForgeConfig) -> anyhow::Result<()> {
+        async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
             *self.app_config.lock().unwrap() = config.clone();
             Ok(())
         }

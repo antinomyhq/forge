@@ -27,9 +27,9 @@ struct AppConfig {
     pub suggest: Option<SuggestConfig>,
 }
 
-impl From<AppConfig> for forge_domain::ForgeConfig {
+impl From<AppConfig> for forge_domain::AppConfig {
     fn from(value: AppConfig) -> Self {
-        forge_domain::ForgeConfig {
+        forge_domain::AppConfig {
             key_info: value.key_info,
             provider: value.provider,
             model: value.model,
@@ -39,8 +39,8 @@ impl From<AppConfig> for forge_domain::ForgeConfig {
     }
 }
 
-impl From<forge_domain::ForgeConfig> for AppConfig {
-    fn from(value: forge_domain::ForgeConfig) -> Self {
+impl From<forge_domain::AppConfig> for AppConfig {
+    fn from(value: forge_domain::AppConfig) -> Self {
         AppConfig {
             key_info: value.key_info,
             provider: value.provider,
@@ -162,7 +162,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
     for AppConfigRepositoryImpl<F>
 {
-    async fn get_app_config(&self) -> anyhow::Result<forge_domain::ForgeConfig> {
+    async fn get_app_config(&self) -> anyhow::Result<forge_domain::AppConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
         if let Some(ref cached_config) = *cache {
@@ -182,7 +182,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
         Ok(self.apply_overrides(config).into())
     }
 
-    async fn set_app_config(&self, config: &forge_domain::ForgeConfig) -> anyhow::Result<()> {
+    async fn set_app_config(&self, config: &forge_domain::AppConfig) -> anyhow::Result<()> {
         let (model, provider) = self.get_overrides();
 
         if model.is_some() || provider.is_some() {
@@ -310,7 +310,7 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
 
         // Create a config file with default config
-        let config = forge_domain::ForgeConfig::default();
+        let config = forge_domain::AppConfig::default();
         let content = serde_json::to_string_pretty(&config).unwrap();
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
@@ -321,7 +321,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_app_config_exists() {
-        let expected = forge_domain::ForgeConfig::default();
+        let expected = forge_domain::AppConfig::default();
         let (repo, _temp_dir) = repository_with_config_fixture();
 
         let actual = repo.get_app_config().await.unwrap();
@@ -336,13 +336,13 @@ mod tests {
         let actual = repo.get_app_config().await.unwrap();
 
         // Should return default config when file doesn't exist
-        let expected = forge_domain::ForgeConfig::default();
+        let expected = forge_domain::AppConfig::default();
         assert_eq!(actual, expected);
     }
 
     #[tokio::test]
     async fn test_set_app_config() {
-        let fixture = forge_domain::ForgeConfig::default();
+        let fixture = forge_domain::AppConfig::default();
         let (repo, _temp_dir) = repository_fixture();
 
         let actual = repo.set_app_config(&fixture).await;
@@ -366,7 +366,7 @@ mod tests {
         assert_eq!(first_read, second_read);
 
         // Write new config should bust cache
-        let new_config = forge_domain::ForgeConfig::default();
+        let new_config = forge_domain::AppConfig::default();
         repo.set_app_config(&new_config).await.unwrap();
 
         // Next read should get fresh data
@@ -394,7 +394,7 @@ mod tests {
 
         let actual = repo.get_app_config().await.unwrap();
 
-        let expected = forge_domain::ForgeConfig {
+        let expected = forge_domain::AppConfig {
             provider: Some(ProviderId::from_str("xyz").unwrap()),
             ..Default::default()
         };
@@ -408,7 +408,7 @@ mod tests {
         let config = repo.get_app_config().await.unwrap();
 
         // Config should be the default
-        assert_eq!(config, forge_domain::ForgeConfig::default());
+        assert_eq!(config, forge_domain::AppConfig::default());
     }
 
     #[tokio::test]
@@ -417,7 +417,7 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
 
         // Set up a config with a specific model
-        let mut config = forge_domain::ForgeConfig::default();
+        let mut config = forge_domain::AppConfig::default();
         config.model.insert(
             ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
@@ -444,7 +444,7 @@ mod tests {
         let config_path = temp_dir.path().join(".config.json");
 
         // Set up a config with a specific provider
-        let config = forge_domain::ForgeConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
+        let config = forge_domain::AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
@@ -467,7 +467,7 @@ mod tests {
             AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
 
         // Attempting to write config when override is set should fail
-        let config = forge_domain::ForgeConfig::default();
+        let config = forge_domain::AppConfig::default();
         let actual = repo.set_app_config(&config).await;
 
         assert!(actual.is_err());
@@ -560,7 +560,7 @@ mod tests {
         let expected = ModelId::new("override-model");
 
         // Set up config with provider but no model
-        let config = forge_domain::ForgeConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
+        let config = forge_domain::AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
@@ -611,6 +611,6 @@ mod tests {
         let repo = AppConfigRepositoryImpl::new(infra);
         let actual = repo.get_app_config().await.unwrap();
 
-        assert_eq!(actual, forge_domain::ForgeConfig::default());
+        assert_eq!(actual, forge_domain::AppConfig::default());
     }
 }
