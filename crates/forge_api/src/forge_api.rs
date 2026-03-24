@@ -309,6 +309,16 @@ impl<
         self.services.set_suggest_config(config).await
     }
 
+    async fn get_agent_model_config(&self, agent_id: &str) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+        self.services.get_agent_model_config(agent_id).await
+    }
+
+    async fn set_agent_model_config(&self, agent_id: String, config: forge_domain::AgentModelConfig) -> anyhow::Result<()> {
+        let result = self.services.set_agent_model_config(agent_id, config).await;
+        let _ = self.services.reload_agents().await;
+        result
+    }
+
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
     }
