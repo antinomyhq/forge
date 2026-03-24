@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use forge_api::Environment;
+use forge_env::Environment;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{ForgeCommandManager, SlashCommand};

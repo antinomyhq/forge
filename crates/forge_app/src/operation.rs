@@ -6,9 +6,10 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
+    CodebaseSearchResults, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, FileOperation,
+    LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
+use forge_env::Environment;
 use forge_template::Element;
 
 use crate::truncation::{

@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::CommandInfra;
-use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
+use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait};
+use forge_env::Environment;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;

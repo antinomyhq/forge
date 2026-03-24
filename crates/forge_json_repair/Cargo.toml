@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }

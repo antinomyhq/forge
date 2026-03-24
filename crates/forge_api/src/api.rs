@@ -4,6 +4,7 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, InitAuth, ModelId, ProviderModels};
+use forge_env::Environment;
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;

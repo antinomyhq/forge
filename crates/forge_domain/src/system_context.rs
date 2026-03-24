@@ -1,8 +1,9 @@
 use derive_setters::Setters;
+use forge_env::Environment;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::{Environment, File, Model, Skill};
+use crate::{File, Model, Skill};
 
 /// Statistics for a file extension
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

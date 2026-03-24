@@ -3,8 +3,9 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Conversation, Environment, LoginInfo, Metrics, Role, Usage, UserUsage};
+use forge_api::{Conversation, LoginInfo, Metrics, Role, Usage, UserUsage};
 use forge_app::utils::truncate_key;
+use forge_env::Environment;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
@@ -769,7 +770,8 @@ impl From<&Conversation> for Info {
 mod tests {
     use std::path::PathBuf;
 
-    use forge_api::{Environment, EventValue};
+    use forge_api::EventValue;
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
 
     // Helper to create minimal test environment

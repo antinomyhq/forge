@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{ConversationId, Environment};
+use forge_api::ConversationId;
+use forge_env::Environment;
 
 //TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI

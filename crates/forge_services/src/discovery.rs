@@ -64,7 +64,7 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_app::WalkedFile;
-    use forge_app::domain::Environment;
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;

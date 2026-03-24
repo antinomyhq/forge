@@ -19,6 +19,7 @@ use forge_display::MarkdownFormat;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
 };
+use forge_env::AutoDumpFormat;
 use forge_fs::ForgeFS;
 use forge_select::ForgeWidget;
 use forge_spinner::SpinnerManager;
@@ -3186,7 +3187,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     )?;
                 }
                 if let Some(format) = self.api.environment().auto_dump {
-                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                    let html = matches!(format, AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }
             }

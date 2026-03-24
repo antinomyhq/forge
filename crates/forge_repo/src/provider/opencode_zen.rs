@@ -5,9 +5,10 @@ use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderResponse,
-    ResultStream, RetryConfig,
+    ResultStream,
 };
 use forge_domain::ChatRepository;
+use forge_env::RetryConfig;
 use url::Url;
 
 use crate::provider::anthropic::AnthropicResponseRepository;

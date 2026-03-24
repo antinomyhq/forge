@@ -6,9 +6,10 @@ use derive_setters::Setters;
 use eventsource_stream::Eventsource;
 use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream,
 };
 use forge_domain::{BoxStream, ChatRepository, Provider};
+use forge_env::RetryConfig;
 use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use tracing::info;

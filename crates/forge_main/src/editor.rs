@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_api::Environment;
+use forge_env::Environment;
 use nu_ansi_term::{Color, Style};
 use reedline::{
     ColumnarMenu, DefaultHinter, EditCommand, Emacs, FileBackedHistory, KeyCode, KeyModifiers,

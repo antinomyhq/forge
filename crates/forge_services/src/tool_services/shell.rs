@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::bail;
-use forge_app::domain::Environment;
 use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
+use forge_env::Environment;
 use strip_ansi_escapes::strip;
 
 // Strips out the ansi codes from content.
@@ -71,8 +71,9 @@ mod tests {
     use std::sync::Arc;
 
     use async_trait::async_trait;
-    use forge_app::domain::{CommandOutput, Environment};
+    use forge_app::domain::CommandOutput;
     use forge_app::{CommandInfra, ShellService};
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;

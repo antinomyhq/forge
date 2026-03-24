@@ -105,6 +105,7 @@ mod tests {
         AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content, FinishReason,
         ModelSource, ProviderId, ProviderResponse, ResultStream,
     };
+    use forge_env::Environment;
     use tokio::sync::Mutex;
     use url::Url;
 

@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 include_dir.workspace = true
 handlebars.workspace = true
 anyhow.workspace = true

@@ -6,6 +6,7 @@ use forge_app::{
     EnvironmentInfra, FileInfoInfra, FileReaderInfra, TemplateEngine, Walker, WalkerInfra,
 };
 use forge_domain::SkillRepository;
+use forge_env::Environment;
 use futures::future::join_all;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
@@ -223,7 +224,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
     ///
     /// # Errors
     /// Returns an error if template rendering fails
-    fn render_skill(&self, skill: Skill, env: &forge_domain::Environment) -> anyhow::Result<Skill> {
+    fn render_skill(&self, skill: Skill, env: &Environment) -> anyhow::Result<Skill> {
         let skill_context = serde_json::json!({
             "global_skills_path": env.global_skills_path().display().to_string(),
             "local_skills_path": env.local_skills_path().display().to_string(),

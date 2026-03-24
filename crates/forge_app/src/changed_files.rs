@@ -82,9 +82,10 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
-        ModelId, ProviderId, ToolKind,
+        Agent, AgentId, Context, Conversation, ConversationId, FileOperation, Metrics, ModelId,
+        ProviderId, ToolKind,
     };
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;

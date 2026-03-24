@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
+use forge_domain::{Conversation, ConversationId, ConversationRepository};
+use forge_env::WorkspaceHash;
 
 use crate::conversation::conversation_record::ConversationRecord;
 use crate::database::DatabasePool;

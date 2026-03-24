@@ -1,5 +1,6 @@
 use forge_display::DiffFormat;
-use forge_domain::{ChatResponseContent, Environment, TitleFormat};
+use forge_domain::{ChatResponseContent, TitleFormat};
+use forge_env::Environment;
 
 use crate::fmt::content::FormatContent;
 use crate::fmt::todo_fmt::{format_todos, format_todos_diff};
@@ -56,7 +57,8 @@ mod tests {
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
-    use forge_domain::{ChatResponseContent, Environment, FileInfo};
+    use forge_domain::{ChatResponseContent, FileInfo};
+    use forge_env::Environment;
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 

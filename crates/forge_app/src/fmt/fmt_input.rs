@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{ChatResponseContent, Environment, TitleFormat, ToolCatalog};
+use forge_domain::{ChatResponseContent, TitleFormat, ToolCatalog};
+use forge_env::Environment;
 
 use crate::fmt::content::FormatContent;
 use crate::utils::format_display_path;

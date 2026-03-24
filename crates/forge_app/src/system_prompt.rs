@@ -3,9 +3,10 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, Extension, ExtensionStat, File, Model, SystemContext,
-    Template, ToolCatalog, ToolDefinition, ToolUsagePrompt,
+    Agent, Conversation, Extension, ExtensionStat, File, Model, SystemContext, Template,
+    ToolCatalog, ToolDefinition, ToolUsagePrompt,
 };
+use forge_env::Environment;
 use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
 use tracing::debug;

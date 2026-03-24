@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 
 html-escape = "0.2.13"
 

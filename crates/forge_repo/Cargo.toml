@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 forge_app.workspace = true
 forge_domain.workspace = true
 forge_infra.workspace = true

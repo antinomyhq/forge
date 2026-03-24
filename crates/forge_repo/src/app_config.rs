@@ -164,7 +164,8 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-    use forge_domain::{AppConfig, Environment, ProviderId};
+    use forge_domain::{AppConfig, ProviderId};
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 

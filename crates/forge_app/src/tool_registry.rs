@@ -4,10 +4,11 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
-    Model, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind,
-    ToolName, ToolOutput, ToolResult,
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, InputModality, Model,
+    SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind, ToolName,
+    ToolOutput, ToolResult,
 };
+use forge_env::Environment;
 use forge_template::Element;
 use futures::future::join_all;
 use serde_json::{Map, Value, json};
@@ -374,7 +375,8 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, Environment, ModelId, ProviderId, ToolCatalog, ToolName};
+    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolCatalog, ToolName};
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;

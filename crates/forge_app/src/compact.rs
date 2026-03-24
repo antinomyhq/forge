@@ -1,7 +1,7 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
-    MessageEntry, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, MessageEntry, Transformer,
 };
+use forge_env::Environment;
 use tracing::info;
 
 use crate::TemplateEngine;

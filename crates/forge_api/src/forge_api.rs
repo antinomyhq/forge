@@ -12,6 +12,7 @@ use forge_app::{
     WorkspaceService,
 };
 use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
+use forge_env::Environment;
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;

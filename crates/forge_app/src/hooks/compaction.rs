@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use forge_domain::{Agent, Conversation, Environment, EventData, EventHandle, ResponsePayload};
+use forge_domain::{Agent, Conversation, EventData, EventHandle, ResponsePayload};
+use forge_env::Environment;
 use tracing::{debug, info};
 
 use crate::compact::Compactor;

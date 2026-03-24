@@ -5,9 +5,10 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
-    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CommandOutput, FileInfo, McpServerConfig, OAuthConfig, OAuthTokenResponse,
+    ToolDefinition, ToolName, ToolOutput,
 };
+use forge_env::Environment;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;

@@ -130,13 +130,14 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::domain::{AttachmentContent, Environment};
+    use forge_app::domain::AttachmentContent;
     use forge_app::utils::compute_hash;
     use forge_app::{
         AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
     use forge_domain::FileInfo;
+    use forge_env::Environment;
     use futures::stream;
 
     use crate::attachment::ForgeChatRequest;

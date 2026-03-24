@@ -8,6 +8,7 @@ rust-version.workspace = true
 proc-macro = true
 
 [dependencies]
+forge_env.workspace = true
 syn.workspace = true
 quote.workspace = true
 proc-macro2.workspace = true

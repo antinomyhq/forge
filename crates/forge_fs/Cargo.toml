@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 sha2.workspace = true

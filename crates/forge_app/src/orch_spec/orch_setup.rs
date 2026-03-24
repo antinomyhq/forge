@@ -4,10 +4,11 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
-    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
-    ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Event, File,
+    MessageEntry, ModelId, ProviderId, Role, Template, ToolCallFull, ToolDefinition, ToolResult,
+    Workflow,
 };
+use forge_env::{Environment, HttpConfig, RetryConfig};
 use url::Url;
 
 use crate::ShellOutput;

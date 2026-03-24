@@ -1,7 +1,8 @@
 use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{Error, RetryConfig};
+use forge_domain::Error;
+use forge_env::RetryConfig;
 
 pub async fn retry_with_config<F, Fut, T, C>(
     config: &RetryConfig,

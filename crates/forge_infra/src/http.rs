@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::HttpInfra;
-use forge_domain::{Environment, TlsBackend, TlsVersion};
+use forge_env::{Environment, TlsBackend, TlsVersion};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Certificate, Client, Response, StatusCode, Url};
@@ -284,7 +284,7 @@ mod tests {
 
     use fake::{Fake, Faker};
     use forge_app::FileWriterInfra;
-    use forge_domain::{Environment, HttpConfig};
+    use forge_env::{Environment, HttpConfig};
     use tokio::sync::Mutex;
 
     use super::*;

@@ -141,7 +141,8 @@ mod tests {
         colors_enabled, colors_enabled_stderr, set_colors_enabled, set_colors_enabled_stderr,
         strip_ansi_codes,
     };
-    use forge_domain::{ChatResponseContent, Environment, Todo, TodoStatus};
+    use forge_domain::{ChatResponseContent, Todo, TodoStatus};
+    use forge_env::Environment;
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 

@@ -628,10 +628,9 @@ mod env_tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use forge_app::domain::{
-        ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
-    };
+    use forge_app::domain::{ChatCompletionMessage, Context, Model, ModelId, ResultStream};
     use forge_domain::{AnyProvider, ChatRepository, ProviderTemplate};
+    use forge_env::Environment;
     use pretty_assertions::assert_eq;
     use url::Url;
 

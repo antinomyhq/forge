@@ -3,11 +3,11 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use aws_sdk_bedrockruntime::config::Token;
-use forge_app::domain::RetryConfig;
 use forge_domain::{
     AuthDetails, ChatCompletionMessage, ChatRepository, Context, Model, ModelId, Provider,
     ResultStream, Transformer,
 };
+use forge_env::RetryConfig;
 use reqwest::Url;
 use tokio::sync::OnceCell;
 use tokio_stream::StreamExt;

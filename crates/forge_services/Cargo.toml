@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 chrono.workspace = true
 tokio.workspace = true
 tracing.workspace = true

@@ -6,6 +6,7 @@
 
 use anyhow::Context as _;
 use forge_domain::{Context, ConversationId};
+use forge_env::WorkspaceHash;
 use serde::{Deserialize, Serialize};
 
 /// Repository-specific representation of ModelId
@@ -936,10 +937,7 @@ pub(super) struct ConversationRecord {
 
 impl ConversationRecord {
     /// Creates a new ConversationRecord from a Conversation domain object
-    pub fn new(
-        conversation: forge_domain::Conversation,
-        workspace_id: forge_domain::WorkspaceHash,
-    ) -> Self {
+    pub fn new(conversation: forge_domain::Conversation, workspace_id: WorkspaceHash) -> Self {
         let context = conversation
             .context
             .as_ref()

@@ -1796,6 +1796,7 @@ dependencies = [
  "async-trait",
  "forge_app",
  "forge_domain",
+ "forge_env",
  "forge_infra",
  "forge_repo",
  "forge_services",
@@ -1861,6 +1862,7 @@ name = "forge_ci"
 version = "0.1.0"
 dependencies = [
  "derive_setters",
+ "forge_env",
  "gh-workflow",
  "indexmap 2.13.0",
  "serde",
@@ -1873,6 +1875,7 @@ version = "0.1.0"
 dependencies = [
  "console 0.16.3",
  "derive_setters",
+ "forge_env",
  "insta",
  "pretty_assertions",
  "regex",
@@ -1930,6 +1933,7 @@ name = "forge_embed"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "forge_env",
  "handlebars",
  "include_dir",
 ]
@@ -1956,6 +1960,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "forge_domain",
+ "forge_env",
  "infer",
  "pretty_assertions",
  "sha2",
@@ -1982,6 +1987,7 @@ dependencies = [
  "fake",
  "forge_app",
  "forge_domain",
+ "forge_env",
  "forge_fs",
  "forge_select",
  "forge_services",
@@ -2014,6 +2020,7 @@ dependencies = [
 name = "forge_json_repair"
 version = "0.1.0"
 dependencies = [
+ "forge_env",
  "pretty_assertions",
  "regex",
  "schemars 1.2.1",
@@ -2044,6 +2051,7 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_embed",
+ "forge_env",
  "forge_fs",
  "forge_markdown_stream",
  "forge_select",
@@ -2085,6 +2093,7 @@ name = "forge_markdown_stream"
 version = "0.1.0"
 dependencies = [
  "colored",
+ "forge_env",
  "insta",
  "streamdown-ansi",
  "streamdown-core",
@@ -2121,6 +2130,7 @@ dependencies = [
  "fake",
  "forge_app",
  "forge_domain",
+ "forge_env",
  "forge_fs",
  "forge_infra",
  "forge_json_repair",
@@ -2164,6 +2174,7 @@ dependencies = [
  "anyhow",
  "colored",
  "console 0.16.3",
+ "forge_env",
  "fzf-wrapped",
  "pretty_assertions",
  "rustyline",
@@ -2188,6 +2199,7 @@ dependencies = [
  "fake",
  "forge_app",
  "forge_domain",
+ "forge_env",
  "forge_fs",
  "forge_snaps",
  "forge_stream",
@@ -2235,6 +2247,7 @@ dependencies = [
  "chrono",
  "fnv_rs",
  "forge_domain",
+ "forge_env",
  "forge_fs",
  "serde",
  "tempfile",
@@ -2249,6 +2262,7 @@ dependencies = [
  "anyhow",
  "colored",
  "forge_domain",
+ "forge_env",
  "indicatif",
  "pretty_assertions",
  "rand 0.10.0",
@@ -2259,6 +2273,7 @@ dependencies = [
 name = "forge_stream"
 version = "0.1.0"
 dependencies = [
+ "forge_env",
  "futures",
  "tokio",
 ]
@@ -2267,6 +2282,7 @@ dependencies = [
 name = "forge_template"
 version = "0.1.0"
 dependencies = [
+ "forge_env",
  "html-escape",
  "pretty_assertions",
 ]
@@ -2275,6 +2291,7 @@ dependencies = [
 name = "forge_test_kit"
 version = "0.1.0"
 dependencies = [
+ "forge_env",
  "serde",
  "serde_json",
  "tokio",
@@ -2284,6 +2301,7 @@ dependencies = [
 name = "forge_tool_macros"
 version = "0.1.0"
 dependencies = [
+ "forge_env",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -2300,6 +2318,7 @@ dependencies = [
  "derive_more",
  "dirs",
  "forge_domain",
+ "forge_env",
  "http 1.4.0",
  "lazy_static",
  "machineid-rs",
@@ -2325,6 +2344,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "derive_setters",
+ "forge_env",
  "ignore",
  "pretty_assertions",
  "tempfile",

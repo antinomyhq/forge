@@ -3,7 +3,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_domain::{InitAuth, RetryConfig};
+use forge_domain::InitAuth;
+use forge_env::RetryConfig;
 
 use crate::{AuthService, Error};
 

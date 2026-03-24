@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{AutoDumpFormat, Environment, RetryConfig, TlsBackend, TlsVersion};
+use forge_env::{AutoDumpFormat, Environment, HttpConfig, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 
 #[derive(Clone)]
@@ -184,9 +184,9 @@ impl_from_env_str_via_from_str! {
     i8, i16, i32, i64, i128, isize,
     f32, f64,
     String,
-    forge_domain::TlsBackend,
-    forge_domain::TlsVersion,
-    forge_domain::AutoDumpFormat,
+    forge_env::TlsBackend,
+    forge_env::TlsVersion,
+    forge_env::AutoDumpFormat,
 }
 
 /// Parse environment variable using custom FromEnvStr trait
@@ -227,8 +227,8 @@ fn resolve_retry_config() -> RetryConfig {
     config
 }
 
-fn resolve_http_config() -> forge_domain::HttpConfig {
-    let mut config = forge_domain::HttpConfig::default();
+fn resolve_http_config() -> HttpConfig {
+    let mut config = HttpConfig::default();
 
     if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_CONNECT_TIMEOUT") {
         config.connect_timeout = parsed;
@@ -298,7 +298,7 @@ mod tests {
     use std::path::PathBuf;
     use std::{env, fs};
 
-    use forge_domain::{TlsBackend, TlsVersion};
+    use forge_env::{TlsBackend, TlsVersion};
     use serial_test::serial;
     use tempfile::{TempDir, tempdir};
 
@@ -453,7 +453,7 @@ mod tests {
 
         // Test defaults match HttpConfig::default()
         let actual = resolve_http_config();
-        let expected = forge_domain::HttpConfig::default();
+        let expected = HttpConfig::default();
         assert_eq!(actual.connect_timeout, expected.connect_timeout);
         assert_eq!(actual.read_timeout, expected.read_timeout);
         assert_eq!(actual.tls_backend, expected.tls_backend);
@@ -640,7 +640,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_auto_dump_env_var() {
-        use forge_domain::AutoDumpFormat;
+        use forge_env::AutoDumpFormat;
         let cwd = tempdir().unwrap().path().to_path_buf();
         let infra = ForgeEnvironmentInfra::new(false, cwd);
 

@@ -9,6 +9,7 @@ name = "forge_markdown_stream"
 path = "src/lib.rs"
 
 [dependencies]
+forge_env.workspace = true
 streamdown-parser = "0.1.4"
 streamdown-core = "0.1.4"
 streamdown-ansi = "0.1.4"

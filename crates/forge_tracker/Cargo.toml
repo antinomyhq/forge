@@ -5,6 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+forge_env.workspace = true
 reqwest.workspace = true
 derive_more.workspace = true
 url.workspace = true
