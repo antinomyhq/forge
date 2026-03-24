@@ -45,6 +45,9 @@ function makeMockApi(pr: PullRequest, issues: Issue[]): MockApi {
     async getPullRequest() {
       return pr;
     },
+    async listIssuesWithLabelPrefix(): Promise<Issue[]> {
+      throw new Error("not used");
+    },
     async addLabels(target, labels) {
       recordAdd(target, labels);
     },
@@ -58,11 +61,12 @@ function makeMockApi(pr: PullRequest, issues: Issue[]): MockApi {
 }
 
 function makeIssue(overrides: Partial<Issue> & { number: number }): Issue {
-  return { title: "issue", state: "open", labels: [], assignees: [], ...overrides };
+  return { title: "issue", html_url: `https://github.com/owner/repo/issues/${overrides.number}`, state: "open", labels: [], assignees: [], ...overrides };
 }
 
 function makePr(overrides: Partial<PullRequest> & { number: number }): PullRequest {
   return {
+    title: "Test PR",
     state: "open",
     merged: false,
     body: null,
