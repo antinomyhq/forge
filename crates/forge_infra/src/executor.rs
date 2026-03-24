@@ -237,6 +237,7 @@ impl CommandInfra for ForgeCommandExecutorService {
         let log_file = tempfile::Builder::new()
             .prefix("forge-bg-")
             .suffix(".log")
+            .disable_cleanup(true)
             .tempfile()
             .map_err(|e| anyhow::anyhow!("Failed to create background log file: {e}"))?;
         let log_path = log_file.path().to_path_buf();

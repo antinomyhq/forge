@@ -2024,53 +2024,86 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Shows all tracked background processes and lets the user select one to
-    /// kill. After killing, asks whether to also delete the log file.
+    /// Lists all tracked background processes in a tabular fzf picker and
+    /// lets the user select one to kill. Press Escape to cancel without
+    /// killing anything. After killing, asks whether to also delete the log
+    /// file.
     async fn on_processes(&mut self) -> anyhow::Result<()> {
-        let processes = self.api.list_background_processes()?;
+        let processes = self.api.list_background_processes().await?;
         if processes.is_empty() {
             self.writeln_title(TitleFormat::debug("No background processes running"))?;
             return Ok(());
         }
 
-        // Build display strings for the picker.
-        // Format: "command | dir | elapsed | status"
-        let display_items: Vec<String> = processes
-            .iter()
-            .map(|(p, alive)| {
-                let status = if *alive { "running" } else { "stopped" };
-                let elapsed = humanize_time(p.started_at);
-                let dir = p
-                    .cwd
-                    .file_name()
-                    .map(|n| n.to_string_lossy().to_string())
-                    .unwrap_or_else(|| p.cwd.display().to_string());
-                format!("{} | {} | {} | {}", p.command, dir, elapsed, status,)
-            })
-            .collect();
+        // Resolve disambiguated nicknames for all CWD paths.
+        let cwds: Vec<std::path::PathBuf> =
+            processes.iter().map(|(p, _)| p.cwd.clone()).collect();
+        let nicknames = forge_domain::resolve_nicknames(&cwds);
 
-        let selected =
-            ForgeWidget::select("Select a background process to kill", display_items.clone())
-                .prompt()?;
+        // Build a tabular Info display (same pattern as model selector).
+        let mut info = Info::new();
+        for (p, alive) in &processes {
+            let status = if *alive { status::YES } else { status::NO };
+            let elapsed = humanize_time(p.started_at);
+            let dir = forge_domain::nickname_for(&p.cwd, &nicknames);
+            info = info
+                .add_title(&p.pid.to_string())
+                .add_key_value("Command", &p.command)
+                .add_key_value("Directory", dir)
+                .add_key_value("Uptime", elapsed)
+                .add_key_value("Alive", status)
+                .add_key_value("Log", p.log_file.display().to_string());
+        }
 
-        let Some(selected_str) = selected else {
+        let porcelain_output = Porcelain::from(&info).drop_col(0).uppercase_headers();
+        let porcelain_str = porcelain_output.to_string();
+        let all_lines: Vec<&str> = porcelain_str.lines().collect();
+        if all_lines.is_empty() {
+            return Ok(());
+        }
+
+        // Typed row that carries the process index for lookup after selection.
+        #[derive(Clone)]
+        struct ProcessRow {
+            index: Option<usize>,
+            display: String,
+        }
+        impl std::fmt::Display for ProcessRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", self.display)
+            }
+        }
+
+        let mut rows: Vec<ProcessRow> = Vec::with_capacity(all_lines.len());
+        // Header row (non-selectable via header_lines=1).
+        rows.push(ProcessRow { index: None, display: all_lines[0].to_string() });
+        // Data rows.
+        for (i, line) in all_lines.iter().skip(1).enumerate() {
+            rows.push(ProcessRow { index: Some(i), display: line.to_string() });
+        }
+
+        let selected = ForgeWidget::select(
+            "Background processes (select to kill, Esc to cancel)",
+            rows,
+        )
+        .with_header_lines(1)
+        .prompt()?;
+
+        let Some(row) = selected else {
+            return Ok(());
+        };
+        let Some(idx) = row.index else {
             return Ok(());
         };
 
-        // Find the PID by matching the selected display string back to the
-        // processes list (same order as display_items).
-        let idx = display_items
-            .iter()
-            .position(|s| s == &selected_str)
-            .ok_or_else(|| anyhow::anyhow!("Failed to match selection"))?;
         let pid = processes[idx].0.pid;
         let log_file = processes[idx].0.log_file.clone();
 
-        // Kill the process and remove from manager, keeping log file for now
-        self.api.kill_background_process(pid, false)?;
+        // Kill the process and remove from manager, keeping log file for now.
+        self.api.kill_background_process(pid, false).await?;
         self.writeln_title(TitleFormat::action(format!("Killed process {pid}")))?;
 
-        // Ask about log file deletion
+        // Ask about log file deletion.
         let delete_log = ForgeWidget::confirm("Delete the log file?")
             .with_default(false)
             .prompt()?;
@@ -2095,14 +2128,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         delete_log: bool,
     ) -> anyhow::Result<()> {
         if let Some(pid) = kill_pid {
-            self.api.kill_background_process(pid, delete_log)?;
+            self.api.kill_background_process(pid, delete_log).await?;
             if !porcelain {
                 self.writeln_title(TitleFormat::action(format!("Killed process {pid}")))?;
             }
             return Ok(());
         }
 
-        let processes = self.api.list_background_processes()?;
+        let processes = self.api.list_background_processes().await?;
         if porcelain {
             // Tab-separated output for machine consumption
             for (p, alive) in &processes {
@@ -2119,14 +2152,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         } else if processes.is_empty() {
             self.writeln_title(TitleFormat::debug("No background processes running"))?;
         } else {
+            // Resolve disambiguated nicknames for all CWD paths.
+            let cwds: Vec<std::path::PathBuf> =
+                processes.iter().map(|(p, _)| p.cwd.clone()).collect();
+            let nicknames = forge_domain::resolve_nicknames(&cwds);
+
             for (p, alive) in &processes {
                 let status = if *alive { "running" } else { "stopped" };
                 let elapsed = humanize_time(p.started_at);
+                let dir = forge_domain::nickname_for(&p.cwd, &nicknames);
                 self.writeln_title(TitleFormat::debug(format!(
-                    "PID {} | {} | {} | {} | log: {}",
+                    "PID {} | {} | {} | {} | {} | log: {}",
                     p.pid,
                     status,
                     p.command,
+                    dir,
                     elapsed,
                     p.log_file.display()
                 )))?;

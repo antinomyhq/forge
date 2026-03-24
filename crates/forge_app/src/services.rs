@@ -517,12 +517,12 @@ pub trait ShellService: Send + Sync {
     ) -> anyhow::Result<ShellOutput>;
 
     /// Returns all tracked background processes with their alive status.
-    fn list_background_processes(
+    async fn list_background_processes(
         &self,
     ) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>>;
 
     /// Kills a background process by PID and removes it from tracking.
-    fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()>;
+    async fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -963,15 +963,16 @@ impl<I: Services> ShellService for I {
             .await
     }
 
-    fn list_background_processes(
+    async fn list_background_processes(
         &self,
     ) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
-        self.shell_service().list_background_processes()
+        self.shell_service().list_background_processes().await
     }
 
-    fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()> {
+    async fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()> {
         self.shell_service()
             .kill_background_process(pid, delete_log)
+            .await
     }
 }
 

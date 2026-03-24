@@ -415,14 +415,15 @@ impl<
         app.execute(data_parameters).await
     }
 
-    fn list_background_processes(&self) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
-        self.services.shell_service().list_background_processes()
+    async fn list_background_processes(&self) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
+        self.services.shell_service().list_background_processes().await
     }
 
-    fn kill_background_process(&self, pid: u32, delete_log: bool) -> Result<()> {
+    async fn kill_background_process(&self, pid: u32, delete_log: bool) -> Result<()> {
         self.services
             .shell_service()
             .kill_background_process(pid, delete_log)
+            .await
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {

@@ -251,13 +251,13 @@ impl ShellService for Runner {
         }
     }
 
-    fn list_background_processes(
+    async fn list_background_processes(
         &self,
     ) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
         Ok(Vec::new())
     }
 
-    fn kill_background_process(&self, _pid: u32, _delete_log: bool) -> anyhow::Result<()> {
+    async fn kill_background_process(&self, _pid: u32, _delete_log: bool) -> anyhow::Result<()> {
         Ok(())
     }
 }

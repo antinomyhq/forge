@@ -1,3 +1,4 @@
+use std::hash::Hasher;
 use std::path::PathBuf;
 
 use chrono::{DateTime, Utc};
@@ -16,4 +17,13 @@ pub struct BackgroundProcess {
     pub log_file: PathBuf,
     /// When the process was spawned.
     pub started_at: DateTime<Utc>,
+}
+
+impl BackgroundProcess {
+    /// Creates an FNV-64 hash of the CWD path for use as a metadata filename.
+    pub fn cwd_hash(cwd: &std::path::Path) -> String {
+        let mut hasher = fnv_rs::Fnv64::default();
+        hasher.write(cwd.to_string_lossy().as_bytes());
+        format!("{:x}", hasher.finish())
+    }
 }

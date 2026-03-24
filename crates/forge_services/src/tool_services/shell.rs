@@ -30,7 +30,7 @@ impl<I: EnvironmentInfra> ForgeShell<I> {
     /// process manager for tracking long-running detached processes.
     pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
-        let bg_manager = Arc::new(BackgroundProcessManager::new());
+        let bg_manager = Arc::new(BackgroundProcessManager::new(env.processes_path()));
         Self { env, infra, bg_manager }
     }
 
@@ -70,7 +70,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
                 cwd,
                 bg_output.log_file.clone(),
                 bg_output.log_handle,
-            )?;
+            ).await?;
 
             return Ok(ShellOutput {
                 kind: ShellOutputKind::Background {
@@ -100,14 +100,14 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         })
     }
 
-    fn list_background_processes(
+    async fn list_background_processes(
         &self,
     ) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
-        self.bg_manager.list_with_status()
+        self.bg_manager.list_with_status().await
     }
 
-    fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()> {
-        self.bg_manager.kill(pid, delete_log)
+    async fn kill_background_process(&self, pid: u32, delete_log: bool) -> anyhow::Result<()> {
+        self.bg_manager.kill(pid, delete_log).await
     }
 }
 #[cfg(test)]
@@ -125,6 +125,8 @@ mod tests {
 
     struct MockCommandInfra {
         expected_env_vars: Option<Vec<String>>,
+        _temp_dir: tempfile::TempDir,
+        base_path: PathBuf,
     }
 
     #[async_trait]
@@ -180,7 +182,9 @@ mod tests {
     impl EnvironmentInfra for MockCommandInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            Faker.fake()
+            let mut env: Environment = Faker.fake();
+            env.base_path = self.base_path.clone();
+            env
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
@@ -197,7 +201,13 @@ mod tests {
     }
 
     fn make_shell(expected_env_vars: Option<Vec<String>>) -> ForgeShell<MockCommandInfra> {
-        ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars }))
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_path = temp_dir.path().to_path_buf();
+        ForgeShell::new(Arc::new(MockCommandInfra {
+            expected_env_vars,
+            _temp_dir: temp_dir,
+            base_path,
+        }))
     }
 
     /// Extracts the foreground CommandOutput from a ShellOutput, panicking if
@@ -353,7 +363,7 @@ mod tests {
             _ => panic!("Expected Background"),
         }
 
-        let tracked = fixture.list_background_processes().unwrap();
+        let tracked = fixture.list_background_processes().await.unwrap();
         assert_eq!(tracked.len(), 1);
         assert_eq!(tracked[0].0.pid, 9999);
     }
