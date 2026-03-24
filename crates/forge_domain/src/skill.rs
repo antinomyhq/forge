@@ -82,8 +82,6 @@ pub struct SelectedSkill {
     pub name: String,
     /// Relevance score (0.0–1.0) of the skill against the user prompt
     pub relevance: f32,
-    /// 1-based rank of this skill in the selection results
-    pub rank: u64,
 }
 
 impl SelectedSkill {
@@ -92,9 +90,8 @@ impl SelectedSkill {
     /// # Arguments
     /// * `name` - The skill identifier
     /// * `relevance` - How relevant the skill is (0.0–1.0)
-    /// * `rank` - Position in the ranked list (1-based)
-    pub fn new(name: impl Into<String>, relevance: f32, rank: u64) -> Self {
-        Self { name: name.into(), relevance, rank }
+    pub fn new(name: impl Into<String>, relevance: f32) -> Self {
+        Self { name: name.into(), relevance }
     }
 }
 

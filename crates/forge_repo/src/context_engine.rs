@@ -410,7 +410,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let selected_skills = response
             .skills
             .into_iter()
-            .map(|skill| SelectedSkill::new(skill.name, skill.relevance, skill.rank))
+            .map(|skill| SelectedSkill::new(skill.name, skill.relevance))
             .collect();
 
         Ok(selected_skills)

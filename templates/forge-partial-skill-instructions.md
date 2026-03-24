@@ -5,12 +5,10 @@
 How skills work:
 
 1. **Invocation**: Use the `skill` tool with just the skill name parameter
-
    - Example: Call skill tool with `{"name": "mock-calculator"}`
    - No additional arguments needed
 
 2. **Response**: The tool returns the skill's details wrapped in `<skill_details>` containing:
-
    - `<command path="..."><![CDATA[...]]></command>` - The complete SKILL.md file content with the skill's path
    - `<resource>` tags - List of additional resource files available in the skill directory
    - Includes usage guidelines, instructions, and any domain-specific knowledge
@@ -28,18 +26,7 @@ Examples of skill invocation:
 
 Important:
 
-- Only invoke skills listed in `<available_skills>` below
+- Only invoke skills listed by the skill tool
 - Do not invoke a skill that is already active/loaded
 - Skills are not CLI commands - use the skill tool to load them
 - After loading a skill, follow its specific instructions to help the user
-
-<available_skills>
-{{#each skills}}
-<skill>
-<name>{{this.name}}</name>
-<description>
-{{this.description}}
-</description>
-</skill>
-{{/each}}
-</available_skills>
