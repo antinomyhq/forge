@@ -120,7 +120,7 @@ if [[ -n "$ZSH" ]] && [[ -d "$ZSH" ]]; then
     fi
     print_result info "${ZSH}"
 else
-    print_result fail "Oh My Zsh not found" "Install: sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\""
+    print_result warn "Oh My Zsh not found" "Optional: sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\""
 fi
 
 # 2. Check if forge is installed and in PATH
@@ -529,17 +529,13 @@ if [[ -n "$NERD_FONT" ]]; then
     if [[ "$NERD_FONT" == "1" || "$NERD_FONT" == "true" ]]; then
         print_result pass "NERD_FONT: enabled"
     else
-        print_result fail "NERD_FONT: disabled (${NERD_FONT})"
-        print_result instruction "Enable Nerd Font by setting:"
-        print_result code "export NERD_FONT=1"
+        print_result warn "NERD_FONT: disabled (${NERD_FONT})" "Icons may not display correctly; re-enable with: export NERD_FONT=1"
     fi
 elif [[ -n "$USE_NERD_FONT" ]]; then
     if [[ "$USE_NERD_FONT" == "1" || "$USE_NERD_FONT" == "true" ]]; then
         print_result pass "USE_NERD_FONT: enabled"
     else
-        print_result fail "USE_NERD_FONT: disabled (${USE_NERD_FONT})"
-        print_result instruction "Enable Nerd Font by setting:"
-        print_result code "export NERD_FONT=1"
+        print_result warn "USE_NERD_FONT: disabled (${USE_NERD_FONT})" "Icons may not display correctly; re-enable with: export NERD_FONT=1"
     fi
 else
     print_result pass "Nerd Font: enabled (default)"
