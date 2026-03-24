@@ -29,13 +29,12 @@ impl ConfigReader {
         builder = builder.add_source(config::File::from_str(defaults, config::FileFormat::Toml));
 
         // Load from path
-        if let Some(path) = path {
-            if tokio::fs::try_exists(path).await? {
+        if let Some(path) = path
+            && tokio::fs::try_exists(path).await? {
                 let contents = tokio::fs::read_to_string(path).await?;
                 builder =
                     builder.add_source(config::File::from_str(&contents, config::FileFormat::Toml));
             }
-        }
 
         // Load from environment
         builder = builder.add_source(
