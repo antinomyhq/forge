@@ -1214,6 +1214,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
+                .sort_by(&[1, 0])
                 .to_case(&[1], Case::UpperSnake)
                 .map_col(0, |col| {
                     if col.as_deref() == Some(headers::ID) {
