@@ -1,6 +1,4 @@
 {
-  "shell": "bash",
-  "forge_api_url": "https://example.com",
   "retry_config": {
     "initial_backoff_ms": 200,
     "min_delay_ms": 1000,
@@ -45,7 +43,7 @@
   "max_conversations": 100,
   "max_sem_search_results": 100,
   "sem_search_top_k": 10,
-  "workspace_server_url": "http://localhost:8080",
+  "workspace_server_url": "https://api.forgecode.dev/",
   "max_extensions": 15,
   "auto_dump": null,
   "parallel_file_reads": 64,

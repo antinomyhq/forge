@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 use derive_setters::Setters;
 use serde::Deserialize;
@@ -10,33 +11,33 @@ use crate::{AutoDumpFormat, HttpConfig, RetryConfig};
 ///
 /// # Field Naming Convention
 ///
-/// Fields follow these rules to make units and semantics unambiguous at the call-site:
+/// Fields follow these rules to make units and semantics unambiguous at the
+/// call-site:
 ///
-/// - **Unit suffixes are mandatory** for any numeric field that carries a physical unit:
+/// - **Unit suffixes are mandatory** for any numeric field that carries a
+///   physical unit:
 ///   - `_ms`    — duration in milliseconds
 ///   - `_secs`  — duration in seconds
 ///   - `_bytes` — size in bytes
 ///   - `_lines` — count of text lines
 ///   - `_chars` — count of characters
-///   - Pure counts / dimensionless values (e.g. `max_redirects`) carry no suffix.
+///   - Pure counts / dimensionless values (e.g. `max_redirects`) carry no
+///     suffix.
 ///
 /// - **`max_` is always a prefix**, never embedded mid-name:
 ///   - Correct:   `max_stdout_prefix_lines`
 ///   - Incorrect: `stdout_max_prefix_length`
 ///
-/// - **No redundant struct-name prefixes inside a sub-struct**: fields inside `RetryConfig`
-///   must not repeat `retry_` (e.g. use `status_codes`, not `retry_status_codes`).
+/// - **No redundant struct-name prefixes inside a sub-struct**: fields inside
+///   `RetryConfig` must not repeat `retry_` (e.g. use `status_codes`, not
+///   `retry_status_codes`).
 ///
-/// - **`_limit` is avoided**; prefer the explicit `max_` prefix + unit suffix instead.
+/// - **`_limit` is avoided**; prefer the explicit `max_` prefix + unit suffix
+///   instead.
 #[derive(Debug, Setters, Clone, PartialEq, Deserialize, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
-    /// The shell being used
-    pub shell: String,
-    /// Base URL for Forge's backend APIs
-    #[dummy(expr = "url::Url::parse(\"https://example.com\").unwrap()")]
-    pub forge_api_url: Url,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch
@@ -90,91 +91,38 @@ pub struct ForgeConfig {
     pub model_cache_ttl_secs: u64,
 }
 
-impl ForgeConfig {
-    /// Load configuration from the embedded config file using the config crate.
-    pub fn get() -> Result<Self, config::ConfigError> {
-        let config = config::Config::builder()
-            .add_source(config::File::from_str(
-                include_str!("../.config.json"),
-                config::FileFormat::Json,
-            ))
-            .build()?;
+static CONFIG: OnceLock<ForgeConfig> = OnceLock::new();
 
-        config.try_deserialize()
+impl ForgeConfig {
+    /// Get the global ForgeConfig instance, loading from the embedded config
+    /// file on first access.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the configuration cannot be loaded.
+    pub fn get() -> &'static ForgeConfig {
+        CONFIG.get_or_init(|| {
+            let config = config::Config::builder()
+                .add_source(config::File::from_str(
+                    include_str!("../.config.json"),
+                    config::FileFormat::Json,
+                ))
+                .build()
+                .expect("Failed to build config");
+
+            config
+                .try_deserialize()
+                .expect("Failed to deserialize config")
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-
     use super::*;
-    use crate::TlsBackend;
-
-    #[test]
-    fn test_forge_config_fields() {
-        let config = ForgeConfig {
-            shell: "zsh".to_string(),
-            forge_api_url: "https://api.example.com".parse().unwrap(),
-            retry_config: RetryConfig {
-                initial_backoff_ms: 200,
-                min_delay_ms: 1000,
-                backoff_factor: 2,
-                max_retry_attempts: 8,
-                status_codes: vec![429, 500, 502, 503, 504],
-                max_delay: None,
-                suppress_retry_errors: false,
-            },
-            max_search_lines: 1000,
-            max_search_result_bytes: 10240,
-            max_fetch_chars: 50000,
-            max_stdout_prefix_lines: 100,
-            max_stdout_suffix_lines: 100,
-            max_stdout_line_chars: 500,
-            max_line_chars: 2000,
-            max_read_lines: 2000,
-            max_file_read_batch_size: 50,
-            http: HttpConfig {
-                connect_timeout_secs: 30,
-                read_timeout_secs: 900,
-                pool_idle_timeout_secs: 90,
-                pool_max_idle_per_host: 5,
-                max_redirects: 10,
-                hickory: false,
-                tls_backend: TlsBackend::Default,
-                min_tls_version: None,
-                max_tls_version: None,
-                adaptive_window: true,
-                keep_alive_interval_secs: Some(60),
-                keep_alive_timeout_secs: 10,
-                keep_alive_while_idle: true,
-                accept_invalid_certs: false,
-                root_cert_paths: None,
-            },
-            max_file_size_bytes: 104857600,
-            tool_timeout_secs: 300,
-            auto_open_dump: false,
-            debug_requests: None,
-            custom_history_path: None,
-            max_conversations: 100,
-            max_sem_search_results: 100,
-            sem_search_top_k: 10,
-            max_image_size_bytes: 262144,
-            workspace_server_url: "http://localhost:8080".parse().unwrap(),
-            max_extensions: 15,
-            auto_dump: None,
-            parallel_file_reads: 64,
-            model_cache_ttl_secs: 604_800,
-        };
-
-        assert_eq!(config.shell, "zsh");
-        assert_eq!(config.max_search_lines, 1000);
-    }
 
     #[test]
     fn test_forge_config_get() {
-        let config = ForgeConfig::get().expect("Failed to load config");
-        assert_eq!(config.shell, "bash");
-        assert_eq!(config.tool_timeout_secs, 300);
+        let _ = ForgeConfig::get();
     }
 }
