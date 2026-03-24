@@ -256,7 +256,6 @@ impl CommandInfra for ForgeCommandExecutorService {
             &working_dir,
             &log_path_str,
             &self.env.shell,
-            self.restricted,
             env_vars,
         )
         .await?;
@@ -273,7 +272,6 @@ async fn spawn_background_process(
     working_dir: &Path,
     log_path: &str,
     shell: &str,
-    restricted: bool,
     env_vars: Option<Vec<String>>,
 ) -> anyhow::Result<u32> {
     let is_windows = cfg!(target_os = "windows");
@@ -284,9 +282,8 @@ async fn spawn_background_process(
         cmd.args(["/C", "start", "/b", "cmd", "/C", &bg_command]);
         cmd
     } else {
-        let shell_bin = if restricted { "rbash" } else { shell };
         let bg_command = format!("nohup {command} > {log_path} 2>&1 & echo $!");
-        let mut cmd = Command::new(shell_bin);
+        let mut cmd = Command::new(shell);
         cmd.arg("-c").arg(&bg_command);
         cmd
     };
