@@ -2955,6 +2955,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             event = event.additional_context(piped);
         }
 
+        // Add CLI --context as additional context if provided
+        // This allows the ZSH plugin to pass the last shell command as context
+        if let Some(ctx) = &self.cli.context {
+            event = event.additional_context(ctx.clone());
+        }
+
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
 

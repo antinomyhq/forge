@@ -79,6 +79,15 @@ pub struct Cli {
     #[arg(long)]
     pub provider: Option<ProviderId>,
 
+    /// Additional context to include with the prompt.
+    ///
+    /// This allows passing contextual information (e.g., the last shell command
+    /// executed) to help the agent understand the user's intent. This is
+    /// particularly useful when using the ZSH plugin's `:` command after
+    /// running shell commands.
+    #[arg(long)]
+    pub context: Option<String>,
+
     /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,

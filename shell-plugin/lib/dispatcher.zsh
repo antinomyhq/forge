@@ -78,8 +78,16 @@ function _forge_action_default() {
         _FORGE_ACTIVE_AGENT="$user_action"
     fi
     
-    # Execute the forge command directly with proper escaping
-    _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+    # Capture last command from history for context
+    # This allows forge to understand what the user was doing before asking for help
+    local last_cmd=$(fc -ln -1 2>/dev/null || echo "")
+    
+    # Execute the forge command with last command context
+    if [[ -n "$last_cmd" ]]; then
+        _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID" --context "Last command: $last_cmd"
+    else
+        _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+    fi
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
