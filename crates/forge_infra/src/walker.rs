@@ -16,7 +16,12 @@ impl ForgeWalkerService {
             && config.max_files.is_none()
             && config.max_total_size.is_none()
         {
-            forge_walker::Walker::max_all()
+            // Domain-level `Walker::unlimited()` has no bounds set.  Map to
+            // `forge_walker::Walker::unlimited()` (not `max_all()`) so that
+            // the safety ceilings introduced in `max_all()` are not silently
+            // stripped away.  Callers that want safe defaults should use
+            // `Walker::conservative()` at the domain layer.
+            forge_walker::Walker::unlimited()
         } else {
             forge_walker::Walker::min_all()
         };

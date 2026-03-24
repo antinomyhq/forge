@@ -49,6 +49,15 @@ const DEFAULT_MAX_TOTAL_SIZE: u64 = 10 * 1024 * 1024; // 10MB
 const DEFAULT_MAX_DEPTH: usize = 5;
 const DEFAULT_MAX_BREADTH: usize = 10;
 
+/// Safety ceilings for `Walker::max_all()`. These prevent OOM when the
+/// workspace root is a broad directory like `$HOME` or `/`.
+/// Callers that genuinely need no limits should use `Walker::unlimited()`.
+const SAFE_MAX_FILE_SIZE: u64 = 100 * 1024 * 1024; // 100MB per file
+const SAFE_MAX_FILES: usize = 100_000; // 100k files total
+const SAFE_MAX_TOTAL_SIZE: u64 = 2 * 1024 * 1024 * 1024; // 2GB aggregate
+const SAFE_MAX_DEPTH: usize = 50; // 50 directory levels
+const SAFE_MAX_BREADTH: usize = 50_000; // 50k entries per directory
+
 impl Walker {
     /// Creates a new Walker instance with all settings set to conservative
     /// values.
@@ -64,10 +73,33 @@ impl Walker {
         }
     }
 
-    /// Creates a new Walker instance with all settings set to maximum values.
-    /// NOTE: This could produce a large number of files and should be used with
-    /// carefully.
+    /// Creates a new Walker instance with generous-but-safe limits.
+    ///
+    /// Unlike `unlimited()`, this applies safety ceilings (100k files, 50
+    /// depth levels, 2 GB aggregate) to prevent runaway memory usage when the
+    /// workspace root is a broad directory such as `$HOME` or `/`.
+    ///
+    /// Prefer `unlimited()` only when you genuinely need unbounded traversal
+    /// (e.g. tool-search inside a known, bounded scope).
     pub fn max_all() -> Self {
+        Self {
+            cwd: PathBuf::new(),
+            max_depth: SAFE_MAX_DEPTH,
+            max_breadth: SAFE_MAX_BREADTH,
+            max_file_size: SAFE_MAX_FILE_SIZE,
+            max_files: SAFE_MAX_FILES,
+            max_total_size: SAFE_MAX_TOTAL_SIZE,
+            skip_binary: false,
+        }
+    }
+
+    /// Creates a new Walker instance with **no** limits.
+    ///
+    /// ⚠️ Use with caution: scanning large directory trees (e.g. `$HOME`) with
+    /// no limits can exhaust memory and cause OOM crashes.  For most callers
+    /// `max_all()` (which applies generous-but-safe ceilings) is a better
+    /// choice.
+    pub fn unlimited() -> Self {
         Self {
             cwd: PathBuf::new(),
             max_depth: usize::MAX,
@@ -537,5 +569,42 @@ mod tests {
                 file
             );
         }
+    }
+
+    /// Validate that `max_all()` has safe, finite limits rather than
+    /// `usize::MAX` / `u64::MAX`.  This guards against regressions that
+    /// would re-introduce the 69GB OOM bug on broad workspaces (#2630).
+    #[test]
+    fn test_max_all_has_safe_finite_limits() {
+        let walker = Walker::max_all();
+
+        assert!(
+            walker.max_depth < usize::MAX,
+            "max_all() max_depth must not be usize::MAX to prevent runaway traversal"
+        );
+        assert!(
+            walker.max_breadth < usize::MAX,
+            "max_all() max_breadth must not be usize::MAX"
+        );
+        assert!(
+            walker.max_files < usize::MAX,
+            "max_all() max_files must not be usize::MAX"
+        );
+        assert!(
+            walker.max_total_size < u64::MAX,
+            "max_all() max_total_size must not be u64::MAX"
+        );
+    }
+
+    /// Validate that `unlimited()` truly has no bounds (for callers that need
+    /// genuine unrestricted traversal).
+    #[test]
+    fn test_unlimited_has_no_bounds() {
+        let walker = Walker::unlimited();
+
+        assert_eq!(walker.max_depth, usize::MAX);
+        assert_eq!(walker.max_breadth, usize::MAX);
+        assert_eq!(walker.max_files, usize::MAX);
+        assert_eq!(walker.max_total_size, u64::MAX);
     }
 }

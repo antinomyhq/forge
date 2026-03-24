@@ -18,6 +18,9 @@ pub struct InputCompleter {
 
 impl InputCompleter {
     pub fn new(cwd: PathBuf, command_manager: Arc<ForgeCommandManager>) -> Self {
+        // Use safe limits for tab-completion: scanning unbounded directories
+        // (e.g. $HOME) with Walker::unlimited() causes 69GB+ memory usage.
+        // max_all() applies generous-but-safe ceilings (100k files, 50 depth).
         let walker = Walker::max_all().cwd(cwd).skip_binary(true);
         Self {
             walker,
