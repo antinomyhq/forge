@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// TLS version enum for configuring TLS protocol versions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum TlsVersion {
     #[serde(rename = "1.0")]
     V1_0,
@@ -16,7 +16,7 @@ pub enum TlsVersion {
 
 /// TLS backend option.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum TlsBackend {
     #[serde(rename = "default")]
     Default,
@@ -26,11 +26,11 @@ pub enum TlsBackend {
 
 /// HTTP client configuration.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct HttpConfig {
-    pub connect_timeout: u64,
-    pub read_timeout: u64,
-    pub pool_idle_timeout: u64,
+    pub connect_timeout_secs: u64,
+    pub read_timeout_secs: u64,
+    pub pool_idle_timeout_secs: u64,
     pub pool_max_idle_per_host: usize,
     pub max_redirects: usize,
     pub hickory: bool,
@@ -42,9 +42,9 @@ pub struct HttpConfig {
     /// Adaptive window sizing for improved flow control
     pub adaptive_window: bool,
     /// Keep-alive interval in seconds
-    pub keep_alive_interval: Option<u64>,
+    pub keep_alive_interval_secs: Option<u64>,
     /// Keep-alive timeout in seconds
-    pub keep_alive_timeout: u64,
+    pub keep_alive_timeout_secs: u64,
     /// Keep-alive while connection is idle
     pub keep_alive_while_idle: bool,
     /// Accept invalid certificates
@@ -62,9 +62,9 @@ mod tests {
     #[test]
     fn test_http_config_fields() {
         let config = HttpConfig {
-            connect_timeout: 30,
-            read_timeout: 900,
-            pool_idle_timeout: 90,
+            connect_timeout_secs: 30,
+            read_timeout_secs: 900,
+            pool_idle_timeout_secs: 90,
             pool_max_idle_per_host: 5,
             max_redirects: 10,
             hickory: false,
@@ -72,13 +72,13 @@ mod tests {
             min_tls_version: None,
             max_tls_version: None,
             adaptive_window: true,
-            keep_alive_interval: Some(60),
-            keep_alive_timeout: 10,
+            keep_alive_interval_secs: Some(60),
+            keep_alive_timeout_secs: 10,
             keep_alive_while_idle: true,
             accept_invalid_certs: false,
             root_cert_paths: None,
         };
-        assert_eq!(config.connect_timeout, 30);
+        assert_eq!(config.connect_timeout_secs, 30);
         assert_eq!(config.adaptive_window, true);
     }
 

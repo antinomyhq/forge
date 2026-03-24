@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Configuration for retry mechanism.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct RetryConfig {
     /// Initial backoff delay in milliseconds for retry operations
     pub initial_backoff_ms: u64,
@@ -13,7 +13,7 @@ pub struct RetryConfig {
     /// Maximum number of retry attempts
     pub max_retry_attempts: usize,
     /// HTTP status codes that should trigger retries
-    pub retry_status_codes: Vec<u16>,
+    pub status_codes: Vec<u16>,
     /// Maximum delay between retries in seconds
     pub max_delay: Option<u64>,
     /// Whether to suppress retry error logging and events
@@ -33,7 +33,7 @@ mod tests {
             min_delay_ms: 1000,
             backoff_factor: 2,
             max_retry_attempts: 8,
-            retry_status_codes: vec![429, 500, 502, 503, 504, 408, 522, 520, 529],
+            status_codes: vec![429, 500, 502, 503, 504, 408, 522, 520, 529],
             max_delay: None,
             suppress_retry_errors: false,
         };
