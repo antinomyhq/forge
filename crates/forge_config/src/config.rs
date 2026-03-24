@@ -125,17 +125,28 @@ pub struct ForgeConfig {
 }
 
 impl ForgeConfig {
-    /// Get the global ForgeConfig instance, loading from the embedded config
-    /// file on first access.
+    /// Returns the path to the user configuration file: `~/.forge/.forge.toml`.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if the configuration cannot be loaded.
-    pub async fn read() -> ForgeConfig {
-        ConfigReader::new()
-            .read()
-            .await
-            .expect("Failed to load configuration")
+    /// Returns an error if the home directory cannot be determined.
+    pub fn config_path() -> crate::Result<PathBuf> {
+        let home_dir = dirs::home_dir().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::NotFound, "home directory not found")
+        })?;
+        Ok(home_dir.join(".forge").join(".forge.toml"))
+    }
+
+    /// Reads and merges configuration from all sources, returning the resolved
+    /// [`ForgeConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config path cannot be resolved, the file cannot
+    /// be read, or the configuration cannot be deserialized.
+    pub async fn read() -> crate::Result<ForgeConfig> {
+        let path = Self::config_path()?;
+        ConfigReader::new().read(&path).await
     }
 
     /// Writes the configuration to the user config file.
@@ -145,6 +156,7 @@ impl ForgeConfig {
     /// Returns an error if the configuration cannot be serialized or written to
     /// disk.
     pub async fn write(&self) -> crate::Result<()> {
-        ConfigWriter::new(self.clone()).write().await
+        let path = Self::config_path()?;
+        ConfigWriter::new(self.clone()).write(&path).await
     }
 }
