@@ -2383,5 +2383,53 @@
       }
     ],
     "auth_methods": ["api_key"]
+  },
+  {
+    "id": "novita",
+    "api_key_vars": "NOVITA_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.novita.ai/openai/v1/chat/completions",
+    "models": [
+      {
+        "id": "moonshotai/kimi-k2.5",
+        "name": "Kimi K2.5",
+        "description": "Moonshot AI's flagship MoE model with 262K context, function calling, structured output, reasoning, and vision capabilities",
+        "context_length": 262144,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "zai-org/glm-5",
+        "name": "GLM-5",
+        "description": "Zhipu AI's flagship MoE model with 202K context, function calling, structured output, and reasoning capabilities",
+        "context_length": 202800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "minimax/minimax-m2.5",
+        "name": "MiniMax M2.5",
+        "description": "MiniMax's MoE model with 204K context, function calling, structured output, and reasoning capabilities",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen/qwen3-embedding-0.6b",
+        "name": "Qwen3 Embedding 0.6B",
+        "description": "Qwen3 embedding model with 1024 dimensions and 8K max input",
+        "context_length": 8192,
+        "tools_supported": false,
+        "input_modalities": ["text"]
+      }
+    ],
+    "auth_methods": ["api_key"]
   }
 ]
