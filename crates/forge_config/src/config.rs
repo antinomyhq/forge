@@ -40,7 +40,7 @@ use crate::{
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
-pub struct ForgeConfig {
+pub struct AppConfig {
     /// Configuration for the retry mechanism
     pub retry: RetryConfig,
     /// The maximum number of lines returned for FSSearch
@@ -194,7 +194,7 @@ pub struct ForgeConfig {
     pub compact: Option<Compact>,
 }
 
-impl ForgeConfig {
+impl AppConfig {
     /// Returns the path to the user configuration file: `~/.forge/.forge.toml`.
     ///
     /// # Errors
@@ -214,7 +214,7 @@ impl ForgeConfig {
     ///
     /// Returns an error if the config path cannot be resolved, the file cannot
     /// be read, or the configuration cannot be deserialized.
-    pub async fn read() -> crate::Result<ForgeConfig> {
+    pub async fn read() -> crate::Result<AppConfig> {
         let path = Self::config_path()?;
         ConfigReader::new().read(Some(&path)).await
     }

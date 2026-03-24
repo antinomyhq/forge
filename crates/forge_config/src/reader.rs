@@ -2,7 +2,7 @@ use std::path::Path;
 
 use config::Config;
 
-use crate::ForgeConfig;
+use crate::AppConfig;
 
 /// Reads and merges [`ForgeConfig`] from multiple sources: embedded defaults,
 /// home directory file, current working directory file, and environment
@@ -21,7 +21,7 @@ impl ConfigReader {
     /// Sources are applied in increasing priority order: embedded defaults,
     /// the optional file at `path` (skipped when `None`), then environment
     /// variables prefixed with `FORGE_`.
-    pub async fn read(&self, path: Option<&Path>) -> crate::Result<ForgeConfig> {
+    pub async fn read(&self, path: Option<&Path>) -> crate::Result<AppConfig> {
         let defaults = include_str!("../.forge.toml");
         let mut builder = Config::builder();
 
