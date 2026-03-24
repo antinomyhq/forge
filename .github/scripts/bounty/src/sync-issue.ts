@@ -11,6 +11,7 @@
 
 import * as url from "url";
 import { execSync } from "child_process";
+import chalk from "chalk";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { GitHubRestApi, type GitHubApi } from "./api.js";
@@ -62,17 +63,18 @@ export async function syncIssue({ issueNumber, api }: PlanIssueInput): Promise<P
 /// Each target gets one batched addLabels call; each removal is individual.
 export async function applyPatch(patch: Patch, api: GitHubApi): Promise<void> {
   for (const op of patch.ops) {
+    const ref = chalk.cyan(`#${op.target}`);
     if (op.add.length > 0) {
       await api.addLabels(op.target, op.add);
-      console.log(`#${op.target}: added [${op.add.join(", ")}]`);
+      console.log(`${chalk.green("✔")} ${ref}: added [${chalk.green(op.add.join(", "))}]`);
     }
     for (const label of op.remove) {
       await api.removeLabel(op.target, label);
-      console.log(`#${op.target}: removed "${label}"`);
+      console.log(`${chalk.red("✖")} ${ref}: removed "${chalk.red(label)}"`);
     }
     if (op.comment) {
       await api.addComment(op.target, op.comment);
-      console.log(`#${op.target}: posted comment`);
+      console.log(`${chalk.yellow("✉")} ${ref}: posted comment`);
     }
   }
 }
@@ -80,19 +82,22 @@ export async function applyPatch(patch: Patch, api: GitHubApi): Promise<void> {
 /// Prints a human-readable plan to stdout without making any API calls.
 export function printPlan(patch: Patch, subject: string): void {
   if (patch.ops.length === 0) {
-    console.log(`${subject}: already in sync — no changes needed.`);
+    console.log(`${chalk.green("✔")} ${chalk.bold(subject)}: already in sync — no changes needed.`);
     return;
   }
-  console.log(`${subject}: plan (${patch.ops.length} target(s) to update)\n`);
+  console.log(`${chalk.yellow("●")} ${chalk.bold(subject)}: plan (${chalk.bold(String(patch.ops.length))} target(s) to update)\n`);
   for (const op of patch.ops) {
-    const title = op.title ? ` — ${op.title}` : "";
-    const url = op.url ? `\n    ${op.url}` : "";
-    console.log(`  #${op.target}${title}${url}`);
-    if (op.add.length > 0) console.log(`    + add:    ${op.add.join(", ")}`);
-    if (op.remove.length > 0) console.log(`    - remove: ${op.remove.join(", ")}`);
-    if (op.comment) console.log(`    ~ comment: ${op.comment.slice(0, 80)}…`);
+    const title = op.title ? chalk.bold(` ${op.title}`) : "";
+    const href  = op.url   ? `\n    ${chalk.dim(chalk.blue(op.url))}` : "";
+    console.log(`  ${chalk.cyan(`#${op.target}`)}${title}${href}`);
+    if (op.add.length > 0)
+      console.log(`    ${chalk.green("+")} add:     ${chalk.green(op.add.join(", "))}`);
+    if (op.remove.length > 0)
+      console.log(`    ${chalk.red("-")} remove:  ${chalk.red(op.remove.join(", "))}`);
+    if (op.comment)
+      console.log(`    ${chalk.yellow("~")} comment: ${chalk.dim(op.comment.slice(0, 80))}…`);
   }
-  console.log("\nRun with --execute to apply.");
+  console.log(`\n${chalk.dim("Run with --execute to apply.")}`);
 }
 
 // ---------------------------------------------------------------------------
