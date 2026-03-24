@@ -92,19 +92,19 @@
     "description": "Select and switch between agents [alias: a]"
   },
   {
-    "command": "sync",
-    "description": "Sync the current workspace for codebase search"
+    "command": "workspace-sync",
+    "description": "Sync the current workspace for codebase search [alias: sync]"
   },
   {
-    "command": "sync-status",
+    "command": "workspace-status",
     "description": "Show sync status of all workspace files"
   },
   {
-    "command": "sync-info",
+    "command": "workspace-info",
     "description": "Show workspace information with sync details"
   },
   {
-    "command": "sync-init",
+    "command": "workspace-init",
     "description": "Initialize a new workspace without syncing files"
   },
   {
