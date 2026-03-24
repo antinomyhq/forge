@@ -31,6 +31,7 @@ Bundled test scripts often test only one scenario. The real verifier will test a
 2. **Read the bundled test** and note which of those features it actually exercises.
 3. **For every feature NOT exercised by the bundled test**, generate at least one test input that forces that code path, and verify your solution produces correct output.
 4. **If an oracle or reference library is available** (e.g., the task installs a library, provides a reference binary, or the language has a standard implementation), generate 20+ random inputs spanning the full input space, run both your solution and the oracle, and diff the outputs. Any mismatch is a bug.
+5. **If any test fails, fix the bug.** Do NOT rationalize failures away. A failing test means your code has a bug on that code path. Even if the specific test input seems unusual, the same bug will surface on other inputs the real verifier uses. Investigate the root cause and fix it before proceeding.
 
 This is the MOST COMMON source of false confidence: the bundled test passes, so the agent declares success, but the real verifier tests other inputs that expose unexercised bugs.
 
@@ -70,3 +71,4 @@ Before declaring complete, catch common silent failures:
 - Do NOT test only the trivial case (world_size=1, 2x2 matrix, empty input) and declare success.
 - Do NOT leave test artifacts in the workspace. But also do NOT delete runtime dependencies the deliverable needs.
 - Do NOT accept curve-fit results without sanity-checking the fitted parameters are physically plausible.
+- Do NOT rationalize away test failures. If a test you wrote fails, the code is broken on that code path — fix it. Never dismiss a failure because the test input "seems artificial" or "edge-case-y". The real verifier WILL test edge cases.
