@@ -43,7 +43,7 @@ function makeMockApi(issues: Issue[]): GitHubApi & {
 }
 
 function makeIssue(overrides: Partial<Issue> & { number: number }): Issue {
-  return { title: "Test issue", state: "open", labels: [], assignees: [], ...overrides };
+  return { title: "Test issue", html_url: `https://github.com/owner/repo/issues/${overrides.number}`, state: "open", labels: [], assignees: [], ...overrides };
 }
 
 function labelNames(...names: string[]): { name: string }[] {
