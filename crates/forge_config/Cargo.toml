@@ -9,6 +9,7 @@ anyhow.workspace = true
 config = "0.15"
 derive_more.workspace = true
 derive_setters.workspace = true
+dirs.workspace = true
 serde.workspace = true
 url.workspace = true
 fake = { version = "5.1.0", features = ["derive"] }

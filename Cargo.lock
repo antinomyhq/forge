@@ -1943,6 +1943,7 @@ dependencies = [
  "config",
  "derive_more",
  "derive_setters",
+ "dirs",
  "fake",
  "pretty_assertions",
  "serde",
