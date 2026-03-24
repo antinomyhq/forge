@@ -135,13 +135,13 @@ impl ForgeConfig {
     pub fn get() -> &'static ForgeConfig {
         CONFIG.get_or_init(|| {
             let mut builder = config::Config::builder().add_source(config::File::from_str(
-                include_str!("../.config.json"),
-                config::FileFormat::Json,
+                include_str!("../.config.toml"),
+                config::FileFormat::Toml,
             ));
 
             // Add user config from home directory if it exists
             if let Some(config_dir) = dirs::home_dir() {
-                let user_config_path = config_dir.join("forge").join(".config.json");
+                let user_config_path = config_dir.join("forge").join(".config.toml");
                 if user_config_path.exists() {
                     builder = builder.add_source(config::File::from(user_config_path));
                 }

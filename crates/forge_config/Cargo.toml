@@ -6,7 +6,8 @@ rust-version.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-config = "0.15"
+config = { version = "0.15", features = ["toml"] }
+toml_edit.workspace = true
 derive_more.workspace = true
 derive_setters.workspace = true
 dirs.workspace = true
