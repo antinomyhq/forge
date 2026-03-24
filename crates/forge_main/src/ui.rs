@@ -2040,16 +2040,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|(p, alive)| {
                 let status = if *alive { "running" } else { "stopped" };
                 let elapsed = humanize_time(p.started_at);
-                let dir = p.cwd.file_name()
+                let dir = p
+                    .cwd
+                    .file_name()
                     .map(|n| n.to_string_lossy().to_string())
                     .unwrap_or_else(|| p.cwd.display().to_string());
-                format!(
-                    "{} | {} | {} | {}",
-                    p.command,
-                    dir,
-                    elapsed,
-                    status,
-                )
+                format!("{} | {} | {} | {}", p.command, dir, elapsed, status,)
             })
             .collect();
 

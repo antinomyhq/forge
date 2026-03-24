@@ -41,18 +41,14 @@ impl BackgroundProcessManager {
     }
 
     /// Acquires the processes lock, returning an error if poisoned.
-    fn lock_processes(
-        &self,
-    ) -> Result<std::sync::MutexGuard<'_, Vec<BackgroundProcess>>> {
+    fn lock_processes(&self) -> Result<std::sync::MutexGuard<'_, Vec<BackgroundProcess>>> {
         self.processes
             .lock()
             .map_err(|e| anyhow::anyhow!("processes lock poisoned: {e}"))
     }
 
     /// Acquires the log handles lock, returning an error if poisoned.
-    fn lock_log_handles(
-        &self,
-    ) -> Result<std::sync::MutexGuard<'_, Vec<OwnedLogFile>>> {
+    fn lock_log_handles(&self) -> Result<std::sync::MutexGuard<'_, Vec<OwnedLogFile>>> {
         self.log_handles
             .lock()
             .map_err(|e| anyhow::anyhow!("log handles lock poisoned: {e}"))
@@ -146,8 +142,7 @@ impl BackgroundProcessManager {
 /// Cross-platform check whether a process is still running.
 fn is_process_alive(pid: u32) -> bool {
     let s = sysinfo::System::new_with_specifics(
-        sysinfo::RefreshKind::nothing()
-            .with_processes(sysinfo::ProcessRefreshKind::nothing()),
+        sysinfo::RefreshKind::nothing().with_processes(sysinfo::ProcessRefreshKind::nothing()),
     );
     s.process(sysinfo::Pid::from_u32(pid)).is_some()
 }
@@ -155,8 +150,7 @@ fn is_process_alive(pid: u32) -> bool {
 /// Cross-platform process termination.
 fn kill_process(pid: u32) -> anyhow::Result<()> {
     let s = sysinfo::System::new_with_specifics(
-        sysinfo::RefreshKind::nothing()
-            .with_processes(sysinfo::ProcessRefreshKind::nothing()),
+        sysinfo::RefreshKind::nothing().with_processes(sysinfo::ProcessRefreshKind::nothing()),
     );
     match s.process(sysinfo::Pid::from_u32(pid)) {
         Some(process) => {
@@ -192,7 +186,15 @@ mod tests {
         let log = create_temp_log();
         let log_path = log.path().to_path_buf();
 
-        fixture.register(1234, "npm start".to_string(), PathBuf::from("/test"), log_path.clone(), log).unwrap();
+        fixture
+            .register(
+                1234,
+                "npm start".to_string(),
+                PathBuf::from("/test"),
+                log_path.clone(),
+                log,
+            )
+            .unwrap();
 
         let actual = fixture.list_with_status().unwrap();
 
@@ -208,7 +210,15 @@ mod tests {
         let log = create_temp_log();
         let log_path = log.path().to_path_buf();
 
-        fixture.register(100, "node app.js".to_string(), PathBuf::from("/test"), log_path.clone(), log).unwrap();
+        fixture
+            .register(
+                100,
+                "node app.js".to_string(),
+                PathBuf::from("/test"),
+                log_path.clone(),
+                log,
+            )
+            .unwrap();
         assert_eq!(fixture.list_with_status().unwrap().len(), 1);
 
         fixture.remove(100, true).unwrap();
@@ -223,7 +233,15 @@ mod tests {
         let log = create_temp_log();
         let log_path = log.path().to_path_buf();
 
-        fixture.register(200, "cargo watch".to_string(), PathBuf::from("/test"), log_path.clone(), log).unwrap();
+        fixture
+            .register(
+                200,
+                "cargo watch".to_string(),
+                PathBuf::from("/test"),
+                log_path.clone(),
+                log,
+            )
+            .unwrap();
 
         fixture.remove(200, false).unwrap();
 
@@ -242,8 +260,24 @@ mod tests {
         let log2 = create_temp_log();
         let path2 = log2.path().to_path_buf();
 
-        fixture.register(10, "server1".to_string(), PathBuf::from("/proj1"), path1, log1).unwrap();
-        fixture.register(20, "server2".to_string(), PathBuf::from("/proj2"), path2, log2).unwrap();
+        fixture
+            .register(
+                10,
+                "server1".to_string(),
+                PathBuf::from("/proj1"),
+                path1,
+                log1,
+            )
+            .unwrap();
+        fixture
+            .register(
+                20,
+                "server2".to_string(),
+                PathBuf::from("/proj2"),
+                path2,
+                log2,
+            )
+            .unwrap();
 
         assert_eq!(fixture.list_with_status().unwrap().len(), 2);
 
@@ -261,7 +295,15 @@ mod tests {
 
         {
             let manager = BackgroundProcessManager::new();
-            manager.register(300, "temp cmd".to_string(), PathBuf::from("/test"), log_path.clone(), log).unwrap();
+            manager
+                .register(
+                    300,
+                    "temp cmd".to_string(),
+                    PathBuf::from("/test"),
+                    log_path.clone(),
+                    log,
+                )
+                .unwrap();
             assert!(log_path.exists());
         }
 
@@ -274,7 +316,15 @@ mod tests {
         let log = create_temp_log();
         let path = log.path().to_path_buf();
 
-        fixture.register(99999, "ghost".to_string(), PathBuf::from("/test"), path, log).unwrap();
+        fixture
+            .register(
+                99999,
+                "ghost".to_string(),
+                PathBuf::from("/test"),
+                path,
+                log,
+            )
+            .unwrap();
 
         let actual = fixture.list_with_status().unwrap();
 

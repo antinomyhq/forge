@@ -1,8 +1,8 @@
 use forge_domain::{ChatCompletionMessage, CommandOutput, Content, FinishReason, Workflow};
 use insta::assert_snapshot;
 
-use crate::{ShellOutput, ShellOutputKind};
 use crate::orch_spec::orch_runner::TestContext;
+use crate::{ShellOutput, ShellOutputKind};
 
 #[tokio::test]
 async fn test_system_prompt() {

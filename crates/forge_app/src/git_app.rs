@@ -166,7 +166,9 @@ where
             .await
             .context("Failed to commit changes")?;
 
-        let output = commit_result.foreground().expect("git commit runs in foreground");
+        let output = commit_result
+            .foreground()
+            .expect("git commit runs in foreground");
 
         if !output.success() {
             anyhow::bail!("Git commit failed: {}", output.stderr);
@@ -178,10 +180,7 @@ where
         } else if output.stderr.is_empty() {
             output.stdout.clone()
         } else {
-            format!(
-                "{}\n{}",
-                output.stdout, output.stderr
-            )
+            format!("{}\n{}", output.stdout, output.stderr)
         };
 
         Ok(CommitResult { message, committed: true, has_staged_files, git_output })
@@ -251,8 +250,16 @@ where
         let branch_name = branch_name.context("Failed to get branch name")?;
 
         Ok((
-            recent_commits.foreground().expect("git log runs in foreground").stdout.clone(),
-            branch_name.foreground().expect("git rev-parse runs in foreground").stdout.clone(),
+            recent_commits
+                .foreground()
+                .expect("git log runs in foreground")
+                .stdout
+                .clone(),
+            branch_name
+                .foreground()
+                .expect("git rev-parse runs in foreground")
+                .stdout
+                .clone(),
         ))
     }
 
@@ -283,16 +290,29 @@ where
         let unstaged_diff = unstaged_diff.context("Failed to get unstaged changes")?;
 
         // Use staged changes if available, otherwise fall back to unstaged changes
-        let has_staged_files = !staged_diff.foreground().expect("git diff runs in foreground").stdout.trim().is_empty();
+        let has_staged_files = !staged_diff
+            .foreground()
+            .expect("git diff runs in foreground")
+            .stdout
+            .trim()
+            .is_empty();
         let diff_output = if has_staged_files {
             staged_diff
-        } else if !unstaged_diff.foreground().expect("git diff runs in foreground").stdout.trim().is_empty() {
+        } else if !unstaged_diff
+            .foreground()
+            .expect("git diff runs in foreground")
+            .stdout
+            .trim()
+            .is_empty()
+        {
             unstaged_diff
         } else {
             return Err(GitAppError::NoChangesToCommit.into());
         };
 
-        let fg = diff_output.foreground().expect("git diff runs in foreground");
+        let fg = diff_output
+            .foreground()
+            .expect("git diff runs in foreground");
         let size = fg.stdout.len();
         Ok((fg.stdout.clone(), size, has_staged_files))
     }

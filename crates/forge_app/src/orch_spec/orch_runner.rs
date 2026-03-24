@@ -18,8 +18,8 @@ use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentService, AttachmentService, ShellOutput, ShellOutputKind, ShellService,
-    SkillFetchService, TemplateService,
+    AgentService, AttachmentService, ShellOutput, ShellOutputKind, ShellService, SkillFetchService,
+    TemplateService,
 };
 
 static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
@@ -251,7 +251,9 @@ impl ShellService for Runner {
         }
     }
 
-    fn list_background_processes(&self) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
+    fn list_background_processes(
+        &self,
+    ) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
         Ok(Vec::new())
     }
 

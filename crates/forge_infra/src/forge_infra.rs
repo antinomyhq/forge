@@ -10,8 +10,8 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AuthMethod, BackgroundCommandOutput, CommandOutput, Environment,
-    FileInfo as FileInfoData, McpServerConfig, ProviderId, URLParam,
+    AuthMethod, BackgroundCommandOutput, CommandOutput, Environment, FileInfo as FileInfoData,
+    McpServerConfig, ProviderId, URLParam,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};

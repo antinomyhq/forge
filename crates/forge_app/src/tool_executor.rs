@@ -96,14 +96,22 @@ impl<
 
                     if stdout_truncated {
                         files = files.stdout(
-                            self.create_temp_file("forge_shell_stdout_", ".txt", &cmd_output.stdout)
-                                .await?,
+                            self.create_temp_file(
+                                "forge_shell_stdout_",
+                                ".txt",
+                                &cmd_output.stdout,
+                            )
+                            .await?,
                         );
                     }
                     if stderr_truncated {
                         files = files.stderr(
-                            self.create_temp_file("forge_shell_stderr_", ".txt", &cmd_output.stderr)
-                                .await?,
+                            self.create_temp_file(
+                                "forge_shell_stderr_",
+                                ".txt",
+                                &cmd_output.stderr,
+                            )
+                            .await?,
                         );
                     }
 

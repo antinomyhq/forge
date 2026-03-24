@@ -327,9 +327,7 @@ async fn spawn_background_process(
             .unwrap_or("")
             .trim()
             .parse()
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to parse PID from shell output '{stdout}': {e}")
-            })
+            .map_err(|e| anyhow::anyhow!("Failed to parse PID from shell output '{stdout}': {e}"))
     }
 }
 
