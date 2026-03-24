@@ -19,20 +19,22 @@ impl ConfigReader {
     /// [`ForgeConfig`].
     ///
     /// Sources are applied in increasing priority order: embedded defaults,
-    /// the file at `path`, then environment variables prefixed with `FORGE_`.
-    pub async fn read(&self, path: &Path) -> crate::Result<ForgeConfig> {
-        // Embed the default config at compile time as the lowest-priority base.
-        let defaults = include_str!("../.config.toml");
+    /// the optional file at `path` (skipped when `None`), then environment
+    /// variables prefixed with `FORGE_`.
+    pub async fn read(&self, path: Option<&Path>) -> crate::Result<ForgeConfig> {
+        let defaults = include_str!("../.forge.toml");
         let mut builder = Config::builder();
 
         // Load default
         builder = builder.add_source(config::File::from_str(defaults, config::FileFormat::Toml));
 
         // Load from path
-        if tokio::fs::try_exists(path).await? {
-            let contents = tokio::fs::read_to_string(path).await?;
-            builder =
-                builder.add_source(config::File::from_str(&contents, config::FileFormat::Toml));
+        if let Some(path) = path {
+            if tokio::fs::try_exists(path).await? {
+                let contents = tokio::fs::read_to_string(path).await?;
+                builder =
+                    builder.add_source(config::File::from_str(&contents, config::FileFormat::Toml));
+            }
         }
 
         // Load from environment
@@ -45,5 +47,16 @@ impl ConfigReader {
 
         let config = builder.build()?;
         Ok(config.try_deserialize()?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_read_parses_without_error() {
+        let actual = ConfigReader::new().read(None).await;
+        assert!(actual.is_ok(), "read() failed: {:?}", actual.err());
     }
 }
