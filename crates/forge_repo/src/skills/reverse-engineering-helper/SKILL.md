@@ -51,7 +51,9 @@ Read ALL provided source code carefully. Annotate:
 
 ## Phase 2 -- Forward Oracle Strategy (Preferred)
 
-Instead of perfectly reverse-engineering the algorithm, use the existing code/binary as a **black-box oracle**:
+This phase has priority over detailed inversion. For deliverable-producing tasks, do not spend more than **2 consecutive analysis turns** without either generating a candidate artifact at the final path or running a forward-oracle experiment.
+
+Instead of perfectly reverse-engineering the algorithm, use the existing code/binary as a **black-box oracle** to validate your implementation's output. **This does NOT mean brute-forcing the input space** — if the output is more than a few bytes, the search space is astronomically large and enumeration will never finish. Build a proper encoder/generator and test its output against the oracle.
 
 1. **Build a test harness:**
    ```bash
@@ -76,7 +78,13 @@ Instead of perfectly reverse-engineering the algorithm, use the existing code/bi
 
 4. **Iterate until outputs match on all test cases.**
 
-This is faster and more reliable than trying to understand every implementation detail.
+This is faster and more reliable than trying to understand every implementation detail. If your current line of reasoning is not producing better candidates after 2 experiments, stop analyzing and switch to a new empirical strategy.
+
+**Anti-pattern — subprocess-per-candidate brute-force**: Never write a loop that spawns a subprocess per candidate to search the input space. If the search space exceeds ~1000 items, the approach is wrong — build a structured encoder/generator and debug it when its output is wrong, rather than bypassing it with enumeration.
+
+## Phase 2.5 -- Artifact-First Rule
+
+As soon as you have any candidate that might work, write it to the final expected output path and test that exact artifact with the provided consumer. Do not keep promising candidates only in `/tmp` or in-memory while continuing analysis.
 
 ## Phase 3 -- Language Matching Rule
 
