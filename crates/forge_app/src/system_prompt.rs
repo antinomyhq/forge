@@ -555,13 +555,8 @@ mod tests {
             "offensive security techniques (exploits, payloads, bypasses, sanitizers, malware analysis)",
             "Never target external systems, third-party services, real users, or credentials outside the sandbox.",
             "Never produce a zero-tool-call response for a task that has concrete deliverables",
-            "Produce a working artifact at the final output path as early as possible.",
-            "one check per requirement category, no duplicates",
             "**Priority order when instructions compete**:",
-            "write the producer in the **same language first**",
-            "If same-language implementation is unavailable, validate every stage empirically against the provided consumer before scaling up.",
-            "prefer using that code as a **forward oracle**",
-            "When elapsed time exceeds 60% of your estimated budget and the final output path is still missing, immediately switch to artifact-first mode",
+            "reconstruct that verifier invocation and run it as a behavioral check before completion.",
             "Do not delete runtime artifacts that the final deliverable needs in order to import, execute, or serve requests.",
             "reconstruct that verifier invocation and run it as a behavioral check before completion.",
             "For tasks that must produce ALL valid outputs",
@@ -575,5 +570,19 @@ mod tests {
             .collect();
         let expected_matches = vec![true; expected_fragments.len()];
         assert_eq!(actual_matches, expected_matches);
+
+        let removed_fragments = vec![
+            "Produce a working artifact at the final output path as early as possible.",
+            "one check per requirement category, no duplicates",
+            "write the producer in the **same language first**",
+            "prefer using that code as a **forward oracle**",
+            "When elapsed time exceeds 60% of your estimated budget and the final output path is still missing, immediately switch to artifact-first mode",
+        ];
+        let removed_matches: Vec<bool> = removed_fragments
+            .iter()
+            .map(|fragment| actual.contains(fragment))
+            .collect();
+        let expected_removed = vec![false; removed_fragments.len()];
+        assert_eq!(removed_matches, expected_removed);
     }
 }

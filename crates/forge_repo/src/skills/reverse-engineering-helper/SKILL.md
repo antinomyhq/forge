@@ -49,19 +49,9 @@ Read ALL provided source code carefully. Annotate:
 - Algorithm (what transformation does it apply?)
 - Edge cases (overflow, rounding, special values)
 
-## Phase 2 -- Language Choice Gate (Run Before Prototyping)
+## Phase 2 -- Validation Strategy
 
-Before writing the producer, choose the implementation language.
-
-- If correctness depends on exact arithmetic or byte semantics, your producer should default to the same language as the provided consumer/reference.
-- Python is allowed for auxiliary analysis, search heuristics, and test harnesses, but not as the default producer when same-language implementation is practical.
-- If you believe same-language implementation is impossible or too costly, prove that with a minimal same-language spike first; only then fall back.
-
-This gate takes priority over artifact-first and oracle-first guidance.
-
-## Phase 3 -- Forward Oracle Strategy (Preferred After Language Choice)
-
-After choosing the implementation language, prefer using the existing code/binary as a **black-box oracle** to validate your implementation's output. For C interop tasks, the oracle should usually validate your C producer or C harness first, not a Python-first encoder. For deliverable-producing tasks, do not spend more than **2 consecutive analysis turns** without either generating a candidate artifact at the final path or running a forward-oracle experiment. **This does NOT mean brute-forcing the input space** — if the output is more than a few bytes, the search space is astronomically large and enumeration will never finish. Build a proper encoder/generator and test its output against the oracle.
+Prefer using the existing code/binary as a **black-box oracle** to validate your implementation's output. For deliverable-producing tasks, do not spend more than **2 consecutive analysis turns** without either generating a candidate artifact at the final path or running a validation experiment. **This does NOT mean brute-forcing the input space** — if the output is more than a few bytes, the search space is astronomically large and enumeration will never finish. Build a proper encoder/generator and test its output against the oracle.
 
 1. **Build a test harness:**
    ```bash
@@ -90,27 +80,7 @@ This is faster and more reliable than trying to understand every implementation 
 
 **Anti-pattern — subprocess-per-candidate brute-force**: Never write a loop that spawns a subprocess per candidate to search the input space. If the search space exceeds ~1000 items, the approach is wrong — build a structured encoder/generator and debug it when its output is wrong, rather than bypassing it with enumeration.
 
-## Phase 3.5 -- Artifact-First Rule
-
-As soon as you have any candidate that might work, write it to the final expected output path and test that exact artifact with the provided consumer. Do not keep promising candidates only in `/tmp` or in-memory while continuing analysis.
-
-## Phase 4 -- Why Same-Language Matters
-
-When byte-level or arithmetic-level compatibility matters:
-
-- **C reference -> implement in C** (not Python). Integer overflow, pointer arithmetic, struct packing, promotion rules, and integer division behavior differ.
-- **Python reference -> implement in Python** (not C). Float precision, integer division, and string handling differ.
-- **Same library versions.** If the reference uses numpy, use numpy. Don't substitute with a different linear algebra library.
-
-Why this matters: Different languages have different:
-- Integer overflow behavior (wrapping vs exception vs undefined)
-- Float rounding (IEEE 754 modes differ across implementations)
-- Division semantics (C truncates toward zero, Python floors toward negative infinity)
-- String encoding (UTF-8 byte boundaries, normalization forms)
-
-These mismatches cause silent corruption that is extremely hard to debug.
-
-## Phase 5 -- Incremental Verification
+## Phase 3 -- Incremental Verification
 
 For multi-stage pipelines:
 
