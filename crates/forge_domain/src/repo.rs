@@ -4,7 +4,7 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
+    AnyProvider, ForgeConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
     ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
 };
@@ -91,8 +91,8 @@ pub trait ConversationRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
-    async fn get_app_config(&self) -> anyhow::Result<AppConfig>;
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
+    async fn get_app_config(&self) -> anyhow::Result<ForgeConfig>;
+    async fn set_app_config(&self, config: &ForgeConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

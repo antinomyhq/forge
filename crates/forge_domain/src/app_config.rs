@@ -15,7 +15,7 @@ pub struct InitAuth {
 
 #[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct AppConfig {
+pub struct ForgeConfig {
     pub key_info: Option<LoginInfo>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderId>,
