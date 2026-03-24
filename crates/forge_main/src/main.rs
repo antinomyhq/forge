@@ -6,7 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
-use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
+use forge_main::{Cli, Sandbox, TitleDisplayExt, TopLevelCommand, UI, ZshCommandGroup, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,6 +32,24 @@ async fn main() -> Result<()> {
 
     // Initialize and run the UI
     let mut cli = Cli::parse();
+
+    // Fast path for `zsh rprompt` when no active conversation requires DB lookups.
+    // This avoids heavy initialization (reqwest client, gRPC, tracing, 30+ service
+    // objects) when all we need is to read a config file and some env vars.
+    if matches!(
+        cli.subcommands,
+        Some(TopLevelCommand::Zsh(ZshCommandGroup::Rprompt))
+    ) {
+        let has_conversation = std::env::var("_FORGE_CONVERSATION_ID")
+            .ok()
+            .filter(|s| !s.trim().is_empty())
+            .is_some();
+
+        if !has_conversation {
+            print!("{}", render_rprompt_fast());
+            return Ok(());
+        }
+    }
 
     // Check if there's piped input
     if !atty::is(atty::Stream::Stdin) {
@@ -73,6 +91,49 @@ async fn main() -> Result<()> {
     ui.run().await;
 
     Ok(())
+}
+
+/// Renders the ZSH rprompt without any heavy initialization.
+/// Reads the config file directly and uses environment variables for all other state.
+fn render_rprompt_fast() -> String {
+    use forge_domain::{AgentId, AppConfig, ModelId};
+    use forge_main::zsh::ZshRPrompt;
+
+    // Read config to get the default model
+    let model: Option<ModelId> = dirs::home_dir()
+        .map(|home| home.join("forge").join(".config.json"))
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .and_then(|content| serde_json::from_str::<AppConfig>(&content).ok())
+        .and_then(|config| {
+            let provider = config.provider?;
+            config.model.get(&provider).cloned()
+        });
+
+    let agent = std::env::var("_FORGE_ACTIVE_AGENT")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .map(AgentId::new);
+
+    let use_nerd_font = std::env::var("NERD_FONT")
+        .or_else(|_| std::env::var("USE_NERD_FONT"))
+        .map(|val| val == "1")
+        .unwrap_or(true);
+
+    let currency_symbol =
+        std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
+
+    let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
+        .ok()
+        .and_then(|val| val.parse::<f64>().ok())
+        .unwrap_or(1.0);
+
+    ZshRPrompt::default()
+        .agent(agent)
+        .model(model)
+        .use_nerd_font(use_nerd_font)
+        .currency_symbol(currency_symbol)
+        .conversion_ratio(conversion_ratio)
+        .to_string()
 }
 
 #[cfg(test)]
@@ -130,5 +191,60 @@ mod tests {
         } else {
             panic!("Expected Commit command");
         }
+    }
+
+    #[test]
+    fn test_rprompt_fast_path_matches() {
+        // Verify that `forge zsh rprompt` triggers the fast path match
+        let cli = Cli::parse_from(["forge", "zsh", "rprompt"]);
+        assert!(matches!(
+            cli.subcommands,
+            Some(TopLevelCommand::Zsh(ZshCommandGroup::Rprompt))
+        ));
+    }
+
+    #[test]
+    fn test_rprompt_fast_renders_without_config() {
+        // Fast path should render successfully even when no config file exists.
+        // With no agent/model/tokens it produces a dimmed default prompt.
+        let output = render_rprompt_fast();
+        assert!(!output.is_empty());
+    }
+
+    #[test]
+    fn test_rprompt_fast_reads_config() {
+        // Create a temporary config to verify the fast path reads it
+        let dir = tempfile::tempdir().unwrap();
+        let config_dir = dir.path().join("forge");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        let config_path = config_dir.join(".config.json");
+        std::fs::write(
+            &config_path,
+            r#"{"provider":"anthropic","model":{"anthropic":"test-fast-model"}}"#,
+        )
+        .unwrap();
+
+        // Override HOME to point to our temp dir so the fast path finds our config
+        let original_home = std::env::var("HOME").ok();
+        // SAFETY: this test is run serially (not concurrent with other tests that
+        // depend on HOME)
+        unsafe {
+            std::env::set_var("HOME", dir.path());
+        }
+
+        let output = render_rprompt_fast();
+
+        // Restore HOME
+        unsafe {
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            }
+        }
+
+        assert!(
+            output.contains("test-fast-model"),
+            "Expected rprompt to contain model from config, got: {}",
+            output
+        );
     }
 }

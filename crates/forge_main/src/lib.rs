@@ -19,13 +19,13 @@ pub mod tracker;
 mod ui;
 mod utils;
 mod vscode;
-mod zsh;
+pub mod zsh;
 
 mod update;
 
 use std::sync::LazyLock;
 
-pub use cli::{Cli, TopLevelCommand};
+pub use cli::{Cli, TopLevelCommand, ZshCommandGroup};
 pub use sandbox::Sandbox;
 pub use title_display::*;
 pub use ui::UI;
