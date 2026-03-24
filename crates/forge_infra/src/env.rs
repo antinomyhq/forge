@@ -16,8 +16,8 @@ impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with specified working directory
     ///
     /// # Arguments
-    /// * `restricted` - If true, use restricted shell mode (rbash) If false,
-    ///   use unrestricted shell mode (sh/bash)
+    /// * `restricted` - If true, enable restricted mode using the permissions
+    ///   feature. If false, use unrestricted mode
     /// * `cwd` - Required working directory path
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         Self::dot_env(&cwd);
@@ -28,9 +28,6 @@ impl ForgeEnvironmentInfra {
     fn get_shell_path(&self) -> String {
         if cfg!(target_os = "windows") {
             std::env::var("COMSPEC").unwrap_or("cmd.exe".to_string())
-        } else if self.restricted {
-            // Default to rbash in restricted mode
-            "/bin/rbash".to_string()
         } else {
             // Use user's preferred shell or fallback to sh
             std::env::var("SHELL").unwrap_or("/bin/sh".to_string())

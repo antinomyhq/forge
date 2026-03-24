@@ -11,7 +11,6 @@ fn strip_ansi(content: String) -> String {
     String::from_utf8_lossy(&strip(content.as_bytes())).into_owned()
 }
 
-/// Executes shell commands with safety measures using restricted bash (rbash).
 /// Prevents potentially harmful operations like absolute path execution and
 /// directory changes. Use for file system interaction, running utilities,
 /// installing packages, or executing build commands. For operations requiring
