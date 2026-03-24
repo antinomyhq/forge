@@ -20,7 +20,7 @@ async-recursion = "1.1.1"
 async-stream = "0.3"
 async-trait = "0.1.89"
 aws-config = { version = "1.8.13", features = ["behavior-version-latest"], default-features = false }
-aws-sdk-bedrockruntime = { version = "1.126.0", features = ["behavior-version-latest"], default-features = false }
+aws-sdk-bedrockruntime = { version = "1.128.0", features = ["behavior-version-latest"], default-features = false }
 aws-credential-types = "1.2.14"
 aws-smithy-types = "1.4.3"
 aws-smithy-runtime-api = "1.11.3"
@@ -29,7 +29,7 @@ aws-smithy-runtime = { version = "1.10", features = ["connector-hyper-0-14-x", "
 base64 = "0.22.1"
 bytes = "1.11.1"
 chrono = { version = "0.4.44", features = ["serde"] }
-clap = { version = "4.5.60", features = ["derive"] }
+clap = { version = "4.6.0", features = ["derive"] }
 clap_complete = "4.6.0"
 colored = "3.1.1"
 console = "0.16.3"
@@ -131,7 +131,7 @@ num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
 async-openai = { version = "0.33.1", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
-google-cloud-auth = "1.6.0" # Google Cloud authentication with automatic token refresh
+google-cloud-auth = "1.7.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
 forge_embed = { path = "crates/forge_embed" }
