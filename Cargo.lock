@@ -1939,15 +1939,15 @@ dependencies = [
 name = "forge_config"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "config",
  "derive_more",
  "derive_setters",
  "dirs",
  "fake",
+ "merge",
  "pretty_assertions",
  "serde",
- "toml_edit",
+ "thiserror 2.0.18",
  "url",
 ]
 

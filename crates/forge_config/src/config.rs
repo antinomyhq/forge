@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 
 use derive_setters::Setters;
-use dirs;
 use serde::Deserialize;
 use url::Url;
 
-use crate::{AutoDumpFormat, HttpConfig, ModelConfig, ModelId, ProviderId, RetryConfig};
+use crate::{
+    AutoDumpFormat, HttpConfig, ModelConfig, ModelId, ProviderId, RetryConfig,
+    reader::ConfigReader, writer::ConfigWriter,
+};
 
 /// Forge configuration containing all the fields from the Environment struct.
 ///
@@ -123,8 +124,6 @@ pub struct ForgeConfig {
     pub auth_provider_id: Option<String>,
 }
 
-static CONFIG: OnceLock<ForgeConfig> = OnceLock::new();
-
 impl ForgeConfig {
     /// Get the global ForgeConfig instance, loading from the embedded config
     /// file on first access.
@@ -132,45 +131,17 @@ impl ForgeConfig {
     /// # Panics
     ///
     /// Panics if the configuration cannot be loaded.
-    pub fn get() -> &'static ForgeConfig {
-        CONFIG.get_or_init(|| {
-            let mut builder = config::Config::builder().add_source(config::File::from_str(
-                include_str!("../.config.toml"),
-                config::FileFormat::Toml,
-            ));
-
-            // Add user config from home directory if it exists
-            if let Some(config_dir) = dirs::home_dir() {
-                let user_config_path = config_dir.join("forge").join(".config.toml");
-                if user_config_path.exists() {
-                    builder = builder.add_source(config::File::from(user_config_path));
-                }
-            }
-
-            // Add environment variable overrides with FORGE__ prefix.
-            // Double underscore separates nested keys, e.g.
-            // FORGE__MAX_SEARCH_LINES overrides `max_search_lines`.
-            builder = builder.add_source(
-                config::Environment::with_prefix("FORGE")
-                    .separator("_")
-                    .try_parsing(true),
-            );
-
-            let config = builder.build().expect("Failed to build config");
-
-            config
-                .try_deserialize()
-                .expect("Failed to deserialize config")
-        })
+    pub async fn read() -> ForgeConfig {
+        ConfigReader::new().read().await
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_forge_config_get() {
-        let _ = ForgeConfig::get();
+    /// Writes the configuration to the user config file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration cannot be serialized or written to
+    /// disk.
+    pub async fn write(&self) -> crate::Result<()> {
+        ConfigWriter::new(self.clone()).write().await
     }
 }
