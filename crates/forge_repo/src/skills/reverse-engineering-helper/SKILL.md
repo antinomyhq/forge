@@ -53,9 +53,8 @@ Read ALL provided source code carefully. Annotate:
 
 Before writing the producer, choose the implementation language.
 
-- If the provided consumer/reference is written in **C** and correctness depends on exact arithmetic or byte semantics, your producer must default to **C as well**.
-- For a C interop task, start with C.
-- Python is allowed for auxiliary analysis, search heuristics, and test harnesses, but not as the default producer for a C interop task.
+- If correctness depends on exact arithmetic or byte semantics, your producer should default to the same language as the provided consumer/reference.
+- Python is allowed for auxiliary analysis, search heuristics, and test harnesses, but not as the default producer when same-language implementation is practical.
 - If you believe same-language implementation is impossible or too costly, prove that with a minimal same-language spike first; only then fall back.
 
 This gate takes priority over artifact-first and oracle-first guidance.
