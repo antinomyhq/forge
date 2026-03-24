@@ -1,15 +1,15 @@
 use std::path::Path;
 
-use crate::AppConfig;
+use crate::ForgeConfig;
 
 /// Writes a [`ForgeConfig`] to the user configuration file on disk.
 pub struct ConfigWriter {
-    config: AppConfig,
+    config: ForgeConfig,
 }
 
 impl ConfigWriter {
     /// Creates a new `ConfigWriter` for the given configuration.
-    pub fn new(config: AppConfig) -> Self {
+    pub fn new(config: ForgeConfig) -> Self {
         Self { config }
     }
 
