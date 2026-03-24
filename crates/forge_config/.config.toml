@@ -18,6 +18,11 @@ workspace_server_url = "https://api.forgecode.dev/"
 max_extensions = 15
 max_parallel_file_reads = 64
 model_cache_ttl_secs = 604800
+max_requests_per_turn = 100
+max_tool_failure_per_turn = 3
+top_p = 0.8
+top_k = 30
+max_tokens = 20480
 
 [retry]
 initial_backoff_ms = 200
@@ -40,3 +45,15 @@ keep_alive_interval_secs = 60
 keep_alive_timeout_secs = 10
 keep_alive_while_idle = true
 accept_invalid_certs = false
+
+[compact]
+max_tokens = 2000
+token_threshold = 100000
+retention_window = 6
+message_threshold = 200
+eviction_window = 0.2
+on_turn_end = false
+
+[updates]
+frequency = "daily"
+auto_update = true
