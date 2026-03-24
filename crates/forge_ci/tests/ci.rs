@@ -29,3 +29,8 @@ fn test_stale_workflow() {
 fn test_autofix_workflow() {
     workflow::generate_autofix_workflow();
 }
+
+#[test]
+fn test_bounty_workflow() {
+    workflow::generate_bounty_workflow();
+}
