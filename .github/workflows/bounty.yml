@@ -31,12 +31,14 @@ name: Bounty Management
   pull_request_target:
     types:
     - closed
+  schedule:
+  - cron: '0 2 * * *'
 permissions:
   issues: write
   pull-requests: write
 jobs:
-  sync-issue:
-    name: Sync issue bounty labels
+  sync-all-issues:
+    name: Sync all bounty issues
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -45,8 +47,8 @@ jobs:
       uses: actions/checkout@v4
     - name: Install npm packages
       run: npm install
-    - name: Sync bounty labels
-      run: npx tsx .github/scripts/bounty/src/sync-issue.ts --issue ${{ github.event.issue.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+    - name: Sync all bounty labels
+      run: npx tsx .github/scripts/bounty/src/sync-all-issues.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --execute
   sync-pr:
     name: Sync PR bounty labels
     runs-on: ubuntu-latest

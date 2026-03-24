@@ -4,8 +4,10 @@
 //! state of an issue or PR from GitHub, computes the desired label set from
 //! the rules engine, diffs current vs desired, and applies the minimal patch.
 //!
-//! Two entry points:
-//! - `sync-issue.ts --issue N` — reconciles all bounty labels on an issue.
+//! Three entry points:
+//! - `sync-all-issues.ts` — fetches all open issues with any bounty label and
+//!   reconciles their label sets in one pass. Runs on a schedule and on label
+//!   events.
 //! - `sync-pr.ts --pr N` — propagates labels from linked issues to the PR;
 //!   handles the rewarded lifecycle on merge.
 
@@ -29,20 +31,25 @@ fn sync_job(job_name: &str, script: &str, args: String) -> Job {
         .add_step(Step::new("Sync bounty labels").run(cmd))
 }
 
-/// Creates a job that syncs all bounty labels on an issue.
+/// Creates a job that syncs bounty labels across all open issues that carry
+/// any bounty label.
 ///
-/// Handles: generic `bounty` label, `bounty: claimed` on assignment.
-/// Triggered on: issues assigned, unassigned, labeled, unlabeled.
-pub fn sync_issue_job() -> Job {
-    sync_job(
-        "Sync issue bounty labels",
-        "sync-issue.ts",
-        "--issue ${{ github.event.issue.number }} \
-            --repo ${{ github.repository }} \
-            --token ${{ secrets.GITHUB_TOKEN }}"
-            .to_string(),
-    )
-    .permissions(Permissions::default().issues(Level::Write))
+/// Fetches every open issue with a "bounty" label prefix, computes the desired
+/// state for each, and applies the minimal patch in a single pass.
+///
+/// Triggered on: issues labeled/unlabeled/assigned/unassigned, and on schedule.
+pub fn sync_all_issues_job() -> Job {
+    let cmd = format!(
+        "{TSX} {SCRIPTS_DIR}/sync-all-issues.ts \
+            --repo ${{{{ github.repository }}}} \
+            --token ${{{{ secrets.GITHUB_TOKEN }}}} \
+            --execute"
+    );
+    Job::new("Sync all bounty issues")
+        .add_step(checkout_step())
+        .add_step(Step::new("Install npm packages").run("npm install"))
+        .add_step(Step::new("Sync all bounty labels").run(cmd))
+        .permissions(Permissions::default().issues(Level::Write))
 }
 
 /// Creates a job that propagates bounty labels from linked issues to the PR

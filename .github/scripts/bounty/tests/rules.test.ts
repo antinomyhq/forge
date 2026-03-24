@@ -17,6 +17,7 @@ import type { Issue, PullRequest, IssueState, PrState } from "../src/types.js";
 function makeIssue(overrides: Partial<Issue> & { number: number }): Issue {
   return {
     title: "Test issue",
+    html_url: `https://github.com/owner/repo/issues/${overrides.number}`,
     state: "open",
     labels: [],
     assignees: [],
@@ -26,6 +27,7 @@ function makeIssue(overrides: Partial<Issue> & { number: number }): Issue {
 
 function makePr(overrides: Partial<PullRequest> & { number: number }): PullRequest {
   return {
+    title: "Test PR",
     state: "open",
     merged: false,
     body: null,
