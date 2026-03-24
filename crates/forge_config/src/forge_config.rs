@@ -134,11 +134,10 @@ impl ForgeConfig {
     /// Panics if the configuration cannot be loaded.
     pub fn get() -> &'static ForgeConfig {
         CONFIG.get_or_init(|| {
-            let mut builder = config::Config::builder()
-                .add_source(config::File::from_str(
-                    include_str!("../.config.json"),
-                    config::FileFormat::Json,
-                ));
+            let mut builder = config::Config::builder().add_source(config::File::from_str(
+                include_str!("../.config.json"),
+                config::FileFormat::Json,
+            ));
 
             // Add user config from home directory if it exists
             if let Some(config_dir) = dirs::home_dir() {
@@ -148,9 +147,16 @@ impl ForgeConfig {
                 }
             }
 
-            let config = builder
-                .build()
-                .expect("Failed to build config");
+            // Add environment variable overrides with FORGE__ prefix.
+            // Double underscore separates nested keys, e.g.
+            // FORGE__MAX_SEARCH_LINES overrides `max_search_lines`.
+            builder = builder.add_source(
+                config::Environment::with_prefix("FORGE")
+                    .separator("_")
+                    .try_parsing(true),
+            );
+
+            let config = builder.build().expect("Failed to build config");
 
             config
                 .try_deserialize()
