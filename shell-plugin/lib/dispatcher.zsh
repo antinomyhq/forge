@@ -79,7 +79,12 @@ function _forge_action_default() {
     fi
     
     # Execute the forge command directly with proper escaping
-    _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+        # Capture last command from history for context
+    local last_cmd=$(fc -ln -1)
+    
+    # Execute the forge command with last command context
+    _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID" --context "Last command: $last_cmd"
+
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
