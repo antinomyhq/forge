@@ -37,7 +37,7 @@ impl CodexTransformer {
         // Start with Medium effort to bias towards action over deliberation.
         // Ramp up as the conversation grows and the agent likely needs deeper
         // reasoning to debug or refine its approach.
-        if assistant_msg_count >= 9 {
+        if assistant_msg_count >= 10 {
             oai::ReasoningEffort::High
         } else {
             oai::ReasoningEffort::Medium
