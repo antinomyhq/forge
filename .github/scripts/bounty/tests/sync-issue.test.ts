@@ -30,6 +30,9 @@ function makeMockApi(issue: Issue): GitHubApi & {
     async listIssuesWithLabelPrefix(): Promise<Issue[]> {
       throw new Error("not used");
     },
+    async listPrsWithLabelPrefix(): Promise<PullRequest[]> {
+      throw new Error("not used");
+    },
     async addLabels(_target, labels) {
       added.push(labels);
     },

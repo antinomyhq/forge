@@ -8,8 +8,9 @@
 //! - `sync-all-issues.ts` — fetches all open issues with any bounty label and
 //!   reconciles their label sets in one pass. Runs on a schedule and on label
 //!   events.
-//! - `sync-pr.ts --pr N` — propagates labels from linked issues to the PR;
-//!   handles the rewarded lifecycle on merge.
+//! - `sync-all-prs.ts` — fetches all open PRs with any bounty label, resolves
+//!   linked issues, and applies the full PR rules in one pass. Runs on a
+//!   schedule and on pull_request/pull_request_target events.
 
 use gh_workflow::*;
 
@@ -19,16 +20,6 @@ const TSX: &str = "npx tsx";
 /// Returns a checkout step — required before script invocation.
 fn checkout_step() -> Step<Use> {
     Step::new("Checkout").uses("actions", "checkout", "v4")
-}
-
-/// Builds a three-step job: checkout + npm install + a single script
-/// invocation.
-fn sync_job(job_name: &str, script: &str, args: String) -> Job {
-    let cmd = format!("{TSX} {SCRIPTS_DIR}/{script} {args}");
-    Job::new(job_name)
-        .add_step(checkout_step())
-        .add_step(Step::new("Install npm packages").run("npm install"))
-        .add_step(Step::new("Sync bounty labels").run(cmd))
 }
 
 /// Creates a job that syncs bounty labels across all open issues that carry
@@ -50,25 +41,34 @@ pub fn sync_all_issues_job() -> Job {
         .add_step(Step::new("Install npm packages").run("npm install"))
         .add_step(Step::new("Sync all bounty labels").run(cmd))
         .permissions(Permissions::default().issues(Level::Write))
+        .cond(Expression::new(
+            "github.event_name == 'issues' || github.event_name == 'schedule'",
+        ))
 }
 
-/// Creates a job that propagates bounty labels from linked issues to the PR
-/// and handles the rewarded lifecycle when the PR is merged.
+/// Creates a job that syncs bounty labels across all open PRs that carry any
+/// bounty label, propagating value labels from linked issues and applying the
+/// rewarded lifecycle on merge.
 ///
 /// Triggered on: pull_request opened/edited/reopened, pull_request_target
-/// closed.
-pub fn sync_pr_job() -> Job {
-    sync_job(
-        "Sync PR bounty labels",
-        "sync-pr.ts",
-        "--pr ${{ github.event.pull_request.number }} \
-            --repo ${{ github.repository }} \
-            --token ${{ secrets.GITHUB_TOKEN }}"
-            .to_string(),
-    )
-    .permissions(
-        Permissions::default()
-            .issues(Level::Write)
-            .pull_requests(Level::Write),
-    )
+/// closed, and on schedule.
+pub fn sync_all_prs_job() -> Job {
+    let cmd = format!(
+        "{TSX} {SCRIPTS_DIR}/sync-all-prs.ts \
+            --repo ${{{{ github.repository }}}} \
+            --token ${{{{ secrets.GITHUB_TOKEN }}}} \
+            --execute"
+    );
+    Job::new("Sync all bounty PRs")
+        .add_step(checkout_step())
+        .add_step(Step::new("Install npm packages").run("npm install"))
+        .add_step(Step::new("Sync all bounty PR labels").run(cmd))
+        .permissions(
+            Permissions::default()
+                .issues(Level::Write)
+                .pull_requests(Level::Write),
+        )
+        .cond(Expression::new(
+            "github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || github.event_name == 'schedule'",
+        ))
 }

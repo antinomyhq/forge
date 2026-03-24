@@ -30,6 +30,9 @@ function makeMockApi(issues: Issue[]): GitHubApi & {
       // Return only real issues (not PRs — pull_request field absent)
       return issues.filter((i) => i.pull_request === undefined);
     },
+    async listPrsWithLabelPrefix(): Promise<PullRequest[]> {
+      throw new Error("not used");
+    },
     async addLabels(target, labels) {
       if (!added.has(target)) added.set(target, []);
       added.get(target)!.push(labels);

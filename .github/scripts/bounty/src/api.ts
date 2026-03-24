@@ -16,6 +16,9 @@ export interface GitHubApi {
   /// Fetch all open issues that have any label matching the given prefix.
   /// Handles pagination automatically and excludes pull requests.
   listIssuesWithLabelPrefix(prefix: string): Promise<Issue[]>;
+  /// Fetch all open pull requests that have any label matching the given prefix.
+  /// Handles pagination automatically.
+  listPrsWithLabelPrefix(prefix: string): Promise<PullRequest[]>;
   /// Add one or more labels to an issue or PR. Batched into a single request.
   addLabels(target: number, labels: string[]): Promise<void>;
   /// Remove a single label from an issue or PR.
@@ -88,6 +91,26 @@ export class GitHubRestApi implements GitHubApi {
         if (issue.pull_request !== undefined) continue;
         if (issue.labels.some((l) => l.name.startsWith(prefix))) {
           results.push(issue);
+        }
+      }
+      if (batch.length < 100) break;
+      page++;
+    }
+    return results;
+  }
+
+  async listPrsWithLabelPrefix(prefix: string): Promise<PullRequest[]> {
+    const results: PullRequest[] = [];
+    let page = 1;
+    while (true) {
+      const batch = await this.request<PullRequest[]>(
+        "GET",
+        `/pulls?state=open&per_page=100&page=${page}`
+      );
+      if (batch.length === 0) break;
+      for (const pr of batch) {
+        if (pr.labels.some((l: Label) => l.name.startsWith(prefix))) {
+          results.push(pr);
         }
       }
       if (batch.length < 100) break;

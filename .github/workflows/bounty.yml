@@ -38,6 +38,7 @@ permissions:
   pull-requests: write
 jobs:
   sync-all-issues:
+    if: github.event_name == 'issues' || github.event_name == 'schedule'
     name: Sync all bounty issues
     runs-on: ubuntu-latest
     permissions:
@@ -49,8 +50,9 @@ jobs:
       run: npm install
     - name: Sync all bounty labels
       run: npx tsx .github/scripts/bounty/src/sync-all-issues.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --execute
-  sync-pr:
-    name: Sync PR bounty labels
+  sync-all-prs:
+    if: github.event_name == 'pull_request' || github.event_name == 'pull_request_target' || github.event_name == 'schedule'
+    name: Sync all bounty PRs
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -60,5 +62,5 @@ jobs:
       uses: actions/checkout@v4
     - name: Install npm packages
       run: npm install
-    - name: Sync bounty labels
-      run: npx tsx .github/scripts/bounty/src/sync-pr.ts --pr ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+    - name: Sync all bounty PR labels
+      run: npx tsx .github/scripts/bounty/src/sync-all-prs.ts --repo ${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --execute

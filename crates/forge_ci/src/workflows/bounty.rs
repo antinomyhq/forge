@@ -1,7 +1,7 @@
 use gh_workflow::generate::Generate;
 use gh_workflow::*;
 
-use crate::jobs::{sync_all_issues_job, sync_pr_job};
+use crate::jobs::{sync_all_issues_job, sync_all_prs_job};
 
 /// Generate the bounty management workflow (v2).
 ///
@@ -9,8 +9,9 @@ use crate::jobs::{sync_all_issues_job, sync_pr_job};
 /// - `sync-all-issues`: fetches all open issues with any bounty label and
 ///   reconciles their label sets in one pass. Triggered on label/assignment
 ///   events and daily on a schedule.
-/// - `sync-pr`: propagates bounty value labels from linked issues to the PR on
-///   open/edit, and applies the rewarded lifecycle on merge.
+/// - `sync-all-prs`: fetches all open PRs with any bounty label, resolves
+///   linked issues, and applies the PR rules in one pass. Triggered on
+///   pull_request/pull_request_target events and daily on a schedule.
 pub fn generate_bounty_workflow() {
     let events = Event::default()
         .pull_request(
@@ -38,7 +39,7 @@ pub fn generate_bounty_workflow() {
                 .pull_requests(Level::Write),
         )
         .add_job("sync-all-issues", sync_all_issues_job())
-        .add_job("sync-pr", sync_pr_job());
+        .add_job("sync-all-prs", sync_all_prs_job());
 
     Generate::new(workflow)
         .name("bounty.yml")

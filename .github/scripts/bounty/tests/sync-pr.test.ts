@@ -48,6 +48,9 @@ function makeMockApi(pr: PullRequest, issues: Issue[]): MockApi {
     async listIssuesWithLabelPrefix(): Promise<Issue[]> {
       throw new Error("not used");
     },
+    async listPrsWithLabelPrefix(): Promise<PullRequest[]> {
+      throw new Error("not used");
+    },
     async addLabels(target, labels) {
       recordAdd(target, labels);
     },
