@@ -2,7 +2,6 @@ mod auto_dump;
 mod config;
 mod error;
 mod http_config;
-mod merge;
 mod model_config;
 mod reader;
 mod retry_config;

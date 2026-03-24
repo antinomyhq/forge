@@ -7,7 +7,7 @@ pub enum Error {
 
     /// Failed to serialize or write configuration.
     #[error("Serialization error: {0}")]
-    Serialization(String),
+    Serialization(#[from] toml_edit::ser::Error),
 
     /// An I/O error occurred while reading or writing configuration files.
     #[error("IO error: {0}")]

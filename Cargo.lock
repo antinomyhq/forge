@@ -1944,11 +1944,11 @@ dependencies = [
  "derive_setters",
  "dirs",
  "fake",
- "merge",
  "pretty_assertions",
  "serde",
  "thiserror 2.0.18",
  "tokio",
+ "toml_edit",
  "url",
 ]
 

@@ -5,7 +5,6 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-merge.workspace = true
 thiserror.workspace = true
 config = { version = "0.15", features = ["toml"] }
 derive_more.workspace = true
@@ -13,6 +12,7 @@ derive_setters.workspace = true
 dirs.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 serde.workspace = true
+toml_edit = { workspace = true }
 url.workspace = true
 fake = { version = "5.1.0", features = ["derive"] }
 
