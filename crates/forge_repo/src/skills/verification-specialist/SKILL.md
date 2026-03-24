@@ -19,9 +19,20 @@ Re-read the task prompt. Figure out exactly how the verifier will test your outp
 
 1. **Check for test scripts**: `ls /app/test* /app/check* /app/verify* /app/grade* 2>/dev/null` — if they exist, READ them.
 2. **Infer from the prompt**: If the task says "write X that passes the tests", "the grader checks Y", or mentions import paths / CLI invocations / HTTP endpoints — reconstruct that exact invocation.
-3. **Run it**: Execute the reconstructed verifier command. If it passes, you're likely done. If it fails, fix the failures.
+3. **Run it**: Execute the reconstructed verifier command. If it passes, proceed to Step 1.5. If it fails, fix the failures.
 
 **Do NOT build a requirements matrix.** Just run the verifier. If there is no discoverable verifier, write a 5-line smoke test that exercises the critical output path.
+
+## Step 1.5 — Bundled Tests Are Not Enough
+
+Bundled test scripts often test only one scenario. The real verifier will test additional inputs you have not seen. After the bundled tests pass:
+
+1. **List every distinct feature or rule** the task prompt requires (e.g., "handles negative numbers", "supports streaming", "works with empty input", "Unicode-safe").
+2. **Read the bundled test** and note which of those features it actually exercises.
+3. **For every feature NOT exercised by the bundled test**, generate at least one test input that forces that code path, and verify your solution produces correct output.
+4. **If an oracle or reference library is available** (e.g., the task installs a library, provides a reference binary, or the language has a standard implementation), generate 20+ random inputs spanning the full input space, run both your solution and the oracle, and diff the outputs. Any mismatch is a bug.
+
+This is the MOST COMMON source of false confidence: the bundled test passes, so the agent declares success, but the real verifier tests other inputs that expose unexercised bugs.
 
 ## Step 2 — Constraint Quick-Check
 
