@@ -1,55 +1,10 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-use forge_domain::{AppConfigRepository, CommitConfig, ModelId, ProviderId, SuggestConfig};
-use serde::{Deserialize, Serialize};
+use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId};
 use tokio::sync::Mutex;
-
-/// Local representation of the application configuration stored on disk.
-///
-/// This mirrors `forge_domain::AppConfig` but is kept private to the repository
-/// crate so that the serialization format is decoupled from the domain type.
-/// Use `From<AppConfig> for forge_domain::AppConfig` to convert after reading.
-#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-struct AppConfig {
-    pub key_info: Option<forge_domain::LoginInfo>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub provider: Option<ProviderId>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub model: HashMap<ProviderId, ModelId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub commit: Option<CommitConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub suggest: Option<SuggestConfig>,
-}
-
-impl From<AppConfig> for forge_domain::AppConfig {
-    fn from(value: AppConfig) -> Self {
-        forge_domain::AppConfig {
-            key_info: value.key_info,
-            provider: value.provider,
-            model: value.model,
-            commit: value.commit,
-            suggest: value.suggest,
-        }
-    }
-}
-
-impl From<forge_domain::AppConfig> for AppConfig {
-    fn from(value: forge_domain::AppConfig) -> Self {
-        AppConfig {
-            key_info: value.key_info,
-            provider: value.provider,
-            model: value.model,
-            commit: value.commit,
-            suggest: value.suggest,
-        }
-    }
-}
 
 /// Repository for managing application configuration with caching support.
 ///
@@ -162,12 +117,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
     for AppConfigRepositoryImpl<F>
 {
-    async fn get_app_config(&self) -> anyhow::Result<forge_domain::AppConfig> {
+    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
         if let Some(ref cached_config) = *cache {
             // Apply overrides even to cached config since overrides can change via env vars
-            return Ok(self.apply_overrides(cached_config.clone()).into());
+            return Ok(self.apply_overrides(cached_config.clone()));
         }
         drop(cache);
 
@@ -179,17 +134,17 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
         *cache = Some(config.clone());
 
         // Apply overrides to the config before returning
-        Ok(self.apply_overrides(config).into())
+        Ok(self.apply_overrides(config))
     }
 
-    async fn set_app_config(&self, config: &forge_domain::AppConfig) -> anyhow::Result<()> {
+    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         let (model, provider) = self.get_overrides();
 
         if model.is_some() || provider.is_some() {
             bail!("Could not save configuration: Model or Provider was overridden")
         }
 
-        self.write(&AppConfig::from(config.clone())).await?;
+        self.write(config).await?;
 
         // Bust the cache after successful write
         let mut cache = self.cache.lock().await;
