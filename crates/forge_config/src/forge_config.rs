@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -6,7 +7,7 @@ use dirs;
 use serde::Deserialize;
 use url::Url;
 
-use crate::{AutoDumpFormat, HttpConfig, RetryConfig};
+use crate::{AutoDumpFormat, HttpConfig, ModelConfig, ModelId, ProviderId, RetryConfig};
 
 /// Forge configuration containing all the fields from the Environment struct.
 ///
@@ -90,6 +91,36 @@ pub struct ForgeConfig {
     pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
+    /// Default provider ID to use for AI operations
+    #[serde(default)]
+    pub provider: Option<ProviderId>,
+    /// Map of provider ID to model ID for per-provider model selection
+    #[serde(default)]
+    pub model: HashMap<ProviderId, ModelId>,
+    /// Provider and model to use for commit message generation
+    #[serde(default)]
+    pub commit: Option<ModelConfig>,
+    /// Provider and model to use for shell command suggestion generation
+    #[serde(default)]
+    pub suggest: Option<ModelConfig>,
+    /// API key for Forge authentication
+    #[serde(default)]
+    pub api_key: Option<String>,
+    /// Display name of the API key
+    #[serde(default)]
+    pub api_key_name: Option<String>,
+    /// Masked representation of the API key for display purposes
+    #[serde(default)]
+    pub api_key_masked: Option<String>,
+    /// Email address associated with the Forge account
+    #[serde(default)]
+    pub email: Option<String>,
+    /// Display name of the authenticated user
+    #[serde(default)]
+    pub name: Option<String>,
+    /// Identifier of the authentication provider used for login
+    #[serde(default)]
+    pub auth_provider_id: Option<String>,
 }
 
 static CONFIG: OnceLock<ForgeConfig> = OnceLock::new();
