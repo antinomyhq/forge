@@ -110,6 +110,15 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         })
         .await
     }
+
+    async fn get_agent_model_config(&self, agent_id: &str) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.agent_models.get(agent_id).cloned())
+    }
+
+    async fn set_agent_model_config(&self, agent_id: String, agent_config: forge_domain::AgentModelConfig) -> anyhow::Result<()> {
+        self.update(|config| { config.agent_models.insert(agent_id, agent_config); }).await
+    }
 }
 
 #[cfg(test)]

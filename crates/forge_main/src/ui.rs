@@ -3428,6 +3428,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::AgentModel { agent, provider, model } => {
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let agent_config = forge_domain::AgentModelConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api.set_agent_model_config(agent.as_str().to_string(), agent_config).await?;
+                self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
+                    format!("is now the model for agent '{}' (provider '{}')", agent, provider),
+                ))?;
+            }
         }
 
         Ok(())
@@ -3487,6 +3498,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::AgentModel { agent } => {
+                let agent_config = self.api.get_agent_model_config(agent.as_str()).await?;
+                match agent_config {
+                    Some(config) => {
+                        self.writeln(config.provider.as_ref())?;
+                        self.writeln(config.model.as_str().to_string())?;
+                    }
+                    None => self.writeln(format!("Agent model for '{}': Not set (using default)", agent))?,
                 }
             }
         }

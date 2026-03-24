@@ -227,6 +227,10 @@ pub trait AppConfigService: Send + Sync {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    async fn get_agent_model_config(&self, agent_id: &str) -> anyhow::Result<Option<forge_domain::AgentModelConfig>>;
+
+    async fn set_agent_model_config(&self, agent_id: String, config: forge_domain::AgentModelConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1059,6 +1063,14 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
         self.config_service().set_suggest_config(config).await
+    }
+
+    async fn get_agent_model_config(&self, agent_id: &str) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+        self.config_service().get_agent_model_config(agent_id).await
+    }
+
+    async fn set_agent_model_config(&self, agent_id: String, config: forge_domain::AgentModelConfig) -> anyhow::Result<()> {
+        self.config_service().set_agent_model_config(agent_id, config).await
     }
 }
 

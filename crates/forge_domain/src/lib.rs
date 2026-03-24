@@ -1,5 +1,6 @@
 mod agent;
 mod agent_definition;
+mod agent_model_config;
 mod app_config;
 mod attachment;
 mod auth;
@@ -60,6 +61,7 @@ mod xml;
 
 pub use agent::*;
 pub use agent_definition::*;
+pub use agent_model_config::*;
 pub use attachment::*;
 pub use chat_request::*;
 pub use chat_response::*;
