@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Mutex;
 
-use super::ProcessMetadataService;
 use anyhow::{Context, Result};
 use chrono::Utc;
 use forge_domain::BackgroundProcess;
 use forge_fs::ForgeFS;
+
+use super::ProcessMetadataService;
 
 /// Owns the temp-file handles for background process log files so that they
 /// are automatically cleaned up when the manager is dropped.
