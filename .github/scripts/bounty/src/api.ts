@@ -13,6 +13,9 @@ export interface GitHubApi {
   getIssue(number: number): Promise<Issue>;
   /// Fetch a full pull request by number. Throws on non-2xx.
   getPullRequest(number: number): Promise<PullRequest>;
+  /// Fetch all open issues that have any label matching the given prefix.
+  /// Handles pagination automatically and excludes pull requests.
+  listIssuesWithLabelPrefix(prefix: string): Promise<Issue[]>;
   /// Add one or more labels to an issue or PR. Batched into a single request.
   addLabels(target: number, labels: string[]): Promise<void>;
   /// Remove a single label from an issue or PR.
@@ -69,6 +72,28 @@ export class GitHubRestApi implements GitHubApi {
 
   async getPullRequest(number: number): Promise<PullRequest> {
     return this.request<PullRequest>("GET", `/pulls/${number}`);
+  }
+
+  async listIssuesWithLabelPrefix(prefix: string): Promise<Issue[]> {
+    const results: Issue[] = [];
+    let page = 1;
+    while (true) {
+      const batch = await this.request<Issue[]>(
+        "GET",
+        `/issues?state=open&per_page=100&page=${page}`
+      );
+      if (batch.length === 0) break;
+      for (const issue of batch) {
+        // Exclude pull requests (GitHub returns them in /issues)
+        if (issue.pull_request !== undefined) continue;
+        if (issue.labels.some((l) => l.name.startsWith(prefix))) {
+          results.push(issue);
+        }
+      }
+      if (batch.length < 100) break;
+      page++;
+    }
+    return results;
   }
 
   async addLabels(target: number, labels: string[]): Promise<void> {

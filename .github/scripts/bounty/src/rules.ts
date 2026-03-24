@@ -46,12 +46,13 @@ function diff(
   target: number,
   current: Set<string>,
   desired: Set<string>,
-  comment?: string
+  comment?: string,
+  meta?: { title?: string; url?: string }
 ): LabelOp | null {
   const add = [...desired].filter((l) => !current.has(l));
   const remove = [...current].filter((l) => !desired.has(l));
   if (add.length === 0 && remove.length === 0 && !comment) return null;
-  return { target, add, remove, comment };
+  return { target, title: meta?.title, url: meta?.url, add, remove, comment };
 }
 
 // ---------------------------------------------------------------------------
@@ -88,7 +89,10 @@ export function computeIssuePatch({ issue, currentLabels }: IssueState): Patch {
     desired.delete(BOUNTY_CLAIMED);
   }
 
-  const op = diff(issue.number, currentLabels, desired);
+  const op = diff(issue.number, currentLabels, desired, undefined, {
+    title: issue.title,
+    url: issue.html_url,
+  });
   return { ops: op ? [op] : [] };
 }
 
@@ -131,7 +135,10 @@ export function computePrPatch({ pr, currentLabels, linkedIssues }: PrState): Pa
     // Rule 2 — rewarded lifecycle.
     prDesired.add(BOUNTY_REWARDED);
 
-    const prOp = diff(pr.number, currentLabels, prDesired);
+    const prOp = diff(pr.number, currentLabels, prDesired, undefined, {
+      title: pr.title,
+      url: pr.html_url,
+    });
     if (prOp) ops.push(prOp);
 
     // Update linked issues — only those that already have a bounty value label.
@@ -144,12 +151,18 @@ export function computePrPatch({ pr, currentLabels, linkedIssues }: PrState): Pa
       issueDesired.add(BOUNTY_REWARDED);
       issueDesired.delete(BOUNTY_CLAIMED);
 
-      const op = diff(issue.number, issueCurrent, issueDesired);
+      const op = diff(issue.number, issueCurrent, issueDesired, undefined, {
+        title: issue.title,
+        url: issue.html_url,
+      });
       if (op) ops.push(op);
     }
   } else {
     // Rule 1 — label propagation (pre-merge).
-    const prOp = diff(pr.number, currentLabels, prDesired);
+    const prOp = diff(pr.number, currentLabels, prDesired, undefined, {
+      title: pr.title,
+      url: pr.html_url,
+    });
     if (prOp) ops.push(prOp);
 
     // Rule 3 — comment on each issue whose value label was newly propagated.
@@ -159,6 +172,8 @@ export function computePrPatch({ pr, currentLabels, linkedIssues }: PrState): Pa
         if (hadValueLabel) {
           ops.push({
             target: issue.number,
+            title: issue.title,
+            url: issue.html_url,
             add: [],
             remove: [],
             comment: `PR [#${pr.number}](${pr.html_url}) has been opened for this bounty by @${pr.user.login}.`,

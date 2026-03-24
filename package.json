@@ -10,7 +10,8 @@
     "eval": "tsx benchmarks/cli.ts",
     "test:bounty": "tsx --test .github/scripts/bounty/tests/*.test.ts",
     "bounty:sync-issue": "tsx .github/scripts/bounty/src/sync-issue.ts",
-    "bounty:sync-pr": "tsx .github/scripts/bounty/src/sync-pr.ts"
+    "bounty:sync-pr": "tsx .github/scripts/bounty/src/sync-pr.ts",
+    "bounty:sync-all-issues": "tsx .github/scripts/bounty/src/sync-all-issues.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.47",
@@ -19,6 +20,7 @@
     "@types/tmp": "^0.2.6",
     "@types/yargs": "^17.0.35",
     "ai": "^6.0.77",
+    "chalk": "^5.6.2",
     "csv-parse": "^6.1.0",
     "handlebars": "^4.7.8",
     "p-limit": "^7.2.0",

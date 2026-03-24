@@ -27,6 +27,9 @@ function makeMockApi(issue: Issue): GitHubApi & {
     async getPullRequest(): Promise<PullRequest> {
       throw new Error("not used");
     },
+    async listIssuesWithLabelPrefix(): Promise<Issue[]> {
+      throw new Error("not used");
+    },
     async addLabels(_target, labels) {
       added.push(labels);
     },
@@ -42,6 +45,7 @@ function makeMockApi(issue: Issue): GitHubApi & {
 function makeIssue(overrides: Partial<Issue> & { number: number }): Issue {
   return {
     title: "Test issue",
+    html_url: `https://github.com/owner/repo/issues/${overrides.number}`,
     state: "open",
     labels: [],
     assignees: [],
