@@ -18,7 +18,7 @@ use crate::truncation::{
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
     FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput, ShellOutputKind,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -548,38 +548,59 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Shell { output } => {
-                let mut parent_elem = Element::new("shell_output")
-                    .attr("command", &output.output.command)
-                    .attr("shell", &output.shell);
+                let mut parent_elem = Element::new("shell_output");
 
-                if let Some(description) = &output.description {
-                    parent_elem = parent_elem.attr("description", description);
+                match &output.kind {
+                    ShellOutputKind::Background { command, pid, log_file } => {
+                        parent_elem = parent_elem
+                            .attr("command", command)
+                            .attr("shell", &output.shell)
+                            .attr("mode", "background");
+
+                        if let Some(description) = &output.description {
+                            parent_elem = parent_elem.attr("description", description);
+                        }
+
+                        let bg_elem = Element::new("background")
+                            .attr("pid", *pid)
+                            .attr("log_file", log_file.display().to_string());
+                        parent_elem = parent_elem.append(bg_elem);
+                    }
+                    ShellOutputKind::Foreground(cmd_output) => {
+                        parent_elem = parent_elem
+                            .attr("command", &cmd_output.command)
+                            .attr("shell", &output.shell);
+
+                        if let Some(description) = &output.description {
+                            parent_elem = parent_elem.attr("description", description);
+                        }
+
+                        if let Some(exit_code) = cmd_output.exit_code {
+                            parent_elem = parent_elem.attr("exit_code", exit_code);
+                        }
+
+                        let truncated_output = truncate_shell_output(
+                            &cmd_output.stdout,
+                            &cmd_output.stderr,
+                            env.stdout_max_prefix_length,
+                            env.stdout_max_suffix_length,
+                            env.stdout_max_line_length,
+                        );
+
+                        let stdout_elem = create_stream_element(
+                            &truncated_output.stdout,
+                            content_files.stdout.as_deref(),
+                        );
+
+                        let stderr_elem = create_stream_element(
+                            &truncated_output.stderr,
+                            content_files.stderr.as_deref(),
+                        );
+
+                        parent_elem = parent_elem.append(stdout_elem);
+                        parent_elem = parent_elem.append(stderr_elem);
+                    }
                 }
-
-                if let Some(exit_code) = output.output.exit_code {
-                    parent_elem = parent_elem.attr("exit_code", exit_code);
-                }
-
-                let truncated_output = truncate_shell_output(
-                    &output.output.stdout,
-                    &output.output.stderr,
-                    env.stdout_max_prefix_length,
-                    env.stdout_max_suffix_length,
-                    env.stdout_max_line_length,
-                );
-
-                let stdout_elem = create_stream_element(
-                    &truncated_output.stdout,
-                    content_files.stdout.as_deref(),
-                );
-
-                let stderr_elem = create_stream_element(
-                    &truncated_output.stderr,
-                    content_files.stderr.as_deref(),
-                );
-
-                parent_elem = parent_elem.append(stdout_elem);
-                parent_elem = parent_elem.append(stderr_elem);
 
                 forge_domain::ToolOutput::text(parent_elem)
             }
@@ -1005,12 +1026,12 @@ mod tests {
     fn test_shell_output_no_truncation() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "echo hello".to_string(),
                     stdout: "hello\nworld".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1038,12 +1059,12 @@ mod tests {
 
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "long_command".to_string(),
                     stdout,
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1073,12 +1094,12 @@ mod tests {
 
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "error_command".to_string(),
                     stdout: "".to_string(),
                     stderr,
                     exit_code: Some(1),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1114,12 +1135,12 @@ mod tests {
 
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "complex_command".to_string(),
                     stdout,
                     stderr,
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1150,12 +1171,12 @@ mod tests {
 
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "boundary_command".to_string(),
                     stdout,
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1176,12 +1197,12 @@ mod tests {
     fn test_shell_output_single_line_each() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "simple_command".to_string(),
                     stdout: "single stdout line".to_string(),
                     stderr: "single stderr line".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1202,12 +1223,12 @@ mod tests {
     fn test_shell_output_empty_streams() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "silent_command".to_string(),
                     stdout: "".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -1241,12 +1262,12 @@ mod tests {
 
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "line_test_command".to_string(),
                     stdout,
                     stderr,
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -2267,12 +2288,12 @@ mod tests {
     fn test_shell_success() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "ls -la".to_string(),
                     stdout: "total 8\ndrwxr-xr-x  2 user user 4096 Jan  1 12:00 .\ndrwxr-xr-x 10 user user 4096 Jan  1 12:00 ..".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -2294,12 +2315,12 @@ mod tests {
     fn test_shell_with_description() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "git status".to_string(),
                     stdout: "On branch main\nnothing to commit, working tree clean".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: Some("Shows working tree status".to_string()),
             },

@@ -45,6 +45,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 self.environment.cwd.clone(),
                 false,
                 true,
+                false,
                 None,
                 None,
             )
@@ -52,11 +53,12 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             .ok()?;
 
         // If git command fails (e.g., not in a git repo), return None
-        if output.output.exit_code != Some(0) {
+        let fg = output.foreground()?;
+        if fg.exit_code != Some(0) {
             return None;
         }
 
-        parse_extensions(&output.output.stdout, max_extensions)
+        parse_extensions(&fg.stdout, max_extensions)
     }
 
     pub async fn add_system_message(

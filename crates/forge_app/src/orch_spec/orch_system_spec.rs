@@ -1,7 +1,7 @@
 use forge_domain::{ChatCompletionMessage, CommandOutput, Content, FinishReason, Workflow};
 use insta::assert_snapshot;
 
-use crate::ShellOutput;
+use crate::{ShellOutput, ShellOutputKind};
 use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
@@ -44,12 +44,12 @@ async fn test_system_prompt_tool_supported() {
 #[tokio::test]
 async fn test_system_prompt_with_extensions() {
     let shell_output = ShellOutput {
-        output: CommandOutput {
+        kind: ShellOutputKind::Foreground(CommandOutput {
             stdout: include_str!("../fixtures/git_ls_files_mixed.txt").to_string(),
             stderr: String::new(),
             command: "git ls-files".to_string(),
             exit_code: Some(0),
-        },
+        }),
         shell: "/bin/bash".to_string(),
         description: None,
     };
@@ -81,12 +81,12 @@ async fn test_system_prompt_with_extensions_truncated() {
     let stdout = files.join("\n");
 
     let shell_output = ShellOutput {
-        output: CommandOutput {
+        kind: ShellOutputKind::Foreground(CommandOutput {
             stdout,
             stderr: String::new(),
             command: "git ls-files".to_string(),
             exit_code: Some(0),
-        },
+        }),
         shell: "/bin/bash".to_string(),
         description: None,
     };

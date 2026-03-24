@@ -162,23 +162,25 @@ where
 
         let commit_result = self
             .services
-            .execute(commit_command, cwd, false, true, None, None)
+            .execute(commit_command, cwd, false, true, false, None, None)
             .await
             .context("Failed to commit changes")?;
 
-        if !commit_result.output.success() {
-            anyhow::bail!("Git commit failed: {}", commit_result.output.stderr);
+        let output = commit_result.foreground().expect("git commit runs in foreground");
+
+        if !output.success() {
+            anyhow::bail!("Git commit failed: {}", output.stderr);
         }
 
         // Combine stdout and stderr for logging
-        let git_output = if commit_result.output.stdout.is_empty() {
-            commit_result.output.stderr.clone()
-        } else if commit_result.output.stderr.is_empty() {
-            commit_result.output.stdout.clone()
+        let git_output = if output.stdout.is_empty() {
+            output.stderr.clone()
+        } else if output.stderr.is_empty() {
+            output.stdout.clone()
         } else {
             format!(
                 "{}\n{}",
-                commit_result.output.stdout, commit_result.output.stderr
+                output.stdout, output.stderr
             )
         };
 
@@ -230,6 +232,7 @@ where
                 cwd.to_path_buf(),
                 false,
                 true,
+                false,
                 None,
                 None,
             ),
@@ -238,6 +241,7 @@ where
                 cwd.to_path_buf(),
                 false,
                 true,
+                false,
                 None,
                 None,
             ),
@@ -246,7 +250,10 @@ where
         let recent_commits = recent_commits.context("Failed to get recent commits")?;
         let branch_name = branch_name.context("Failed to get branch name")?;
 
-        Ok((recent_commits.output.stdout, branch_name.output.stdout))
+        Ok((
+            recent_commits.foreground().expect("git log runs in foreground").stdout.clone(),
+            branch_name.foreground().expect("git rev-parse runs in foreground").stdout.clone(),
+        ))
     }
 
     /// Fetches diff from git (staged or unstaged)
@@ -257,6 +264,7 @@ where
                 cwd.to_path_buf(),
                 false,
                 true,
+                false,
                 None,
                 None,
             ),
@@ -265,6 +273,7 @@ where
                 cwd.to_path_buf(),
                 false,
                 true,
+                false,
                 None,
                 None,
             )
@@ -274,17 +283,18 @@ where
         let unstaged_diff = unstaged_diff.context("Failed to get unstaged changes")?;
 
         // Use staged changes if available, otherwise fall back to unstaged changes
-        let has_staged_files = !staged_diff.output.stdout.trim().is_empty();
+        let has_staged_files = !staged_diff.foreground().expect("git diff runs in foreground").stdout.trim().is_empty();
         let diff_output = if has_staged_files {
             staged_diff
-        } else if !unstaged_diff.output.stdout.trim().is_empty() {
+        } else if !unstaged_diff.foreground().expect("git diff runs in foreground").stdout.trim().is_empty() {
             unstaged_diff
         } else {
             return Err(GitAppError::NoChangesToCommit.into());
         };
 
-        let size = diff_output.output.stdout.len();
-        Ok((diff_output.output.stdout, size, has_staged_files))
+        let fg = diff_output.foreground().expect("git diff runs in foreground");
+        let size = fg.stdout.len();
+        Ok((fg.stdout.clone(), size, has_staged_files))
     }
 
     /// Resolves the provider and model from the active agent's configuration.

@@ -226,6 +226,9 @@ function forge-accept-line() {
         keyboard-shortcuts|kb)
             _forge_action_keyboard
         ;;
+        processes|ps)
+            _forge_action_processes
+        ;;
         *)
             _forge_action_default "$user_action" "$input_text"
         ;;

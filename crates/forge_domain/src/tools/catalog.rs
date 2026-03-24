@@ -562,6 +562,15 @@ pub struct Shell {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+
+    /// If true, runs the command in the background as a detached process.
+    /// The command's stdout/stderr are redirected to a temporary log file.
+    /// The tool returns immediately with the log file path and process ID
+    /// instead of waiting for the command to complete.
+    /// Use this for long-running processes like web servers or file watchers.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "is_default")]
+    pub background: bool,
 }
 
 /// Input type for the net fetch tool
@@ -1682,6 +1691,7 @@ mod tests {
             keep_ansi: false,
             env: None,
             description: Some("Shows working tree status".to_string()),
+            background: false,
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();
@@ -1705,6 +1715,7 @@ mod tests {
             keep_ansi: false,
             env: None,
             description: None,
+            background: false,
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();
@@ -1727,6 +1738,7 @@ mod tests {
             keep_ansi: false,
             env: None,
             description: None,
+            background: false,
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();

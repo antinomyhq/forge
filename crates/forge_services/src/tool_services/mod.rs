@@ -1,3 +1,4 @@
+mod background_process;
 mod fetch;
 mod followup;
 mod fs_patch;
@@ -11,6 +12,7 @@ mod plan_create;
 mod shell;
 mod skill;
 
+pub use background_process::*;
 pub use fetch::*;
 pub use followup::*;
 pub use fs_patch::*;
