@@ -6,7 +6,8 @@
 //!
 //! Three entry points:
 //! - `sync-all-issues.ts` — fetches all open issues with any bounty label and
-//!   reconciles their label sets in one pass. Runs on a schedule and on label events.
+//!   reconciles their label sets in one pass. Runs on a schedule and on label
+//!   events.
 //! - `sync-pr.ts --pr N` — propagates labels from linked issues to the PR;
 //!   handles the rewarded lifecycle on merge.
 
