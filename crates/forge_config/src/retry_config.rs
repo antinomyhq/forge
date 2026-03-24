@@ -11,13 +11,13 @@ pub struct RetryConfig {
     /// Backoff multiplication factor for each retry attempt
     pub backoff_factor: u64,
     /// Maximum number of retry attempts
-    pub max_retry_attempts: usize,
+    pub max_attempts: usize,
     /// HTTP status codes that should trigger retries
     pub status_codes: Vec<u16>,
     /// Maximum delay between retries in seconds
-    pub max_delay: Option<u64>,
+    pub max_delay_secs: Option<u64>,
     /// Whether to suppress retry error logging and events
-    pub suppress_retry_errors: bool,
+    pub suppress_errors: bool,
 }
 
 #[cfg(test)]
@@ -32,12 +32,12 @@ mod tests {
             initial_backoff_ms: 200,
             min_delay_ms: 1000,
             backoff_factor: 2,
-            max_retry_attempts: 8,
+            max_attempts: 8,
             status_codes: vec![429, 500, 502, 503, 504, 408, 522, 520, 529],
-            max_delay: None,
-            suppress_retry_errors: false,
+            max_delay_secs: None,
+            suppress_errors: false,
         };
         assert_eq!(config.initial_backoff_ms, 200);
-        assert_eq!(config.suppress_retry_errors, false);
+        assert_eq!(config.suppress_errors, false);
     }
 }

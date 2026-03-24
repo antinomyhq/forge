@@ -1,12 +1,12 @@
 {
-  "retry_config": {
+  "retry": {
     "initial_backoff_ms": 200,
     "min_delay_ms": 1000,
     "backoff_factor": 2,
-    "max_retry_attempts": 8,
+    "max_attempts": 8,
     "status_codes": [429, 500, 502, 503, 504, 408, 522, 520, 529],
-    "max_delay": null,
-    "suppress_retry_errors": false
+    "max_delay_secs": null,
+    "suppress_errors": false
   },
   "max_search_lines": 1000,
   "max_search_result_bytes": 10240,
@@ -46,6 +46,6 @@
   "workspace_server_url": "https://api.forgecode.dev/",
   "max_extensions": 15,
   "auto_dump": null,
-  "parallel_file_reads": 64,
+  "max_parallel_file_reads": 64,
   "model_cache_ttl_secs": 604800
 }

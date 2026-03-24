@@ -40,7 +40,7 @@ use crate::{AutoDumpFormat, HttpConfig, RetryConfig};
 #[setters(strip_option)]
 pub struct ForgeConfig {
     /// Configuration for the retry mechanism
-    pub retry_config: RetryConfig,
+    pub retry: RetryConfig,
     /// The maximum number of lines returned for FSSearch
     pub max_search_lines: usize,
     /// Maximum bytes allowed for search results
@@ -87,7 +87,7 @@ pub struct ForgeConfig {
     /// Format for automatically creating a dump when a task is completed
     pub auto_dump: Option<AutoDumpFormat>,
     /// Maximum number of files read concurrently in parallel operations
-    pub parallel_file_reads: usize,
+    pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
 }
