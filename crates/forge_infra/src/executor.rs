@@ -2,7 +2,7 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_app::CommandInfra;
+use forge_app::{CommandInfra, NohupOutput};
 use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
@@ -206,6 +206,65 @@ impl CommandInfra for ForgeCommandExecutorService {
     ) -> anyhow::Result<CommandOutput> {
         self.execute_command_internal(command, &working_dir, silent, env_vars)
             .await
+    }
+
+    async fn execute_command_nohup(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<NohupOutput> {
+        let _ready = self.ready.lock().await;
+
+        // Build a sanitized filename from the command
+        let cmd_slug: String = command
+            .chars()
+            .take(30)
+            .map(|c| if c.is_alphanumeric() { c } else { '_' })
+            .collect();
+        let timestamp = chrono::Local::now().format("%Y%m%d_%H%M%S");
+        let log_path = PathBuf::from(format!("/tmp/{cmd_slug}-{timestamp}.log"));
+
+        // Wrap the original command in nohup with output redirection
+        let nohup_command = format!(
+            "nohup {} > {} 2>&1 & echo $!",
+            command,
+            log_path.display()
+        );
+
+        let mut prepared_command =
+            self.prepare_command(&nohup_command, &working_dir, env_vars);
+
+        // CRITICAL: do NOT kill the spawned background process when the handle
+        // is dropped – that would defeat the purpose of nohup.
+        prepared_command.kill_on_drop(false);
+
+        // We don't need to stream output – we only need the PID printed by
+        // `echo $!`.
+        prepared_command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+
+        let output = prepared_command.spawn()?.wait_with_output().await?;
+
+        let pid_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let pid: u32 = pid_str
+            .lines()
+            .last()
+            .unwrap_or("")
+            .trim()
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Failed to parse PID from nohup output '{}': {}", pid_str, e))?;
+
+        tracing::info!(
+            command = %command,
+            pid = pid,
+            log_path = %log_path.display(),
+            "Spawned nohup background process"
+        );
+
+        Ok(NohupOutput { pid, log_path, command })
     }
 
     async fn execute_command_raw(
@@ -421,5 +480,75 @@ mod tests {
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_nohup() {
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
+
+        let actual = fixture
+            .execute_command_nohup(
+                "sleep 0.1".to_string(),
+                PathBuf::new().join("."),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Should have a valid PID
+        assert!(actual.pid > 0, "PID should be positive");
+
+        // Log path should exist under /tmp
+        assert!(
+            actual.log_path.starts_with("/tmp/"),
+            "Log path should be under /tmp"
+        );
+
+        // Command should be preserved
+        assert_eq!(actual.command, "sleep 0.1");
+
+        // Wait briefly for the process to complete and clean up
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+        // Log file should have been created
+        assert!(
+            actual.log_path.exists(),
+            "Log file should exist at {}",
+            actual.log_path.display()
+        );
+
+        // Clean up the log file
+        let _ = std::fs::remove_file(&actual.log_path);
+    }
+
+    #[tokio::test]
+    async fn test_command_executor_nohup_process_not_killed_on_drop() {
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
+
+        let actual = fixture
+            .execute_command_nohup(
+                "sleep 1".to_string(),
+                PathBuf::new().join("."),
+                None,
+            )
+            .await
+            .unwrap();
+
+        // Process should still be running immediately after spawn
+        let check = std::process::Command::new("kill")
+            .arg("-0")
+            .arg(actual.pid.to_string())
+            .status();
+
+        assert!(
+            check.is_ok_and(|s| s.success()),
+            "Nohup process should still be alive after command handle is dropped"
+        );
+
+        // Clean up: kill the process
+        let _ = std::process::Command::new("kill")
+            .arg(actual.pid.to_string())
+            .status();
+        let _ = std::fs::remove_file(&actual.log_path);
     }
 }

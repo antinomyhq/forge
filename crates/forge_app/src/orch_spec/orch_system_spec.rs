@@ -52,6 +52,7 @@ async fn test_system_prompt_with_extensions() {
         },
         shell: "/bin/bash".to_string(),
         description: None,
+        nohup: None,
     };
 
     let mut ctx = TestContext::default()
@@ -89,6 +90,7 @@ async fn test_system_prompt_with_extensions_truncated() {
         },
         shell: "/bin/bash".to_string(),
         description: None,
+        nohup: None,
     };
 
     let mut ctx = TestContext::default()

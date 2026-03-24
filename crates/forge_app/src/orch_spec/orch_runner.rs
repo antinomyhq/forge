@@ -231,6 +231,7 @@ impl ShellService for Runner {
         _silent: bool,
         _env_vars: Option<Vec<String>>,
         _description: Option<String>,
+        _nohup: bool,
     ) -> anyhow::Result<ShellOutput> {
         let mut outputs = self.test_shell_outputs.lock().await;
         if let Some(output) = outputs.pop_front() {
@@ -245,6 +246,7 @@ impl ShellService for Runner {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             })
         }
     }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
+use forge_app::{CommandInfra, EnvironmentInfra, NohupInfo, NohupOutput, ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
 
 // Strips out the ansi codes from content.
@@ -47,8 +47,35 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         silent: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
+        nohup: bool,
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
+
+        if nohup {
+            let NohupOutput { pid, log_path, command } = self
+                .infra
+                .execute_command_nohup(command, cwd, env_vars)
+                .await?;
+
+            // For nohup commands, we return the PID and log path as the output
+            // instead of stdout/stderr from the process itself.
+            let output = forge_app::domain::CommandOutput {
+                stdout: format!(
+                    "Process spawned in background.\nPID: {pid}\nLog file: {}",
+                    log_path.display()
+                ),
+                stderr: String::new(),
+                command,
+                exit_code: Some(0),
+            };
+
+            return Ok(ShellOutput {
+                output,
+                shell: self.env.shell.clone(),
+                description,
+                nohup: Some(NohupInfo { pid, log_path }),
+            });
+        }
 
         let mut output = self
             .infra
@@ -60,7 +87,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
             output.stderr = strip_ansi(output.stderr);
         }
 
-        Ok(ShellOutput { output, shell: self.env.shell.clone(), description })
+        Ok(ShellOutput { output, shell: self.env.shell.clone(), description, nohup: None })
     }
 }
 #[cfg(test)]
@@ -71,7 +98,7 @@ mod tests {
 
     use async_trait::async_trait;
     use forge_app::domain::{CommandOutput, Environment};
-    use forge_app::{CommandInfra, ShellService};
+    use forge_app::{CommandInfra, NohupOutput, ShellService};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -97,6 +124,19 @@ mod tests {
                 stderr: "".to_string(),
                 command,
                 exit_code: Some(0),
+            })
+        }
+
+        async fn execute_command_nohup(
+            &self,
+            command: String,
+            _working_dir: PathBuf,
+            _env_vars: Option<Vec<String>>,
+        ) -> anyhow::Result<NohupOutput> {
+            Ok(NohupOutput {
+                pid: 12345,
+                log_path: PathBuf::from("/tmp/mock_nohup.log"),
+                command,
             })
         }
 
@@ -143,6 +183,7 @@ mod tests {
                 false,
                 Some(vec!["PATH".to_string(), "HOME".to_string()]),
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -163,6 +204,7 @@ mod tests {
                 false,
                 None,
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -185,6 +227,7 @@ mod tests {
                 false,
                 Some(vec![]),
                 None,
+                false,
             )
             .await
             .unwrap();
@@ -205,6 +248,7 @@ mod tests {
                 false,
                 None,
                 Some("Prints hello to stdout".to_string()),
+                false,
             )
             .await
             .unwrap();
@@ -229,6 +273,7 @@ mod tests {
                 false,
                 None,
                 None,
+                false,
             )
             .await
             .unwrap();

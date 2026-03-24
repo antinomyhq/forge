@@ -549,6 +549,15 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Shell { output } => {
+                // For nohup commands, return a concise element with PID and log path
+                if let Some(ref nohup_info) = output.nohup {
+                    let elem = Element::new("shell_nohup")
+                        .attr("command", &output.output.command)
+                        .attr("pid", nohup_info.pid)
+                        .attr("log_path", nohup_info.log_path.display().to_string());
+                    return forge_domain::ToolOutput::text(elem);
+                }
+
                 let mut parent_elem = Element::new("shell_output")
                     .attr("command", &output.output.command)
                     .attr("shell", &output.shell);
@@ -998,6 +1007,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1031,6 +1041,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1066,6 +1077,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1107,6 +1119,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1143,6 +1156,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1169,6 +1183,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1195,6 +1210,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -1234,6 +1250,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -2260,6 +2277,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
 
@@ -2287,6 +2305,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: Some("Shows working tree status".to_string()),
+                nohup: None,
             },
         };
 

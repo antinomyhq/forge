@@ -28,10 +28,14 @@ Use the following summary frames as the authoritative reference for all coding s
 - `{{use_case}}`
 {{/each}}
 {{else if tool_call.tool.shell}}
-**Execute:** 
+{{#if tool_call.tool.shell.log_path}}
+**Spawned (nohup):** `{{tool_call.tool.shell.command}}` — log: `{{tool_call.tool.shell.log_path}}`
+{{else}}
+**Execute:**
 ```
 {{tool_call.tool.shell.command}}
 ```
+{{/if}}
 {{else if tool_call.tool.mcp}}
 **MCP:** `{{tool_call.tool.mcp.name}}`
 {{else if tool_call.tool.todo_write}}

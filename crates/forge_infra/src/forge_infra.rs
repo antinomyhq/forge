@@ -199,6 +199,17 @@ impl CommandInfra for ForgeInfra {
             .await
     }
 
+    async fn execute_command_nohup(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<forge_app::NohupOutput> {
+        self.command_executor_service
+            .execute_command_nohup(command, working_dir, env_vars)
+            .await
+    }
+
     async fn execute_command_raw(
         &self,
         command: &str,

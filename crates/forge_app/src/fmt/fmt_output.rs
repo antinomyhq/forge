@@ -429,6 +429,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
         let env = fixture_environment();
@@ -451,6 +452,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
         let env = fixture_environment();
@@ -473,6 +475,7 @@ mod tests {
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
+                nohup: None,
             },
         };
         let env = fixture_environment();

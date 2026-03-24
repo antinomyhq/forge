@@ -24,6 +24,17 @@ pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
     pub description: Option<String>,
+    /// Set when the command was spawned via nohup (background mode)
+    pub nohup: Option<NohupInfo>,
+}
+
+/// Information about a nohup-spawned background process
+#[derive(Debug, Clone)]
+pub struct NohupInfo {
+    /// PID of the background process
+    pub pid: u32,
+    /// Path to the log file capturing stdout/stderr
+    pub log_path: PathBuf,
 }
 
 #[derive(Debug)]
@@ -482,6 +493,7 @@ pub trait ShellService: Send + Sync {
         silent: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
+        nohup: bool,
     ) -> anyhow::Result<ShellOutput>;
 }
 
@@ -908,9 +920,10 @@ impl<I: Services> ShellService for I {
         silent: bool,
         env_vars: Option<Vec<String>>,
         description: Option<String>,
+        nohup: bool,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, silent, env_vars, description)
+            .execute(command, cwd, keep_ansi, silent, env_vars, description, nohup)
             .await
     }
 }

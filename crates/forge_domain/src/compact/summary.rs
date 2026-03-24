@@ -101,7 +101,19 @@ impl SummaryToolCall {
     pub fn shell(command: impl Into<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::Shell { command: command.into() },
+            tool: SummaryTool::Shell { command: command.into(), log_path: None },
+            is_success: true,
+        }
+    }
+
+    /// Creates a Shell (nohup) tool call with the given command and log path
+    pub fn shell_nohup(command: impl Into<String>, log_path: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::Shell {
+                command: command.into(),
+                log_path: Some(log_path.into()),
+            },
             is_success: true,
         }
     }
@@ -183,7 +195,13 @@ pub enum SummaryTool {
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
-    Shell { command: String },
+    Shell {
+        command: String,
+        /// When the shell command was run with nohup, this preserves the log
+        /// file path so the agent can still access it after context compaction.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        log_path: Option<String>,
+    },
     Search { pattern: String },
     SemSearch { queries: Vec<SearchQuery> },
     Undo { path: String },
@@ -283,7 +301,8 @@ impl From<&Context> for ContextSummary {
                 .push(SummaryBlock { role: current_role, contents: std::mem::take(&mut buffer) });
         }
 
-        // Update tool call success status based on results
+        // Update tool call success status based on results, and extract nohup
+        // log paths from shell_nohup tool results so they survive compaction.
         messages
             .iter_mut()
             .flat_map(|message| message.contents.iter_mut())
@@ -293,6 +312,19 @@ impl From<&Context> for ContextSummary {
                     && let Some(result) = tool_results.get(call_id)
                 {
                     tool_data.is_success = !result.is_error();
+
+                    // Preserve nohup log_path from tool result content
+                    if let SummaryTool::Shell { ref mut log_path, .. } = tool_data.tool {
+                        if let Some(content) = result.output.as_str() {
+                            // Look for log_path attribute in <shell_nohup ... log_path="...">
+                            if let Some(start) = content.find("log_path=\"") {
+                                let rest = &content[start + 10..];
+                                if let Some(end) = rest.find('"') {
+                                    *log_path = Some(rest[..end].to_string());
+                                }
+                            }
+                        }
+                    }
                 }
             });
 
@@ -342,7 +374,9 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
-            ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
+            ToolCatalog::Shell(input) => {
+                Some(SummaryTool::Shell { command: input.command, log_path: None })
+            }
             ToolCatalog::FsSearch(input) => {
                 // Use glob, file_type, or pattern as the search identifier
                 let pattern = input.glob.or(input.file_type).unwrap_or(input.pattern);
@@ -911,7 +945,7 @@ mod tests {
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
-            tool: SummaryTool::Shell { command: "cargo build".to_string() },
+            tool: SummaryTool::Shell { command: "cargo build".to_string(), log_path: None },
             is_success: true,
         });
 
@@ -974,6 +1008,87 @@ mod tests {
         )]);
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_shell_nohup_helper() {
+        let actual: SummaryMessage =
+            SummaryToolCall::shell_nohup("npm start", "/tmp/npm_start-20260323.log").into();
+
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Shell {
+                command: "npm start".to_string(),
+                log_path: Some("/tmp/npm_start-20260323.log".to_string()),
+            },
+            is_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_nohup_log_path_preserved_from_tool_result() {
+        // Simulate a nohup shell command whose tool result contains
+        // <shell_nohup command="..." pid="42" log_path="/tmp/server.log"/>
+        let nohup_result_content =
+            r#"<shell_nohup command="npm start" pid="42" log_path="/tmp/server-20260323.log"/>"#;
+
+        let fixture = context(vec![
+            assistant_with_tools(
+                "Starting server",
+                vec![ToolCatalog::tool_call_shell("npm start", "/app").call_id("call_1")],
+            ),
+            // Tool result with nohup XML content
+            ContextMessage::Tool(ToolResult {
+                name: ToolName::new("shell"),
+                call_id: Some(ToolCallId::new("call_1")),
+                output: ToolOutput::text(nohup_result_content),
+            }),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        // The shell summary should have the log_path extracted from the result
+        let shell_call = actual
+            .messages
+            .iter()
+            .flat_map(|b| b.contents.iter())
+            .find_map(|m| {
+                if let SummaryMessage::ToolCall(tc) = m {
+                    if let SummaryTool::Shell { ref log_path, .. } = tc.tool {
+                        return log_path.clone();
+                    }
+                }
+                None
+            });
+
+        assert_eq!(
+            shell_call,
+            Some("/tmp/server-20260323.log".to_string()),
+            "Nohup log_path should be extracted from tool result content"
+        );
+    }
+
+    #[test]
+    fn test_nohup_log_path_serialization() {
+        // Verify that log_path is properly serialized/deserialized
+        let tool = SummaryTool::Shell {
+            command: "npm start".to_string(),
+            log_path: Some("/tmp/server.log".to_string()),
+        };
+        let json = serde_json::to_value(&tool).unwrap();
+        assert_eq!(json["shell"]["command"], "npm start");
+        assert_eq!(json["shell"]["log_path"], "/tmp/server.log");
+
+        // Without log_path, the field should be omitted
+        let tool_no_log = SummaryTool::Shell {
+            command: "echo hi".to_string(),
+            log_path: None,
+        };
+        let json_no_log = serde_json::to_value(&tool_no_log).unwrap();
+        assert_eq!(json_no_log["shell"]["command"], "echo hi");
+        assert!(json_no_log["shell"].get("log_path").is_none());
     }
 
     #[test]

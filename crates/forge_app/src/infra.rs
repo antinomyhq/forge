@@ -124,6 +124,17 @@ pub trait FileDirectoryInfra {
     async fn create_dirs(&self, path: &Path) -> anyhow::Result<()>;
 }
 
+/// Output from a nohup (background) command spawn
+#[derive(Debug, Clone)]
+pub struct NohupOutput {
+    /// PID of the spawned background process
+    pub pid: u32,
+    /// Path to the log file capturing stdout and stderr
+    pub log_path: PathBuf,
+    /// The original command that was spawned
+    pub command: String,
+}
+
 /// Service for executing shell commands
 #[async_trait::async_trait]
 pub trait CommandInfra: Send + Sync {
@@ -135,6 +146,15 @@ pub trait CommandInfra: Send + Sync {
         silent: bool,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput>;
+
+    /// Spawns a command in the background using nohup, returning PID and log
+    /// file path instead of waiting for completion.
+    async fn execute_command_nohup(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<NohupOutput>;
 
     /// execute the shell command on present stdio.
     async fn execute_command_raw(

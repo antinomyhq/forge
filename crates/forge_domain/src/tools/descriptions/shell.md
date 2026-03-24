@@ -45,3 +45,8 @@ Bad example:
   cd /foo/bar && pytest tests
 
 Returns complete output including stdout, stderr, and exit code for diagnostic purposes.
+
+Background execution:
+  - Set `nohup` to `true` to run the command in the background using nohup. The command's stdout and stderr are redirected to a log file under /tmp and the tool returns the log file path and PID instead of the command output.
+  - Useful for long-running processes like dev servers, watchers, or build daemons that should keep running after the tool call completes.
+  - Use `{{tool_names.read}}` to inspect the log file later, or `{{tool_names.shell}}` with `kill <pid>` to stop the process.
