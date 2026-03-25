@@ -96,9 +96,9 @@ pub struct ForgeConfig {
     /// Default provider_id to use for all models if not specified
     #[serde(default)]
     pub provider: Option<String>,
-    /// Map of provider ID to model ID for per-provider model selection
+    /// Default model and provider configuration to use for all operations if not specified
     #[serde(default)]
-    pub model: Option<ModelConfig>,
+    pub default: Option<ModelConfig>,
     /// Provider and model to use for commit message generation
     #[serde(default)]
     pub commit: Option<ModelConfig>,

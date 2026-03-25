@@ -10,9 +10,7 @@ pub type ModelId = String;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 pub struct ModelConfig {
     /// The provider to use for this operation.
-    #[serde(rename = "provider")]
     pub provider_id: String,
     /// The model to use for this operation.
-    #[serde(rename = "model")]
     pub model_id: String,
 }
