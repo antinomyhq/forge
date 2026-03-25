@@ -193,7 +193,17 @@ mod tests {
         async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
             let mut config = self.app_config.lock().unwrap();
             for op in ops {
-                op.apply(&mut config);
+                match op {
+                    AppConfigOperation::KeyInfo(info) => config.key_info = info,
+                    AppConfigOperation::SetProvider(pid) => config.provider = Some(pid),
+                    AppConfigOperation::SetModel(pid, mid) => {
+                        config.model.insert(pid, mid);
+                    }
+                    AppConfigOperation::SetCommitConfig(commit) => config.commit = Some(commit),
+                    AppConfigOperation::SetSuggestConfig(suggest) => {
+                        config.suggest = Some(suggest)
+                    }
+                }
             }
             Ok(())
         }

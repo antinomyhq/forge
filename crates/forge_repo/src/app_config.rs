@@ -53,20 +53,19 @@ fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
     AppConfig { key_info, provider, model, commit, suggest }
 }
 
-/// Overlays the [`AppConfig`] fields onto an existing [`ForgeConfig`],
-/// preserving all other fields (retry, http, limits, etc.).
-fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConfig {
-    // Login info — flattened into top-level fields
-    match &app.key_info {
-        Some(info) => {
-            fc.api_key = Some(info.api_key.clone());
-            fc.api_key_name = Some(info.api_key_name.clone());
-            fc.api_key_masked = Some(info.api_key_masked.clone());
-            fc.email = info.email.clone();
-            fc.name = info.name.clone();
-            fc.auth_provider_id = info.auth_provider_id.clone();
+/// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
+/// in-place, bypassing the intermediate [`AppConfig`] representation.
+fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
+    match op {
+        AppConfigOperation::KeyInfo(Some(info)) => {
+            fc.api_key = Some(info.api_key);
+            fc.api_key_name = Some(info.api_key_name);
+            fc.api_key_masked = Some(info.api_key_masked);
+            fc.email = info.email;
+            fc.name = info.name;
+            fc.auth_provider_id = info.auth_provider_id;
         }
-        None => {
+        AppConfigOperation::KeyInfo(None) => {
             fc.api_key = None;
             fc.api_key_name = None;
             fc.api_key_masked = None;
@@ -74,36 +73,38 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
             fc.name = None;
             fc.auth_provider_id = None;
         }
-    }
-
-    // Active model — use the provider's entry from the model map
-    fc.session = app.provider.as_ref().map(|pid| {
-        let mut config = ModelConfig::default().provider_id(pid.as_ref().to_string());
-        if let Some(mid) = app.model.get(pid) {
-            config = config.model_id(mid.to_string());
+        AppConfigOperation::SetProvider(provider_id) => {
+            let pid = provider_id.as_ref().to_string();
+            fc.session = Some(match fc.session.take() {
+                Some(mc) => mc.provider_id(pid),
+                None => ModelConfig::default().provider_id(pid),
+            });
         }
-
-        config
-    });
-
-    fc.commit = app.commit.as_ref().and_then(|cc| {
-        cc.provider
-            .as_ref()
-            .zip(cc.model.as_ref())
-            .map(|(pid, mid)| {
+        AppConfigOperation::SetModel(provider_id, model_id) => {
+            let pid = provider_id.as_ref().to_string();
+            let mid = model_id.to_string();
+            fc.session = Some(match fc.session.take() {
+                Some(mc) if mc.provider_id.as_deref() == Some(&pid) => mc.model_id(mid),
+                _ => ModelConfig::default().provider_id(pid).model_id(mid),
+            });
+        }
+        AppConfigOperation::SetCommitConfig(commit) => {
+            fc.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
+                |(pid, mid)| {
+                    ModelConfig::default()
+                        .provider_id(pid.as_ref().to_string())
+                        .model_id(mid.to_string())
+                },
+            );
+        }
+        AppConfigOperation::SetSuggestConfig(suggest) => {
+            fc.suggest = Some(
                 ModelConfig::default()
-                    .provider_id(pid.as_ref().to_string())
-                    .model_id(mid.to_string())
-            })
-    });
-
-    fc.suggest = app.suggest.as_ref().map(|sc| {
-        ModelConfig::default()
-            .provider_id(sc.provider.as_ref().to_string())
-            .model_id(sc.model.to_string())
-    });
-
-    fc
+                    .provider_id(suggest.provider.as_ref().to_string())
+                    .model_id(suggest.model.to_string()),
+            );
+        }
+    }
 }
 
 /// Repository for managing application configuration with caching support.
@@ -135,21 +136,6 @@ impl ForgeConfigRepository {
             }
         }
     }
-
-    /// Writes [`AppConfig`] to disk via [`ForgeConfig::write`], preserving all
-    /// non-`AppConfig` fields from the existing file.
-    async fn write(&self, config: &AppConfig) -> anyhow::Result<ForgeConfig> {
-        debug!(config = ?config, "writing app-config");
-        let existing = ForgeConfig::read().await.unwrap_or_else(|e| {
-            tracing::warn!(error = %e, "Could not read existing config; defaults will be used.");
-            forge_config::ConfigReader::default().read_defaults()
-        });
-        let config = app_config_to_forge_config(config, existing);
-
-        config.write().await?;
-        debug!(config = ?config, "written .forge.toml");
-        Ok(config)
-    }
 }
 
 #[async_trait::async_trait]
@@ -172,15 +158,30 @@ impl AppConfigRepository for ForgeConfigRepository {
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
-        let mut config = self.get_app_config().await?;
-        for op in ops {
-            op.apply(&mut config);
-        }
-        let written = self.write(&config).await?;
+        // Load the current ForgeConfig (from cache or disk)
+        let mut fc = {
+            let cache = self.cache.lock().await;
+            match cache.as_ref() {
+                Some(cached) => cached.clone(),
+                None => {
+                    drop(cache);
+                    self.read().await
+                }
+            }
+        };
 
-        // Bust the cache after successful write
+        // Apply each operation directly onto ForgeConfig
+        for op in ops {
+            apply_op(op, &mut fc);
+        }
+
+        // Persist
+        fc.write().await?;
+        debug!(config = ?fc, "written .forge.toml");
+
+        // Update cache
         let mut cache = self.cache.lock().await;
-        *cache = Some(written);
+        *cache = Some(fc);
 
         Ok(())
     }
@@ -382,183 +383,6 @@ mod tests {
 
         assert_eq!(actual.provider, None);
         assert!(actual.model.is_empty());
-    }
-
-    // -------------------------------------------------------------------------
-    // app_config_to_forge_config
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_app_config_to_forge_config_empty() {
-        let app = AppConfig::default();
-        let base = forge_config_defaults();
-
-        let actual = app_config_to_forge_config(&app, base.clone());
-
-        // All AppConfig-owned fields must be cleared; unrelated fields preserved.
-        assert_eq!(actual.api_key, None);
-        assert_eq!(actual.session, None);
-        assert_eq!(actual.commit, None);
-        assert_eq!(actual.suggest, None);
-        // Non-AppConfig field is unchanged
-        assert_eq!(actual.retry, base.retry);
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_with_model() {
-        let app = AppConfig {
-            provider: Some(ProviderId::ANTHROPIC),
-            model: HashMap::from([(
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
-            )]),
-            ..Default::default()
-        };
-        let base = forge_config_defaults();
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        let expected_model = ModelConfig::default()
-            .provider_id("anthropic".to_string())
-            .model_id("claude-3-5-sonnet-20241022".to_string());
-        assert_eq!(actual.session, Some(expected_model));
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_model_uses_active_provider() {
-        // Two providers in the map; only the active provider's model is written.
-        let app = AppConfig {
-            provider: Some(ProviderId::OPENAI),
-            model: HashMap::from([
-                (ProviderId::OPENAI, ModelId::new("gpt-4o")),
-                (
-                    ProviderId::ANTHROPIC,
-                    ModelId::new("claude-3-5-sonnet-20241022"),
-                ),
-            ]),
-            ..Default::default()
-        };
-        let base = forge_config_defaults();
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        let expected = ModelConfig::default()
-            .provider_id("openai".to_string())
-            .model_id("gpt-4o".to_string());
-        assert_eq!(actual.session, Some(expected));
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_no_model_when_provider_missing() {
-        // Model map has an entry but no active provider → model field is None.
-        let app = AppConfig {
-            provider: None,
-            model: HashMap::from([(ProviderId::OPENAI, ModelId::new("gpt-4o"))]),
-            ..Default::default()
-        };
-        let base = forge_config_defaults();
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        assert_eq!(actual.session, None);
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_provider_only_no_model_in_map() {
-        // Provider is set but model map has no entry for it → session has provider_id
-        // but no model_id.
-        let app = AppConfig {
-            provider: Some(ProviderId::ANTHROPIC),
-            model: HashMap::new(),
-            ..Default::default()
-        };
-        let base = forge_config_defaults();
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        let expected = ModelConfig::default().provider_id("anthropic".to_string());
-        assert_eq!(actual.session, Some(expected));
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_with_login_info() {
-        let app = AppConfig {
-            key_info: Some(LoginInfo {
-                api_key: "sk-test-key".to_string(),
-                api_key_name: "my-key".to_string(),
-                api_key_masked: "sk-***".to_string(),
-                email: Some("user@example.com".to_string()),
-                name: Some("Alice".to_string()),
-                auth_provider_id: Some("github".to_string()),
-            }),
-            ..Default::default()
-        };
-        let base = forge_config_defaults();
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        assert_eq!(actual.api_key, Some("sk-test-key".to_string()));
-        assert_eq!(actual.api_key_name, Some("my-key".to_string()));
-        assert_eq!(actual.api_key_masked, Some("sk-***".to_string()));
-        assert_eq!(actual.email, Some("user@example.com".to_string()));
-        assert_eq!(actual.name, Some("Alice".to_string()));
-        assert_eq!(actual.auth_provider_id, Some("github".to_string()));
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_clears_login_info_when_absent() {
-        // Start with a base that has login fields set, then overlay an AppConfig
-        // with no key_info — all login fields must be cleared.
-        let mut base = forge_config_defaults();
-        base.api_key = Some("old-key".to_string());
-        base.email = Some("old@example.com".to_string());
-
-        let app = AppConfig::default(); // key_info is None
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        assert_eq!(actual.api_key, None);
-        assert_eq!(actual.email, None);
-    }
-
-    #[test]
-    fn test_app_config_to_forge_config_preserves_unrelated_fields() {
-        // Non-AppConfig fields (retry, http, limits, …) must survive a round-trip.
-        let app = AppConfig::default();
-        let base = forge_config_defaults();
-        let expected_retry = base.retry.clone();
-        let expected_max_search = base.max_search_lines;
-
-        let actual = app_config_to_forge_config(&app, base);
-
-        assert_eq!(actual.retry, expected_retry);
-        assert_eq!(actual.max_search_lines, expected_max_search);
-    }
-
-    #[test]
-    fn test_round_trip_forge_config_to_app_config_and_back() {
-        let mut original = forge_config_defaults();
-        original.api_key = Some("sk-test".to_string());
-        original.api_key_name = Some("test-key".to_string());
-        original.api_key_masked = Some("sk-***".to_string());
-        original.session = Some(
-            ModelConfig::default()
-                .provider_id("anthropic".to_string())
-                .model_id("claude-3-5-sonnet-20241022".to_string()),
-        );
-        original.commit = Some(
-            ModelConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-4o".to_string()),
-        );
-
-        let app = forge_config_to_app_config(original.clone());
-        let actual = app_config_to_forge_config(&app, original.clone());
-
-        assert_eq!(actual.api_key, original.api_key);
-        assert_eq!(actual.api_key_name, original.api_key_name);
-        assert_eq!(actual.session, original.session);
-        assert_eq!(actual.commit, original.commit);
     }
 
     #[tokio::test]

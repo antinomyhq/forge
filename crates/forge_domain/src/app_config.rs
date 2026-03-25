@@ -54,18 +54,3 @@ pub enum AppConfigOperation {
     /// Set the shell-command suggestion configuration.
     SetSuggestConfig(SuggestConfig),
 }
-
-impl AppConfigOperation {
-    /// Applies this operation to `config` in-place.
-    pub fn apply(self, config: &mut AppConfig) {
-        match self {
-            AppConfigOperation::KeyInfo(info) => config.key_info = info,
-            AppConfigOperation::SetProvider(provider_id) => config.provider = Some(provider_id),
-            AppConfigOperation::SetModel(provider_id, model_id) => {
-                config.model.insert(provider_id, model_id);
-            }
-            AppConfigOperation::SetCommitConfig(commit) => config.commit = Some(commit),
-            AppConfigOperation::SetSuggestConfig(suggest) => config.suggest = Some(suggest),
-        }
-    }
-}
