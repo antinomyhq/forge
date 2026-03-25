@@ -9,7 +9,7 @@ thiserror.workspace = true
 config = { version = "0.15", features = ["toml"] }
 derive_setters.workspace = true
 dirs.workspace = true
-tokio = { workspace = true, features = ["fs"] }
+dotenvy.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml_edit = { workspace = true }

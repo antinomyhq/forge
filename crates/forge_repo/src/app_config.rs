@@ -172,7 +172,7 @@ impl AppConfigRepository for ForgeConfigRepository {
         }
 
         // Persist
-        fc.write().await?;
+        fc.write()?;
         debug!(config = ?fc, "written .forge.toml");
 
         // Reset cache

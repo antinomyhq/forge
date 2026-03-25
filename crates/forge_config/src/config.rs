@@ -148,8 +148,8 @@ impl ForgeConfig {
     /// # Errors
     ///
     /// Returns an error if the configuration cannot be serialized or written to disk.
-    pub async fn write(&self) -> crate::Result<()> {
+    pub fn write(&self) -> crate::Result<()> {
         let path = ConfigReader::config_path();
-        ConfigWriter::new(self.clone()).write(&path).await
+        ConfigWriter::new(self.clone()).write(&path)
     }
 }

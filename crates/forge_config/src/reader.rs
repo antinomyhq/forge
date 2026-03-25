@@ -3,6 +3,29 @@ use crate::legacy::LegacyConfig;
 use config::ConfigBuilder;
 use config::builder::DefaultState;
 use std::path::PathBuf;
+use std::sync::LazyLock;
+
+/// Loads all `.env` files found while walking up from the current working directory to the root,
+/// with priority given to closer (lower) directories. Executed at most once per process.
+static LOAD_DOT_ENV: LazyLock<()> = LazyLock::new(|| {
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut paths = vec![];
+    let mut current = PathBuf::new();
+
+    for component in cwd.components() {
+        current.push(component);
+        paths.push(current.clone());
+    }
+
+    paths.reverse();
+
+    for path in paths {
+        let env_file = path.join(".env");
+        if env_file.is_file() {
+            dotenvy::from_path(&env_file).ok();
+        }
+    }
+});
 
 /// Merges [`ForgeConfig`] from layered sources using a builder pattern.
 #[derive(Default)]
@@ -59,10 +82,14 @@ impl ConfigReader {
 
     /// Builds and deserializes all accumulated sources into a [`ForgeConfig`].
     ///
+    /// Triggers `.env` file loading (at most once per process) by walking up the directory tree
+    /// from the current working directory, with closer directories taking priority.
+    ///
     /// # Errors
     ///
     /// Returns an error if the configuration cannot be built or deserialized.
     pub fn build(self) -> crate::Result<ForgeConfig> {
+        let _ = *LOAD_DOT_ENV;
         let config = self.builder.build()?;
         Ok(config.try_deserialize::<ForgeConfig>()?)
     }

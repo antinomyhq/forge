@@ -20,14 +20,14 @@ impl ConfigWriter {
     ///
     /// Returns an error if the configuration cannot be serialized or the file
     /// cannot be written.
-    pub async fn write(&self, path: &Path) -> crate::Result<()> {
+    pub fn write(&self, path: &Path) -> crate::Result<()> {
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent).await?;
+            std::fs::create_dir_all(parent)?;
         }
 
         let contents = toml_edit::ser::to_string_pretty(&self.config)?;
 
-        tokio::fs::write(path, contents).await?;
+        std::fs::write(path, contents)?;
 
         Ok(())
     }
