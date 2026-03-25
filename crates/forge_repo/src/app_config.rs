@@ -255,12 +255,13 @@ mod tests {
 
     /// Sets HOME to a fresh temp directory so that [`ForgeConfig::read`] and
     /// [`ForgeConfig::write`] operate on an isolated `~/.forge/.forge.toml`.
-    /// Acquires the [`HOME_MUTEX`] and holds it for the lifetime of the returned
-    /// guard.
+    /// Acquires the [`HOME_MUTEX`] and holds it for the lifetime of the
+    /// returned guard.
     fn temp_home() -> HomeGuard {
         let lock = HOME_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
         let dir = tempfile::tempdir().unwrap();
-        // SAFETY: tests are serialized by HOME_MUTEX, so no concurrent HOME reads occur.
+        // SAFETY: tests are serialized by HOME_MUTEX, so no concurrent HOME reads
+        // occur.
         unsafe { std::env::set_var("HOME", dir.path()) };
         HomeGuard { _lock: lock, _dir: dir }
     }
