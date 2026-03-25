@@ -61,14 +61,15 @@ impl<S: AgentService> Orchestrator<S> {
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         let task_tool_name = ToolKind::Task.name();
 
-        // Partition into task tool calls (run in parallel) and all others (run sequentially).
-        // Use a case-insensitive comparison since the model may send "Task" or "task".
+        // Partition into task tool calls (run in parallel) and all others (run
+        // sequentially). Use a case-insensitive comparison since the model may
+        // send "Task" or "task".
         let is_task_call =
             |tc: &&ToolCallFull| tc.name.as_str().to_lowercase() == task_tool_name.as_str();
-        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
-            tool_calls.iter().partition(is_task_call);
+        let (task_calls, other_calls): (Vec<_>, Vec<_>) = tool_calls.iter().partition(is_task_call);
 
-        // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls work.
+        // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls
+        // work.
         let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(
             task_calls
                 .iter()
@@ -86,7 +87,8 @@ impl<S: AgentService> Orchestrator<S> {
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
 
-        // Process non-task tool calls sequentially (preserving UI notifier handshake and hooks).
+        // Process non-task tool calls sequentially (preserving UI notifier handshake
+        // and hooks).
         let mut other_results: Vec<(ToolCallFull, ToolResult)> =
             Vec::with_capacity(other_calls.len());
         for tool_call in &other_calls {
