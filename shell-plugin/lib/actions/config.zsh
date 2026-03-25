@@ -175,7 +175,8 @@ function _forge_action_model() {
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
                 _forge_exec_interactive config set provider "$provider_id" --model "$model_id"
                 return
-            fi            
+            fi
+             _forge_exec config set model "$model_id"
         fi
     )
 }
