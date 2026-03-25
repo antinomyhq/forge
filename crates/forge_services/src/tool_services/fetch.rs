@@ -87,12 +87,35 @@ impl ForgeFetch {
             .unwrap_or("")
             .to_string();
 
+        // Detect binary content types before attempting to read as text.
+        // The fetch tool is designed for text/HTML content only.
+        if is_binary_content_type(&content_type) {
+            return Err(anyhow!(
+                "URL {} returns binary content (Content-Type: {}). \
+                 The fetch tool only handles text content. \
+                 Use the shell tool with `curl -fLo <output_file> <url>` to download binary files.",
+                url,
+                content_type
+            ));
+        }
+
         let page_raw = response
             .text()
             .await
             .map_err(|e| anyhow!("Failed to read response content from {url}: {e}"))?;
 
-        let is_page_html = page_raw[..100.min(page_raw.len())].contains("<html")
+        // Use floor_char_boundary to avoid panicking on multi-byte UTF-8 chars
+        let sniff_end = if page_raw.len() >= 100 {
+            // Find the nearest char boundary at or before byte index 100
+            let mut end = 100;
+            while end > 0 && !page_raw.is_char_boundary(end) {
+                end -= 1;
+            }
+            end
+        } else {
+            page_raw.len()
+        };
+        let is_page_html = page_raw[..sniff_end].contains("<html")
             || content_type.contains("text/html")
             || content_type.is_empty();
 
@@ -110,11 +133,75 @@ impl ForgeFetch {
     }
 }
 
+/// Returns true if the Content-Type header indicates binary (non-text) content.
+fn is_binary_content_type(content_type: &str) -> bool {
+    let ct = content_type.to_lowercase();
+    // Allow text/* and common text-based types
+    if ct.starts_with("text/")
+        || ct.contains("json")
+        || ct.contains("xml")
+        || ct.contains("javascript")
+        || ct.contains("ecmascript")
+        || ct.contains("yaml")
+        || ct.contains("toml")
+        || ct.contains("csv")
+        || ct.contains("html")
+        || ct.contains("svg")
+        || ct.contains("markdown")
+        || ct.is_empty()
+    {
+        return false;
+    }
+    // Everything else (application/gzip, application/octet-stream, image/*, audio/*, video/*, etc.)
+    true
+}
+
 #[async_trait::async_trait]
 impl NetFetchService for ForgeFetch {
     async fn fetch(&self, url: String, raw: Option<bool>) -> anyhow::Result<HttpResponse> {
         let url = Url::parse(&url).with_context(|| format!("Failed to parse URL: {url}"))?;
 
         self.fetch_url(&url, raw.unwrap_or(false)).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_binary_content_type_text_types_are_not_binary() {
+        assert!(!is_binary_content_type("text/html"));
+        assert!(!is_binary_content_type("text/plain"));
+        assert!(!is_binary_content_type("text/css"));
+        assert!(!is_binary_content_type("application/json"));
+        assert!(!is_binary_content_type("application/xml"));
+        assert!(!is_binary_content_type("application/javascript"));
+        assert!(!is_binary_content_type("application/yaml"));
+        assert!(!is_binary_content_type("image/svg+xml"));
+        assert!(!is_binary_content_type("text/csv"));
+        assert!(!is_binary_content_type("text/markdown"));
+        assert!(!is_binary_content_type("")); // empty = unknown, allow
+    }
+
+    #[test]
+    fn test_is_binary_content_type_binary_types_detected() {
+        assert!(is_binary_content_type("application/gzip"));
+        assert!(is_binary_content_type("application/x-gzip"));
+        assert!(is_binary_content_type("application/octet-stream"));
+        assert!(is_binary_content_type("application/zip"));
+        assert!(is_binary_content_type("application/x-tar"));
+        assert!(is_binary_content_type("application/pdf"));
+        assert!(is_binary_content_type("image/png"));
+        assert!(is_binary_content_type("image/jpeg"));
+        assert!(is_binary_content_type("audio/mpeg"));
+        assert!(is_binary_content_type("video/mp4"));
+    }
+
+    #[test]
+    fn test_is_binary_content_type_case_insensitive() {
+        assert!(!is_binary_content_type("Application/JSON"));
+        assert!(!is_binary_content_type("TEXT/HTML; charset=utf-8"));
+        assert!(is_binary_content_type("Application/Gzip"));
     }
 }
