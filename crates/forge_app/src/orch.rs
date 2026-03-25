@@ -61,13 +61,15 @@ impl<S: AgentService> Orchestrator<S> {
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         let task_tool_name = ToolKind::Task.name();
         // Case-insensitive: the model may send "Task" or "task".
-        let is_task = |tc: &ToolCallFull| tc.name.as_str().to_lowercase() == task_tool_name.as_str();
+        let is_task =
+            |tc: &ToolCallFull| tc.name.as_str().to_lowercase() == task_tool_name.as_str();
 
         // Partition into task calls (parallel) and everything else (sequential).
         let (task_calls, other_calls): (Vec<ToolCallFull>, Vec<ToolCallFull>) =
             tool_calls.iter().cloned().partition(is_task);
 
-        // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls work.
+        // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls
+        // work.
         let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(
             task_calls
                 .iter()
