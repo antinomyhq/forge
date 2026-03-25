@@ -283,7 +283,7 @@ async fn spawn_background_process(
         cmd.args(["/C", "start", "/b", "cmd", "/C", &bg_command]);
         cmd
     } else {
-        let bg_command = format!("nohup {command} > {log_path} 2>&1 & echo $!");
+        let bg_command = format!("nohup {command} > '{log_path}' 2>&1 & echo $!");
         let mut cmd = Command::new(shell);
         cmd.arg("-c").arg(&bg_command);
         cmd
