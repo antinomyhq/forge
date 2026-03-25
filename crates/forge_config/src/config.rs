@@ -93,7 +93,8 @@ pub struct ForgeConfig {
     pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
-    /// Default model and provider configuration to use for all operations if not specified
+    /// Default model and provider configuration to use for all operations if
+    /// not specified
     #[serde(default)]
     pub default: Option<ModelConfig>,
     /// Provider and model to use for commit message generation
