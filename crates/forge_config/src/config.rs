@@ -239,4 +239,12 @@ impl ForgeConfig {
         let path = Self::config_path()?;
         ConfigWriter::new(self.clone()).write(&path).await
     }
+
+    pub fn read_defaults() -> ForgeConfig {
+        ConfigReader::default().read_defaults()
+    }
+
+    pub fn read_str(toml: &str) -> crate::Result<ForgeConfig> {
+        ConfigReader::default().read_str(toml)
+    }
 }

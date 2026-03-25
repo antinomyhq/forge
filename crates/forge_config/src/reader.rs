@@ -77,11 +77,13 @@ impl ConfigReader {
     /// optional file at `path` (skipped when `None`), then environment
     /// variables prefixed with `FORGE_`.
     pub async fn read(&self, path: Option<&Path>) -> crate::Result<ForgeConfig> {
-        let defaults = include_str!("../.forge.toml");
         let mut builder = Config::builder();
 
         // Load default
-        builder = builder.add_source(config::File::from_str(defaults, config::FileFormat::Toml));
+        builder = builder.add_source(config::File::from_str(
+            include_str!("../.forge.toml"),
+            config::FileFormat::Toml,
+        ));
 
         // Load from ~/forge/.config.json (legacy format)
         if let Some(path) = Self::legacy_config_path() {
@@ -154,7 +156,14 @@ impl ConfigReader {
     /// Returns an error if the file at `path` cannot be read or if the
     /// configuration cannot be deserialized.
     pub async fn read_path(&self, path: &Path) -> crate::Result<ForgeConfig> {
-        self.read(Some(path)).await
+        let mut builder = Config::builder();
+        if tokio::fs::try_exists(path).await? {
+            let contents = tokio::fs::read_to_string(path).await?;
+            builder =
+                builder.add_source(config::File::from_str(&contents, config::FileFormat::Toml));
+        }
+
+        Ok(builder.build()?.try_deserialize()?)
     }
 
     /// Returns the [`ForgeConfig`] built from the embedded defaults only,
