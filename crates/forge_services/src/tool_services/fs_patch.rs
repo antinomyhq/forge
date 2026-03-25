@@ -60,7 +60,7 @@ impl Range {
 
     /// Create a range from a fuzzy search match.
     ///
-    /// Tracks actual byte positions per line to handle mixed line endings
+    /// Walks actual byte positions per line to handle mixed line endings
     /// (e.g. some `\r\n` and some `\n`), avoiding out-of-bounds offsets.
     fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
         let lines: Vec<&str> = source.lines().collect();
@@ -70,36 +70,35 @@ impl Range {
             return Self::new(0, 0);
         }
 
-        // Compute exact byte start positions per line by scanning the source.
-        // This handles mixed line endings correctly, unlike a uniform line_ending_len.
-        let mut line_starts = vec![0usize; lines.len()];
-        let mut pos = 0;
+        // Clamp indices to valid line numbers (0-based inclusive)
+        let start_idx = (search_match.start_line as usize).min(lines.len() - 1);
+        let end_idx = (search_match.end_line as usize).min(lines.len() - 1);
+
+        // Walk byte positions to correctly handle mixed line endings (\r\n vs \n).
+        // Record start_pos when we reach start_idx; stop after end_idx.
+        let mut pos = 0usize;
+        let mut start_pos = 0usize;
         for (i, line) in lines.iter().enumerate() {
-            line_starts[i] = pos;
+            if i == start_idx {
+                start_pos = pos;
+            }
             pos += line.len();
+            if i == end_idx {
+                break;
+            }
             // Advance past the line ending (\r\n or \n)
             if pos < source.len() {
-                if source.as_bytes()[pos] == b'\r'
-                    && pos + 1 < source.len()
-                    && source.as_bytes()[pos + 1] == b'\n'
+                pos += if source.as_bytes()[pos] == b'\r'
+                    && source.as_bytes().get(pos + 1) == Some(&b'\n')
                 {
-                    pos += 2;
+                    2
                 } else {
-                    pos += 1;
-                }
+                    1
+                };
             }
         }
 
-        // Clamp indices to valid range
-        let last = lines.len() - 1;
-        let start_idx = (search_match.start_line as usize).min(last);
-        let end_idx = (search_match.end_line as usize).min(last);
-
-        let start_pos = line_starts[start_idx].min(source.len());
-        let end_pos = (line_starts[end_idx] + lines[end_idx].len()).min(source.len());
-        let length = end_pos.saturating_sub(start_pos);
-
-        Self::new(start_pos, length)
+        Self::new(start_pos, pos.min(source.len()).saturating_sub(start_pos))
     }
 
     // Fuzzy matching removed - we only use exact matching
