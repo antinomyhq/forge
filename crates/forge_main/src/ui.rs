@@ -2032,7 +2032,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// - `Ok(Some(ModelId))` if a model was selected
     /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
-    async fn select_model(&mut self, provider_filter: Option<ProviderId>) -> Result<Option<ModelId>> {
+    async fn select_model(
+        &mut self,
+        provider_filter: Option<ProviderId>,
+    ) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
         if self.api.get_default_provider().await.is_err() {
             self.on_provider_selection().await?;
