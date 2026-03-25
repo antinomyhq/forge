@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use forge_config::{ForgeConfig, ModelConfig};
 use forge_domain::{
-    AppConfig, AppConfigRepository, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig,
+    AppConfig, AppConfigOperation, AppConfigRepository, CommitConfig, LoginInfo, ModelId,
+    ProviderId, SuggestConfig,
 };
 use tokio::sync::Mutex;
 use tracing::{debug, error};
@@ -141,7 +142,7 @@ impl ForgeConfigRepository {
         debug!(config = ?config, "writing app-config");
         let existing = ForgeConfig::read().await.unwrap_or_else(|e| {
             tracing::warn!(error = %e, "Could not read existing config; defaults will be used.");
-            forge_config::ConfigReader::new().read_defaults()
+            forge_config::ConfigReader::default().read_defaults()
         });
         let config = app_config_to_forge_config(config, existing);
 
@@ -170,12 +171,16 @@ impl AppConfigRepository for ForgeConfigRepository {
         Ok(forge_config_to_app_config(config))
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        let config = self.write(config).await?;
+    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        let mut config = self.get_app_config().await?;
+        for op in ops {
+            op.apply(&mut config);
+        }
+        let written = self.write(&config).await?;
 
         // Bust the cache after successful write
         let mut cache = self.cache.lock().await;
-        *cache = Some(config);
+        *cache = Some(written);
 
         Ok(())
     }
@@ -245,7 +250,7 @@ mod tests {
     /// Returns a [`ForgeConfig`] built from embedded defaults only, as a
     /// clean starting point for conversion fixtures.
     fn forge_config_defaults() -> ForgeConfig {
-        forge_config::ConfigReader::new().read_defaults()
+        forge_config::ConfigReader::default().read_defaults()
     }
 
     // -------------------------------------------------------------------------
@@ -569,16 +574,17 @@ mod tests {
     #[tokio::test]
     async fn test_set_app_config() {
         let _home = temp_home();
-        let fixture = forge_domain::AppConfig::default();
         let repo = repository_fixture(&_home);
 
-        let actual = repo.set_app_config(&fixture).await;
+        let actual = repo
+            .update_app_config(vec![AppConfigOperation::SetProvider(ProviderId::ANTHROPIC)])
+            .await;
 
         assert!(actual.is_ok());
 
         // Verify the config was actually written by reading it back
         let read_config = repo.get_app_config().await.unwrap();
-        assert_eq!(read_config, fixture);
+        assert_eq!(read_config.provider, Some(ProviderId::ANTHROPIC));
     }
 
     #[tokio::test]
@@ -595,12 +601,13 @@ mod tests {
         assert_eq!(first_read, second_read);
 
         // Write new config should bust cache
-        let new_config = forge_domain::AppConfig::default();
-        repo.set_app_config(&new_config).await.unwrap();
+        repo.update_app_config(vec![AppConfigOperation::SetProvider(ProviderId::OPENAI)])
+            .await
+            .unwrap();
 
         // Next read should get fresh data
         let third_read = repo.get_app_config().await.unwrap();
-        assert_eq!(third_read, new_config);
+        assert_eq!(third_read.provider, Some(ProviderId::OPENAI));
     }
 
     #[test]
@@ -612,7 +619,7 @@ mod tests {
 provider_id = "xyz"
 model_id = "some-model"
 "#;
-        let fc = forge_config::ConfigReader::new().read_str(toml).unwrap();
+        let fc = forge_config::ConfigReader::default().read_str(toml).unwrap();
 
         let actual = forge_config_to_app_config(fc);
 

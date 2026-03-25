@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
+use forge_domain::{
+    AppConfigOperation, AppConfigRepository, ModelId, ProviderId, ProviderRepository,
+};
 use tracing::debug;
 
 /// Service for managing user preferences for default providers and models.
@@ -17,16 +19,10 @@ impl<F> ForgeAppConfigService<F> {
 }
 
 impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
-    /// Helper method to update app configuration atomically.
-    async fn update<U>(&self, updater: U) -> anyhow::Result<()>
-    where
-        U: FnOnce(&mut AppConfig),
-    {
-        let mut config = self.infra.get_app_config().await?;
-        updater(&mut config);
-        debug!(config = ?config, "Updating app config");
-        self.infra.set_app_config(&config).await?;
-        Ok(())
+    /// Helper method to apply a config operation atomically.
+    async fn update(&self, op: AppConfigOperation) -> anyhow::Result<()> {
+        debug!(op = ?op, "Updating app config");
+        self.infra.update_app_config(vec![op]).await
     }
 }
 
@@ -42,10 +38,8 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.provider = Some(provider_id);
-        })
-        .await
+        self.update(AppConfigOperation::SetProvider(provider_id))
+            .await
     }
 
     async fn get_provider_model(
@@ -77,10 +71,8 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
             .provider
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
 
-        self.update(|config| {
-            config.model.insert(provider_id, model.clone());
-        })
-        .await
+        self.update(AppConfigOperation::SetModel(provider_id, model))
+            .await
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
@@ -92,10 +84,8 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         &self,
         commit_config: forge_domain::CommitConfig,
     ) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.commit = Some(commit_config);
-        })
-        .await
+        self.update(AppConfigOperation::SetCommitConfig(commit_config))
+            .await
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
@@ -107,10 +97,8 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         &self,
         suggest_config: forge_domain::SuggestConfig,
     ) -> anyhow::Result<()> {
-        self.update(|config| {
-            config.suggest = Some(suggest_config);
-        })
-        .await
+        self.update(AppConfigOperation::SetSuggestConfig(suggest_config))
+            .await
     }
 }
 
@@ -120,8 +108,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, ChatRepository, InputModality, MigrationResult, Model, ModelSource,
-        Provider, ProviderId, ProviderResponse, ProviderTemplate,
+        AnyProvider, AppConfig, AppConfigOperation, ChatRepository, InputModality, MigrationResult,
+        Model, ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -202,8 +190,11 @@ mod tests {
             Ok(self.app_config.lock().unwrap().clone())
         }
 
-        async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-            *self.app_config.lock().unwrap() = config.clone();
+        async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+            let mut config = self.app_config.lock().unwrap();
+            for op in ops {
+                op.apply(&mut config);
+            }
             Ok(())
         }
     }

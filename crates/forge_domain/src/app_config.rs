@@ -35,3 +35,37 @@ pub struct LoginInfo {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_provider_id: Option<String>,
 }
+
+/// All discrete mutations that can be applied to an [`AppConfig`].
+///
+/// Instead of replacing the entire config, callers describe exactly which field
+/// they want to change. Implementations receive a list of operations, apply
+/// each in order, and persist the result atomically.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppConfigOperation {
+    /// Set or clear the authentication token.
+    KeyInfo(Option<LoginInfo>),
+    /// Set the active provider.
+    SetProvider(ProviderId),
+    /// Set the model for the given provider.
+    SetModel(ProviderId, ModelId),
+    /// Set the commit-message generation configuration.
+    SetCommitConfig(CommitConfig),
+    /// Set the shell-command suggestion configuration.
+    SetSuggestConfig(SuggestConfig),
+}
+
+impl AppConfigOperation {
+    /// Applies this operation to `config` in-place.
+    pub fn apply(self, config: &mut AppConfig) {
+        match self {
+            AppConfigOperation::KeyInfo(info) => config.key_info = info,
+            AppConfigOperation::SetProvider(provider_id) => config.provider = Some(provider_id),
+            AppConfigOperation::SetModel(provider_id, model_id) => {
+                config.model.insert(provider_id, model_id);
+            }
+            AppConfigOperation::SetCommitConfig(commit) => config.commit = Some(commit),
+            AppConfigOperation::SetSuggestConfig(suggest) => config.suggest = Some(suggest),
+        }
+    }
+}
