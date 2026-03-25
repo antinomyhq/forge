@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use forge_app::AppConfigService;
 use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
+use tracing::debug;
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -23,6 +24,7 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
     {
         let mut config = self.infra.get_app_config().await?;
         updater(&mut config);
+        debug!(config = ?config, "Updating app config");
         self.infra.set_app_config(&config).await?;
         Ok(())
     }

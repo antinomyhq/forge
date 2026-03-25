@@ -54,11 +54,7 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
-    pub fn new(
-        infra: Arc<F>,
-        override_model: Option<forge_domain::ModelId>,
-        override_provider: Option<forge_domain::ProviderId>,
-    ) -> Self {
+    pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -68,11 +64,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let app_config_repository = Arc::new(
-            AppConfigRepositoryImpl::new()
-                .override_model(override_model)
-                .override_provider(override_provider),
-        );
+        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new());
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),

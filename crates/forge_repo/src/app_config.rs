@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
-use anyhow::bail;
 use forge_config::{ForgeConfig, ModelConfig};
 use forge_domain::{
     AppConfig, AppConfigRepository, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig,
 };
 use tokio::sync::Mutex;
+use tracing::debug;
 
 /// Converts a [`ForgeConfig`] into an [`AppConfig`].
 ///
@@ -22,7 +22,7 @@ fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
         auth_provider_id: fc.auth_provider_id,
     });
 
-    let (provider, model) = match fc.model {
+    let (provider, model) = match fc.default {
         Some(mc) => {
             let provider_id = ProviderId::from(mc.provider_id);
             let model_id = ModelId::new(mc.model_id);
@@ -70,7 +70,7 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
     }
 
     // Active model — use the provider's entry from the model map
-    fc.model = app.provider.as_ref().and_then(|pid| {
+    fc.default = app.provider.as_ref().and_then(|pid| {
         app.model.get(pid).map(|mid| ModelConfig {
             provider_id: pid.as_ref().to_string(),
             model_id: mid.to_string(),
@@ -101,29 +101,11 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
 /// maintains an in-memory cache to reduce disk access.
 pub struct AppConfigRepositoryImpl {
     cache: Arc<Mutex<Option<AppConfig>>>,
-    override_model: Option<ModelId>,
-    override_provider: Option<ProviderId>,
 }
 
 impl AppConfigRepositoryImpl {
     pub fn new() -> Self {
-        Self {
-            cache: Arc::new(Mutex::new(None)),
-            override_model: None,
-            override_provider: None,
-        }
-    }
-
-    /// Overrides the active model returned by [`get_app_config`].
-    pub fn override_model(mut self, model: Option<impl Into<ModelId>>) -> Self {
-        self.override_model = model.map(Into::into);
-        self
-    }
-
-    /// Overrides the active provider returned by [`get_app_config`].
-    pub fn override_provider(mut self, provider: Option<impl Into<ProviderId>>) -> Self {
-        self.override_provider = provider.map(Into::into);
-        self
+        Self { cache: Arc::new(Mutex::new(None)) }
     }
 
     /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
@@ -145,47 +127,9 @@ impl AppConfigRepositoryImpl {
             forge_config::ConfigReader::new().read_defaults()
         });
         let updated = app_config_to_forge_config(config, existing);
+        debug!(config = ?updated, "Writing updated config to disk");
         updated.write().await?;
         Ok(())
-    }
-
-    fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
-        (self.override_model.clone(), self.override_provider.clone())
-    }
-
-    fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {
-        let (model, provider) = self.get_overrides();
-
-        // Override the default provider first
-        if let Some(ref provider_id) = provider {
-            config.provider = Some(provider_id.clone());
-
-            // If we have both provider and model overrides, ensure the model is set for
-            // this provider
-            if let Some(ref model_id) = model {
-                config.model.insert(provider_id.clone(), model_id.clone());
-            }
-        }
-
-        // If only model override (no provider override), update existing provider
-        // models
-        if provider.is_none()
-            && let Some(model_id) = model
-        {
-            if config.model.is_empty() {
-                // If no models configured but we have a default provider, set the model for it
-                if let Some(ref default_provider) = config.provider {
-                    config.model.insert(default_provider.clone(), model_id);
-                }
-            } else {
-                // Update all existing provider models
-                for (_, mut_model_id) in config.model.iter_mut() {
-                    *mut_model_id = model_id.clone();
-                }
-            }
-        }
-
-        config
     }
 }
 
@@ -195,29 +139,20 @@ impl AppConfigRepository for AppConfigRepositoryImpl {
         // Check cache first
         let cache = self.cache.lock().await;
         if let Some(ref cached_config) = *cache {
-            // Apply overrides even to cached config since overrides can change via env vars
-            return Ok(self.apply_overrides(cached_config.clone()));
+            return Ok(cached_config.clone());
         }
         drop(cache);
 
         // Cache miss, read from file
         let config = self.read().await;
 
-        // Update cache with the newly read config (without overrides)
         let mut cache = self.cache.lock().await;
         *cache = Some(config.clone());
 
-        // Apply overrides to the config before returning
-        Ok(self.apply_overrides(config))
+        Ok(config)
     }
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        let (model, provider) = self.get_overrides();
-
-        if model.is_some() || provider.is_some() {
-            bail!("Could not save configuration: Model or Provider was overridden")
-        }
-
         self.write(config).await?;
 
         // Bust the cache after successful write
@@ -312,7 +247,7 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_with_model() {
         let mut fixture = forge_config_defaults();
-        fixture.model = Some(ModelConfig {
+        fixture.default = Some(ModelConfig {
             provider_id: "anthropic".to_string(),
             model_id: "claude-3-5-sonnet-20241022".to_string(),
         });
@@ -413,7 +348,7 @@ mod tests {
 
         // All AppConfig-owned fields must be cleared; unrelated fields preserved.
         assert_eq!(actual.api_key, None);
-        assert_eq!(actual.model, None);
+        assert_eq!(actual.default, None);
         assert_eq!(actual.commit, None);
         assert_eq!(actual.suggest, None);
         // Non-AppConfig field is unchanged
@@ -434,11 +369,11 @@ mod tests {
 
         let actual = app_config_to_forge_config(&app, base);
 
-        let expected = ModelConfig {
+        let expected_model = ModelConfig {
             provider_id: "anthropic".to_string(),
             model_id: "claude-3-5-sonnet-20241022".to_string(),
         };
-        assert_eq!(actual.model, Some(expected));
+        assert_eq!(actual.default, Some(expected_model));
     }
 
     #[test]
@@ -463,7 +398,7 @@ mod tests {
             provider_id: "openai".to_string(),
             model_id: "gpt-4o".to_string(),
         };
-        assert_eq!(actual.model, Some(expected));
+        assert_eq!(actual.default, Some(expected));
     }
 
     #[test]
@@ -478,7 +413,7 @@ mod tests {
 
         let actual = app_config_to_forge_config(&app, base);
 
-        assert_eq!(actual.model, None);
+        assert_eq!(actual.default, None);
     }
 
     #[test]
@@ -542,7 +477,7 @@ mod tests {
         original.api_key = Some("sk-test".to_string());
         original.api_key_name = Some("test-key".to_string());
         original.api_key_masked = Some("sk-***".to_string());
-        original.model = Some(ModelConfig {
+        original.default = Some(ModelConfig {
             provider_id: "anthropic".to_string(),
             model_id: "claude-3-5-sonnet-20241022".to_string(),
         });
@@ -556,7 +491,7 @@ mod tests {
 
         assert_eq!(actual.api_key, original.api_key);
         assert_eq!(actual.api_key_name, original.api_key_name);
-        assert_eq!(actual.model, original.model);
+        assert_eq!(actual.default, original.default);
         assert_eq!(actual.commit, original.commit);
     }
 
@@ -607,155 +542,19 @@ mod tests {
         assert_eq!(third_read, new_config);
     }
 
-    #[tokio::test]
-    async fn test_read_handles_custom_provider() {
-        let _home = temp_home();
-        write_toml(
-            &_home,
-            r#"
+    #[test]
+    fn test_read_handles_custom_provider() {
+        // Verify the full parse path for a custom provider value — uses
+        // ConfigReader::read_str to avoid any real filesystem dependency.
+        let toml = r#"
 [model]
 provider = "xyz"
 model = "some-model"
-"#,
-        );
-        let repo = repository_fixture(&_home);
+"#;
+        let fc = forge_config::ConfigReader::new().read_str(toml).unwrap();
 
-        let actual = repo.get_app_config().await.unwrap();
+        let actual = forge_config_to_app_config(fc);
 
         assert_eq!(actual.provider, Some(ProviderId::from_str("xyz").unwrap()));
-    }
-
-    #[tokio::test]
-    async fn test_override_model() {
-        let _home = temp_home();
-        write_toml(
-            &_home,
-            r#"
-[model]
-provider = "anthropic"
-model = "claude-3-5-sonnet-20241022"
-"#,
-        );
-        let repo = repository_fixture(&_home).override_model(Some(ModelId::new("override-model")));
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(
-            actual.model.get(&ProviderId::ANTHROPIC),
-            Some(&ModelId::new("override-model"))
-        );
-    }
-
-    #[tokio::test]
-    async fn test_override_provider() {
-        let _home = temp_home();
-        write_toml(
-            &_home,
-            r#"
-[model]
-provider = "anthropic"
-model = "claude-3-5-sonnet-20241022"
-"#,
-        );
-        let repo = repository_fixture(&_home).override_provider(Some(ProviderId::OPENAI));
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.provider, Some(ProviderId::OPENAI));
-    }
-
-    #[tokio::test]
-    async fn test_override_prevents_config_write() {
-        let _home = temp_home();
-        let repo = repository_fixture(&_home).override_model(Some(ModelId::new("override-model")));
-
-        let config = forge_domain::AppConfig::default();
-        let actual = repo.set_app_config(&config).await;
-
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("Model or Provider was overridden")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_provider_override_applied_with_no_config() {
-        let _home = temp_home();
-        let expected = ProviderId::from_str("open_router").unwrap();
-        let repo = repository_fixture(&_home)
-            .override_provider(Some(expected.clone()))
-            .override_model(Some(ModelId::new("test-model")));
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.provider, Some(expected));
-    }
-
-    #[tokio::test]
-    async fn test_model_override_applied_with_no_config() {
-        let _home = temp_home();
-        let provider = ProviderId::OPENAI;
-        let expected = ModelId::new("gpt-4-test");
-        let repo = repository_fixture(&_home)
-            .override_provider(Some(provider.clone()))
-            .override_model(Some(expected.clone()));
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.model.get(&provider), Some(&expected));
-    }
-
-    #[tokio::test]
-    async fn test_provider_override_on_cached_config() {
-        let _home = temp_home();
-        let expected = ProviderId::ANTHROPIC;
-        let repo = repository_fixture(&_home)
-            .override_provider(Some(expected.clone()))
-            .override_model(Some(ModelId::new("test-model")));
-
-        // First call populates cache
-        repo.get_app_config().await.unwrap();
-
-        // Second call should still apply override to cached config
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.provider, Some(expected));
-    }
-
-    #[tokio::test]
-    async fn test_model_override_on_cached_config() {
-        let _home = temp_home();
-        let provider = ProviderId::OPENAI;
-        let expected = ModelId::new("gpt-4-cached");
-        let repo = repository_fixture(&_home)
-            .override_provider(Some(provider.clone()))
-            .override_model(Some(expected.clone()));
-
-        // First call populates cache
-        repo.get_app_config().await.unwrap();
-
-        // Second call should still apply override to cached config
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.model.get(&provider), Some(&expected));
-    }
-
-    #[tokio::test]
-    async fn test_model_override_with_existing_provider() {
-        let _home = temp_home();
-        write_toml(
-            &_home,
-            r#"
-[model]
-provider = "anthropic"
-model = "claude-3-opus"
-"#,
-        );
-        let expected = ModelId::new("override-model");
-        let repo = repository_fixture(&_home).override_model(Some(expected.clone()));
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.model.get(&ProviderId::ANTHROPIC), Some(&expected));
     }
 }
