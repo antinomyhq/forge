@@ -13,7 +13,15 @@
   },
   {
     "command": "config-model",
-    "description": "Switch the models [alias: m, model]"
+    "description": "Switch the models [alias: cm]"
+  },
+  {
+    "command": "model",
+    "description": "Switch the model for the current session only, without modifying global config [alias: m]"
+  },
+  {
+    "command": "model-reset",
+    "description": "Reset session model to use global config [alias: mr]"
   },
   {
     "command": "config-commit-model",
@@ -84,16 +92,20 @@
     "description": "Select and switch between agents [alias: a]"
   },
   {
-    "command": "sync",
-    "description": "Sync the current workspace for codebase search"
+    "command": "workspace-sync",
+    "description": "Sync the current workspace for codebase search [alias: sync]"
   },
   {
-    "command": "sync-status",
+    "command": "workspace-status",
     "description": "Show sync status of all workspace files"
   },
   {
-    "command": "sync-info",
+    "command": "workspace-info",
     "description": "Show workspace information with sync details"
+  },
+  {
+    "command": "workspace-init",
+    "description": "Initialize a new workspace without syncing files"
   },
   {
     "command": "clone",

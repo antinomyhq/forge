@@ -290,6 +290,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Handle direct prompt or piped input if provided (raw text messages)
         let input = self.cli.prompt.clone().or(self.cli.piped_input.clone());
         if let Some(input) = input {
+            tracker::prompt(input.clone());
             self.spinner.start(None)?;
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
@@ -599,8 +600,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
-                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
-                        self.on_index(path, batch_size).await?;
+                    crate::cli::WorkspaceCommand::Sync { path, init } => {
+                        self.on_index(path, init).await?;
                     }
                     crate::cli::WorkspaceCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
@@ -849,7 +850,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, None).await
     }
 
     async fn handle_provider_logout(
@@ -1213,6 +1214,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
+                .sort_by(&[1, 0])
                 .to_case(&[1], Case::UpperSnake)
                 .map_col(0, |col| {
                     if col.as_deref() == Some(headers::ID) {
@@ -1979,8 +1981,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 100 for slash command
-                self.on_index(working_dir, 100).await?;
+                self.on_index(working_dir, false).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -2672,6 +2673,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Activates a provider by configuring it if needed, setting it as default,
     /// and ensuring a compatible model is selected.
     async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
+        self.activate_provider_with_model(any_provider, None).await
+    }
+
+    /// Activates a provider with an optional pre-selected model.
+    /// When `model` is provided, the interactive model selection prompt is
+    /// skipped and the specified model is set directly.
+    async fn activate_provider_with_model(
+        &mut self,
+        any_provider: AnyProvider,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
@@ -2690,12 +2702,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Set as default and handle model selection
-        self.finalize_provider_activation(provider).await
+        self.finalize_provider_activation(provider, model).await
     }
 
     /// Finalizes provider activation by setting it as default and ensuring
     /// a compatible model is selected.
-    async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
+    /// When `model` is `Some`, the interactive model selection is skipped and
+    /// the provided model is validated and set directly.
+    async fn finalize_provider_activation(
+        &mut self,
+        provider: Provider<Url>,
+        model: Option<ModelId>,
+    ) -> Result<()> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
@@ -2703,6 +2721,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::action(format!("{}", provider.id))
                 .sub_title("is now the default provider"),
         )?;
+
+        // If a model was pre-selected (e.g. from :model), validate and set it
+        // directly without prompting
+        if let Some(model) = model {
+            let model_id = self
+                .validate_model(model.as_str(), Some(&provider.id))
+                .await?;
+            self.api.set_default_model(model_id.clone()).await?;
+            self.writeln_title(
+                TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
+            )?;
+            return Ok(());
+        }
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -3075,13 +3106,29 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(tool_call) => {
+            ChatResponse::ToolCallStart { tool_call, notifier } => {
+                // Scope guard to ensure notification happens even on error.
+                // If writer.finish() or spinner.stop() fails, the guard's drop
+                // will still notify orch, preventing the deadlock.
+                struct NotifyGuard<'a>(&'a tokio::sync::Notify);
+                impl<'a> Drop for NotifyGuard<'a> {
+                    fn drop(&mut self) {
+                        self.0.notify_one();
+                    }
+                }
+                let _guard = NotifyGuard(&notifier);
+
                 writer.finish()?;
 
                 // Stop spinner only for tools that require stdout/stderr access
                 if tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
                 }
+
+                // Notify orch that the UI has rendered the tool header.
+                // Orch awaits this before executing the tool, preventing tool
+                // stdout from appearing before the tool name is printed.
+                drop(_guard);
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -3347,9 +3394,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider } => {
+            ConfigSetField::Provider { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider(provider).await?;
+                self.activate_provider_with_model(provider, model).await?;
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;
@@ -3587,11 +3634,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_index(
-        &mut self,
-        path: std::path::PathBuf,
-        batch_size: usize,
-    ) -> anyhow::Result<()> {
+    async fn on_index(&mut self, path: std::path::PathBuf, init: bool) -> anyhow::Result<()> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
@@ -3600,7 +3643,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.init_forge_services().await?;
         }
 
-        let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
+        // When init is set, check if the workspace is already initialized
+        // via get_workspace_info before calling init, so we only initialize
+        // when a workspace does not yet exist for the given path.
+        if init {
+            let workspace_info = self.api.get_workspace_info(path.clone()).await?;
+            if workspace_info.is_none() {
+                self.on_workspace_init(path.clone()).await?;
+            }
+        }
+
+        let mut stream = self.api.sync_workspace(path.clone()).await?;
         let mut progress_bar = ProgressBarManager::default();
 
         while let Some(event) = stream.next().await {
@@ -3951,19 +4004,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            self.init_forge_services().await?;
+        }
+
         self.spinner.start(Some("Initializing workspace"))?;
 
         let workspace_id = self.api.init_workspace(path.clone()).await?;
 
         self.spinner.stop(None)?;
 
-        // Resolve and display the path
-        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
-
         self.writeln_title(
             TitleFormat::info("Workspace initialized successfully")
-                .sub_title(format!("Path: {}", canonical_path.display()))
-                .sub_title(format!("Workspace ID: {}", workspace_id)),
+                .sub_title(format!("{}", workspace_id)),
         )?;
 
         Ok(())

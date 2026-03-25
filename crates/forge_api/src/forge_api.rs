@@ -360,9 +360,8 @@ impl<
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>> {
-        self.services.sync_workspace(path, batch_size).await
+        self.services.sync_workspace(path).await
     }
 
     async fn query_workspace(

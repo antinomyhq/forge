@@ -111,6 +111,8 @@ pub enum TodoStatus {
     InProgress,
     /// Task has been completed
     Completed,
+    /// Task is cancelled and should be removed from the list
+    Cancelled,
 }
 
 impl JsonSchema for TodoStatus {
@@ -654,12 +656,30 @@ pub struct SkillFetch {
     pub name: String,
 }
 
+/// A single todo item sent by the model.
+///
+/// The model always provides `content` and `status`. The server uses `content`
+/// as the key: if an item with the same content already exists it is updated,
+/// otherwise a new item is added. Setting `status` to `cancelled` removes the
+/// item from the list entirely. IDs are managed by the server and never
+/// exposed to the model.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct TodoItem {
+    /// Description of the task. Used as the unique key to match existing todos.
+    pub content: String,
+    /// Current status of the task. Use `cancelled` to remove the item.
+    pub status: crate::TodoStatus,
+}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/todo_write.md"]
 pub struct TodoWrite {
-    /// Array of todo items to create or update
+    /// List of todo items to create or update. Each item must have `content`
+    /// and `status`. The server matches on `content` — if an item with the
+    /// same content exists it is updated; otherwise a new item is added.
+    /// Set `status` to `cancelled` to remove an item.
     #[eserde(compat)]
-    pub todos: Vec<crate::Todo>,
+    pub todos: Vec<TodoItem>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -1049,8 +1069,8 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a TodoWrite tool call with the specified todos
-    pub fn tool_call_todo_write(todos: Vec<crate::Todo>) -> ToolCallFull {
+    /// Creates a TodoWrite tool call with the specified todo items
+    pub fn tool_call_todo_write(todos: Vec<crate::TodoItem>) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::TodoWrite(TodoWrite { todos }))
     }
 

@@ -23,7 +23,7 @@ pub fn generate_autofix_workflow() {
         .add_step(Step::new("Autofix").uses(
             "autofix-ci",
             "action",
-            "635ffb0c9798bd160680f18fd73371e355b85f27",
+            "7a166d7532b277f34e16238930461bf77f9d7ed8",
         ));
 
     let events = Event::default()

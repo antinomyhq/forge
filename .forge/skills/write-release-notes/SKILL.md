@@ -89,7 +89,31 @@ A huge thank you to everyone who made this release happen: [list @handles — ex
 - **Tagline formula**: `[Version] — [Adjective] [Theme]` (e.g. "v1.32.0 — Smarter Config, Smoother Workflows")
 - **No implementation details**: Do not mention internal module names, struct names, function names, crate names, or how something was implemented. Focus purely on what the user experiences or gains.
 
-### 5. Output
+### 5. Contributors Filter
+
+Only include **external contributors** in the Contributors section — exclude the core team:
+- `@tusharmath`
+- `@amitksingh1490`
+- `@laststylebender14`
+- Bots (e.g. `@dependabot`)
+
+If no external contributors exist, omit the Contributors section entirely.
+
+### 6. Validate Length
+
+After writing the release notes, run the bundled validation script to confirm the output is under 2000 characters:
+
+```bash
+echo "<release notes>" | bash .forge/skills/write-release-notes/scripts/validate-release-notes.sh
+```
+
+If it prints `FAIL`, trim the draft and re-run until it prints `PASS`:
+- Remove the Under the Hood section first
+- Consolidate Bug Fixes into a shorter bullet list
+- Shorten individual PR descriptions to one tight sentence
+- Remove the least impactful Highlights entries
+
+### 7. Output
 
 Print the final release notes directly in the chat. Do not write to a file unless the user explicitly asks.
 

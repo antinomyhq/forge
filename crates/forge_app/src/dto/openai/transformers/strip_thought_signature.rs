@@ -53,6 +53,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            reasoning_content: None,
             extra_content: Some(ExtraContent {
                 google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
             }),
@@ -82,6 +83,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            reasoning_content: None,
             extra_content: None,
         }]);
 
@@ -116,6 +118,7 @@ mod tests {
                 reasoning_details: None,
                 reasoning_text: Some("reasoning".to_string()),
                 reasoning_opaque: None,
+                reasoning_content: None,
                 extra_content: Some(ExtraContent {
                     google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
