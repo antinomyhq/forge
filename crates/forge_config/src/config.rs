@@ -211,7 +211,7 @@ impl ForgeConfig {
     /// be read, or the configuration cannot be deserialized.
     pub async fn read() -> crate::Result<ForgeConfig> {
         let path = Self::config_path()?;
-        ConfigReader::new().read(Some(&path)).await
+        ConfigReader::default().read(Some(&path)).await
     }
 
     /// Writes the configuration to the user config file.

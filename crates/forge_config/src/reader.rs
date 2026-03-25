@@ -10,6 +10,7 @@ use crate::{ForgeConfig, ModelConfig};
 /// Reads and merges [`ForgeConfig`] from multiple sources: embedded defaults,
 /// home directory file, current working directory file, and environment
 /// variables.
+#[derive(Default)]
 pub struct ConfigReader {}
 
 /// Intermediate representation of the legacy `~/forge/.config.json` format.
@@ -63,11 +64,6 @@ impl LegacyConfig {
 }
 
 impl ConfigReader {
-    /// Creates a new `ConfigReader`.
-    pub fn new() -> Self {
-        Self {}
-    }
-
     /// Returns the path to the legacy JSON config file: `~/forge/.config.json`.
     fn legacy_config_path() -> Option<PathBuf> {
         dirs::home_dir().map(|home| home.join("forge").join(".config.json"))
@@ -200,7 +196,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_parses_without_error() {
-        let actual = ConfigReader::new().read(None).await;
+        let actual = ConfigReader::default().read(None).await;
         assert!(actual.is_ok(), "read() failed: {:?}", actual.err());
     }
 
@@ -211,7 +207,7 @@ mod tests {
             ("FORGE_SESSION__MODEL_ID", "fake-model"),
         ]);
 
-        let actual = ConfigReader::new().read(None).await.unwrap();
+        let actual = ConfigReader::default().read(None).await.unwrap();
 
         let expected = Some(ModelConfig {
             provider_id: Some("fake-provider".to_string()),
