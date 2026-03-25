@@ -558,11 +558,12 @@ mod tests {
             "**Priority order when instructions compete**:",
             "reconstruct that verifier invocation and run it as a behavioral check before completion.",
             "Do not delete runtime artifacts that the final deliverable needs in order to import, execute, or serve requests.",
-            "reconstruct that verifier invocation and run it as a behavioral check before completion.",
             "For tasks that must produce ALL valid outputs",
             "randomized and adversarial inputs spanning the full task space",
             "When elapsed time exceeds 85% of your estimated budget",
             "Your hard kill deadline is **600 seconds**",
+            "do NOT alter surrounding tokens",
+            "treat letter case as critical data",
         ];
         let actual_matches: Vec<bool> = expected_fragments
             .iter()

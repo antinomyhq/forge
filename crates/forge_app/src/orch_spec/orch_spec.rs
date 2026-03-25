@@ -399,6 +399,87 @@ async fn test_multiple_consecutive_tool_calls() {
 }
 
 #[tokio::test]
+async fn test_analysis_pivot_reminder_added_after_repeated_non_writing_turns() {
+    let read_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "loop.txt"})));
+    let read_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("Same content")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![
+            (read_call.clone(), read_result.clone()),
+            (read_call.clone(), read_result.clone()),
+            (read_call.clone(), read_result.clone()),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Read 1").add_tool_call(read_call.clone()),
+            ChatCompletionMessage::assistant("Read 2").add_tool_call(read_call.clone()),
+            ChatCompletionMessage::assistant("Read 3").add_tool_call(read_call.clone()),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+    ctx.env.background = true;
+    ctx.env.task_timeout_secs = Some(600);
+
+    ctx.run("Write the output file").await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+    let reminder = context
+        .messages
+        .iter()
+        .find(|message| {
+            message.has_role(Role::User)
+                && message.content().is_some_and(|content| {
+                    content.contains("You have spent several turns exploring without writing")
+                })
+        })
+        .and_then(|message| message.content())
+        .expect("Expected analysis pivot reminder in context");
+
+    assert!(
+        reminder.contains("write a candidate artifact to the final expected path"),
+        "Reminder should explicitly instruct writing the deliverable"
+    );
+}
+
+#[tokio::test]
+async fn test_analysis_pivot_reminder_not_added_after_writing_turn() {
+    let read_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "input.txt"})));
+    let write_call = ToolCallFull::new("fs_write")
+        .arguments(ToolCallArguments::from(json!({"path": "/app/out.txt", "content": "ok"})));
+    let read_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("input")));
+    let write_result = ToolResult::new("fs_write").output(Ok(ToolOutput::text("written")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![
+            (read_call.clone(), read_result),
+            (write_call.clone(), write_result),
+            (read_call.clone(), ToolResult::new("fs_read").output(Ok(ToolOutput::text("again")))),
+        ])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Read").add_tool_call(read_call.clone()),
+            ChatCompletionMessage::assistant("Write").add_tool_call(write_call.clone()),
+            ChatCompletionMessage::assistant("Read again").add_tool_call(read_call.clone()),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+    ctx.env.background = true;
+    ctx.env.task_timeout_secs = Some(600);
+
+    ctx.run("Write the output file").await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+    let has_reminder = context.messages.iter().any(|message| {
+        message.has_role(Role::User)
+            && message.content().is_some_and(|content| {
+                content.contains("You have spent several turns exploring without writing")
+            })
+    });
+
+    assert!(!has_reminder, "Writing turns should reset the pivot detector");
+}
+
+#[tokio::test]
 async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls_on_next_request() {
     let tool_call = ToolCallFull::new("fs_read")
         .arguments(ToolCallArguments::from(json!({"path": "loop.txt"})));

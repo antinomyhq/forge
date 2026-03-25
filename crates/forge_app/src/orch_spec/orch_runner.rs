@@ -2,8 +2,9 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, Hook,
-    FinishReason, ProviderId, ToolCallArguments, ToolCallFull, ToolErrorTracker, ToolResult,
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    EventHandleExt, FinishReason, Hook, ProviderId, ToolCallArguments, ToolCallFull,
+    ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use include_dir::{Dir, include_dir};
@@ -11,7 +12,7 @@ use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::hooks::DoomLoopDetector;
+use crate::hooks::{AnalysisPivotDetector, DoomLoopDetector};
 use crate::hooks::verification_reminder::VERIFICATION_REMINDER;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
@@ -122,9 +123,9 @@ impl Runner {
         let orch = Orchestrator::new(services.clone(), setup.env.clone(), conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
-            .hook(Arc::new(
-                Hook::default().on_request(DoomLoopDetector::default()),
-            ))
+            .hook(Arc::new(Hook::default().on_request(
+                DoomLoopDetector::default().and(AnalysisPivotDetector::new(setup.env.clone())),
+            )))
             .sender(tx);
 
         let (mut orch, runner) = (orch, services);

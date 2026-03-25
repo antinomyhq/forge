@@ -10,7 +10,10 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
+use crate::hooks::{
+    AnalysisPivotDetector, CompactionHandler, DoomLoopDetector, TitleGenerationHandler,
+    TracingHandler,
+};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{
@@ -147,7 +150,12 @@ impl<S: Services> ForgeApp<S> {
         let title_handler = TitleGenerationHandler::new(services.clone());
         let hook = Hook::default()
             .on_start(tracing_handler.clone().and(title_handler.clone()))
-            .on_request(tracing_handler.clone().and(DoomLoopDetector::default()))
+            .on_request(
+                tracing_handler
+                    .clone()
+                    .and(DoomLoopDetector::default())
+                    .and(AnalysisPivotDetector::new(environment.clone())),
+            )
             .on_response(
                 tracing_handler
                     .clone()

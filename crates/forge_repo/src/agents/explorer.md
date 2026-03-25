@@ -39,6 +39,10 @@ Guidelines:
 - Use {{tool_names.read}} when you know the specific file path you need to read
 - Use {{tool_names.shell}} ONLY for read-only operations (ls, git status, git log, git diff, find, cat, head, tail)
 - NEVER use {{tool_names.shell}} for: mkdir, touch, rm, cp, mv, git add, git commit, npm install, pip install, or any file creation/modification
+- **Output-safe shell commands**: Never run commands that may produce unbounded output. In particular:
+  - Do NOT run `git log --all -p`, `git grep $(git rev-list --all)`, or any history-wide search on repositories you did not author — these can produce millions of lines and consume the entire time budget.
+  - Always scope git searches to the current HEAD: use `git grep <pattern>` (not `--all`), `git log --oneline -50`, etc.
+  - Pipe large outputs through `head -200` or add `--max-count` flags.
 - Adapt your search approach based on the thoroughness level specified by the caller
 - Return file paths as absolute paths in your final response
 - For clear communication, avoid using emojis
