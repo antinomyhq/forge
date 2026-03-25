@@ -33,6 +33,17 @@ async fn main() -> Result<()> {
     // Initialize and run the UI
     let mut cli = Cli::parse();
 
+    // Fast path: zsh rprompt without conversation ID doesn't need any infrastructure
+    let args: Vec<String> = std::env::args().collect();
+    let is_zsh_rprompt = args.iter().any(|a| a == "zsh") && args.iter().any(|a| a == "rprompt");
+    let conversation_id = std::env::var("_FORGE_CONVERSATION_ID").ok();
+    let has_conversation = conversation_id.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+
+    if is_zsh_rprompt && !has_conversation {
+        println!(" %B%F{{240}}󱙺 FORGE%f%b");
+        return Ok(());
+    }
+
     // Check if there's piped input
     if !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();
