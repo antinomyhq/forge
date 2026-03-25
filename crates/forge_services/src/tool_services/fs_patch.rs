@@ -58,10 +58,7 @@ impl Range {
         }
     }
 
-    /// Create a range from a fuzzy search match.
-    ///
-    /// Walks actual byte positions per line to handle mixed line endings
-    /// (e.g. some `\r\n` and some `\n`), avoiding out-of-bounds offsets.
+    /// Create a range from a fuzzy search match
     fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
         let lines: Vec<&str> = source.lines().collect();
 
@@ -70,35 +67,51 @@ impl Range {
             return Self::new(0, 0);
         }
 
-        // Clamp indices to valid line numbers (0-based inclusive)
-        let start_idx = (search_match.start_line as usize).min(lines.len() - 1);
-        let end_idx = (search_match.end_line as usize).min(lines.len() - 1);
+        // SearchMatch uses 0-based inclusive line numbers
+        // Convert to 0-based array indices
+        let start_idx = (search_match.start_line as usize).min(lines.len());
+        // end_line is 0-based inclusive, convert to 0-based exclusive for slicing
+        // Add 1 to make it exclusive: line 0 to line 0 means [0..1], one line
+        let end_idx = ((search_match.end_line as usize) + 1).min(lines.len());
 
-        // Walk byte positions to correctly handle mixed line endings (\r\n vs \n).
-        // Record start_pos when we reach start_idx; stop after end_idx.
-        let mut pos = 0usize;
-        let mut start_pos = 0usize;
-        for (i, line) in lines.iter().enumerate() {
-            if i == start_idx {
-                start_pos = pos;
-            }
-            pos += line.len();
-            if i == end_idx {
-                break;
-            }
-            // Advance past the line ending (\r\n or \n)
-            if pos < source.len() {
-                pos += if source.as_bytes()[pos] == b'\r'
-                    && source.as_bytes().get(pos + 1) == Some(&b'\n')
-                {
-                    2
-                } else {
-                    1
-                };
-            }
-        }
+        // Find the byte position of the start line.
+        // Split on '\n' so each segment retains its '\r' (if any), giving the
+        // correct per-line byte length regardless of mixed line endings.
+        let start_pos = source
+            .split('\n')
+            .take(start_idx)
+            .map(|l| l.len() + 1)
+            .sum::<usize>()
+            .min(source.len());
 
-        Self::new(start_pos, pos.min(source.len()).saturating_sub(start_pos))
+        // Calculate the length
+        let length = if start_idx == end_idx {
+            // Single line match: just the line content, no trailing newline
+            if start_idx >= lines.len() {
+                0 // Out of bounds match
+            } else {
+                lines[start_idx].len()
+            }
+        } else {
+            // Multi-line match: include newlines between lines but NOT after the last line
+            // Sum lengths of lines from start_idx to end_idx (exclusive)
+            let content_len: usize = if start_idx >= lines.len() || end_idx > lines.len() {
+                0 // Out of bounds match
+            } else {
+                lines[start_idx..end_idx].iter().map(|l| l.len()).sum()
+            };
+            let newlines_between = end_idx - start_idx - 1;
+            // Count actual newline bytes (\r\n = 2, \n = 1) to handle mixed endings
+            let newline_bytes: usize = source
+                .split('\n')
+                .skip(start_idx)
+                .take(newlines_between)
+                .map(|l| if l.ends_with('\r') { 2 } else { 1 })
+                .sum();
+            content_len + newline_bytes
+        };
+
+        Self::new(start_pos, length)
     }
 
     // Fuzzy matching removed - we only use exact matching
