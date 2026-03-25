@@ -1,60 +1,12 @@
 use std::sync::Arc;
 
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
-use forge_domain::{
-    AppConfig, AppConfigOperation, AppConfigRepository, CommitConfig, LoginInfo, ModelId,
-    ProviderId, SuggestConfig,
-};
+use forge_domain::{AppConfigOperation, AppConfigRepository};
 use tokio::sync::Mutex;
 use tracing::{debug, error};
 
-/// Converts a [`ForgeConfig`] into an [`AppConfig`].
-///
-/// `ForgeConfig` flattens login info as top-level fields and represents the
-/// active model as a single [`ModelConfig`]. This conversion reconstructs the
-/// nested [`LoginInfo`] and per-provider model map used by the domain.
-fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
-    let key_info = fc.api_key.map(|api_key| LoginInfo {
-        api_key,
-        api_key_name: fc.api_key_name.unwrap_or_default(),
-        api_key_masked: fc.api_key_masked.unwrap_or_default(),
-        email: fc.email,
-        name: fc.name,
-        auth_provider_id: fc.auth_provider_id,
-    });
-
-    let (provider, model) = match fc.session {
-        Some(mc) => {
-            let provider_id = mc.provider_id.map(ProviderId::from);
-            let mut map = std::collections::HashMap::new();
-            if let (Some(ref pid), Some(mid)) = (provider_id.clone(), mc.model_id.map(ModelId::new))
-            {
-                map.insert(pid.clone(), mid);
-            }
-            (provider_id, map)
-        }
-        None => (None, std::collections::HashMap::new()),
-    };
-
-    let commit = fc.commit.map(|mc| CommitConfig {
-        provider: mc.provider_id.map(ProviderId::from),
-        model: mc.model_id.map(ModelId::new),
-    });
-
-    let suggest = fc.suggest.and_then(|mc| {
-        mc.provider_id
-            .zip(mc.model_id)
-            .map(|(pid, mid)| SuggestConfig {
-                provider: ProviderId::from(pid),
-                model: ModelId::new(mid),
-            })
-    });
-
-    AppConfig { key_info, provider, model, commit, suggest }
-}
-
 /// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
-/// in-place, bypassing the intermediate [`AppConfig`] representation.
+/// in-place.
 fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
     match op {
         AppConfigOperation::KeyInfo(Some(info)) => {
@@ -122,7 +74,7 @@ impl ForgeConfigRepository {
         Self { cache: Arc::new(Mutex::new(None)) }
     }
 
-    /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
+    /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
     async fn read(&self) -> ForgeConfig {
         let config = ForgeConfig::read();
 
@@ -142,11 +94,11 @@ impl ForgeConfigRepository {
 
 #[async_trait::async_trait]
 impl AppConfigRepository for ForgeConfigRepository {
-    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
+    async fn get_app_config(&self) -> anyhow::Result<ForgeConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
         if let Some(ref config) = *cache {
-            return Ok(forge_config_to_app_config(config.clone()));
+            return Ok(config.clone());
         }
         drop(cache);
 
@@ -156,7 +108,7 @@ impl AppConfigRepository for ForgeConfigRepository {
         let mut cache = self.cache.lock().await;
         *cache = Some(config.clone());
 
-        Ok(forge_config_to_app_config(config))
+        Ok(config)
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
@@ -185,144 +137,11 @@ impl AppConfigRepository for ForgeConfigRepository {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use forge_config::{ForgeConfig, ModelConfig};
-    use forge_domain::{
-        AppConfig, AppConfigOperation, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig,
-    };
+    use forge_domain::{AppConfigOperation, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig};
     use pretty_assertions::assert_eq;
 
-    use super::{apply_op, forge_config_to_app_config};
-
-    // ── forge_config_to_app_config ────────────────────────────────────────────
-
-    #[test]
-    fn test_empty_forge_config_produces_empty_app_config() {
-        let fixture = ForgeConfig::default();
-        let actual = forge_config_to_app_config(fixture);
-        let expected = AppConfig::default();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_full_login_info_is_mapped() {
-        let fixture = ForgeConfig::default()
-            .api_key("key-abc".to_string())
-            .api_key_name("My Key".to_string())
-            .api_key_masked("key-***".to_string())
-            .email("user@example.com".to_string())
-            .name("Alice".to_string())
-            .auth_provider_id("github".to_string());
-        let actual = forge_config_to_app_config(fixture);
-        let expected = AppConfig {
-            key_info: Some(LoginInfo {
-                api_key: "key-abc".to_string(),
-                api_key_name: "My Key".to_string(),
-                api_key_masked: "key-***".to_string(),
-                email: Some("user@example.com".to_string()),
-                name: Some("Alice".to_string()),
-                auth_provider_id: Some("github".to_string()),
-            }),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_session_with_provider_and_model() {
-        let fixture = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("anthropic".to_string())
-                    .model_id("claude-3".to_string()),
-            ),
-            ..Default::default()
-        };
-        let actual = forge_config_to_app_config(fixture);
-        let provider = ProviderId::from("anthropic".to_string());
-        let expected = AppConfig {
-            provider: Some(provider.clone()),
-            model: HashMap::from([(provider, ModelId::new("claude-3"))]),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_session_with_only_provider_leaves_model_map_empty() {
-        let fixture = ForgeConfig {
-            session: Some(ModelConfig::default().provider_id("openai".to_string())),
-            ..Default::default()
-        };
-        let actual = forge_config_to_app_config(fixture);
-        let expected = AppConfig {
-            provider: Some(ProviderId::from("openai".to_string())),
-            model: HashMap::new(),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_commit_config_is_mapped() {
-        let fixture = ForgeConfig {
-            commit: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-4o".to_string()),
-            ),
-            ..Default::default()
-        };
-        let actual = forge_config_to_app_config(fixture);
-        let expected = AppConfig {
-            commit: Some(CommitConfig {
-                provider: Some(ProviderId::from("openai".to_string())),
-                model: Some(ModelId::new("gpt-4o")),
-            }),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_suggest_config_requires_both_provider_and_model() {
-        let fixture_provider_only = ForgeConfig {
-            suggest: Some(ModelConfig::default().provider_id("openai".to_string())),
-            ..Default::default()
-        };
-        assert_eq!(
-            forge_config_to_app_config(fixture_provider_only).suggest,
-            None
-        );
-
-        let fixture_model_only = ForgeConfig {
-            suggest: Some(ModelConfig { model_id: Some("gpt-4o".to_string()), provider_id: None }),
-            ..Default::default()
-        };
-        assert_eq!(forge_config_to_app_config(fixture_model_only).suggest, None);
-    }
-
-    #[test]
-    fn test_suggest_config_with_both_fields_is_mapped() {
-        let fixture = ForgeConfig {
-            suggest: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-4o-mini".to_string()),
-            ),
-            ..Default::default()
-        };
-        let actual = forge_config_to_app_config(fixture);
-        let expected = AppConfig {
-            suggest: Some(SuggestConfig {
-                provider: ProviderId::from("openai".to_string()),
-                model: ModelId::new("gpt-4o-mini"),
-            }),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
+    use super::apply_op;
 
     // ── apply_op ──────────────────────────────────────────────────────────────
 

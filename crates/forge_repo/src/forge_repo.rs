@@ -8,8 +8,9 @@ use forge_app::{
     FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
     KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
+use forge_config::ForgeConfig;
 use forge_domain::{
-    AnyProvider, AppConfig, AppConfigOperation, AppConfigRepository, AuthCredential,
+    AnyProvider, AppConfigOperation, AppConfigRepository, AuthCredential,
     ChatCompletionMessage, ChatRepository, CommandOutput, Context, Conversation, ConversationId,
     ConversationRepository, Environment, FileInfo, FuzzySearchRepository, McpServerConfig,
     MigrationResult, Model, ModelId, Provider, ProviderId, ProviderRepository, ResultStream,
@@ -195,7 +196,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
-    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
+    async fn get_app_config(&self) -> anyhow::Result<ForgeConfig> {
         self.config_repository.get_app_config().await
     }
 

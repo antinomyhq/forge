@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use derive_more::From;
 use serde::{Deserialize, Serialize};
 
@@ -11,15 +9,6 @@ pub struct InitAuth {
     pub session_id: String,
     pub auth_url: String,
     pub token: String,
-}
-
-#[derive(Default, Clone, Debug, PartialEq)]
-pub struct AppConfig {
-    pub key_info: Option<LoginInfo>,
-    pub provider: Option<ProviderId>,
-    pub model: HashMap<ProviderId, ModelId>,
-    pub commit: Option<CommitConfig>,
-    pub suggest: Option<SuggestConfig>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
@@ -36,7 +25,7 @@ pub struct LoginInfo {
     pub auth_provider_id: Option<String>,
 }
 
-/// All discrete mutations that can be applied to an [`AppConfig`].
+/// All discrete mutations that can be applied to the application configuration.
 ///
 /// Instead of replacing the entire config, callers describe exactly which field
 /// they want to change. Implementations receive a list of operations, apply

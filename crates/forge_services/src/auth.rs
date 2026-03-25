@@ -98,7 +98,14 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
 
     async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
         let config = self.infra.get_app_config().await?;
-        Ok(config.key_info)
+        Ok(config.api_key.map(|api_key| LoginInfo {
+            api_key,
+            api_key_name: config.api_key_name.unwrap_or_default(),
+            api_key_masked: config.api_key_masked.unwrap_or_default(),
+            email: config.email,
+            name: config.name,
+            auth_provider_id: config.auth_provider_id,
+        }))
     }
 
     async fn set_auth_token(&self, login: Option<LoginInfo>) -> anyhow::Result<()> {
