@@ -12,4 +12,7 @@ pub enum Error {
     /// An I/O error occurred while reading or writing configuration files.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    #[error("JSON error: {0}")]
+    Serde(#[from] serde_json::Error),
 }

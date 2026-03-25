@@ -1,12 +1,9 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-
+use crate::{ForgeConfig, ModelConfig};
 use config::ConfigBuilder;
 use config::builder::DefaultState;
 use serde::Deserialize;
-use tracing::debug;
-
-use crate::{ForgeConfig, ModelConfig};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 /// Reads and merges [`ForgeConfig`] from multiple sources: embedded defaults,
 /// home directory file, current working directory file, and environment
@@ -43,6 +40,14 @@ struct LegacyConfig {
 struct LegacyModelRef {
     provider: Option<String>,
     model: Option<String>,
+}
+
+fn read_legacy_config(path: &PathBuf) -> crate::Result<String> {
+    let contents = std::fs::read_to_string(path)?;
+    let config = serde_json::from_str::<LegacyConfig>(&contents)?;
+    let forge_config = config.into_forge_config();
+    let content = toml_edit::ser::to_string_pretty(&forge_config)?;
+    Ok(content)
 }
 
 impl LegacyConfig {
@@ -146,11 +151,13 @@ impl ConfigReader {
     /// a [`ForgeConfig`], and adds it as a config source.
     ///
     /// If the file does not exist or cannot be parsed it is silently skipped.
-    pub fn read_legacy(mut self) -> Self {
-        let path = Self::config_legacy_path();
-        self.builder = self.builder.add_source(config::File::from(path));
-
-        self
+    pub fn read_legacy(self) -> Self {
+        let content = read_legacy_config(&Self::config_legacy_path());
+        if let Ok(content) = content {
+            self.read_toml(&content)
+        } else {
+            self
+        }
     }
 }
 
