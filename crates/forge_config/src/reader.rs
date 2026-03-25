@@ -1,12 +1,15 @@
-use crate::ForgeConfig;
-use crate::legacy::LegacyConfig;
-use config::ConfigBuilder;
-use config::builder::DefaultState;
 use std::path::PathBuf;
 use std::sync::LazyLock;
 
-/// Loads all `.env` files found while walking up from the current working directory to the root,
-/// with priority given to closer (lower) directories. Executed at most once per process.
+use config::ConfigBuilder;
+use config::builder::DefaultState;
+
+use crate::ForgeConfig;
+use crate::legacy::LegacyConfig;
+
+/// Loads all `.env` files found while walking up from the current working
+/// directory to the root, with priority given to closer (lower) directories.
+/// Executed at most once per process.
 static LOAD_DOT_ENV: LazyLock<()> = LazyLock::new(|| {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
     let mut paths = vec![];
@@ -34,12 +37,14 @@ pub struct ConfigReader {
 }
 
 impl ConfigReader {
-    /// Returns the path to the legacy JSON config file (`~/.forge/.config.json`).
+    /// Returns the path to the legacy JSON config file
+    /// (`~/.forge/.config.json`).
     pub fn config_legacy_path() -> PathBuf {
         Self::base_path().join(".config.json")
     }
 
-    /// Returns the path to the primary TOML config file (`~/.forge/.forge.toml`).
+    /// Returns the path to the primary TOML config file
+    /// (`~/.forge/.forge.toml`).
     pub fn config_path() -> PathBuf {
         Self::base_path().join(".forge.toml")
     }
@@ -49,7 +54,8 @@ impl ConfigReader {
         dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
     }
 
-    /// Adds the provided TOML string as a config source without touching the filesystem.
+    /// Adds the provided TOML string as a config source without touching the
+    /// filesystem.
     pub fn read_toml(mut self, contents: &str) -> Self {
         self.builder = self
             .builder
@@ -82,26 +88,29 @@ impl ConfigReader {
 
     /// Builds and deserializes all accumulated sources into a [`ForgeConfig`].
     ///
-    /// Triggers `.env` file loading (at most once per process) by walking up the directory tree
-    /// from the current working directory, with closer directories taking priority.
+    /// Triggers `.env` file loading (at most once per process) by walking up
+    /// the directory tree from the current working directory, with closer
+    /// directories taking priority.
     ///
     /// # Errors
     ///
     /// Returns an error if the configuration cannot be built or deserialized.
     pub fn build(self) -> crate::Result<ForgeConfig> {
-        let _ = *LOAD_DOT_ENV;
+        *LOAD_DOT_ENV;
         let config = self.builder.build()?;
         Ok(config.try_deserialize::<ForgeConfig>()?)
     }
 
-    /// Adds `~/.forge/.forge.toml` as a config source, silently skipping if absent.
+    /// Adds `~/.forge/.forge.toml` as a config source, silently skipping if
+    /// absent.
     pub fn read_global(mut self) -> Self {
         let path = Self::config_path();
         self.builder = self.builder.add_source(config::File::from(path));
         self
     }
 
-    /// Reads `~/.forge/.config.json` (legacy format) and adds it as a source, silently skipping errors.
+    /// Reads `~/.forge/.config.json` (legacy format) and adds it as a source,
+    /// silently skipping errors.
     pub fn read_legacy(self) -> Self {
         let content = LegacyConfig::read(&Self::config_legacy_path());
         if let Ok(content) = content {
@@ -124,14 +133,16 @@ mod tests {
     /// Serializes tests that mutate environment variables to prevent races.
     static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
-    /// Holds env vars set for a test's duration and removes them on drop, while holding [`ENV_MUTEX`].
+    /// Holds env vars set for a test's duration and removes them on drop, while
+    /// holding [`ENV_MUTEX`].
     struct EnvGuard {
         keys: Vec<&'static str>,
         _lock: MutexGuard<'static, ()>,
     }
 
     impl EnvGuard {
-        /// Sets each `(key, value)` pair in the environment, returning a guard that cleans them up on drop.
+        /// Sets each `(key, value)` pair in the environment, returning a guard
+        /// that cleans them up on drop.
         #[must_use]
         fn set(pairs: &[(&'static str, &str)]) -> Self {
             let lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());

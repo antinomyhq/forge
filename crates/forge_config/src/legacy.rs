@@ -1,7 +1,9 @@
-use crate::{ForgeConfig, ModelConfig};
-use serde::Deserialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+use serde::Deserialize;
+
+use crate::{ForgeConfig, ModelConfig};
 
 /// Intermediate representation of the legacy `~/forge/.config.json` format.
 ///

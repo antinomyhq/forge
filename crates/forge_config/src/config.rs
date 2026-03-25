@@ -11,7 +11,8 @@ use crate::{
     TopP, Update,
 };
 
-/// Top-level Forge configuration merged from all sources (defaults, file, environment).
+/// Top-level Forge configuration merged from all sources (defaults, file,
+/// environment).
 #[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
@@ -66,7 +67,8 @@ pub struct ForgeConfig {
     pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
-    /// Default model and provider configuration used when not overridden by individual agents.
+    /// Default model and provider configuration used when not overridden by
+    /// individual agents.
     #[serde(default)]
     pub session: Option<ModelConfig>,
     /// Provider and model to use for commit message generation
@@ -99,23 +101,28 @@ pub struct ForgeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
-    /// Output randomness for all agents; lower values are deterministic, higher values are creative (0.0–2.0).
+    /// Output randomness for all agents; lower values are deterministic, higher
+    /// values are creative (0.0–2.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<Temperature>,
 
-    /// Nucleus sampling threshold for all agents; limits token selection to the top cumulative probability mass (0.0–1.0).
+    /// Nucleus sampling threshold for all agents; limits token selection to the
+    /// top cumulative probability mass (0.0–1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_p: Option<TopP>,
 
-    /// Top-k vocabulary cutoff for all agents; restricts sampling to the k highest-probability tokens (1–1000).
+    /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
+    /// highest-probability tokens (1–1000).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_k: Option<TopK>,
 
-    /// Maximum tokens the model may generate per response for all agents (1–100,000).
+    /// Maximum tokens the model may generate per response for all agents
+    /// (1–100,000).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<MaxTokens>,
 
-    /// Maximum tool failures per turn before the orchestrator forces completion.
+    /// Maximum tool failures per turn before the orchestrator forces
+    /// completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
@@ -123,31 +130,35 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
 
-    /// Context compaction settings applied to all agents; falls back to each agent's individual setting when absent.
+    /// Context compaction settings applied to all agents; falls back to each
+    /// agent's individual setting when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
 }
 
 impl ForgeConfig {
-    /// Reads and merges configuration from all sources, returning the resolved [`ForgeConfig`].
+    /// Reads and merges configuration from all sources, returning the resolved
+    /// [`ForgeConfig`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the config path cannot be resolved, the file cannot be read, or deserialization fails.
+    /// Returns an error if the config path cannot be resolved, the file cannot
+    /// be read, or deserialization fails.
     pub fn read() -> crate::Result<ForgeConfig> {
-        Ok(ConfigReader::default()
+        ConfigReader::default()
             .read_defaults()
             .read_legacy()
             .read_global()
             .read_env()
-            .build()?)
+            .build()
     }
 
     /// Writes the configuration to the user config file.
     ///
     /// # Errors
     ///
-    /// Returns an error if the configuration cannot be serialized or written to disk.
+    /// Returns an error if the configuration cannot be serialized or written to
+    /// disk.
     pub fn write(&self) -> crate::Result<()> {
         let path = ConfigReader::config_path();
         ConfigWriter::new(self.clone()).write(&path)

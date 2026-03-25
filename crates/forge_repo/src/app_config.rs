@@ -109,6 +109,80 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
     }
 }
 
+/// Repository for managing application configuration with caching support.
+///
+/// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
+/// maintains an in-memory cache to reduce disk access.
+pub struct ForgeConfigRepository {
+    cache: Arc<Mutex<Option<ForgeConfig>>>,
+}
+
+impl ForgeConfigRepository {
+    pub fn new() -> Self {
+        Self { cache: Arc::new(Mutex::new(None)) }
+    }
+
+    /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
+    async fn read(&self) -> ForgeConfig {
+        let config = ForgeConfig::read();
+
+        match config {
+            Ok(config) => {
+                debug!(config = ?config, "read .forge.toml");
+                config
+            }
+            Err(e) => {
+                // NOTE: This should never-happen
+                error!(error = ?e, "Failed to read config file. Using default config.");
+                Default::default()
+            }
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl AppConfigRepository for ForgeConfigRepository {
+    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
+        // Check cache first
+        let cache = self.cache.lock().await;
+        if let Some(ref config) = *cache {
+            return Ok(forge_config_to_app_config(config.clone()));
+        }
+        drop(cache);
+
+        // Cache miss, read from file
+        let config = self.read().await;
+
+        let mut cache = self.cache.lock().await;
+        *cache = Some(config.clone());
+
+        Ok(forge_config_to_app_config(config))
+    }
+
+    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        // Load the global config
+        let mut fc = ConfigReader::default().read_global().build()?;
+
+        debug!(config = ?fc, "loaded config for update");
+
+        // Apply each operation directly onto ForgeConfig
+        debug!(?ops, "applying app config operations");
+        for op in ops {
+            apply_op(op, &mut fc);
+        }
+
+        // Persist
+        fc.write()?;
+        debug!(config = ?fc, "written .forge.toml");
+
+        // Reset cache
+        let mut cache = self.cache.lock().await;
+        *cache = None;
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -217,7 +291,10 @@ mod tests {
             suggest: Some(ModelConfig::default().provider_id("openai".to_string())),
             ..Default::default()
         };
-        assert_eq!(forge_config_to_app_config(fixture_provider_only).suggest, None);
+        assert_eq!(
+            forge_config_to_app_config(fixture_provider_only).suggest,
+            None
+        );
 
         let fixture_model_only = ForgeConfig {
             suggest: Some(ModelConfig { model_id: Some("gpt-4o".to_string()), provider_id: None }),
@@ -414,79 +491,5 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(fixture, expected);
-    }
-}
-
-/// Repository for managing application configuration with caching support.
-///
-/// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
-/// maintains an in-memory cache to reduce disk access.
-pub struct ForgeConfigRepository {
-    cache: Arc<Mutex<Option<ForgeConfig>>>,
-}
-
-impl ForgeConfigRepository {
-    pub fn new() -> Self {
-        Self { cache: Arc::new(Mutex::new(None)) }
-    }
-
-    /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
-    async fn read(&self) -> ForgeConfig {
-        let config = ForgeConfig::read();
-
-        match config {
-            Ok(config) => {
-                debug!(config = ?config, "read .forge.toml");
-                config
-            }
-            Err(e) => {
-                // NOTE: This should never-happen
-                error!(error = ?e, "Failed to read config file. Using default config.");
-                Default::default()
-            }
-        }
-    }
-}
-
-#[async_trait::async_trait]
-impl AppConfigRepository for ForgeConfigRepository {
-    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
-        // Check cache first
-        let cache = self.cache.lock().await;
-        if let Some(ref config) = *cache {
-            return Ok(forge_config_to_app_config(config.clone()));
-        }
-        drop(cache);
-
-        // Cache miss, read from file
-        let config = self.read().await;
-
-        let mut cache = self.cache.lock().await;
-        *cache = Some(config.clone());
-
-        Ok(forge_config_to_app_config(config))
-    }
-
-    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
-        // Load the global config
-        let mut fc = ConfigReader::default().read_global().build()?;
-
-        debug!(config = ?fc, "loaded config for update");
-
-        // Apply each operation directly onto ForgeConfig
-        debug!(?ops, "applying app config operations");
-        for op in ops {
-            apply_op(op, &mut fc);
-        }
-
-        // Persist
-        fc.write()?;
-        debug!(config = ?fc, "written .forge.toml");
-
-        // Reset cache
-        let mut cache = self.cache.lock().await;
-        *cache = None;
-
-        Ok(())
     }
 }
