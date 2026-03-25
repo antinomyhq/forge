@@ -140,6 +140,23 @@ impl ConfigReader {
         Ok(config.try_deserialize()?)
     }
 
+    /// Reads and merges configuration from the embedded defaults, the legacy
+    /// JSON config, and the file at the given `path`, returning the resolved
+    /// [`ForgeConfig`].
+    ///
+    /// Unlike [`read`], this method requires an explicit path and always
+    /// attempts to read from it (returning an error if the path does not
+    /// exist or cannot be read). Environment variables prefixed with `FORGE_`
+    /// are not consulted.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file at `path` cannot be read or if the
+    /// configuration cannot be deserialized.
+    pub async fn read_path(&self, path: &Path) -> crate::Result<ForgeConfig> {
+        self.read(Some(path)).await
+    }
+
     /// Returns the [`ForgeConfig`] built from the embedded defaults only,
     /// without reading any file or environment variables.
     pub fn read_defaults(&self) -> ForgeConfig {

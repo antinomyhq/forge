@@ -214,6 +214,21 @@ impl ForgeConfig {
         ConfigReader::default().read(Some(&path)).await
     }
 
+    /// Reads and merges configuration from the global config file path,
+    /// returning the resolved [`ForgeConfig`].
+    ///
+    /// Delegates to [`ConfigReader::read_path`] using the path returned by
+    /// [`ForgeConfig::config_path`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config path cannot be resolved, the file cannot
+    /// be read, or the configuration cannot be deserialized.
+    pub async fn read_global() -> crate::Result<ForgeConfig> {
+        let path = Self::config_path()?;
+        ConfigReader::default().read_path(&path).await
+    }
+
     /// Writes the configuration to the user config file.
     ///
     /// # Errors
