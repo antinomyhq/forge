@@ -1,8 +1,7 @@
-use crate::{ForgeConfig, ModelConfig};
+use crate::ForgeConfig;
+use crate::legacy::LegacyConfig;
 use config::ConfigBuilder;
 use config::builder::DefaultState;
-use serde::Deserialize;
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 /// Reads and merges [`ForgeConfig`] from multiple sources: embedded defaults,
@@ -11,64 +10,6 @@ use std::path::PathBuf;
 #[derive(Default)]
 pub struct ConfigReader {
     builder: ConfigBuilder<DefaultState>,
-}
-
-/// Intermediate representation of the legacy `~/forge/.config.json` format.
-///
-/// This format stores the active provider as a top-level string and models as
-/// a map from provider ID to model ID, which differs from the TOML config's
-/// nested `session`, `commit`, and `suggest` sub-objects.
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct LegacyConfig {
-    /// The active provider ID (e.g. `"anthropic"`).
-    #[serde(default)]
-    provider: Option<String>,
-    /// Map from provider ID to the model ID to use with that provider.
-    #[serde(default)]
-    model: HashMap<String, String>,
-    /// Commit message generation provider/model pair.
-    #[serde(default)]
-    commit: Option<LegacyModelRef>,
-    /// Shell command suggestion provider/model pair.
-    #[serde(default)]
-    suggest: Option<LegacyModelRef>,
-}
-
-/// A provider/model pair as expressed in the legacy JSON config.
-#[derive(Debug, Deserialize)]
-struct LegacyModelRef {
-    provider: Option<String>,
-    model: Option<String>,
-}
-
-fn read_legacy_config(path: &PathBuf) -> crate::Result<String> {
-    let contents = std::fs::read_to_string(path)?;
-    let config = serde_json::from_str::<LegacyConfig>(&contents)?;
-    let forge_config = config.into_forge_config();
-    let content = toml_edit::ser::to_string_pretty(&forge_config)?;
-    Ok(content)
-}
-
-impl LegacyConfig {
-    /// Converts a [`LegacyConfig`] into the fields of [`ForgeConfig`] that it
-    /// covers, leaving all other fields at their defaults.
-    fn into_forge_config(self) -> ForgeConfig {
-        let session = self.provider.as_deref().map(|provider_id| {
-            let model_id = self.model.get(provider_id).cloned();
-            ModelConfig { provider_id: Some(provider_id.to_string()), model_id }
-        });
-
-        let commit = self
-            .commit
-            .map(|c| ModelConfig { provider_id: c.provider, model_id: c.model });
-
-        let suggest = self
-            .suggest
-            .map(|s| ModelConfig { provider_id: s.provider, model_id: s.model });
-
-        ForgeConfig { session, commit, suggest, ..Default::default() }
-    }
 }
 
 impl ConfigReader {
@@ -152,7 +93,7 @@ impl ConfigReader {
     ///
     /// If the file does not exist or cannot be parsed it is silently skipped.
     pub fn read_legacy(self) -> Self {
-        let content = read_legacy_config(&Self::config_legacy_path());
+        let content = LegacyConfig::read(&Self::config_legacy_path());
         if let Ok(content) = content {
             self.read_toml(&content)
         } else {

@@ -3,6 +3,7 @@ mod compact;
 mod config;
 mod error;
 mod http;
+mod legacy;
 mod model;
 mod reader;
 mod retry;
