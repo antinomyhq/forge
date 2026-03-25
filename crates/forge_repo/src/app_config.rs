@@ -127,7 +127,8 @@ impl ForgeConfigRepository {
 
     /// Writes [`AppConfig`] to disk via [`ForgeConfig::write`], preserving all
     /// non-`AppConfig` fields from the existing file.
-    async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
+    async fn write(&self, config: &AppConfig) -> anyhow::Result<ForgeConfig> {
+        debug!(config = ?config, "writing app-config");
         let existing = ForgeConfig::read().await.unwrap_or_else(|e| {
             tracing::warn!(error = %e, "Could not read existing config; defaults will be used.");
             forge_config::ConfigReader::new().read_defaults()
@@ -136,7 +137,7 @@ impl ForgeConfigRepository {
 
         config.write().await?;
         debug!(config = ?config, "written .forge.toml");
-        Ok(())
+        Ok(config)
     }
 }
 
@@ -160,11 +161,11 @@ impl AppConfigRepository for ForgeConfigRepository {
     }
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.write(config).await?;
+        let config = self.write(config).await?;
 
         // Bust the cache after successful write
         let mut cache = self.cache.lock().await;
-        *cache = None;
+        *cache = Some(config);
 
         Ok(())
     }
