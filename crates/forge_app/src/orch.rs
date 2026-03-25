@@ -62,7 +62,11 @@ impl<S: AgentService> Orchestrator<S> {
         let task_tool_name = ToolKind::Task.name();
 
         // Use a case-insensitive comparison since the model may send "Task" or "task".
-        let is_task = |tc: &ToolCallFull| tc.name.as_str().eq_ignore_ascii_case(task_tool_name.as_str());
+        let is_task = |tc: &ToolCallFull| {
+            tc.name
+                .as_str()
+                .eq_ignore_ascii_case(task_tool_name.as_str())
+        };
 
         // Partition into task tool calls (run in parallel) and all others (run
         // sequentially). Use a case-insensitive comparison since the model may
