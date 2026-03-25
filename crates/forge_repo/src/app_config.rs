@@ -359,8 +359,7 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_session_provider_only() {
         let mut fixture = forge_config_defaults();
-        fixture.session =
-            Some(ModelConfig::default().provider_id("anthropic".to_string()));
+        fixture.session = Some(ModelConfig::default().provider_id("anthropic".to_string()));
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -371,7 +370,8 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_session_model_only() {
         let mut fixture = forge_config_defaults();
-        fixture.session = Some(ModelConfig::default().model_id("claude-3-5-sonnet-20241022".to_string()));
+        fixture.session =
+            Some(ModelConfig::default().model_id("claude-3-5-sonnet-20241022".to_string()));
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -460,7 +460,8 @@ mod tests {
 
     #[test]
     fn test_app_config_to_forge_config_provider_only_no_model_in_map() {
-        // Provider is set but model map has no entry for it → session has provider_id but no model_id.
+        // Provider is set but model map has no entry for it → session has provider_id
+        // but no model_id.
         let app = AppConfig {
             provider: Some(ProviderId::ANTHROPIC),
             model: HashMap::new(),
