@@ -76,6 +76,14 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/ml-model-debugging/SKILL.md",
                 include_str!("skills/ml-model-debugging/SKILL.md"),
             ),
+            (
+                "forge://skills/debug-distributed-training/SKILL.md",
+                include_str!("skills/debug-distributed-training/SKILL.md"),
+            ),
+            (
+                "forge://skills/validate-bio-sequence-artifacts/SKILL.md",
+                include_str!("skills/validate-bio-sequence-artifacts/SKILL.md"),
+            ),
         ];
 
         builtin_skills
@@ -358,7 +366,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 8);
+        assert_eq!(actual.len(), 10);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -498,6 +506,52 @@ mod tests {
             ml_debug
                 .description
                 .contains("MUST invoke on ANY task involving machine learning")
+        );
+
+        // Check debug-distributed-training
+        let dist_debug = actual
+            .iter()
+            .find(|s| s.name == "debug-distributed-training")
+            .unwrap();
+        assert_eq!(
+            dist_debug.path,
+            Some(
+                std::path::Path::new("forge://skills/debug-distributed-training/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            dist_debug
+                .description
+                .contains("Diagnose and verify PyTorch distributed training")
+        );
+        assert!(
+            dist_debug
+                .command
+                .contains("Single-rank runs are degenerate")
+        );
+
+        // Check validate-bio-sequence-artifacts
+        let bio_validate = actual
+            .iter()
+            .find(|s| s.name == "validate-bio-sequence-artifacts")
+            .unwrap();
+        assert_eq!(
+            bio_validate.path,
+            Some(
+                std::path::Path::new("forge://skills/validate-bio-sequence-artifacts/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            bio_validate
+                .description
+                .contains("Validate biological sequence deliverables")
+        );
+        assert!(
+            bio_validate
+                .command
+                .contains("Validate Bio Sequence Artifacts")
         );
     }
 

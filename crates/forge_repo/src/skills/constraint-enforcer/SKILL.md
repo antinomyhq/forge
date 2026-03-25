@@ -27,7 +27,7 @@ Re-read the task prompt carefully. Extract every constraint into a **short** che
 5. **Exact tool requirements**: "use tool X to compute Y" means install X, don't use a substitute.
 6. **Implicit freshness**: Service tasks are tested from a clean client. Your test cookies/state don't carry over.
 7. **Taxonomy specificity**: "classify using CWE IDs" means pick the most specific CWE, not the generic parent.
-8. **Byte-identical preservation**: "only change X" means everything else must be byte-identical. Use surgical edits.
+8. **Byte-identical preservation**: "only change X" means everything else must be byte-identical. Use surgical edits. Add a scope check command like `git diff --name-only` and verify only allowed paths appear.
 
 ### Output format
 
@@ -39,6 +39,7 @@ CONSTRAINTS:
 2. COVERAGE: world_size 1,2,4 → for ws in 1 2 4; do test.py --ws=$ws; done
 3. FORMAT: valid JSON with keys "G" and "2D" → python3 -c "import json; d=json.load(open('/app/results.json')); assert set(d)=={'G','2D'}"
 4. METHOD: no wrapping /app/orig → grep -r '/app/orig' my_code (must return empty)
+5. SCOPE: only allowed files changed → git diff --name-only | sort
 ```
 
 Then proceed to implementation. Verify each constraint AFTER the first working artifact is ready — not before.

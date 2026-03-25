@@ -28,6 +28,8 @@ Re-read the task prompt. Figure out exactly how the verifier will test your outp
 Extract constraints from the task prompt and verify each with ONE command:
 
 - **SIZE**: `wc -c output_file` or `stat --format=%s`
+- **ARTIFACT PATHS**: Verify every required deliverable exists at the exact path and filename from the prompt (`for p in /app/out1 /app/out2; do test -e "$p" || exit 1; done`)
+- **ARTIFACT PARSEABILITY**: Open each deliverable with its real consumer (`python3 -c "import json; json.load(open('/app/results.json'))"`, `python3 -c "import pandas as pd; pd.read_csv('/app/output.csv')"`)
 - **PERFORMANCE**: Run benchmark at ALL specified sizes (not just the easiest)
 - **FORMAT**: Parse output with the expected consumer (`python3 -c "import json; json.load(open(...))"`)
 - **METHOD**: Verify no calls to reference binaries: `grep -r "/app/orig\|subprocess.*reference" your_code`
@@ -42,8 +44,9 @@ Before declaring complete, catch common silent failures:
 
 1. **Numerical outputs**: Print the key values. Are they physically plausible? (Peak width shouldn't be 10x the fitting window. Speedup shouldn't be 0.5x. Eigenvalue shouldn't be NaN.)
 2. **File outputs**: Check size is non-trivial for the task complexity. A 12-byte output for a compression task is wrong.
-3. **Service outputs**: Hit the endpoint with a fresh client. Don't rely on cached state from your testing.
-4. **Multi-parameter tasks**: Test the FULL parameter range, not just the trivial case. world_size=1 hides all sharding bugs.
+3. **Artifact contract**: Confirm expected filenames/paths/extensions exactly match the prompt and can be loaded by downstream tools.
+4. **Service outputs**: Hit the endpoint with a fresh client. Don't rely on cached state from your testing.
+5. **Multi-parameter tasks**: Test the FULL parameter range, not just the trivial case. world_size=1 hides all sharding bugs.
 
 ## Step 4 — Cleanup & Final Run
 

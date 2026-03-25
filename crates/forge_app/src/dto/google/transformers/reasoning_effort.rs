@@ -40,12 +40,12 @@ impl ReasoningEffort {
             .filter(|c| c.role == Some(Role::Model))
             .count();
 
-        if assistant_msg_count < 5 {
-            Level::High
+        if assistant_msg_count < 10 {
+            Level::Medium
         } else if Self::verification_reminder_sent(request) {
             Level::High
         } else {
-            Level::Low
+            Level::High
         }
     }
 }
