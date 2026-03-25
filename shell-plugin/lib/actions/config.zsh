@@ -85,8 +85,11 @@ function _forge_action_provider() {
         # Extract the second field (provider ID) from the selected line
         # Format: "DisplayName  provider_id  host  type  status"
         local provider_id=$(echo "$selected" | awk '{print $2}')
-        # Always use config set - it will handle authentication if needed
-        _forge_exec config set provider "$provider_id"
+        # Use _forge_exec_interactive because config-set may trigger
+        # interactive authentication prompts (rustyline) when the provider
+        # is not yet configured. Without /dev/tty redirection, ZLE's pipes
+        # cause rustyline to see EOF and fail with "API key input cancelled".
+        _forge_exec_interactive config set provider "$provider_id"
     fi
 }
 
@@ -97,15 +100,20 @@ function _forge_action_provider() {
 # The picker hides model_id (field 1) and provider_id (field 4) via --with-nth.
 #
 # Arguments:
-#   $1  prompt_text     - fzf prompt label (e.g. "Model ❯ ")
-#   $2  current_model   - model_id to pre-position the cursor on (may be empty)
-#   $3  input_text      - optional pre-fill query for fzf
+#   $1  prompt_text      - fzf prompt label (e.g. "Model ❯ ")
+#   $2  current_model    - model_id to pre-position the cursor on (may be empty)
+#   $3  input_text       - optional pre-fill query for fzf
+#   $4  current_provider - provider value to disambiguate when model names collide (may be empty)
+#   $5  provider_field   - which porcelain field to match the provider against
+#                          (3 for display name, 4 for raw id)
 #
 # Outputs the raw selected line to stdout, or nothing if cancelled.
 function _forge_pick_model() {
     local prompt_text="$1"
     local current_model="$2"
     local input_text="$3"
+    local current_provider="${4:-}"
+    local provider_field="${5:-}"
 
     local output
     output=$($_FORGE_BIN list models --porcelain 2>/dev/null)
@@ -125,7 +133,14 @@ function _forge_pick_model() {
     fi
 
     if [[ -n "$current_model" ]]; then
-        local index=$(_forge_find_index "$output" "$current_model" 1)
+        # Match on both model_id (field 1) and provider to disambiguate
+        # when the same model name exists across multiple providers
+        local index
+        if [[ -n "$current_provider" && -n "$provider_field" ]]; then
+            index=$(_forge_find_index "$output" "$current_model" 1 "$provider_field" "$current_provider")
+        else
+            index=$(_forge_find_index "$output" "$current_model" 1)
+        fi
         fzf_args+=(--bind="start:pos($index)")
     fi
 
@@ -138,11 +153,13 @@ function _forge_action_model() {
     local input_text="$1"
     (
         echo
-        local current_model
-        current_model=$(_forge_exec config get model 2>/dev/null)
-
+        local current_model current_provider
+        current_model=$($_FORGE_BIN config get model 2>/dev/null)
+        # config get provider returns the display name (e.g. "OpenAI"),
+        # which corresponds to porcelain field 3 (provider display)
+        current_provider=$($_FORGE_BIN config get provider 2>/dev/null)
         local selected
-        selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text")
+        selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text" "$current_provider" 3)
 
         if [[ -n "$selected" ]]; then
             # Field 1 = model_id (raw), field 3 = provider display name,
@@ -154,11 +171,10 @@ function _forge_action_model() {
             provider_display=${provider_display//[[:space:]]/}
 
             # Switch provider first if it differs from the current one
-            # config get provider returns the display name, so compare against that
-            local current_provider
-            current_provider=$(_forge_exec config get provider --porcelain 2>/dev/null)
+            # current_provider (fetched above) is the display name, compare against that
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
-                _forge_exec config set provider "$provider_id"
+                _forge_exec_interactive config set provider "$provider_id" --model "$model_id"
+                return
             fi
 
             _forge_exec config set model "$model_id"
@@ -172,11 +188,15 @@ function _forge_action_commit_model() {
     local input_text="$1"
     (
         echo
-        local current_commit_model
-        current_commit_model=$(_forge_exec config get commit 2>/dev/null | tail -n 1)
+        # config get commit outputs two lines: provider_id (raw) then model_id
+        local commit_output current_commit_model current_commit_provider
+        commit_output=$(_forge_exec config get commit 2>/dev/null)
+        current_commit_provider=$(echo "$commit_output" | head -n 1)
+        current_commit_model=$(echo "$commit_output" | tail -n 1)
 
         local selected
-        selected=$(_forge_pick_model "Commit Model ❯ " "$current_commit_model" "$input_text")
+        # provider_id from config get commit is the raw id, matching porcelain field 4
+        selected=$(_forge_pick_model "Commit Model ❯ " "$current_commit_model" "$input_text" "$current_commit_provider" 4)
 
         if [[ -n "$selected" ]]; then
             # Field 1 = model_id (raw), field 4 = provider_id (raw)
@@ -197,11 +217,15 @@ function _forge_action_suggest_model() {
     local input_text="$1"
     (
         echo
-        local current_suggest_model
-        current_suggest_model=$(_forge_exec config get suggest 2>/dev/null | tail -n 1)
+        # config get suggest outputs two lines: provider_id (raw) then model_id
+        local suggest_output current_suggest_model current_suggest_provider
+        suggest_output=$(_forge_exec config get suggest 2>/dev/null)
+        current_suggest_provider=$(echo "$suggest_output" | head -n 1)
+        current_suggest_model=$(echo "$suggest_output" | tail -n 1)
 
         local selected
-        selected=$(_forge_pick_model "Suggest Model ❯ " "$current_suggest_model" "$input_text")
+        # provider_id from config get suggest is the raw id, matching porcelain field 4
+        selected=$(_forge_pick_model "Suggest Model ❯ " "$current_suggest_model" "$input_text" "$current_suggest_provider" 4)
 
         if [[ -n "$selected" ]]; then
             # Field 1 = model_id (raw), field 4 = provider_id (raw)
@@ -221,7 +245,14 @@ function _forge_action_sync() {
     echo
     # Execute sync with stdin redirected to prevent hanging
     # Sync doesn't need interactive input, so close stdin immediately
-    _forge_exec workspace sync </dev/null
+    # --init initializes the workspace first if it has not been set up yet
+    _forge_exec workspace sync --init </dev/null
+}
+
+# Action handler: inits workspace for codebase search
+function _forge_action_sync_init() {
+    echo
+    _forge_exec workspace init </dev/null
 }
 
 # Action handler: Show sync status of workspace files
@@ -286,10 +317,69 @@ function _forge_select_and_set_config() {
     )
 }
 
+# Action handler: Select model for the current session only.
+# Sets _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER in the shell environment
+# so that every subsequent forge invocation uses those values via --model /
+# --provider flags without touching the permanent global configuration.
+function _forge_action_session_model() {
+    local input_text="$1"
+    echo
+
+    local current_model current_provider provider_index
+    # Use session overrides as the starting selection if already set,
+    # otherwise fall back to the globally configured values.
+    if [[ -n "$_FORGE_SESSION_MODEL" ]]; then
+        current_model="$_FORGE_SESSION_MODEL"
+        provider_index=4
+    else
+        current_model=$($_FORGE_BIN config get model 2>/dev/null)
+        provider_index=3
+    fi
+    if [[ -n "$_FORGE_SESSION_PROVIDER" ]]; then
+        current_provider="$_FORGE_SESSION_PROVIDER"
+        provider_index=4
+    else
+        current_provider=$($_FORGE_BIN config get provider 2>/dev/null)
+        provider_index=3
+    fi
+
+    local selected
+    selected=$(_forge_pick_model "Session Model ❯ " "$current_model" "$input_text" "$current_provider" "$provider_index")
+
+    if [[ -n "$selected" ]]; then
+        local model_id provider_display provider_id
+        read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
+        model_id=${model_id//[[:space:]]/}
+        provider_id=${provider_id//[[:space:]]/}
+
+        _FORGE_SESSION_MODEL="$model_id"
+        _FORGE_SESSION_PROVIDER="$provider_id"
+
+        _forge_log success "Session model set to \033[1m${model_id}\033[0m (provider: \033[1m${provider_id}\033[0m)"
+    fi
+}
+
+# Action handler: Reset session model and provider to defaults.
+# Clears both _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER,
+# reverting to global config for subsequent forge invocations.
+function _forge_action_model_reset() {
+    echo
+
+    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" ]]; then
+        _forge_log info "Session model already cleared (using global config)"
+        return 0
+    fi
+
+    _FORGE_SESSION_MODEL=""
+    _FORGE_SESSION_PROVIDER=""
+
+    _forge_log success "Session model reset to global config"
+}
+
 # Action handler: Show config list
 function _forge_action_config() {
     echo
-    _forge_exec config list
+    $_FORGE_BIN config list
 }
 
 # Action handler: Show tools

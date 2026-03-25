@@ -43,6 +43,9 @@ struct ProviderConfig {
     models: Option<Models>,
     #[merge(strategy = merge::vec::append)]
     auth_methods: Vec<forge_domain::AuthMethod>,
+    #[serde(default)]
+    #[merge(strategy = overwrite)]
+    custom_headers: Option<std::collections::HashMap<String, String>>,
 }
 
 fn overwrite<T>(base: &mut T, other: T) {
@@ -92,6 +95,7 @@ impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
                 .map(|v| URLParam::from(v.clone()))
                 .collect(),
             credential: None,
+            custom_headers: config.custom_headers.clone(),
             models,
         }
     }
@@ -307,6 +311,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
                 .map(|v| URLParam::from(v.clone()))
                 .collect(),
             credential: Some(credential),
+            custom_headers: config.custom_headers.clone(),
             models,
         })
     }

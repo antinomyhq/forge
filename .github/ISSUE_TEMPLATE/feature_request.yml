@@ -81,7 +81,7 @@ body:
       description: |
         **Focus on the user experience, not implementation details.**
         How would a user interact with this feature? What would they see/do?
-        Save technical implementation details for "Implementation Ideas" below.
+        Focus on what the user experiences, not how it would be built.
       placeholder: |
         From a user's perspective, the feature should work like this:
         - When I [action], I would see/get [result]
@@ -96,17 +96,6 @@ body:
       label: Alternatives Considered
       description: Have you considered any alternative solutions or workarounds?
       placeholder: I've also thought about...
-
-  - type: textarea
-    id: use-cases
-    attributes:
-      label: Use Cases
-      description: Provide specific examples of how this feature would be used.
-      placeholder: |
-        1. As a developer, I want to...
-        2. When working on large projects, I need to...
-    validations:
-      required: true
 
   - type: dropdown
     id: category
@@ -151,23 +140,6 @@ body:
       placeholder: Tool X does this by...
 
   - type: textarea
-    id: implementation
-    attributes:
-      label: Implementation Ideas
-      description: If you have any ideas about how this could be implemented, share them here.
-      placeholder: This could be implemented by...
-
-  - type: checkboxes
-    id: contribution
-    attributes:
-      label: Contribution
-      description: Are you willing to contribute to this feature?
-      options:
-        - label: I'm willing to submit a PR to implement this feature
-        - label: I can help with testing
-        - label: I can help with documentation
-
-  - type: textarea
     id: additional
     attributes:
       label: Additional Context
@@ -176,16 +148,8 @@ body:
   - type: checkboxes
     id: requirements-check
     attributes:
-      label: "✅ Pre-submission Checklist"
-      description: "Before submitting, confirm you've addressed all requirements:"
+      label: "Pre-submission Checklist"
       options:
-        - label: "I have clearly explained WHY I need this feature (not just that it would be nice)"
+        - label: "I have searched existing issues and confirmed this is not a duplicate"
           required: true
-        - label: "I have described what is NOT currently possible in detail"
-          required: true
-        - label: "I have explained what WILL be possible with concrete examples"
-          required: true
-        - label: "I have provided specific use cases and workflows"
-          required: true
-        - label: "I have searched existing issues to avoid duplicates"
-          required: true
+        - label: "I am willing to submit a PR to implement this feature"

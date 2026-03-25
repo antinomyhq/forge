@@ -78,6 +78,9 @@ pub trait FileReaderInfra: Send + Sync {
     /// - FileInfo.start_line: starting line position
     /// - FileInfo.end_line: ending line position
     /// - FileInfo.total_lines: total line count in file
+    /// - FileInfo.content_hash: SHA-256 hash of the **full** file content,
+    ///   allowing callers to store a stable hash that matches what a whole-file
+    ///   read produces (used by the external-change detector)
     async fn range_read_utf8(
         &self,
         path: &Path,
@@ -150,7 +153,7 @@ pub trait UserInfra: Send + Sync {
 
     /// Prompts the user to select a single option from a list
     /// Returns None if the user interrupts the selection
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,
@@ -160,7 +163,7 @@ pub trait UserInfra: Send + Sync {
     /// IntoEnumIterator Returns None if the user interrupts the selection
     async fn select_one_enum<T>(&self, message: &str) -> anyhow::Result<Option<T>>
     where
-        T: std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
+        T: Clone + std::fmt::Display + Send + 'static + strum::IntoEnumIterator + std::str::FromStr,
         <T as std::str::FromStr>::Err: std::fmt::Debug,
     {
         let options: Vec<T> = T::iter().collect();

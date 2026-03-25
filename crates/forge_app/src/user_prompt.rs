@@ -94,6 +94,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 TodoStatus::Completed => "[DONE]",
                 TodoStatus::InProgress => "[IN_PROGRESS]",
                 TodoStatus::Pending => "[PENDING]",
+                TodoStatus::Cancelled => "[CANCELLED]",
             };
 
             writeln!(content, "- {} {}", checkbox, todo.content)
@@ -218,12 +219,15 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         // Track file attachments as read operations in metrics
         let mut metrics = conversation.metrics.clone();
         for attachment in &attachments {
-            // Only track file content attachments (not images or directory listings)
-            if let AttachmentContent::FileContent { content, .. } = &attachment.content {
-                let content_hash = crate::utils::compute_hash(content);
+            // Only track file content attachments (not images or directory listings).
+            // Use the raw content_hash (computed before line-numbering) so that the
+            // external-change detector, which hashes the raw file on disk, sees a
+            // matching hash and does not raise a false "modified externally" warning.
+            if let AttachmentContent::FileContent { info, .. } = &attachment.content {
                 metrics = metrics.insert(
                     attachment.path.clone(),
-                    FileOperation::new(ToolKind::Read).content_hash(Some(content_hash)),
+                    FileOperation::new(ToolKind::Read)
+                        .content_hash(Some(info.content_hash.clone())),
                 );
             }
         }
@@ -238,8 +242,8 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        AgentId, AttachmentContent, Context, ContextMessage, ConversationId, ModelId, ProviderId,
-        ToolKind,
+        AgentId, AttachmentContent, Context, ContextMessage, ConversationId, FileInfo, ModelId,
+        ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
@@ -388,18 +392,14 @@ mod tests {
                         path: "/test/file1.rs".to_string(),
                         content: AttachmentContent::FileContent {
                             content: "fn main() {}".to_string(),
-                            start_line: 1,
-                            end_line: 1,
-                            total_lines: 1,
+                            info: FileInfo::new(1, 1, 1, "hash1".to_string()),
                         },
                     },
                     Attachment {
                         path: "/test/file2.rs".to_string(),
                         content: AttachmentContent::FileContent {
                             content: "fn test() {}".to_string(),
-                            start_line: 1,
-                            end_line: 1,
-                            total_lines: 1,
+                            info: FileInfo::new(1, 1, 1, "hash2".to_string()),
                         },
                     },
                 ])

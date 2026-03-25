@@ -78,7 +78,6 @@ impl ForgeInfra {
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
-                restricted,
                 env.clone(),
                 output_printer.clone(),
             )),
@@ -218,7 +217,7 @@ impl UserInfra for ForgeInfra {
         self.inquire_service.prompt_question(question).await
     }
 
-    async fn select_one<T: std::fmt::Display + Send + 'static>(
+    async fn select_one<T: Clone + std::fmt::Display + Send + 'static>(
         &self,
         message: &str,
         options: Vec<T>,

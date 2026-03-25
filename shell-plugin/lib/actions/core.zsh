@@ -19,7 +19,7 @@ function _forge_action_new() {
         _forge_switch_conversation "$new_id"
         
         # Execute the forge command with the input text
-        _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+        _forge_exec_interactive -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
         
         # Start background sync job if enabled and not already running
         _forge_start_background_sync
@@ -76,7 +76,7 @@ function _forge_handle_conversation_command() {
     
     # Check if FORGE_CONVERSATION_ID is set
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _forge_log error "No active conversation. Start a conversation first or use :list to see existing ones"
+        _forge_log error "No active conversation. Start a conversation first or use :conversation to see existing ones"
         return 0
     fi
     

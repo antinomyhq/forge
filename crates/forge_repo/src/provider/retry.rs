@@ -1,4 +1,5 @@
 use forge_app::domain::{Error as DomainError, RetryConfig};
+use forge_app::dto::anthropic::Error as AnthropicError;
 use forge_app::dto::openai::{Error, ErrorResponse};
 
 const TRANSPORT_ERROR_CODES: [&str; 3] = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
@@ -16,11 +17,20 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
         || is_empty_error(&error)
+        || is_anthropic_overloaded_error(&error)
     {
         return DomainError::Retryable(error).into();
     }
 
     error
+}
+
+/// Checks if the error is an Anthropic `overloaded_error`, which arrives as an
+/// SSE event payload rather than an HTTP status code and must be retried.
+fn is_anthropic_overloaded_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<AnthropicError>()
+        .is_some_and(|e| matches!(e, AnthropicError::OverloadedError { .. }))
 }
 
 fn get_api_status_code(error: &anyhow::Error) -> Option<u16> {
@@ -95,7 +105,7 @@ fn is_empty_error(error: &anyhow::Error) -> bool {
 fn is_req_transport_error(error: &anyhow::Error) -> bool {
     error
         .downcast_ref::<reqwest::Error>()
-        .is_some_and(|e| e.is_timeout() || e.is_connect())
+        .is_some_and(|e| e.is_timeout() || e.is_connect() || e.is_request())
 }
 
 fn is_event_transport_error(error: &anyhow::Error) -> bool {
@@ -292,5 +302,40 @@ mod tests {
         assert!(get_api_status_code(&error).is_none());
         assert!(get_req_status_code(&error).is_none());
         assert!(get_event_req_status_code(&error).is_none());
+    }
+
+    #[test]
+    fn test_anthropic_overloaded_error_is_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+
+        // overloaded_error arriving as an SSE event must be retried
+        let error = anyhow::Error::from(AnthropicError::OverloadedError {
+            message: "Overloaded".to_string(),
+        });
+        assert!(is_retryable(into_retry(error, &retry_config)));
+
+        // Generic errors are still not retryable
+        let error = anyhow!("Generic error");
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+    }
+
+    #[tokio::test]
+    async fn test_incomplete_message_is_retryable() {
+        use tokio::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move {
+            let (_socket, _) = listener.accept().await.unwrap();
+        });
+
+        let req_err = reqwest::Client::new()
+            .get(format!("http://{addr}"))
+            .send()
+            .await
+            .unwrap_err();
+
+        let retry_config = fixture_retry_config(vec![]);
+        assert!(is_retryable(into_retry(req_err.into(), &retry_config)));
     }
 }

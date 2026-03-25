@@ -16,8 +16,8 @@ impl ForgeEnvironmentInfra {
     /// Creates a new EnvironmentFactory with specified working directory
     ///
     /// # Arguments
-    /// * `restricted` - If true, use restricted shell mode (rbash) If false,
-    ///   use unrestricted shell mode (sh/bash)
+    /// * `restricted` - If true, enable restricted mode using the permissions
+    ///   feature. If false, use unrestricted mode
     /// * `cwd` - Required working directory path
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         Self::dot_env(&cwd);
@@ -28,9 +28,6 @@ impl ForgeEnvironmentInfra {
     fn get_shell_path(&self) -> String {
         if cfg!(target_os = "windows") {
             std::env::var("COMSPEC").unwrap_or("cmd.exe".to_string())
-        } else if self.restricted {
-            // Default to rbash in restricted mode
-            "/bin/rbash".to_string()
         } else {
             // Use user's preferred shell or fallback to sh
             std::env::var("SHELL").unwrap_or("/bin/sh".to_string())
@@ -84,8 +81,8 @@ impl ForgeEnvironmentInfra {
                         .unwrap_or(16)
                 }),
             http: resolve_http_config(),
-            max_file_size: 256 << 10, // 256 KiB
-            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
+            max_file_size: 10 << 20, // 10 MiB
+            max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(10 << 20), /* 10 MiB */
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
@@ -104,6 +101,7 @@ impl ForgeEnvironmentInfra {
                         .unwrap_or(32)
                 },
             ),
+            model_cache_ttl: parse_env::<u64>("FORGE_MODEL_CACHE_TTL").unwrap_or(604_800), /* 1 week */
         }
     }
 
@@ -771,12 +769,12 @@ mod tests {
         let cwd = tempfile::tempdir().unwrap();
         let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
 
-        // Test default value (256 KiB)
+        // Test default value (10 MiB)
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 262144); // 256 << 10
+        assert_eq!(env.max_image_size, 10485760); // 10 MiB
 
         // Test custom value
         unsafe {
@@ -790,7 +788,7 @@ mod tests {
             std::env::set_var("FORGE_MAX_IMAGE_SIZE", "invalid");
         }
         let env = infra.get_environment();
-        assert_eq!(env.max_image_size, 262144);
+        assert_eq!(env.max_image_size, 10485760);
 
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");

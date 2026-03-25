@@ -366,32 +366,28 @@ expression: tools
   "type": "object",
   "properties": {
     "todos": {
-      "description": "Array of todo items to create or update",
+      "description": "List of todo items to create or update. Each item must have `content`\nand `status`. The server matches on `content` — if an item with the\nsame content exists it is updated; otherwise a new item is added.\nSet `status` to `cancelled` to remove an item.",
       "type": "array",
       "items": {
-        "description": "A todo item",
+        "description": "A single todo item sent by the model.\n\nThe model always provides `content` and `status`. The server uses `content`\nas the key: if an item with the same content already exists it is updated,\notherwise a new item is added. Setting `status` to `cancelled` removes the\nitem from the list entirely. IDs are managed by the server and never\nexposed to the model.",
         "type": "object",
         "properties": {
           "content": {
-            "description": "Content/description of the todo item",
-            "type": "string"
-          },
-          "id": {
-            "description": "Unique identifier for the todo item",
+            "description": "Description of the task. Used as the unique key to match existing todos.",
             "type": "string"
           },
           "status": {
-            "description": "Current status of the todo",
+            "description": "Current status of the task. Use `cancelled` to remove the item.",
             "type": "string",
             "enum": [
               "pending",
               "in_progress",
-              "completed"
+              "completed",
+              "cancelled"
             ]
           }
         },
         "required": [
-          "id",
           "content",
           "status"
         ]

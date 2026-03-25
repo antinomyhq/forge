@@ -71,6 +71,7 @@ impl<R> ForgeProviderService<R> {
             auth_methods: template_provider.auth_methods,
             url_params: template_provider.url_params,
             credential: template_provider.credential,
+            custom_headers: template_provider.custom_headers,
         })
     }
 }
@@ -221,6 +222,7 @@ mod tests {
             models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
+            custom_headers: None,
         }
     }
 
@@ -244,6 +246,7 @@ mod tests {
             models: Some(ModelSource::Url(
                 Template::<forge_domain::URLParameters>::new("https://api.openai.com/v1/models"),
             )),
+            custom_headers: None,
         }
     }
 

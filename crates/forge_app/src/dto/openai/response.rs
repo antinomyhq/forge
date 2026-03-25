@@ -10,6 +10,14 @@ use super::tool_choice::FunctionType;
 use crate::dto::openai::ReasoningDetail;
 use crate::dto::openai::error::{Error, ErrorCode, ErrorResponse};
 
+/// Represents a value that may be either a JSON number or a numeric string.
+#[derive(Deserialize, Debug, Clone, PartialEq, derive_more::TryInto, Serialize)]
+#[serde(untagged)]
+pub enum StringOrF64 {
+    Number(f64),
+    String(String),
+}
+
 /// Epsilon for floating point comparison to handle near-zero costs
 const COST_EPSILON: f64 = 1e-9;
 
@@ -28,12 +36,17 @@ pub enum Response {
         #[serde(default)]
         model: Option<String>,
         choices: Vec<Choice>,
+        #[serde(default)]
         created: u64,
         object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
         #[serde(default)]
         prompt_filter_results: Option<Vec<PromptFilterResult>>,
+    },
+    CostOnly {
+        choices: Vec<Choice>,
+        cost: Option<StringOrF64>,
     },
     Failure {
         error: ErrorResponse,
@@ -487,6 +500,23 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     Ok(default_response)
                 }
             }
+            Response::CostOnly { cost, .. } => {
+                let mut msg = ChatCompletionMessage::default();
+                if let Some(c) = cost {
+                    let cost_value = match c {
+                        StringOrF64::Number(n) => n,
+                        StringOrF64::String(s) => s.parse().unwrap_or(0.0),
+                    };
+                    msg.usage = Some(Usage {
+                        prompt_tokens: TokenCount::Actual(0),
+                        completion_tokens: TokenCount::Actual(0),
+                        total_tokens: TokenCount::Actual(0),
+                        cached_tokens: TokenCount::Actual(0),
+                        cost: Some(cost_value),
+                    });
+                }
+                Ok(msg)
+            }
             Response::Failure { error } => Err(Error::Response(error).into()),
         }
     }
@@ -717,6 +747,32 @@ mod tests {
         assert!(result.is_ok());
         let message = result.unwrap();
         assert_eq!(message.content.unwrap().as_str(), "");
+    }
+
+    #[test]
+    fn test_cost_only_response_parses_and_returns_empty_message() {
+        let fixture = r#"{"choices":[],"cost":"0"}"#;
+        let actual = serde_json::from_str::<Response>(fixture).unwrap();
+
+        let actual = ChatCompletionMessage::try_from(actual).unwrap();
+
+        // CostOnly events now include the cost in the usage
+        let expected = ChatCompletionMessage::default().usage(Usage {
+            prompt_tokens: TokenCount::Actual(0),
+            completion_tokens: TokenCount::Actual(0),
+            total_tokens: TokenCount::Actual(0),
+            cached_tokens: TokenCount::Actual(0),
+            cost: Some(0.0),
+        });
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cost_only_response_numeric_cost_parses() {
+        let fixture = r#"{"choices":[],"cost":0.0}"#;
+        let actual = serde_json::from_str::<Response>(fixture);
+
+        assert!(actual.is_ok());
     }
 
     #[tokio::test]

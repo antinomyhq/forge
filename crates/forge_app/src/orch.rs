@@ -6,6 +6,7 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
+use tokio::sync::Notify;
 use tracing::warn;
 
 use crate::TemplateEngine;
@@ -70,8 +71,16 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
-                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                    .await?;
+                let notifier = Arc::new(Notify::new());
+                self.send(ChatResponse::ToolCallStart {
+                    tool_call: tool_call.clone(),
+                    notifier: notifier.clone(),
+                })
+                .await?;
+                // Wait for the UI to acknowledge it has rendered the tool header
+                // before we execute the tool. This prevents tool stdout from
+                // appearing before the tool name is printed.
+                notifier.notified().await;
             }
 
             // Fire the ToolcallStart lifecycle event
@@ -295,7 +304,8 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.append_message(
                 message.content.clone(),
                 message.thought_signature.clone(),
-                message.reasoning_details,
+                message.reasoning.clone(),
+                message.reasoning_details.clone(),
                 message.usage,
                 tool_call_records,
             );
