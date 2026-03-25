@@ -138,8 +138,8 @@ mod tests {
         let actual = ConfigReader::new().read(None).await.unwrap();
 
         let expected = Some(ModelConfig {
-            provider_id: "fake-provider".to_string(),
-            model_id: "fake-model".to_string(),
+            provider_id: Some("fake-provider".to_string()),
+            model_id: Some("fake-model".to_string()),
         });
         assert_eq!(actual.session, expected);
     }
