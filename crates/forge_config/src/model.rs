@@ -1,3 +1,4 @@
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 /// A type alias for a provider identifier string.
@@ -7,10 +8,11 @@ pub type ProviderId = String;
 pub type ModelId = String;
 
 /// Pairs a provider and model together for a specific operation.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[setters(strip_option, into)]
 pub struct ModelConfig {
     /// The provider to use for this operation.
-    pub provider_id: String,
+    pub provider_id: Option<String>,
     /// The model to use for this operation.
-    pub model_id: String,
+    pub model_id: Option<String>,
 }
