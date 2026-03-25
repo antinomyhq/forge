@@ -38,12 +38,12 @@ use crate::{
 ///
 /// - **`_limit` is avoided**; prefer the explicit `max_` prefix + unit suffix
 ///   instead.
-#[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
     /// Configuration for the retry mechanism
-    pub retry: RetryConfig,
+    pub retry: Option<RetryConfig>,
     /// The maximum number of lines returned for FSSearch
     pub max_search_lines: usize,
     /// Maximum bytes allowed for search results
@@ -63,7 +63,7 @@ pub struct ForgeConfig {
     /// Maximum number of files that can be read in a single batch operation
     pub max_file_read_batch_size: usize,
     /// HTTP configuration
-    pub http: HttpConfig,
+    pub http: Option<HttpConfig>,
     /// Maximum file size in bytes for operations
     pub max_file_size_bytes: u64,
     /// Maximum image file size in bytes for binary read operations
@@ -83,8 +83,7 @@ pub struct ForgeConfig {
     /// Top-k parameter for relevance filtering during semantic search
     pub sem_search_top_k: usize,
     /// URL for the indexing server
-    #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
-    pub workspace_server_url: Url,
+    pub workspace_server_url: Option<Url>,
     /// Maximum number of file extensions to include in the system prompt
     pub max_extensions: usize,
     /// Format for automatically creating a dump when a task is completed
@@ -125,7 +124,6 @@ pub struct ForgeConfig {
     // --- Workflow fields ---
     /// Configuration for automatic forge updates
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[dummy(default)]
     pub updates: Option<Update>,
 
     /// Temperature used for all agents.
@@ -139,7 +137,6 @@ pub struct ForgeConfig {
     /// - If not specified, each agent's individual setting or the model
     ///   provider's default will be used
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[dummy(expr = "Some(Temperature::new(1.0).unwrap())")]
     pub temperature: Option<Temperature>,
 
     /// Top-p (nucleus sampling) used for all agents.
@@ -152,7 +149,6 @@ pub struct ForgeConfig {
     /// - If not specified, each agent's individual setting or the model
     ///   provider's default will be used
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[dummy(expr = "Some(TopP::new(0.9).unwrap())")]
     pub top_p: Option<TopP>,
 
     /// Top-k used for all agents.
@@ -164,7 +160,6 @@ pub struct ForgeConfig {
     /// - If not specified, each agent's individual setting or the model
     ///   provider's default will be used
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[dummy(expr = "Some(TopK::new(50).unwrap())")]
     pub top_k: Option<TopK>,
 
     /// Maximum number of tokens the model can generate for all agents.
@@ -176,7 +171,6 @@ pub struct ForgeConfig {
     /// - If not specified, each agent's individual setting or the model
     ///   provider's default will be used
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[dummy(expr = "Some(MaxTokens::new(4000).unwrap())")]
     pub max_tokens: Option<MaxTokens>,
 
     /// Maximum number of times a tool can fail before the orchestrator
@@ -192,7 +186,6 @@ pub struct ForgeConfig {
     /// If specified, this will be applied to all agents in the workflow.
     /// If not specified, each agent's individual setting will be used.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[dummy(default)]
     pub compact: Option<Compact>,
 }
 

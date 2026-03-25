@@ -100,7 +100,7 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
 /// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
 /// maintains an in-memory cache to reduce disk access.
 pub struct ForgeConfigRepository {
-    cache: Arc<Mutex<Option<AppConfig>>>,
+    cache: Arc<Mutex<Option<ForgeConfig>>>,
 }
 
 impl ForgeConfigRepository {
@@ -109,17 +109,18 @@ impl ForgeConfigRepository {
     }
 
     /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
-    async fn read(&self) -> AppConfig {
+    async fn read(&self) -> ForgeConfig {
         let config = ForgeConfig::read().await;
 
         match config {
             Ok(config) => {
                 debug!(config = ?config, "read .forge.toml");
-                forge_config_to_app_config(config)
+                config
             }
             Err(e) => {
+                // NOTE: This should never-happen
                 error!(error = ?e, "Failed to read config file. Using default config.");
-                AppConfig::default()
+                Default::default()
             }
         }
     }
@@ -144,8 +145,8 @@ impl AppConfigRepository for ForgeConfigRepository {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
-        if let Some(ref cached_config) = *cache {
-            return Ok(cached_config.clone());
+        if let Some(ref config) = *cache {
+            return Ok(forge_config_to_app_config(config.clone()));
         }
         drop(cache);
 
@@ -155,7 +156,7 @@ impl AppConfigRepository for ForgeConfigRepository {
         let mut cache = self.cache.lock().await;
         *cache = Some(config.clone());
 
-        Ok(config)
+        Ok(forge_config_to_app_config(config))
     }
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
