@@ -228,7 +228,7 @@ mod tests {
 
     /// Returns the path to `.forge.toml` inside a temp home directory.
     fn forge_toml_path(home: &HomeGuard) -> PathBuf {
-        home.path().join(".forge").join(".forge.toml")
+        home.path().join("forge").join(".forge.toml")
     }
 
     /// Writes a TOML string to the forge config path, creating parent dirs.
