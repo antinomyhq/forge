@@ -619,7 +619,9 @@ mod tests {
 provider_id = "xyz"
 model_id = "some-model"
 "#;
-        let fc = forge_config::ConfigReader::default().read_str(toml).unwrap();
+        let fc = forge_config::ConfigReader::default()
+            .read_str(toml)
+            .unwrap();
 
         let actual = forge_config_to_app_config(fc);
 
