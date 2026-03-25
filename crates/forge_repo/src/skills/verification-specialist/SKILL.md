@@ -48,7 +48,15 @@ Before declaring complete, catch common silent failures:
 4. **Service outputs**: Hit the endpoint with a fresh client. Don't rely on cached state from your testing.
 5. **Multi-parameter tasks**: Test the FULL parameter range, not just the trivial case. world_size=1 hides all sharding bugs.
 
-## Step 4 — Cleanup & Final Run
+## Step 4 — Dependency Gate (Fail Closed)
+
+Before declaring verification complete:
+
+1. Confirm required runtime dependencies for behavioral checks are installed (for example `torch` for distributed PyTorch tasks).
+2. If missing, install or recreate an environment where the verifier-equivalent checks can run.
+3. If still unavailable, do NOT mark the task complete or claim full verification; report explicit blocker details (missing dependency, attempted commands, and which checks could not run).
+
+## Step 5 — Cleanup & Final Run
 
 1. Remove your test scripts, temp files, compilation artifacts.
 2. **Do NOT remove**: deployed content (webroot files, database records, git repos, config files, .so files the deliverable imports).
@@ -60,5 +68,6 @@ Before declaring complete, catch common silent failures:
 - Do NOT spend 3+ tool calls building ASCII tables. Run the checks directly.
 - Do NOT write "review code" or "check manually" as a verification step. Every check must be a runnable command.
 - Do NOT test only the trivial case (world_size=1, 2x2 matrix, empty input) and declare success.
+- Do NOT declare full verification complete when required runtime dependencies are missing.
 - Do NOT leave test artifacts in the workspace. But also do NOT delete runtime dependencies the deliverable needs.
 - Do NOT accept curve-fit results without sanity-checking the fitted parameters are physically plausible.

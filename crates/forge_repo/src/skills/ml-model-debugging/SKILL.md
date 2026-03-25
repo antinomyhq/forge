@@ -9,7 +9,9 @@ description: >-
   PyTorch, TensorFlow, HuggingFace transformers, GGUF, safetensors,
   MTEB, BERT, GPT, or any model architecture. Invoke at task start
   to get domain-specific guidance BEFORE writing code — not after
-  failures. Contains weight format references, activation debugging,
+  failures. For distributed parallelism tasks, also invoke
+  `debug-distributed-training` immediately as a companion workflow.
+  Contains weight format references, activation debugging,
   parallelism patterns, tokenizer implementation details, and
   numerical pitfalls.
 ---
@@ -29,6 +31,8 @@ Invoke this skill at the START of the task if ANY of these apply:
 - Fine-tuning, training, or inference with PyTorch/TensorFlow/JAX
 - Model conversion between formats
 - Computing cosine similarity, nearest neighbors, or re-ranking
+
+If the task uses `torch.distributed` or any multi-rank execution, invoke `debug-distributed-training` immediately after this skill.
 
 ## 0 -- Embedding & Retrieval Tasks (READ FIRST for similarity/retrieval tasks)
 
