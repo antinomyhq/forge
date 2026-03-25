@@ -11,33 +11,7 @@ use crate::{
     TopP, Update,
 };
 
-/// Forge configuration containing all the fields from the Environment struct.
-///
-/// # Field Naming Convention
-///
-/// Fields follow these rules to make units and semantics unambiguous at the
-/// call-site:
-///
-/// - **Unit suffixes are mandatory** for any numeric field that carries a
-///   physical unit:
-///   - `_ms`    — duration in milliseconds
-///   - `_secs`  — duration in seconds
-///   - `_bytes` — size in bytes
-///   - `_lines` — count of text lines
-///   - `_chars` — count of characters
-///   - Pure counts / dimensionless values (e.g. `max_redirects`) carry no
-///     suffix.
-///
-/// - **`max_` is always a prefix**, never embedded mid-name:
-///   - Correct:   `max_stdout_prefix_lines`
-///   - Incorrect: `stdout_max_prefix_length`
-///
-/// - **No redundant struct-name prefixes inside a sub-struct**: fields inside
-///   `RetryConfig` must not repeat `retry_` (e.g. use `status_codes`, not
-///   `retry_status_codes`).
-///
-/// - **`_limit` is avoided**; prefer the explicit `max_` prefix + unit suffix
-///   instead.
+/// Top-level Forge configuration merged from all sources (defaults, file, environment).
 #[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
@@ -92,8 +66,7 @@ pub struct ForgeConfig {
     pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
-    /// Default model and provider configuration to use for all operations if
-    /// not specified
+    /// Default model and provider configuration used when not overridden by individual agents.
     #[serde(default)]
     pub session: Option<ModelConfig>,
     /// Provider and model to use for commit message generation
@@ -126,55 +99,23 @@ pub struct ForgeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
-    /// Temperature used for all agents.
-    ///
-    /// Temperature controls the randomness in the model's output.
-    /// - Lower values (e.g., 0.1) make responses more focused, deterministic,
-    ///   and coherent
-    /// - Higher values (e.g., 0.8) make responses more creative, diverse, and
-    ///   exploratory
-    /// - Valid range is 0.0 to 2.0
-    /// - If not specified, each agent's individual setting or the model
-    ///   provider's default will be used
+    /// Output randomness for all agents; lower values are deterministic, higher values are creative (0.0–2.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<Temperature>,
 
-    /// Top-p (nucleus sampling) used for all agents.
-    ///
-    /// Controls the diversity of the model's output by considering only the
-    /// most probable tokens up to a cumulative probability threshold.
-    /// - Lower values (e.g., 0.1) make responses more focused
-    /// - Higher values (e.g., 0.9) make responses more diverse
-    /// - Valid range is 0.0 to 1.0
-    /// - If not specified, each agent's individual setting or the model
-    ///   provider's default will be used
+    /// Nucleus sampling threshold for all agents; limits token selection to the top cumulative probability mass (0.0–1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_p: Option<TopP>,
 
-    /// Top-k used for all agents.
-    ///
-    /// Controls the number of highest probability vocabulary tokens to keep.
-    /// - Lower values (e.g., 10) make responses more focused
-    /// - Higher values (e.g., 100) make responses more diverse
-    /// - Valid range is 1 to 1000
-    /// - If not specified, each agent's individual setting or the model
-    ///   provider's default will be used
+    /// Top-k vocabulary cutoff for all agents; restricts sampling to the k highest-probability tokens (1–1000).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_k: Option<TopK>,
 
-    /// Maximum number of tokens the model can generate for all agents.
-    ///
-    /// Controls the maximum length of the model's response.
-    /// - Lower values (e.g., 100) limit response length for concise outputs
-    /// - Higher values (e.g., 4000) allow for longer, more detailed responses
-    /// - Valid range is 1 to 100,000
-    /// - If not specified, each agent's individual setting or the model
-    ///   provider's default will be used
+    /// Maximum tokens the model may generate per response for all agents (1–100,000).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<MaxTokens>,
 
-    /// Maximum number of times a tool can fail before the orchestrator
-    /// forces the completion.
+    /// Maximum tool failures per turn before the orchestrator forces completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
@@ -182,21 +123,17 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
 
-    /// Configuration for automatic context compaction for all agents.
-    /// If specified, this will be applied to all agents in the workflow.
-    /// If not specified, each agent's individual setting will be used.
+    /// Context compaction settings applied to all agents; falls back to each agent's individual setting when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
 }
 
 impl ForgeConfig {
-    /// Reads and merges configuration from all sources, returning the resolved
-    /// [`ForgeConfig`].
+    /// Reads and merges configuration from all sources, returning the resolved [`ForgeConfig`].
     ///
     /// # Errors
     ///
-    /// Returns an error if the config path cannot be resolved, the file cannot
-    /// be read, or the configuration cannot be deserialized.
+    /// Returns an error if the config path cannot be resolved, the file cannot be read, or deserialization fails.
     pub fn read() -> crate::Result<ForgeConfig> {
         Ok(ConfigReader::default()
             .read_defaults()
@@ -210,8 +147,7 @@ impl ForgeConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if the configuration cannot be serialized or written to
-    /// disk.
+    /// Returns an error if the configuration cannot be serialized or written to disk.
     pub async fn write(&self) -> crate::Result<()> {
         let path = ConfigReader::config_path();
         ConfigWriter::new(self.clone()).write(&path).await
