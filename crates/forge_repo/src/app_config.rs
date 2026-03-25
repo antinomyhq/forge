@@ -5,7 +5,7 @@ use forge_domain::{
     AppConfig, AppConfigRepository, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig,
 };
 use tokio::sync::Mutex;
-use tracing::debug;
+use tracing::{debug, error};
 
 /// Converts a [`ForgeConfig`] into an [`AppConfig`].
 ///
@@ -110,10 +110,15 @@ impl AppConfigRepositoryImpl {
 
     /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
     async fn read(&self) -> AppConfig {
-        match ForgeConfig::read().await {
-            Ok(fc) => forge_config_to_app_config(fc),
+        let config = ForgeConfig::read().await;
+
+        match config {
+            Ok(config) => {
+                debug!(config = ?config, "read .forge.toml");
+                forge_config_to_app_config(config)
+            }
             Err(e) => {
-                tracing::error!(error = %e, "Failed to read config file. Using default config.");
+                error!(error = ?e, "Failed to read config file. Using default config.");
                 AppConfig::default()
             }
         }
@@ -126,9 +131,10 @@ impl AppConfigRepositoryImpl {
             tracing::warn!(error = %e, "Could not read existing config; defaults will be used.");
             forge_config::ConfigReader::new().read_defaults()
         });
-        let updated = app_config_to_forge_config(config, existing);
-        debug!(config = ?updated, "Writing updated config to disk");
-        updated.write().await?;
+        let config = app_config_to_forge_config(config, existing);
+
+        config.write().await?;
+        debug!(config = ?config, "written .forge.toml");
         Ok(())
     }
 }
@@ -547,9 +553,9 @@ mod tests {
         // Verify the full parse path for a custom provider value — uses
         // ConfigReader::read_str to avoid any real filesystem dependency.
         let toml = r#"
-[model]
-provider = "xyz"
-model = "some-model"
+[session]
+provider_id = "xyz"
+model_id = "some-model"
 "#;
         let fc = forge_config::ConfigReader::new().read_str(toml).unwrap();
 
