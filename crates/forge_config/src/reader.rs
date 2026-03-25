@@ -82,10 +82,45 @@ impl ConfigReader {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Mutex, MutexGuard};
+
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::ModelConfig;
+
+    /// Serializes tests that mutate environment variables to prevent races.
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// Guard that holds a set of environment variables for the duration of a
+    /// test, removing them all on drop. Also holds the [`ENV_MUTEX`] lock to
+    /// prevent concurrent env mutations across tests.
+    struct EnvGuard {
+        keys: Vec<&'static str>,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl EnvGuard {
+        /// Sets each `(key, value)` pair in the process environment and returns
+        /// a guard that removes all those keys when dropped.
+        #[must_use]
+        fn set(pairs: &[(&'static str, &str)]) -> Self {
+            let lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+            let keys = pairs.iter().map(|(k, _)| *k).collect();
+            for (key, value) in pairs {
+                unsafe { std::env::set_var(key, value) };
+            }
+            Self { keys, _lock: lock }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for key in &self.keys {
+                unsafe { std::env::remove_var(key) };
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_read_parses_without_error() {
@@ -93,20 +128,14 @@ mod tests {
         assert!(actual.is_ok(), "read() failed: {:?}", actual.err());
     }
 
-    #[test]
-    fn test_read_session_from_env_vars() {
-        let fixture = HashMap::from([
-            (
-                "FORGE_SESSION__PROVIDER_ID".to_string(),
-                "fake-provider".to_string(),
-            ),
-            (
-                "FORGE_SESSION__MODEL_ID".to_string(),
-                "fake-model".to_string(),
-            ),
+    #[tokio::test]
+    async fn test_read_session_from_env_vars() {
+        let _ = EnvGuard::set(&[
+            ("FORGE_SESSION__PROVIDER_ID", "fake-provider"),
+            ("FORGE_SESSION__MODEL_ID", "fake-model"),
         ]);
 
-        let actual = ConfigReader::new().read(None).unwrap();
+        let actual = ConfigReader::new().read(None).await.unwrap();
 
         let expected = Some(ModelConfig {
             provider_id: "fake-provider".to_string(),
