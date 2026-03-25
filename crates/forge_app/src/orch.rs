@@ -54,12 +54,15 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
-    async fn execute_tool_calls<'a>(
+    async fn execute_tool_calls(
         &mut self,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
         let task_tool_name = ToolKind::Task.name();
+
+        // Use a case-insensitive comparison since the model may send "Task" or "task".
+        let is_task = |tc: &ToolCallFull| tc.name.as_str().eq_ignore_ascii_case(task_tool_name.as_str());
 
         // Partition into task tool calls (run in parallel) and all others (run
         // sequentially). Use a case-insensitive comparison since the model may
@@ -147,7 +150,7 @@ impl<S: AgentService> Orchestrator<S> {
         let tool_call_records = tool_calls
             .iter()
             .map(|tc| {
-                if tc.name == task_tool_name {
+                if is_task(tc) {
                     task_iter.next().expect("task result count mismatch")
                 } else {
                     other_iter.next().expect("other result count mismatch")
