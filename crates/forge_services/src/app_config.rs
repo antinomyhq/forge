@@ -200,9 +200,7 @@ mod tests {
                         config.model.insert(pid, mid);
                     }
                     AppConfigOperation::SetCommitConfig(commit) => config.commit = Some(commit),
-                    AppConfigOperation::SetSuggestConfig(suggest) => {
-                        config.suggest = Some(suggest)
-                    }
+                    AppConfigOperation::SetSuggestConfig(suggest) => config.suggest = Some(suggest),
                 }
             }
             Ok(())
