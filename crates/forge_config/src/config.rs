@@ -190,18 +190,6 @@ pub struct ForgeConfig {
 }
 
 impl ForgeConfig {
-    /// Returns the path to the user configuration file: `~/.forge/.forge.toml`.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the home directory cannot be determined.
-    pub fn config_path() -> crate::Result<PathBuf> {
-        let home_dir = dirs::home_dir().ok_or_else(|| {
-            std::io::Error::new(std::io::ErrorKind::NotFound, "home directory not found")
-        })?;
-        Ok(home_dir.join("forge").join(".forge.toml"))
-    }
-
     /// Reads and merges configuration from all sources, returning the resolved
     /// [`ForgeConfig`].
     ///
@@ -209,24 +197,13 @@ impl ForgeConfig {
     ///
     /// Returns an error if the config path cannot be resolved, the file cannot
     /// be read, or the configuration cannot be deserialized.
-    pub async fn read() -> crate::Result<ForgeConfig> {
-        let path = Self::config_path()?;
-        ConfigReader::default().read(Some(&path)).await
-    }
-
-    /// Reads and merges configuration from the global config file path,
-    /// returning the resolved [`ForgeConfig`].
-    ///
-    /// Delegates to [`ConfigReader::read_path`] using the path returned by
-    /// [`ForgeConfig::config_path`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the config path cannot be resolved, the file cannot
-    /// be read, or the configuration cannot be deserialized.
-    pub async fn read_global() -> crate::Result<ForgeConfig> {
-        let path = Self::config_path()?;
-        ConfigReader::default().read_path(&path).await
+    pub fn read() -> crate::Result<ForgeConfig> {
+        Ok(ConfigReader::default()
+            .read_defaults()
+            .read_legacy()
+            .read_global()
+            .read_env()
+            .build()?)
     }
 
     /// Writes the configuration to the user config file.
@@ -236,15 +213,7 @@ impl ForgeConfig {
     /// Returns an error if the configuration cannot be serialized or written to
     /// disk.
     pub async fn write(&self) -> crate::Result<()> {
-        let path = Self::config_path()?;
+        let path = ConfigReader::config_path();
         ConfigWriter::new(self.clone()).write(&path).await
-    }
-
-    pub fn read_defaults() -> ForgeConfig {
-        ConfigReader::default().read_defaults()
-    }
-
-    pub fn read_str(toml: &str) -> crate::Result<ForgeConfig> {
-        ConfigReader::default().read_str(toml)
     }
 }

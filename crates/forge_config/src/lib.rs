@@ -14,7 +14,9 @@ pub use config::*;
 pub use error::Error;
 pub use http::*;
 pub use model::*;
+pub use reader::*;
 pub use retry::*;
+pub use writer::*;
 
 /// A `Result` type alias for this crate's [`Error`] type.
 pub type Result<T> = std::result::Result<T, Error>;

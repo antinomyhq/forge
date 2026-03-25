@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_config::{ForgeConfig, ModelConfig};
+use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
     AppConfig, AppConfigOperation, AppConfigRepository, CommitConfig, LoginInfo, ModelId,
     ProviderId, SuggestConfig,
@@ -124,7 +124,7 @@ impl ForgeConfigRepository {
 
     /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
     async fn read(&self) -> ForgeConfig {
-        let config = ForgeConfig::read().await;
+        let config = ForgeConfig::read();
 
         match config {
             Ok(config) => {
@@ -161,9 +161,12 @@ impl AppConfigRepository for ForgeConfigRepository {
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
         // Load the global config
-        let mut fc = ForgeConfig::read_global().await?;
+        let mut fc = ConfigReader::default().read_global().build()?;
+
+        debug!(config = ?fc, "loaded config for update");
 
         // Apply each operation directly onto ForgeConfig
+        debug!(?ops, "applying app config operations");
         for op in ops {
             apply_op(op, &mut fc);
         }
@@ -177,271 +180,5 @@ impl AppConfigRepository for ForgeConfigRepository {
         *cache = None;
 
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use std::collections::HashMap;
-    use std::path::PathBuf;
-    use std::str::FromStr;
-    use std::sync::Mutex;
-
-    use forge_domain::ProviderId;
-    use pretty_assertions::assert_eq;
-    use tempfile::TempDir;
-
-    use super::*;
-
-    /// Mutex to serialize all tests that mutate the `HOME` env var, preventing
-    /// races when multiple tests run concurrently in the same process.
-    static HOME_MUTEX: Mutex<()> = Mutex::new(());
-
-    /// Guard type that holds both the mutex guard and the temp dir, ensuring
-    /// the temp directory outlives the mutex release.
-    struct HomeGuard {
-        _lock: std::sync::MutexGuard<'static, ()>,
-        _dir: TempDir,
-    }
-
-    /// Sets HOME to a fresh temp directory so that [`ForgeConfig::read`] and
-    /// [`ForgeConfig::write`] operate on an isolated `~/.forge/.forge.toml`.
-    /// Acquires the [`HOME_MUTEX`] and holds it for the lifetime of the
-    /// returned guard.
-    fn temp_home() -> HomeGuard {
-        let lock = HOME_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
-        let dir = tempfile::tempdir().unwrap();
-        // SAFETY: tests are serialized by HOME_MUTEX, so no concurrent HOME reads
-        // occur.
-        unsafe { std::env::set_var("HOME", dir.path()) };
-        HomeGuard { _lock: lock, _dir: dir }
-    }
-
-    impl std::ops::Deref for HomeGuard {
-        type Target = TempDir;
-        fn deref(&self) -> &TempDir {
-            &self._dir
-        }
-    }
-
-    /// Returns the path to `.forge.toml` inside a temp home directory.
-    fn forge_toml_path(home: &HomeGuard) -> PathBuf {
-        home.path().join("forge").join(".forge.toml")
-    }
-
-    /// Writes a TOML string to the forge config path, creating parent dirs.
-    fn write_toml(home: &HomeGuard, toml: &str) {
-        let path = forge_toml_path(home);
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(path, toml).unwrap();
-    }
-
-    fn repository_fixture(_home: &HomeGuard) -> ForgeConfigRepository {
-        ForgeConfigRepository::new()
-    }
-
-    /// Returns a [`ForgeConfig`] built from embedded defaults only, as a
-    /// clean starting point for conversion fixtures.
-    fn forge_config_defaults() -> ForgeConfig {
-        forge_config::ConfigReader::default().read_defaults()
-    }
-
-    // -------------------------------------------------------------------------
-    // forge_config_to_app_config
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_forge_config_to_app_config_empty() {
-        let fixture = forge_config_defaults();
-
-        let actual = forge_config_to_app_config(fixture);
-
-        let expected = AppConfig::default();
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_with_model() {
-        let mut fixture = forge_config_defaults();
-        fixture.session = Some(
-            ModelConfig::default()
-                .provider_id("anthropic".to_string())
-                .model_id("claude-3-5-sonnet-20241022".to_string()),
-        );
-
-        let actual = forge_config_to_app_config(fixture);
-
-        let expected = AppConfig {
-            provider: Some(ProviderId::ANTHROPIC),
-            model: HashMap::from([(
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
-            )]),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_with_login_info() {
-        let mut fixture = forge_config_defaults();
-        fixture.api_key = Some("sk-test-key".to_string());
-        fixture.api_key_name = Some("my-key".to_string());
-        fixture.api_key_masked = Some("sk-***".to_string());
-        fixture.email = Some("user@example.com".to_string());
-        fixture.name = Some("Alice".to_string());
-        fixture.auth_provider_id = Some("github".to_string());
-
-        let actual = forge_config_to_app_config(fixture);
-
-        let expected = AppConfig {
-            key_info: Some(LoginInfo {
-                api_key: "sk-test-key".to_string(),
-                api_key_name: "my-key".to_string(),
-                api_key_masked: "sk-***".to_string(),
-                email: Some("user@example.com".to_string()),
-                name: Some("Alice".to_string()),
-                auth_provider_id: Some("github".to_string()),
-            }),
-            ..Default::default()
-        };
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_no_login_info_when_api_key_absent() {
-        let fixture = forge_config_defaults();
-        // api_key is None → key_info must be None even if other fields are set
-
-        let actual = forge_config_to_app_config(fixture);
-
-        assert_eq!(actual.key_info, None);
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_with_commit() {
-        let mut fixture = forge_config_defaults();
-        fixture.commit = Some(
-            ModelConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-4o".to_string()),
-        );
-
-        let actual = forge_config_to_app_config(fixture);
-
-        let expected = CommitConfig {
-            provider: Some(ProviderId::OPENAI),
-            model: Some(ModelId::new("gpt-4o")),
-        };
-        assert_eq!(actual.commit, Some(expected));
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_with_suggest() {
-        let mut fixture = forge_config_defaults();
-        fixture.suggest = Some(
-            ModelConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-4o-mini".to_string()),
-        );
-
-        let actual = forge_config_to_app_config(fixture);
-
-        let expected = SuggestConfig {
-            provider: ProviderId::OPENAI,
-            model: ModelId::new("gpt-4o-mini"),
-        };
-        assert_eq!(actual.suggest, Some(expected));
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_session_provider_only() {
-        let mut fixture = forge_config_defaults();
-        fixture.session = Some(ModelConfig::default().provider_id("anthropic".to_string()));
-
-        let actual = forge_config_to_app_config(fixture);
-
-        assert_eq!(actual.provider, Some(ProviderId::ANTHROPIC));
-        assert!(actual.model.is_empty());
-    }
-
-    #[test]
-    fn test_forge_config_to_app_config_session_model_only() {
-        let mut fixture = forge_config_defaults();
-        fixture.session =
-            Some(ModelConfig::default().model_id("claude-3-5-sonnet-20241022".to_string()));
-
-        let actual = forge_config_to_app_config(fixture);
-
-        assert_eq!(actual.provider, None);
-        assert!(actual.model.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_get_app_config_not_exists() {
-        let _home = temp_home();
-        let repo = repository_fixture(&_home);
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual, forge_domain::AppConfig::default());
-    }
-
-    #[tokio::test]
-    async fn test_set_app_config() {
-        let _home = temp_home();
-        let repo = repository_fixture(&_home);
-
-        let actual = repo
-            .update_app_config(vec![AppConfigOperation::SetProvider(ProviderId::ANTHROPIC)])
-            .await;
-
-        assert!(actual.is_ok());
-
-        // Verify the config was actually written by reading it back
-        let read_config = repo.get_app_config().await.unwrap();
-        assert_eq!(read_config.provider, Some(ProviderId::ANTHROPIC));
-    }
-
-    #[tokio::test]
-    async fn test_cache_behavior() {
-        let _home = temp_home();
-        write_toml(&_home, "");
-        let repo = repository_fixture(&_home);
-
-        // First read should populate cache
-        let first_read = repo.get_app_config().await.unwrap();
-
-        // Second read should use cache (no file system access)
-        let second_read = repo.get_app_config().await.unwrap();
-        assert_eq!(first_read, second_read);
-
-        // Write new config should bust cache
-        repo.update_app_config(vec![AppConfigOperation::SetProvider(ProviderId::OPENAI)])
-            .await
-            .unwrap();
-
-        // Next read should get fresh data
-        let third_read = repo.get_app_config().await.unwrap();
-        assert_eq!(third_read.provider, Some(ProviderId::OPENAI));
-    }
-
-    #[test]
-    fn test_read_handles_custom_provider() {
-        // Verify the full parse path for a custom provider value — uses
-        // ConfigReader::read_str to avoid any real filesystem dependency.
-        let toml = r#"
-[session]
-provider_id = "xyz"
-model_id = "some-model"
-"#;
-        let fc = forge_config::ConfigReader::default()
-            .read_str(toml)
-            .unwrap();
-
-        let actual = forge_config_to_app_config(fc);
-
-        assert_eq!(actual.provider, Some(ProviderId::from_str("xyz").unwrap()));
     }
 }

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use config::Config;
+use config::ConfigBuilder;
+use config::builder::DefaultState;
 use serde::Deserialize;
 use tracing::debug;
 
@@ -11,7 +12,9 @@ use crate::{ForgeConfig, ModelConfig};
 /// home directory file, current working directory file, and environment
 /// variables.
 #[derive(Default)]
-pub struct ConfigReader {}
+pub struct ConfigReader {
+    builder: ConfigBuilder<DefaultState>,
+}
 
 /// Intermediate representation of the legacy `~/forge/.config.json` format.
 ///
@@ -64,66 +67,16 @@ impl LegacyConfig {
 }
 
 impl ConfigReader {
-    /// Returns the path to the legacy JSON config file: `~/forge/.config.json`.
-    fn legacy_config_path() -> Option<PathBuf> {
-        dirs::home_dir().map(|home| home.join("forge").join(".config.json"))
+    pub fn config_legacy_path() -> PathBuf {
+        Self::base_path().join(".config.json")
     }
 
-    /// Reads and merges configuration from all sources, returning the resolved
-    /// [`ForgeConfig`].
-    ///
-    /// Sources are applied in increasing priority order: embedded defaults,
-    /// `~/forge/.config.json` (legacy JSON config, skipped when absent), the
-    /// optional file at `path` (skipped when `None`), then environment
-    /// variables prefixed with `FORGE_`.
-    pub async fn read(&self, path: Option<&Path>) -> crate::Result<ForgeConfig> {
-        let mut builder = Config::builder();
+    pub fn config_path() -> PathBuf {
+        Self::base_path().join(".forge.toml")
+    }
 
-        // Load default
-        builder = builder.add_source(config::File::from_str(
-            include_str!("../.forge.toml"),
-            config::FileFormat::Toml,
-        ));
-
-        // Load from ~/forge/.config.json (legacy format)
-        if let Some(path) = Self::legacy_config_path() {
-            if tokio::fs::try_exists(&path).await? {
-                let json_contents = tokio::fs::read_to_string(&path).await?;
-                if let Ok(json_config) = serde_json::from_str::<LegacyConfig>(&json_contents) {
-                    let config = json_config.into_forge_config();
-                    let toml_contents = toml_edit::ser::to_string(&config).unwrap_or_default();
-                    builder = builder.add_source(config::File::from_str(
-                        &toml_contents,
-                        config::FileFormat::Toml,
-                    ));
-                }
-            } else {
-                debug!("Legacy config file not found at {:?}, skipping", path);
-            }
-        }
-
-        // Load from path
-        if let Some(path) = path
-            && tokio::fs::try_exists(path).await?
-        {
-            let contents = tokio::fs::read_to_string(path).await?;
-            builder =
-                builder.add_source(config::File::from_str(&contents, config::FileFormat::Toml));
-        }
-
-        // Load from environment
-        builder = builder.add_source(
-            config::Environment::with_prefix("FORGE")
-                .prefix_separator("_")
-                .separator("__")
-                .try_parsing(true)
-                .list_separator(",")
-                .with_list_parse_key("retry.status_codes")
-                .with_list_parse_key("http.root_cert_paths"),
-        );
-
-        let config = builder.build()?;
-        Ok(config.try_deserialize()?)
+    pub fn base_path() -> PathBuf {
+        dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
     }
 
     /// Reads and merges configuration from the embedded defaults and the given
@@ -133,48 +86,71 @@ impl ConfigReader {
     /// does not touch the filesystem or environment variables. This is
     /// appropriate when the caller has already read the raw file content via
     /// its own I/O abstraction.
-    pub fn read_str(&self, contents: &str) -> crate::Result<ForgeConfig> {
-        let defaults = include_str!("../.forge.toml");
-        let config = Config::builder()
-            .add_source(config::File::from_str(defaults, config::FileFormat::Toml))
-            .add_source(config::File::from_str(contents, config::FileFormat::Toml))
-            .build()?;
-        Ok(config.try_deserialize()?)
-    }
+    pub fn read_toml(mut self, contents: &str) -> Self {
+        self.builder = self
+            .builder
+            .add_source(config::File::from_str(contents, config::FileFormat::Toml));
 
-    /// Reads and merges configuration from the embedded defaults, the legacy
-    /// JSON config, and the file at the given `path`, returning the resolved
-    /// [`ForgeConfig`].
-    ///
-    /// Unlike [`read`], this method requires an explicit path and always
-    /// attempts to read from it (returning an error if the path does not
-    /// exist or cannot be read). Environment variables prefixed with `FORGE_`
-    /// are not consulted.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the file at `path` cannot be read or if the
-    /// configuration cannot be deserialized.
-    pub async fn read_path(&self, path: &Path) -> crate::Result<ForgeConfig> {
-        let mut builder = Config::builder();
-        if tokio::fs::try_exists(path).await? {
-            let contents = tokio::fs::read_to_string(path).await?;
-            builder =
-                builder.add_source(config::File::from_str(&contents, config::FileFormat::Toml));
-        }
-
-        Ok(builder.build()?.try_deserialize()?)
+        self
     }
 
     /// Returns the [`ForgeConfig`] built from the embedded defaults only,
     /// without reading any file or environment variables.
-    pub fn read_defaults(&self) -> ForgeConfig {
+    pub fn read_defaults(self) -> Self {
         let defaults = include_str!("../.forge.toml");
-        Config::builder()
-            .add_source(config::File::from_str(defaults, config::FileFormat::Toml))
-            .build()
-            .and_then(|c| c.try_deserialize())
-            .expect("embedded .forge.toml defaults must always be valid")
+
+        self.read_toml(defaults)
+    }
+
+    /// Adds environment variables prefixed with `FORGE_` as a source.
+    pub fn read_env(mut self) -> Self {
+        self.builder = self.builder.add_source(
+            config::Environment::with_prefix("FORGE")
+                .prefix_separator("_")
+                .separator("__")
+                .try_parsing(true)
+                .list_separator(",")
+                .with_list_parse_key("retry.status_codes")
+                .with_list_parse_key("http.root_cert_paths"),
+        );
+
+        self
+    }
+
+    /// Builds and returns the merged [`ForgeConfig`] from all accumulated sources.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration cannot be built or deserialized.
+    pub fn build(self) -> crate::Result<ForgeConfig> {
+        let config = self.builder.build()?;
+        Ok(config.try_deserialize::<ForgeConfig>()?)
+    }
+
+    /// Reads `~/.forge/.forge.toml` and adds it as a config source.
+    ///
+    /// If the file does not exist it is silently skipped. If the file cannot
+    /// be read or parsed the error is propagated.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the file exists but cannot be read or deserialized.
+
+    pub fn read_global(mut self) -> Self {
+        let path = Self::config_path();
+        self.builder = self.builder.add_source(config::File::from(path));
+        self
+    }
+
+    /// Reads `~/.forge/.config.json` (the legacy JSON format), converts it to
+    /// a [`ForgeConfig`], and adds it as a config source.
+    ///
+    /// If the file does not exist or cannot be parsed it is silently skipped.
+    pub fn read_legacy(mut self) -> Self {
+        let path = Self::config_legacy_path();
+        self.builder = self.builder.add_source(config::File::from(path));
+
+        self
     }
 }
 
@@ -220,20 +196,24 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_read_parses_without_error() {
-        let actual = ConfigReader::default().read(None).await;
+    #[test]
+    fn test_read_parses_without_error() {
+        let actual = ConfigReader::default().read_defaults().build();
         assert!(actual.is_ok(), "read() failed: {:?}", actual.err());
     }
 
-    #[tokio::test]
-    async fn test_read_session_from_env_vars() {
-        let _ = EnvGuard::set(&[
+    #[test]
+    fn test_read_session_from_env_vars() {
+        let _guard = EnvGuard::set(&[
             ("FORGE_SESSION__PROVIDER_ID", "fake-provider"),
             ("FORGE_SESSION__MODEL_ID", "fake-model"),
         ]);
 
-        let actual = ConfigReader::default().read(None).await.unwrap();
+        let actual = ConfigReader::default()
+            .read_defaults()
+            .read_env()
+            .build()
+            .unwrap();
 
         let expected = Some(ModelConfig {
             provider_id: Some("fake-provider".to_string()),
