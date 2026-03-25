@@ -40,9 +40,12 @@ impl ConfigReader {
         // Load from environment
         builder = builder.add_source(
             config::Environment::with_prefix("FORGE")
+                .prefix_separator("_")
+                .separator("__")
                 .try_parsing(true)
-                .separator("_")
-                .list_separator(","),
+                .list_separator(",")
+                .with_list_parse_key("retry.status_codes")
+                .with_list_parse_key("http.root_cert_paths"),
         );
 
         let config = builder.build()?;
@@ -79,11 +82,36 @@ impl ConfigReader {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
+    use crate::ModelConfig;
 
     #[tokio::test]
     async fn test_read_parses_without_error() {
         let actual = ConfigReader::new().read(None).await;
         assert!(actual.is_ok(), "read() failed: {:?}", actual.err());
+    }
+
+    #[test]
+    fn test_read_session_from_env_vars() {
+        let fixture = HashMap::from([
+            (
+                "FORGE_SESSION__PROVIDER_ID".to_string(),
+                "fake-provider".to_string(),
+            ),
+            (
+                "FORGE_SESSION__MODEL_ID".to_string(),
+                "fake-model".to_string(),
+            ),
+        ]);
+
+        let actual = ConfigReader::new().read(None).unwrap();
+
+        let expected = Some(ModelConfig {
+            provider_id: "fake-provider".to_string(),
+            model_id: "fake-model".to_string(),
+        });
+        assert_eq!(actual.session, expected);
     }
 }
