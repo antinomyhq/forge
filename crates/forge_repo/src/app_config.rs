@@ -99,11 +99,11 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
 ///
 /// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
 /// maintains an in-memory cache to reduce disk access.
-pub struct AppConfigRepositoryImpl {
+pub struct ForgeConfigRepository {
     cache: Arc<Mutex<Option<AppConfig>>>,
 }
 
-impl AppConfigRepositoryImpl {
+impl ForgeConfigRepository {
     pub fn new() -> Self {
         Self { cache: Arc::new(Mutex::new(None)) }
     }
@@ -140,7 +140,7 @@ impl AppConfigRepositoryImpl {
 }
 
 #[async_trait::async_trait]
-impl AppConfigRepository for AppConfigRepositoryImpl {
+impl AppConfigRepository for ForgeConfigRepository {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
@@ -226,8 +226,8 @@ mod tests {
         std::fs::write(path, toml).unwrap();
     }
 
-    fn repository_fixture(_home: &HomeGuard) -> AppConfigRepositoryImpl {
-        AppConfigRepositoryImpl::new()
+    fn repository_fixture(_home: &HomeGuard) -> ForgeConfigRepository {
+        ForgeConfigRepository::new()
     }
 
     /// Returns a [`ForgeConfig`] built from embedded defaults only, as a

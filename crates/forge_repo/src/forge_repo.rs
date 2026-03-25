@@ -23,7 +23,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::agent::ForgeAgentRepository;
-use crate::app_config::AppConfigRepositoryImpl;
+use crate::app_config::ForgeConfigRepository;
 use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -42,7 +42,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    app_config_repository: Arc<AppConfigRepositoryImpl>,
+    config_repository: Arc<ForgeConfigRepository>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -64,7 +64,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let app_config_repository = Arc::new(AppConfigRepositoryImpl::new());
+        let config_repository = Arc::new(ForgeConfigRepository::new());
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -83,7 +83,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             infra,
             file_snapshot_service,
             conversation_repository,
-            app_config_repository,
+            config_repository,
             mcp_cache_repository,
             provider_repository,
             chat_repository,
@@ -196,11 +196,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 #[async_trait::async_trait]
 impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
-        self.app_config_repository.get_app_config().await
+        self.config_repository.get_app_config().await
     }
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_repository.set_app_config(config).await
+        self.config_repository.set_app_config(config).await
     }
 }
 
