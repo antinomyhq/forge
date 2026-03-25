@@ -60,56 +60,43 @@ impl Range {
 
     /// Create a range from a fuzzy search match.
     ///
-    /// Uses actual byte positions from the source string rather than
-    /// assuming uniform line ending lengths, which avoids incorrect byte
-    /// offsets with mixed line endings (e.g. some `\r\n` and some `\n`).
+    /// Tracks actual byte positions per line to handle mixed line endings
+    /// (e.g. some `\r\n` and some `\n`), avoiding out-of-bounds offsets.
     fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
+        let lines: Vec<&str> = source.lines().collect();
+
         // Handle empty source
-        if source.is_empty() {
+        if lines.is_empty() {
             return Self::new(0, 0);
         }
 
-        // Collect (byte_offset, line_content) for each line by scanning
-        // through the source. This gives us exact byte positions regardless
-        // of line ending style per line.
-        let mut line_starts: Vec<usize> = Vec::new();
-        let mut line_ends: Vec<usize> = Vec::new();
+        // Compute exact byte start positions per line by scanning the source.
+        // This handles mixed line endings correctly, unlike a uniform line_ending_len.
+        let mut line_starts = vec![0usize; lines.len()];
         let mut pos = 0;
-        for line in source.lines() {
-            line_starts.push(pos);
-            let line_end = pos + line.len();
-            line_ends.push(line_end);
-            // Advance past the line content
-            pos = line_end;
-            // Advance past the line ending (could be \r\n or \n or nothing at EOF)
+        for (i, line) in lines.iter().enumerate() {
+            line_starts[i] = pos;
+            pos += line.len();
+            // Advance past the line ending (\r\n or \n)
             if pos < source.len() {
                 if source.as_bytes()[pos] == b'\r'
                     && pos + 1 < source.len()
                     && source.as_bytes()[pos + 1] == b'\n'
                 {
                     pos += 2;
-                } else if source.as_bytes()[pos] == b'\n' {
+                } else {
                     pos += 1;
                 }
             }
         }
 
-        let num_lines = line_starts.len();
-        if num_lines == 0 {
-            return Self::new(0, 0);
-        }
-
         // Clamp indices to valid range
-        let start_idx = (search_match.start_line as usize).min(num_lines.saturating_sub(1));
-        let end_idx = (search_match.end_line as usize).min(num_lines.saturating_sub(1));
+        let last = lines.len() - 1;
+        let start_idx = (search_match.start_line as usize).min(last);
+        let end_idx = (search_match.end_line as usize).min(last);
 
-        // Compute byte range: from start of start_line to end of end_line
-        let start_pos = line_starts[start_idx];
-        let end_pos = line_ends[end_idx];
-
-        // Safety: clamp to source length
-        let start_pos = start_pos.min(source.len());
-        let end_pos = end_pos.min(source.len());
+        let start_pos = line_starts[start_idx].min(source.len());
+        let end_pos = (line_starts[end_idx] + lines[end_idx].len()).min(source.len());
         let length = end_pos.saturating_sub(start_pos);
 
         Self::new(start_pos, length)
