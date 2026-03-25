@@ -89,15 +89,17 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
         cc.provider
             .as_ref()
             .zip(cc.model.as_ref())
-            .map(|(pid, mid)| ModelConfig {
-                provider_id: Some(pid.as_ref().to_string()),
-                model_id: Some(mid.to_string()),
+            .map(|(pid, mid)| {
+                ModelConfig::default()
+                    .provider_id(pid.as_ref().to_string())
+                    .model_id(mid.to_string())
             })
     });
 
-    fc.suggest = app.suggest.as_ref().map(|sc| ModelConfig {
-        provider_id: Some(sc.provider.as_ref().to_string()),
-        model_id: Some(sc.model.to_string()),
+    fc.suggest = app.suggest.as_ref().map(|sc| {
+        ModelConfig::default()
+            .provider_id(sc.provider.as_ref().to_string())
+            .model_id(sc.model.to_string())
     });
 
     fc
@@ -263,10 +265,11 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_with_model() {
         let mut fixture = forge_config_defaults();
-        fixture.session = Some(ModelConfig {
-            provider_id: Some("anthropic".to_string()),
-            model_id: Some("claude-3-5-sonnet-20241022".to_string()),
-        });
+        fixture.session = Some(
+            ModelConfig::default()
+                .provider_id("anthropic".to_string())
+                .model_id("claude-3-5-sonnet-20241022".to_string()),
+        );
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -320,10 +323,11 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_with_commit() {
         let mut fixture = forge_config_defaults();
-        fixture.commit = Some(ModelConfig {
-            provider_id: Some("openai".to_string()),
-            model_id: Some("gpt-4o".to_string()),
-        });
+        fixture.commit = Some(
+            ModelConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4o".to_string()),
+        );
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -337,10 +341,11 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_with_suggest() {
         let mut fixture = forge_config_defaults();
-        fixture.suggest = Some(ModelConfig {
-            provider_id: Some("openai".to_string()),
-            model_id: Some("gpt-4o-mini".to_string()),
-        });
+        fixture.suggest = Some(
+            ModelConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4o-mini".to_string()),
+        );
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -355,7 +360,7 @@ mod tests {
     fn test_forge_config_to_app_config_session_provider_only() {
         let mut fixture = forge_config_defaults();
         fixture.session =
-            Some(ModelConfig { provider_id: Some("anthropic".to_string()), model_id: None });
+            Some(ModelConfig::default().provider_id("anthropic".to_string()));
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -366,10 +371,7 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_session_model_only() {
         let mut fixture = forge_config_defaults();
-        fixture.session = Some(ModelConfig {
-            provider_id: None,
-            model_id: Some("claude-3-5-sonnet-20241022".to_string()),
-        });
+        fixture.session = Some(ModelConfig::default().model_id("claude-3-5-sonnet-20241022".to_string()));
 
         let actual = forge_config_to_app_config(fixture);
 
@@ -411,10 +413,9 @@ mod tests {
 
         let actual = app_config_to_forge_config(&app, base);
 
-        let expected_model = ModelConfig {
-            provider_id: Some("anthropic".to_string()),
-            model_id: Some("claude-3-5-sonnet-20241022".to_string()),
-        };
+        let expected_model = ModelConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3-5-sonnet-20241022".to_string());
         assert_eq!(actual.session, Some(expected_model));
     }
 
@@ -436,10 +437,9 @@ mod tests {
 
         let actual = app_config_to_forge_config(&app, base);
 
-        let expected = ModelConfig {
-            provider_id: Some("openai".to_string()),
-            model_id: Some("gpt-4o".to_string()),
-        };
+        let expected = ModelConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4o".to_string());
         assert_eq!(actual.session, Some(expected));
     }
 
@@ -470,7 +470,7 @@ mod tests {
 
         let actual = app_config_to_forge_config(&app, base);
 
-        let expected = ModelConfig { provider_id: Some("anthropic".to_string()), model_id: None };
+        let expected = ModelConfig::default().provider_id("anthropic".to_string());
         assert_eq!(actual.session, Some(expected));
     }
 
@@ -535,14 +535,16 @@ mod tests {
         original.api_key = Some("sk-test".to_string());
         original.api_key_name = Some("test-key".to_string());
         original.api_key_masked = Some("sk-***".to_string());
-        original.session = Some(ModelConfig {
-            provider_id: Some("anthropic".to_string()),
-            model_id: Some("claude-3-5-sonnet-20241022".to_string()),
-        });
-        original.commit = Some(ModelConfig {
-            provider_id: Some("openai".to_string()),
-            model_id: Some("gpt-4o".to_string()),
-        });
+        original.session = Some(
+            ModelConfig::default()
+                .provider_id("anthropic".to_string())
+                .model_id("claude-3-5-sonnet-20241022".to_string()),
+        );
+        original.commit = Some(
+            ModelConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4o".to_string()),
+        );
 
         let app = forge_config_to_app_config(original.clone());
         let actual = app_config_to_forge_config(&app, original.clone());
