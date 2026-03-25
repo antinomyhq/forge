@@ -22,7 +22,7 @@ fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
         auth_provider_id: fc.auth_provider_id,
     });
 
-    let (provider, model) = match fc.default {
+    let (provider, model) = match fc.session {
         Some(mc) => {
             let provider_id = ProviderId::from(mc.provider_id);
             let model_id = ModelId::new(mc.model_id);
@@ -70,7 +70,7 @@ fn app_config_to_forge_config(app: &AppConfig, mut fc: ForgeConfig) -> ForgeConf
     }
 
     // Active model — use the provider's entry from the model map
-    fc.default = app.provider.as_ref().and_then(|pid| {
+    fc.session = app.provider.as_ref().and_then(|pid| {
         app.model.get(pid).map(|mid| ModelConfig {
             provider_id: pid.as_ref().to_string(),
             model_id: mid.to_string(),
@@ -247,7 +247,7 @@ mod tests {
     #[test]
     fn test_forge_config_to_app_config_with_model() {
         let mut fixture = forge_config_defaults();
-        fixture.default = Some(ModelConfig {
+        fixture.session = Some(ModelConfig {
             provider_id: "anthropic".to_string(),
             model_id: "claude-3-5-sonnet-20241022".to_string(),
         });
@@ -348,7 +348,7 @@ mod tests {
 
         // All AppConfig-owned fields must be cleared; unrelated fields preserved.
         assert_eq!(actual.api_key, None);
-        assert_eq!(actual.default, None);
+        assert_eq!(actual.session, None);
         assert_eq!(actual.commit, None);
         assert_eq!(actual.suggest, None);
         // Non-AppConfig field is unchanged
@@ -373,7 +373,7 @@ mod tests {
             provider_id: "anthropic".to_string(),
             model_id: "claude-3-5-sonnet-20241022".to_string(),
         };
-        assert_eq!(actual.default, Some(expected_model));
+        assert_eq!(actual.session, Some(expected_model));
     }
 
     #[test]
@@ -398,7 +398,7 @@ mod tests {
             provider_id: "openai".to_string(),
             model_id: "gpt-4o".to_string(),
         };
-        assert_eq!(actual.default, Some(expected));
+        assert_eq!(actual.session, Some(expected));
     }
 
     #[test]
@@ -413,7 +413,7 @@ mod tests {
 
         let actual = app_config_to_forge_config(&app, base);
 
-        assert_eq!(actual.default, None);
+        assert_eq!(actual.session, None);
     }
 
     #[test]
@@ -477,7 +477,7 @@ mod tests {
         original.api_key = Some("sk-test".to_string());
         original.api_key_name = Some("test-key".to_string());
         original.api_key_masked = Some("sk-***".to_string());
-        original.default = Some(ModelConfig {
+        original.session = Some(ModelConfig {
             provider_id: "anthropic".to_string(),
             model_id: "claude-3-5-sonnet-20241022".to_string(),
         });
@@ -491,7 +491,7 @@ mod tests {
 
         assert_eq!(actual.api_key, original.api_key);
         assert_eq!(actual.api_key_name, original.api_key_name);
-        assert_eq!(actual.default, original.default);
+        assert_eq!(actual.session, original.session);
         assert_eq!(actual.commit, original.commit);
     }
 

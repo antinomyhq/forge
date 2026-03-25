@@ -96,7 +96,7 @@ pub struct ForgeConfig {
     /// Default model and provider configuration to use for all operations if
     /// not specified
     #[serde(default)]
-    pub default: Option<ModelConfig>,
+    pub session: Option<ModelConfig>,
     /// Provider and model to use for commit message generation
     #[serde(default)]
     pub commit: Option<ModelConfig>,
