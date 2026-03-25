@@ -89,13 +89,15 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
             });
         }
         AppConfigOperation::SetCommitConfig(commit) => {
-            fc.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
-                |(pid, mid)| {
+            fc.commit = commit
+                .provider
+                .as_ref()
+                .zip(commit.model.as_ref())
+                .map(|(pid, mid)| {
                     ModelConfig::default()
                         .provider_id(pid.as_ref().to_string())
                         .model_id(mid.to_string())
-                },
-            );
+                });
         }
         AppConfigOperation::SetSuggestConfig(suggest) => {
             fc.suggest = Some(
@@ -158,17 +160,8 @@ impl AppConfigRepository for ForgeConfigRepository {
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
-        // Load the current ForgeConfig (from cache or disk)
-        let mut fc = {
-            let cache = self.cache.lock().await;
-            match cache.as_ref() {
-                Some(cached) => cached.clone(),
-                None => {
-                    drop(cache);
-                    self.read().await
-                }
-            }
-        };
+        // Load the global config
+        let mut fc = ForgeConfig::read_global().await?;
 
         // Apply each operation directly onto ForgeConfig
         for op in ops {
@@ -179,9 +172,9 @@ impl AppConfigRepository for ForgeConfigRepository {
         fc.write().await?;
         debug!(config = ?fc, "written .forge.toml");
 
-        // Update cache
+        // Reset cache
         let mut cache = self.cache.lock().await;
-        *cache = Some(fc);
+        *cache = None;
 
         Ok(())
     }
