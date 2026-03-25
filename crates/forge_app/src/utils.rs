@@ -241,11 +241,13 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
 
 /// Returns true if the Content-Type header indicates binary (non-text) content.
 ///
-/// This utility helps detect binary content types commonly returned by HTTP responses.
-/// It's useful for tools that handle text content but need to detect and reject binary data.
+/// This utility helps detect binary content types commonly returned by HTTP
+/// responses. It's useful for tools that handle text content but need to detect
+/// and reject binary data.
 ///
 /// # Arguments
-/// * `content_type` - The Content-Type header value (e.g., "text/html", "application/octet-stream")
+/// * `content_type` - The Content-Type header value (e.g., "text/html",
+///   "application/octet-stream")
 ///
 /// # Examples
 ///
