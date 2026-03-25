@@ -44,4 +44,15 @@ Good examples:
 Bad example:
   cd /foo/bar && pytest tests
 
+Background execution:
+  - Set `background: true` to run long-lived processes (web servers, file watchers, dev servers) as detached background jobs.
+  - The command returns immediately with a **log file path** and **process ID (PID)** instead of waiting for completion.
+  - The process continues running independently even after the session ends.
+  - CRITICAL: Always remember the log file path returned by background commands. You will need it to check output, diagnose errors, or verify the process is working. After compaction the log file path will still be available in the summary.
+  - Use `read` on the log file path to inspect process output at any time.
+  - Examples of when to use background:
+    - Starting a web server: `npm start`, `python manage.py runserver`, `cargo run --bin server`
+    - Starting a file watcher: `npm run watch`, `cargo watch`
+    - Starting any process that runs indefinitely and should not block your workflow
+
 Returns complete output including stdout, stderr, and exit code for diagnostic purposes.

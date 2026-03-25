@@ -10,8 +10,8 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
-    URLParam,
+    AuthMethod, BackgroundCommandOutput, CommandOutput, Environment, FileInfo as FileInfoData,
+    McpServerConfig, ProviderId, URLParam,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -207,6 +207,17 @@ impl CommandInfra for ForgeInfra {
     ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
             .execute_command_raw(command, working_dir, env_vars)
+            .await
+    }
+
+    async fn execute_command_background(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<BackgroundCommandOutput> {
+        self.command_executor_service
+            .execute_command_background(command, working_dir, env_vars)
             .await
     }
 }

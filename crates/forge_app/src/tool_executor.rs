@@ -6,7 +6,7 @@ use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
-use crate::services::{Services, ShellService};
+use crate::services::{Services, ShellOutputKind, ShellService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
@@ -83,30 +83,42 @@ impl<
                 Ok(files)
             }
             ToolOperation::Shell { output } => {
-                let env = self.services.get_environment();
-                let stdout_lines = output.output.stdout.lines().count();
-                let stderr_lines = output.output.stderr.lines().count();
-                let stdout_truncated =
-                    stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
-                let stderr_truncated =
-                    stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+                if let ShellOutputKind::Foreground(ref cmd_output) = output.kind {
+                    let env = self.services.get_environment();
+                    let stdout_lines = cmd_output.stdout.lines().count();
+                    let stderr_lines = cmd_output.stderr.lines().count();
+                    let stdout_truncated =
+                        stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+                    let stderr_truncated =
+                        stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
 
-                let mut files = TempContentFiles::default();
+                    let mut files = TempContentFiles::default();
 
-                if stdout_truncated {
-                    files = files.stdout(
-                        self.create_temp_file("forge_shell_stdout_", ".txt", &output.output.stdout)
+                    if stdout_truncated {
+                        files = files.stdout(
+                            self.create_temp_file(
+                                "forge_shell_stdout_",
+                                ".txt",
+                                &cmd_output.stdout,
+                            )
                             .await?,
-                    );
-                }
-                if stderr_truncated {
-                    files = files.stderr(
-                        self.create_temp_file("forge_shell_stderr_", ".txt", &output.output.stderr)
+                        );
+                    }
+                    if stderr_truncated {
+                        files = files.stderr(
+                            self.create_temp_file(
+                                "forge_shell_stderr_",
+                                ".txt",
+                                &cmd_output.stderr,
+                            )
                             .await?,
-                    );
-                }
+                        );
+                    }
 
-                Ok(files)
+                    Ok(files)
+                } else {
+                    Ok(TempContentFiles::default())
+                }
             }
             _ => Ok(TempContentFiles::default()),
         }
@@ -261,6 +273,7 @@ impl<
                         PathBuf::from(normalized_cwd),
                         input.keep_ansi,
                         false,
+                        input.background,
                         input.env.clone(),
                         input.description.clone(),
                     )

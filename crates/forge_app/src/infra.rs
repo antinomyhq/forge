@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
-    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, BackgroundCommandOutput, CommandOutput, Environment, FileInfo, McpServerConfig,
+    OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -143,6 +143,18 @@ pub trait CommandInfra: Send + Sync {
         working_dir: PathBuf,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<std::process::ExitStatus>;
+
+    /// Spawns a command as a detached background process.
+    ///
+    /// The process's stdout/stderr are redirected to a temporary log file.
+    /// Returns a `BackgroundCommandOutput` with the PID, log path, and the
+    /// temp-file handle that owns the log file on disk.
+    async fn execute_command_background(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<BackgroundCommandOutput>;
 }
 
 #[async_trait::async_trait]

@@ -130,5 +130,9 @@
   {
     "command": "setup",
     "description": "Setup zsh integration by updating .zshrc"
+  },
+  {
+    "command": "processes",
+    "description": "List and manage background processes [alias: ps]"
   }
 ]

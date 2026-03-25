@@ -18,7 +18,8 @@ use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
+    AgentService, AttachmentService, ShellOutput, ShellOutputKind, ShellService, SkillFetchService,
+    TemplateService,
 };
 
 static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
@@ -229,6 +230,7 @@ impl ShellService for Runner {
         _cwd: std::path::PathBuf,
         _keep_ansi: bool,
         _silent: bool,
+        _background: bool,
         _env_vars: Option<Vec<String>>,
         _description: Option<String>,
     ) -> anyhow::Result<ShellOutput> {
@@ -237,15 +239,25 @@ impl ShellService for Runner {
             Ok(output)
         } else {
             Ok(ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     stdout: String::new(),
                     stderr: String::new(),
                     command: String::new(),
                     exit_code: Some(1),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             })
         }
+    }
+
+    async fn list_background_processes(
+        &self,
+    ) -> anyhow::Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
+        Ok(Vec::new())
+    }
+
+    async fn kill_background_process(&self, _pid: u32, _delete_log: bool) -> anyhow::Result<()> {
+        Ok(())
     }
 }
