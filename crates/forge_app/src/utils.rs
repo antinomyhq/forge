@@ -239,6 +239,50 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
     }
 }
 
+/// Returns true if the Content-Type header indicates binary (non-text) content.
+///
+/// This utility helps detect binary content types commonly returned by HTTP responses.
+/// It's useful for tools that handle text content but need to detect and reject binary data.
+///
+/// # Arguments
+/// * `content_type` - The Content-Type header value (e.g., "text/html", "application/octet-stream")
+///
+/// # Examples
+///
+/// ```
+/// use forge_app::utils::is_binary_content_type;
+///
+/// // Text content types are not binary
+/// assert!(!is_binary_content_type("text/html"));
+/// assert!(!is_binary_content_type("application/json"));
+///
+/// // Binary content types are detected
+/// assert!(is_binary_content_type("image/png"));
+/// assert!(is_binary_content_type("application/octet-stream"));
+/// ```
+pub fn is_binary_content_type(content_type: &str) -> bool {
+    let ct = content_type.to_lowercase();
+    // Allow text/* and common text-based types
+    if ct.starts_with("text/")
+        || ct.contains("json")
+        || ct.contains("xml")
+        || ct.contains("javascript")
+        || ct.contains("ecmascript")
+        || ct.contains("yaml")
+        || ct.contains("toml")
+        || ct.contains("csv")
+        || ct.contains("html")
+        || ct.contains("svg")
+        || ct.contains("markdown")
+        || ct.is_empty()
+    {
+        return false;
+    }
+    // Everything else (application/gzip, application/octet-stream, image/*,
+    // audio/*, video/*, etc.)
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;

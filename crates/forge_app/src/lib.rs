@@ -51,7 +51,7 @@ pub use services::*;
 pub use template_engine::*;
 pub use tool_resolver::*;
 pub use user::*;
-pub use utils::compute_hash;
+pub use utils::{compute_hash, is_binary_content_type};
 pub use walker::*;
 pub use workspace_status::*;
 pub mod domain {
