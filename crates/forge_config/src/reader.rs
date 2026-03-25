@@ -48,6 +48,33 @@ impl ConfigReader {
         let config = builder.build()?;
         Ok(config.try_deserialize()?)
     }
+
+    /// Reads and merges configuration from the embedded defaults and the given
+    /// TOML string, returning the resolved [`ForgeConfig`].
+    ///
+    /// Unlike [`read`], this method accepts already-loaded TOML content and
+    /// does not touch the filesystem or environment variables. This is
+    /// appropriate when the caller has already read the raw file content via
+    /// its own I/O abstraction.
+    pub fn read_str(&self, contents: &str) -> crate::Result<ForgeConfig> {
+        let defaults = include_str!("../.forge.toml");
+        let config = Config::builder()
+            .add_source(config::File::from_str(defaults, config::FileFormat::Toml))
+            .add_source(config::File::from_str(contents, config::FileFormat::Toml))
+            .build()?;
+        Ok(config.try_deserialize()?)
+    }
+
+    /// Returns the [`ForgeConfig`] built from the embedded defaults only,
+    /// without reading any file or environment variables.
+    pub fn read_defaults(&self) -> ForgeConfig {
+        let defaults = include_str!("../.forge.toml");
+        Config::builder()
+            .add_source(config::File::from_str(defaults, config::FileFormat::Toml))
+            .build()
+            .and_then(|c| c.try_deserialize())
+            .expect("embedded .forge.toml defaults must always be valid")
+    }
 }
 
 #[cfg(test)]

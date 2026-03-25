@@ -13,17 +13,12 @@ pub struct InitAuth {
     pub token: String,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderId>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub model: HashMap<ProviderId, ModelId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit: Option<CommitConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<SuggestConfig>,
 }
 

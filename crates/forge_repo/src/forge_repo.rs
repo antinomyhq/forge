@@ -42,7 +42,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
+    app_config_repository: Arc<AppConfigRepositoryImpl>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -69,7 +69,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         ));
 
         let app_config_repository = Arc::new(
-            AppConfigRepositoryImpl::new(infra.clone())
+            AppConfigRepositoryImpl::new()
                 .override_model(override_model)
                 .override_provider(override_provider),
         );
@@ -202,9 +202,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
-    for ForgeRepo<F>
-{
+impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         self.app_config_repository.get_app_config().await
     }

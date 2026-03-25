@@ -2190,6 +2190,7 @@ dependencies = [
  "eventsource-stream",
  "fake",
  "forge_app",
+ "forge_config",
  "forge_domain",
  "forge_fs",
  "forge_infra",

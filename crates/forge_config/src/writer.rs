@@ -13,6 +13,15 @@ impl ConfigWriter {
         Self { config }
     }
 
+    /// Serializes the configuration to a TOML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration cannot be serialized.
+    pub fn to_string(&self) -> crate::Result<String> {
+        Ok(toml_edit::ser::to_string_pretty(&self.config)?)
+    }
+
     /// Serializes and writes the configuration to `path`, creating all parent
     /// directories recursively if they do not already exist.
     ///
