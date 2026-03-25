@@ -93,6 +93,9 @@ pub struct ForgeConfig {
     pub max_parallel_file_reads: usize,
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
+    /// Default provider_id to use for all models if not specified
+    #[serde(default)]
+    pub provider: Option<String>,
     /// Map of provider ID to model ID for per-provider model selection
     #[serde(default)]
     pub model: Option<ModelConfig>,
@@ -205,7 +208,7 @@ impl ForgeConfig {
         let home_dir = dirs::home_dir().ok_or_else(|| {
             std::io::Error::new(std::io::ErrorKind::NotFound, "home directory not found")
         })?;
-        Ok(home_dir.join(".forge").join(".forge.toml"))
+        Ok(home_dir.join("forge").join(".forge.toml"))
     }
 
     /// Reads and merges configuration from all sources, returning the resolved
