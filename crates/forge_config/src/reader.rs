@@ -1,13 +1,66 @@
-use std::path::Path;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use config::Config;
+use serde::Deserialize;
+use tracing::debug;
 
-use crate::ForgeConfig;
+use crate::{ForgeConfig, ModelConfig};
 
 /// Reads and merges [`ForgeConfig`] from multiple sources: embedded defaults,
 /// home directory file, current working directory file, and environment
 /// variables.
 pub struct ConfigReader {}
+
+/// Intermediate representation of the legacy `~/forge/.config.json` format.
+///
+/// This format stores the active provider as a top-level string and models as
+/// a map from provider ID to model ID, which differs from the TOML config's
+/// nested `session`, `commit`, and `suggest` sub-objects.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LegacyConfig {
+    /// The active provider ID (e.g. `"anthropic"`).
+    #[serde(default)]
+    provider: Option<String>,
+    /// Map from provider ID to the model ID to use with that provider.
+    #[serde(default)]
+    model: HashMap<String, String>,
+    /// Commit message generation provider/model pair.
+    #[serde(default)]
+    commit: Option<LegacyModelRef>,
+    /// Shell command suggestion provider/model pair.
+    #[serde(default)]
+    suggest: Option<LegacyModelRef>,
+}
+
+/// A provider/model pair as expressed in the legacy JSON config.
+#[derive(Debug, Deserialize)]
+struct LegacyModelRef {
+    provider: Option<String>,
+    model: Option<String>,
+}
+
+impl LegacyConfig {
+    /// Converts a [`LegacyConfig`] into the fields of [`ForgeConfig`] that it
+    /// covers, leaving all other fields at their defaults.
+    fn into_forge_config(self) -> ForgeConfig {
+        let session = self.provider.as_deref().map(|provider_id| {
+            let model_id = self.model.get(provider_id).cloned();
+            ModelConfig { provider_id: Some(provider_id.to_string()), model_id }
+        });
+
+        let commit = self
+            .commit
+            .map(|c| ModelConfig { provider_id: c.provider, model_id: c.model });
+
+        let suggest = self
+            .suggest
+            .map(|s| ModelConfig { provider_id: s.provider, model_id: s.model });
+
+        ForgeConfig { session, commit, suggest, ..Default::default() }
+    }
+}
 
 impl ConfigReader {
     /// Creates a new `ConfigReader`.
@@ -15,11 +68,17 @@ impl ConfigReader {
         Self {}
     }
 
+    /// Returns the path to the legacy JSON config file: `~/forge/.config.json`.
+    fn legacy_config_path() -> Option<PathBuf> {
+        dirs::home_dir().map(|home| home.join("forge").join(".config.json"))
+    }
+
     /// Reads and merges configuration from all sources, returning the resolved
     /// [`ForgeConfig`].
     ///
     /// Sources are applied in increasing priority order: embedded defaults,
-    /// the optional file at `path` (skipped when `None`), then environment
+    /// `~/forge/.config.json` (legacy JSON config, skipped when absent), the
+    /// optional file at `path` (skipped when `None`), then environment
     /// variables prefixed with `FORGE_`.
     pub async fn read(&self, path: Option<&Path>) -> crate::Result<ForgeConfig> {
         let defaults = include_str!("../.forge.toml");
@@ -27,6 +86,23 @@ impl ConfigReader {
 
         // Load default
         builder = builder.add_source(config::File::from_str(defaults, config::FileFormat::Toml));
+
+        // Load from ~/forge/.config.json (legacy format)
+        if let Some(path) = Self::legacy_config_path() {
+            if tokio::fs::try_exists(&path).await? {
+                let json_contents = tokio::fs::read_to_string(&path).await?;
+                if let Ok(json_config) = serde_json::from_str::<LegacyConfig>(&json_contents) {
+                    let config = json_config.into_forge_config();
+                    let toml_contents = toml_edit::ser::to_string(&config).unwrap_or_default();
+                    builder = builder.add_source(config::File::from_str(
+                        &toml_contents,
+                        config::FileFormat::Toml,
+                    ));
+                }
+            } else {
+                debug!("Legacy config file not found at {:?}, skipping", path);
+            }
+        }
 
         // Load from path
         if let Some(path) = path
