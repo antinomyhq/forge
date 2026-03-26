@@ -228,8 +228,8 @@ mod tests {
         assert_eq!(fixture.timeout_secs, 3600);
     }
 
-    #[test]
-    fn test_tensorlake_executor_creation() {
+    #[tokio::test]
+    async fn test_tensorlake_executor_creation() {
         let config = TensorlakeConfig::new("test-api-key".to_string());
         let executor = TensorlakeCommandExecutor::new(config.clone());
 
