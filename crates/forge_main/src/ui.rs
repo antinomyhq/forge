@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+use console::style;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
@@ -290,6 +291,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Handle direct prompt or piped input if provided (raw text messages)
         let input = self.cli.prompt.clone().or(self.cli.piped_input.clone());
         if let Some(input) = input {
+            tracker::prompt(input.clone());
             self.spinner.start(None)?;
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
@@ -599,8 +601,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
-                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
-                        self.on_index(path, batch_size).await?;
+                    crate::cli::WorkspaceCommand::Sync { path, init } => {
+                        self.on_index(path, init).await?;
                     }
                     crate::cli::WorkspaceCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
@@ -1213,6 +1215,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
+                .sort_by(&[1, 0])
                 .to_case(&[1], Case::UpperSnake)
                 .map_col(0, |col| {
                     if col.as_deref() == Some(headers::ID) {
@@ -1420,24 +1423,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Show failed MCP servers
-        if !all_tools.mcp.get_failures().is_empty() {
-            info = info.add_title("FAILED");
-            for (server_name, error) in all_tools.mcp.get_failures().iter() {
-                // Truncate error message for readability
-                let truncated_error = if error.len() > 80 {
-                    format!("{}...", &error[..77])
-                } else {
-                    error.clone()
-                };
-                info = info.add_value(format!("[✗] {server_name} - {truncated_error}"));
-            }
-        }
-
         if porcelain {
             self.writeln(Porcelain::from(&info).uppercase_headers().truncate(3, 60))?;
         } else {
             self.writeln(info)?;
+        }
+
+        // Show failed MCP servers
+        if !porcelain && !all_tools.mcp.get_failures().is_empty() {
+            self.writeln("MCP FAILURES\n".dimmed().bold())?;
+            for (_, error) in all_tools.mcp.get_failures().iter() {
+                let error = style(error).red();
+                self.writeln(error)?;
+            }
         }
 
         Ok(())
@@ -1979,8 +1977,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 100 for slash command
-                self.on_index(working_dir, 100).await?;
+                self.on_index(working_dir, false).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -3633,11 +3630,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_index(
-        &mut self,
-        path: std::path::PathBuf,
-        batch_size: usize,
-    ) -> anyhow::Result<()> {
+    async fn on_index(&mut self, path: std::path::PathBuf, init: bool) -> anyhow::Result<()> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
@@ -3646,7 +3639,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.init_forge_services().await?;
         }
 
-        let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
+        // When init is set, check if the workspace is already initialized
+        // via get_workspace_info before calling init, so we only initialize
+        // when a workspace does not yet exist for the given path.
+        if init {
+            let workspace_info = self.api.get_workspace_info(path.clone()).await?;
+            if workspace_info.is_none() {
+                self.on_workspace_init(path.clone()).await?;
+            }
+        }
+
+        let mut stream = self.api.sync_workspace(path.clone()).await?;
         let mut progress_bar = ProgressBarManager::default();
 
         while let Some(event) = stream.next().await {
@@ -3997,19 +4000,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            self.init_forge_services().await?;
+        }
+
         self.spinner.start(Some("Initializing workspace"))?;
 
         let workspace_id = self.api.init_workspace(path.clone()).await?;
 
         self.spinner.stop(None)?;
 
-        // Resolve and display the path
-        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
-
         self.writeln_title(
             TitleFormat::info("Workspace initialized successfully")
-                .sub_title(format!("Path: {}", canonical_path.display()))
-                .sub_title(format!("Workspace ID: {}", workspace_id)),
+                .sub_title(format!("{}", workspace_id)),
         )?;
 
         Ok(())

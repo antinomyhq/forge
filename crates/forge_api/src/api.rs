@@ -207,7 +207,6 @@ pub trait API: Sync + Send {
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>>;
 
     /// Query the indexed workspace

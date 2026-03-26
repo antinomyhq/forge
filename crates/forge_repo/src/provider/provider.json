@@ -2289,7 +2289,6 @@
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
       },
-
       {
         "id": "minimax-m2.5",
         "name": "MiniMax M2.5",
@@ -2357,6 +2356,117 @@
         "name": "Nemotron 3 Super Free",
         "description": "Free NVIDIA Nemotron model for testing",
         "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "mimo-v2-pro-free",
+        "name": "Mimo V2 pro Free",
+        "description": "MiMo-V2-Pro is Xiaomi's flagship foundation model, featuring over 1T total parameters and a 1M context length",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "mimo-v2-omni-free",
+        "name": "Mimo V2 omni Free",
+        "description": "MiMo-V2-Omni is a frontier omni-modal model that natively processes image, video, and audio inputs within a unified architecture",
+        "context_length": 262100,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      }
+    ],
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "alibaba_coding",
+    "provider_type": "llm",
+    "api_key_vars": "ALIBABA_CODING_API_KEY",
+    "url_param_vars": ["ANTHROPIC_COMPACT_URL"],
+    "response_type": "Anthropic",
+    "url": "{{ANTHROPIC_COMPACT_URL}}/messages",
+    "models": [
+      {
+        "id": "qwen3.5-plus",
+        "name": "Qwen 3.5 plus",
+        "description": "Alibaba's Qwen3.5 Plus is an enhanced general-purpose model in the Qwen3.5 API tier, supporting both text and image input. Offers hybrid thinking modes (step-by-step reasoning and fast direct responses), strong multilingual coverage across 119+ languages, and improved agentic and tool-use capabilities over Qwen3.",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "kimi-k2.5",
+        "name": "Kimi K2.5",
+        "description": "Kimi K2.5 is an updated iteration of Moonshot AI's Kimi K2 — a 1-trillion-parameter Mixture-of-Experts model (32B active parameters) trained with the MuonClip optimizer on 15.5T tokens. Delivers frontier performance in agentic tasks, tool use, coding (SWE-bench 65.8%), math, and reasoning. Supports multimodal input (text and image).",
+        "context_length": 262000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "glm-5",
+        "name": "GLM 5",
+        "description": "GLM-5 is the 5th-generation model in Zhipu AI's GLM (General Language Model) series. Builds on GLM-4 with improved reasoning, instruction following, tool use, and code generation capabilities. Designed for complex question answering, agent workflows, and multi-turn conversations.",
+        "context_length": 202000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "MiniMax-M2.5",
+        "name": "MiniMax M2.5",
+        "description": "MiniMax M2.5 is a 230B-parameter Mixture-of-Experts model with 10B active parameters per inference, designed for high-throughput, low-latency production environments. Delivers SOTA performance in coding (Multi-SWE-Bench), agentic task decomposition, office scenarios (Excel, Word, PPT), and search-augmented reasoning. Available at competitive pricing (~$0.3/M input tokens).",
+        "context_length": 196000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen3-max-2026-01-23",
+        "name": "Qwen 3 Max",
+        "description": "Qwen3 Max (snapshot 2026-01-23) is Alibaba's flagship Qwen3 API model. Features hybrid thinking modes — extended chain-of-thought reasoning and instant non-thinking responses — with strong benchmark results in coding, math, and general tasks comparable to DeepSeek-R1, o1, and Gemini 2.5 Pro. Pre-trained on ~36T tokens across 119 languages.",
+        "context_length": 262000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen3-coder-next",
+        "name": "Qwen 3 Coder Next",
+        "description": "Qwen3-Coder Next is Alibaba's next-generation agentic coding model, successor to Qwen3-Coder Plus. Built on a 480B-parameter MoE architecture (35B active parameters), trained on 7.5T tokens with 70% code ratio. Natively supports 256K context (extendable to 1M via YaRN). Achieves SOTA on SWE-Bench Verified among open models, with strong performance on agentic coding, browser-use, and tool-use tasks.",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen3-coder-plus",
+        "name": "Qwen 3 Coder Plus",
+        "description": "Qwen3-Coder Plus is Alibaba's dedicated agentic coding model, based on the Qwen3-Coder-480B-A35B architecture (480B total, 35B active parameters). Pre-trained on 7.5T tokens with 70% code ratio and fine-tuned with long-horizon reinforcement learning on 20,000 parallel environments. Natively supports 256K context (extendable to 1M via YaRN). Comparable to Claude Sonnet 4 on agentic coding benchmarks.",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "glm-4.7",
+        "name": "GLM 4.7",
+        "description": "GLM-4.7 is a version in Zhipu AI's GLM-4 API model family. Offers strong performance in Chinese and English for instruction following, reasoning, tool use, and multi-turn dialogue. Part of the same generation as GLM-4-Plus, with improvements in long-context handling and structured output.",
+        "context_length": 202000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
