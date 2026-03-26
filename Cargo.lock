@@ -1634,6 +1634,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
+name = "enable-ansi-support"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea7457668b3da8a4b702f3d79e131aa3e81cd7e81cc95fb2d54fce9f182ecc77"
+dependencies = [
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2109,6 +2118,7 @@ dependencies = [
  "console 0.16.3",
  "convert_case 0.11.0",
  "derive_setters",
+ "enable-ansi-support",
  "fake",
  "forge_api",
  "forge_app",

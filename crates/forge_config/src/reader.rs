@@ -105,7 +105,9 @@ impl ConfigReader {
     /// absent.
     pub fn read_global(mut self) -> Self {
         let path = Self::config_path();
-        self.builder = self.builder.add_source(config::File::from(path));
+        self.builder = self
+            .builder
+            .add_source(config::File::from(path).required(false));
         self
     }
 
