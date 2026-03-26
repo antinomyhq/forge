@@ -63,22 +63,6 @@ pub struct Cli {
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
 
-    /// Override the model to use for this session.
-    ///
-    /// When provided, uses this model instead of the configured default.
-    /// This is a runtime override and does not change the permanent
-    /// configuration.
-    #[arg(long)]
-    pub model: Option<ModelId>,
-
-    /// Override the provider to use for this session.
-    ///
-    /// When provided, uses this provider instead of the configured default.
-    /// This is a runtime override and does not change the permanent
-    /// configuration.
-    #[arg(long)]
-    pub provider: Option<ProviderId>,
-
     /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,

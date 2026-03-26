@@ -190,6 +190,9 @@ function forge-accept-line() {
         config)
             _forge_action_config
         ;;
+        config-edit|ce)
+            _forge_action_config_edit
+        ;;
         skill)
             _forge_action_skill
         ;;

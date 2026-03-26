@@ -11,6 +11,10 @@ use forge_main::rprompt_fast;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Enable ANSI color support on Windows console
+    #[cfg(windows)]
+    let _ = enable_ansi_support::enable_ansi_support();
+
     // Install default rustls crypto provider (ring) before any TLS connections
     // This is required for rustls 0.23+ when multiple crypto providers are
     // available
@@ -121,16 +125,7 @@ async fn main() -> Result<()> {
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
-    let cli_model = cli.model.clone();
-    let cli_provider = cli.provider.clone();
-    let mut ui = UI::init(cli, move || {
-        ForgeAPI::init(
-            restricted,
-            cwd.clone(),
-            cli_model.clone(),
-            cli_provider.clone(),
-        )
-    })?;
+    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
     ui.run().await;
 
     Ok(())

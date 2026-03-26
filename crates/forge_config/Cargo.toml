@@ -1,0 +1,23 @@
+[package]
+name = "forge_config"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+config = { version = "0.15", features = ["toml"] }
+derive_setters.workspace = true
+dirs.workspace = true
+dotenvy.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml_edit = { workspace = true }
+url.workspace = true
+fake = { version = "5.1.0", features = ["derive"] }
+schemars.workspace = true
+merge.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+pretty_assertions.workspace = true
