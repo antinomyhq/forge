@@ -19,7 +19,11 @@ async fn main() -> Result<()> {
     // available
     let _ = rustls::crypto::ring::default_provider().install_default();
 
-    // Set up panic hook for better error display
+    // Set up panic hook for better error display.
+    // Important: do NOT call `std::process::exit` here. Exiting inside the hook
+    // skips stack unwinding, which prevents `Drop` implementations (such as the
+    // Tensorlake `SandboxGuard`) from running. Returning from the hook lets Rust
+    // unwind the stack normally so all destructors fire before the process exits.
     panic::set_hook(Box::new(|panic_info| {
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             s.to_string()
@@ -31,7 +35,6 @@ async fn main() -> Result<()> {
 
         println!("{}", TitleFormat::error(message.to_string()).display());
         tracker::error_blocking(message);
-        std::process::exit(1);
     }));
 
     // Initialize and run the UI

@@ -22,12 +22,21 @@ pub struct TensorlakeConfig {
     pub memory_mb: u64,
     /// Inactivity timeout in seconds before the sandbox auto-suspends (default: 3600).
     pub timeout_secs: u64,
+    /// Base URL for the Tensorlake API (default: `https://api.tensorlake.ai`).
+    /// Overridable in tests to point at a local mock server.
+    pub base_url: String,
 }
 
 impl TensorlakeConfig {
     /// Creates a new `TensorlakeConfig` with the given API key and sensible defaults.
     pub fn new(api_key: String) -> Self {
-        Self { api_key, cpus: 2.0, memory_mb: 4096, timeout_secs: 3600 }
+        Self {
+            api_key,
+            cpus: 2.0,
+            memory_mb: 4096,
+            timeout_secs: 3600,
+            base_url: TENSORLAKE_API_BASE.to_string(),
+        }
     }
 }
 
@@ -70,29 +79,34 @@ struct SandboxGuard {
     sandbox_id: Arc<Mutex<Option<String>>>,
     client: reqwest::Client,
     api_key: String,
+    base_url: String,
 }
 
 impl Drop for SandboxGuard {
-    /// Spawns a best-effort DELETE request to terminate the sandbox.
+    /// Synchronously terminates the sandbox by sending a DELETE request.
     ///
-    /// Because `Drop` is synchronous the HTTP call is dispatched as a detached
-    /// Tokio task. This is sufficient for normal program exit where the runtime
-    /// continues to run briefly after `main` returns; the `timeout_secs`
-    /// configured on the sandbox acts as the ultimate safety net for abrupt
-    /// termination (e.g. SIGKILL).
+    /// Uses `block_in_place` + `block_on` so the HTTP call completes before
+    /// `Drop` returns, ensuring the sandbox is always cleaned up on normal
+    /// exit, Ctrl-C, and panics that unwind the stack. SIGKILL remains
+    /// unhandled by design; `timeout_secs` acts as the safety net there.
     fn drop(&mut self) {
         let sandbox_id = self.sandbox_id.clone();
         let client = self.client.clone();
         let api_key = self.api_key.clone();
+        let base_url = self.base_url.clone();
 
-        tokio::spawn(async move {
-            let guard = sandbox_id.lock().await;
-            if let Some(id) = guard.as_deref() {
-                let url = format!("{}/sandboxes/{}", TENSORLAKE_API_BASE, id);
-                let _ = client.delete(&url).bearer_auth(&api_key).send().await;
-                tracing::debug!(sandbox_id = %id, "Tensorlake sandbox terminated");
-            }
-        });
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            tokio::task::block_in_place(|| {
+                handle.block_on(async move {
+                    let guard = sandbox_id.lock().await;
+                    if let Some(id) = guard.as_deref() {
+                        let url = format!("{}/sandboxes/{}", base_url, id);
+                        let _ = client.delete(&url).bearer_auth(&api_key).send().await;
+                        tracing::debug!(sandbox_id = %id, "Tensorlake sandbox terminated");
+                    }
+                });
+            });
+        }
     }
 }
 
@@ -122,6 +136,7 @@ impl TensorlakeCommandExecutor {
             sandbox_id: sandbox_id.clone(),
             client: client.clone(),
             api_key: config.api_key.clone(),
+            base_url: config.base_url.clone(),
         });
         Self { config, client, sandbox_id, _guard: guard }
     }
@@ -142,7 +157,7 @@ impl TensorlakeCommandExecutor {
 
     /// Provisions a new Tensorlake sandbox and returns its ID.
     async fn create_sandbox(&self) -> anyhow::Result<String> {
-        let url = format!("{}/sandboxes", TENSORLAKE_API_BASE);
+        let url = format!("{}/sandboxes", self.config.base_url);
         let body = serde_json::json!({
             "resources": {
                 "cpus": self.config.cpus,
@@ -181,7 +196,7 @@ impl TensorlakeCommandExecutor {
 
     /// Polls the sandbox status endpoint until the sandbox reaches the "running" state.
     async fn wait_for_running(&self, sandbox_id: &str) -> anyhow::Result<()> {
-        let url = format!("{}/sandboxes/{}", TENSORLAKE_API_BASE, sandbox_id);
+        let url = format!("{}/sandboxes/{}", self.config.base_url, sandbox_id);
         for attempt in 0..60 {
             tokio::time::sleep(std::time::Duration::from_secs(if attempt == 0 { 1 } else { 2 }))
                 .await;
@@ -394,9 +409,10 @@ mod tests {
         assert_eq!(fixture.cpus, 2.0);
         assert_eq!(fixture.memory_mb, 4096);
         assert_eq!(fixture.timeout_secs, 3600);
+        assert_eq!(fixture.base_url, "https://api.tensorlake.ai");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_tensorlake_executor_creation() {
         let config = TensorlakeConfig::new("test-api-key".to_string());
         let executor = TensorlakeCommandExecutor::new(config.clone());
@@ -405,7 +421,7 @@ mod tests {
         assert_eq!(executor.config.cpus, config.cpus);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_sandbox_proxy_url() {
         let config = TensorlakeConfig::new("key".to_string());
         let executor = TensorlakeCommandExecutor::new(config);
@@ -413,7 +429,7 @@ mod tests {
         assert_eq!(url, "https://abc123.sandbox.tensorlake.ai/api/v1");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_cleanup_fires_on_last_clone_dropped() {
         let config = TensorlakeConfig::new("key".to_string());
         let executor = TensorlakeCommandExecutor::new(config);
@@ -429,6 +445,70 @@ mod tests {
         // Dropping the original reduces the count to 0 — cleanup fires here.
         // (No sandbox was provisioned so the spawned task is a no-op.)
         drop(executor);
+    }
+
+    /// Verifies that dropping the executor sends a DELETE /sandboxes/{id} request
+    /// synchronously — i.e. the request completes before `drop` returns, so the
+    /// mock server receives it before `assert_hits` is checked.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_sandbox_terminated_on_drop() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock = server
+            .mock("DELETE", "/sandboxes/test-sandbox-id")
+            .with_status(200)
+            .expect(1)
+            .create_async()
+            .await;
+
+        let mut config = TensorlakeConfig::new("test-key".to_string());
+        config.base_url = server.url();
+
+        let executor = TensorlakeCommandExecutor::new(config);
+
+        // Manually plant a sandbox ID so the guard has something to DELETE.
+        {
+            let mut guard = executor.sandbox_id.lock().await;
+            *guard = Some("test-sandbox-id".to_string());
+        }
+
+        // Drop the executor — SandboxGuard::drop must complete the DELETE before
+        // returning, so the mock expectation is satisfied synchronously.
+        drop(executor);
+
+        mock.assert_async().await;
+    }
+
+    /// Verifies that a clone and the original share the guard, and the DELETE is
+    /// sent exactly once — only when the last clone is dropped.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_sandbox_terminated_exactly_once_across_clones() {
+        let mut server = mockito::Server::new_async().await;
+
+        let mock = server
+            .mock("DELETE", "/sandboxes/shared-sandbox")
+            .with_status(200)
+            .expect(1) // must fire exactly once, not twice
+            .create_async()
+            .await;
+
+        let mut config = TensorlakeConfig::new("test-key".to_string());
+        config.base_url = server.url();
+
+        let executor = TensorlakeCommandExecutor::new(config);
+        let clone = executor.clone();
+
+        {
+            let mut guard = executor.sandbox_id.lock().await;
+            *guard = Some("shared-sandbox".to_string());
+        }
+
+        // Dropping the clone must NOT trigger the DELETE yet.
+        drop(clone);
+        // Dropping the original must trigger the DELETE exactly once.
+        drop(executor);
+
+        mock.assert_async().await;
     }
 
     #[test]
