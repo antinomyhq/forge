@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, anyhow};
 use async_trait::async_trait;
@@ -54,6 +56,10 @@ struct StartProcessRequest<'a> {
     command: &'a str,
     args: Vec<&'a str>,
     working_dir: String,
+    /// Optional environment variables to inject, as `KEY=VALUE` pairs parsed
+    /// into a map. The Tensorlake API accepts `{"KEY": "VALUE"}` format.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    env: Option<HashMap<String, String>>,
 }
 
 /// Infrastructure implementation that executes shell commands inside an isolated
@@ -68,6 +74,9 @@ pub struct TensorlakeCommandExecutor {
     client: reqwest::Client,
     /// Lazily initialized sandbox ID, shared across clones via `Arc<Mutex<…>>`.
     sandbox_id: Arc<Mutex<Option<String>>>,
+    /// Guards against duplicate DELETE requests when multiple clones are dropped.
+    /// Only the first clone to set this flag will schedule sandbox termination.
+    cleanup_scheduled: Arc<AtomicBool>,
 }
 
 impl TensorlakeCommandExecutor {
@@ -77,6 +86,7 @@ impl TensorlakeCommandExecutor {
             config,
             client: reqwest::Client::new(),
             sandbox_id: Arc::new(Mutex::new(None)),
+            cleanup_scheduled: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -175,9 +185,15 @@ impl TensorlakeCommandExecutor {
 impl Drop for TensorlakeCommandExecutor {
     /// Schedules sandbox termination when the executor is dropped.
     ///
-    /// A best-effort background task is spawned so that the `Drop` impl
-    /// remains synchronous while still cleaning up remote resources.
+    /// Uses an `AtomicBool` flag so that only the first clone to be dropped
+    /// schedules the DELETE request — preventing duplicate API calls when
+    /// multiple clones of the executor share the same `sandbox_id` Arc.
     fn drop(&mut self) {
+        // Only the first dropper proceeds; all subsequent clones are no-ops.
+        if self.cleanup_scheduled.swap(true, Ordering::SeqCst) {
+            return;
+        }
+
         let sandbox_id = self.sandbox_id.clone();
         let client = self.client.clone();
         let api_key = self.config.api_key.clone();
@@ -201,7 +217,7 @@ impl CommandInfra for TensorlakeCommandExecutor {
         command: String,
         working_dir: PathBuf,
         _silent: bool,
-        _env_vars: Option<Vec<String>>,
+        env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
         let sandbox_id = self.ensure_sandbox().await?;
         let proxy = self.sandbox_proxy_url(&sandbox_id);
@@ -218,9 +234,26 @@ impl CommandInfra for TensorlakeCommandExecutor {
             }
         };
 
+        // Parse `KEY=VALUE` strings into the dict format the Tensorlake API expects.
+        let env = env_vars.map(|vars| {
+            vars.into_iter()
+                .filter_map(|kv| {
+                    let mut parts = kv.splitn(2, '=');
+                    let key = parts.next()?.to_string();
+                    let value = parts.next().unwrap_or("").to_string();
+                    Some((key, value))
+                })
+                .collect::<HashMap<String, String>>()
+        });
+
         // Use `sh -c <command>` so pipes and redirects work correctly.
         let start_url = format!("{}/processes", proxy);
-        let request = StartProcessRequest { command: "sh", args: vec!["-c", &command], working_dir: cwd };
+        let request = StartProcessRequest {
+            command: "sh",
+            args: vec!["-c", &command],
+            working_dir: cwd,
+            env,
+        };
 
         tracing::info!(command = %command, sandbox_id = %sandbox_id, "Executing command in Tensorlake sandbox");
 
@@ -369,5 +402,43 @@ mod tests {
         let executor = TensorlakeCommandExecutor::new(config);
         let url = executor.sandbox_proxy_url("abc123");
         assert_eq!(url, "https://abc123.sandbox.tensorlake.ai/api/v1");
+    }
+
+    #[tokio::test]
+    async fn test_clone_does_not_duplicate_cleanup() {
+        let config = TensorlakeConfig::new("key".to_string());
+        let executor = TensorlakeCommandExecutor::new(config);
+        let clone = executor.clone();
+
+        // First drop sets the flag and would schedule cleanup.
+        assert!(!executor.cleanup_scheduled.swap(true, Ordering::SeqCst));
+        // Second drop (the clone) sees the flag already set and is a no-op.
+        assert!(clone.cleanup_scheduled.swap(true, Ordering::SeqCst));
+    }
+
+    #[test]
+    fn test_env_vars_parsed_into_map() {
+        let vars = vec![
+            "FOO=bar".to_string(),
+            "BAZ=qux=with=equals".to_string(),
+            "EMPTY=".to_string(),
+        ];
+
+        let actual: HashMap<String, String> = vars
+            .into_iter()
+            .filter_map(|kv| {
+                let mut parts = kv.splitn(2, '=');
+                let key = parts.next()?.to_string();
+                let value = parts.next().unwrap_or("").to_string();
+                Some((key, value))
+            })
+            .collect();
+
+        let mut expected = HashMap::new();
+        expected.insert("FOO".to_string(), "bar".to_string());
+        expected.insert("BAZ".to_string(), "qux=with=equals".to_string());
+        expected.insert("EMPTY".to_string(), "".to_string());
+
+        assert_eq!(actual, expected);
     }
 }
