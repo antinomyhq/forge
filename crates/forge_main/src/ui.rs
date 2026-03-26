@@ -1330,10 +1330,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
+        // Per-agent model overrides
+        let forge_config = self.api.get_agent_model_config(&AgentId::FORGE).await.ok().flatten();
+        let forge_model = forge_config
+            .as_ref()
+            .map(|c| format!("{} ({})", c.model.as_str(), c.provider))
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
+        let sage_config = self.api.get_agent_model_config(&AgentId::SAGE).await.ok().flatten();
+        let sage_model = sage_config
+            .as_ref()
+            .map(|c| format!("{} ({})", c.model.as_str(), c.provider))
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
+        let muse_config = self.api.get_agent_model_config(&AgentId::MUSE).await.ok().flatten();
+        let muse_model = muse_config
+            .as_ref()
+            .map(|c| format!("{} ({})", c.model.as_str(), c.provider))
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
         let info = Info::new()
             .add_title("CONFIGURATION")
             .add_key_value("Default Model", model)
             .add_key_value("Default Provider", provider)
+            .add_key_value("Forge Model", forge_model)
+            .add_key_value("Sage Model", sage_model)
+            .add_key_value("Muse Model", muse_model)
             .add_key_value("Commit Provider", commit_provider)
             .add_key_value("Commit Model", commit_model)
             .add_key_value("Suggest Provider", suggest_provider)
@@ -3444,6 +3466,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::AgentModel { agent, provider, model } => {
+                // Validate provider exists and model belongs to that specific provider
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let agent_config = forge_domain::AgentModelConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api
+                    .set_agent_model_config(agent.clone(), agent_config)
+                    .await?;
+                self.writeln_title(
+                    TitleFormat::action(validated_model.as_str())
+                        .sub_title(format!("is now the model for agent '{agent}' (provider: '{provider}')")),
+                )?;
+            }
         }
 
         Ok(())
@@ -3503,6 +3540,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::AgentModel { agent } => {
+                let agent_config = self.api.get_agent_model_config(&agent).await?;
+                match agent_config {
+                    Some(config) => {
+                        self.writeln(config.provider.as_ref())?;
+                        self.writeln(config.model.as_str().to_string())?;
+                    }
+                    None => self.writeln(format!("Agent model for '{agent}': Not set"))?,
                 }
             }
         }

@@ -100,6 +100,31 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         self.update(AppConfigOperation::SetSuggestConfig(suggest_config))
             .await
     }
+
+    async fn get_agent_model_config(
+        &self,
+        agent_id: &forge_domain::AgentId,
+    ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+        let config = self.infra.get_app_config().await?;
+        Ok(config.agent_models.get(agent_id).cloned())
+    }
+
+    async fn set_agent_model_config(
+        &self,
+        agent_id: forge_domain::AgentId,
+        config: forge_domain::AgentModelConfig,
+    ) -> anyhow::Result<()> {
+        self.update(AppConfigOperation::SetAgentModel(agent_id, config))
+            .await
+    }
+
+    async fn clear_agent_model_config(
+        &self,
+        agent_id: forge_domain::AgentId,
+    ) -> anyhow::Result<()> {
+        self.update(AppConfigOperation::ClearAgentModel(agent_id))
+            .await
+    }
 }
 
 #[cfg(test)]
@@ -201,6 +226,12 @@ mod tests {
                     }
                     AppConfigOperation::SetCommitConfig(commit) => config.commit = Some(commit),
                     AppConfigOperation::SetSuggestConfig(suggest) => config.suggest = Some(suggest),
+                    AppConfigOperation::SetAgentModel(agent_id, agent_config) => {
+                        config.agent_models.insert(agent_id, agent_config);
+                    }
+                    AppConfigOperation::ClearAgentModel(agent_id) => {
+                        config.agent_models.remove(&agent_id);
+                    }
                 }
             }
             Ok(())

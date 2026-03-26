@@ -36,6 +36,18 @@
     "description": "List current configuration values"
   },
   {
+    "command": "config-forge-model",
+    "description": "Set the model for the forge agent [alias: cfm]"
+  },
+  {
+    "command": "config-sage-model",
+    "description": "Set the model for the sage agent [alias: csgm]"
+  },
+  {
+    "command": "config-muse-model",
+    "description": "Set the model for the muse agent [alias: cmm]"
+  },
+  {
     "command": "config-edit",
     "description": "Open the global forge config file (~/forge/.forge.toml) in an editor [alias: ce]"
   },

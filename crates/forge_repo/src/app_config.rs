@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    AppConfig, AppConfigOperation, AppConfigRepository, CommitConfig, LoginInfo, ModelId,
-    ProviderId, SuggestConfig,
+    AgentId, AgentModelConfig, AppConfig, AppConfigOperation, AppConfigRepository, CommitConfig,
+    LoginInfo, ModelId, ProviderId, SuggestConfig,
 };
 use tokio::sync::Mutex;
 use tracing::{debug, error};
@@ -50,7 +50,27 @@ fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
             })
     });
 
-    AppConfig { key_info, provider, model, commit, suggest }
+    // Build per-agent model overrides
+    let mut agent_models = std::collections::HashMap::new();
+    for (agent_id, mc_opt) in [
+        (AgentId::FORGE, fc.forge_model),
+        (AgentId::SAGE, fc.sage_model),
+        (AgentId::MUSE, fc.muse_model),
+    ] {
+        if let Some(mc) = mc_opt {
+            if let (Some(pid), Some(mid)) = (mc.provider_id, mc.model_id) {
+                agent_models.insert(
+                    agent_id,
+                    AgentModelConfig {
+                        provider: ProviderId::from(pid),
+                        model: ModelId::new(mid),
+                    },
+                );
+            }
+        }
+    }
+
+    AppConfig { key_info, provider, model, commit, suggest, agent_models }
 }
 
 /// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
@@ -106,6 +126,33 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
                     .model_id(suggest.model.to_string()),
             );
         }
+        AppConfigOperation::SetAgentModel(agent_id, config) => {
+            let mc = Some(
+                ModelConfig::default()
+                    .provider_id(config.provider.as_ref().to_string())
+                    .model_id(config.model.to_string()),
+            );
+            match agent_id.as_str() {
+                "forge" => fc.forge_model = mc,
+                "sage" => fc.sage_model = mc,
+                "muse" => fc.muse_model = mc,
+                _ => {
+                    // For custom agents, we currently only support the built-in
+                    // three. This could be extended with a HashMap in ForgeConfig
+                    // if needed.
+                    tracing::warn!(
+                        agent = agent_id.as_str(),
+                        "Per-agent model config is only supported for forge, sage, and muse"
+                    );
+                }
+            }
+        }
+        AppConfigOperation::ClearAgentModel(agent_id) => match agent_id.as_str() {
+            "forge" => fc.forge_model = None,
+            "sage" => fc.sage_model = None,
+            "muse" => fc.muse_model = None,
+            _ => {}
+        },
     }
 }
 

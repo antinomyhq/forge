@@ -77,6 +77,15 @@ pub struct ForgeConfig {
     /// Provider and model to use for shell command suggestion generation
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
+    /// Provider and model override for the forge agent
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub forge_model: Option<ModelConfig>,
+    /// Provider and model override for the sage agent
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sage_model: Option<ModelConfig>,
+    /// Provider and model override for the muse agent
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub muse_model: Option<ModelConfig>,
     /// API key for Forge authentication
     #[serde(default)]
     pub api_key: Option<String>,

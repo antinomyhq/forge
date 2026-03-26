@@ -173,6 +173,22 @@ pub trait API: Sync + Send {
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 
+    /// Gets the per-agent model configuration for a specific agent.
+    async fn get_agent_model_config(
+        &self,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>>;
+
+    /// Sets the per-agent model configuration for a specific agent.
+    async fn set_agent_model_config(
+        &self,
+        agent_id: AgentId,
+        config: forge_domain::AgentModelConfig,
+    ) -> anyhow::Result<()>;
+
+    /// Clears the per-agent model configuration, reverting to global defaults.
+    async fn clear_agent_model_config(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 

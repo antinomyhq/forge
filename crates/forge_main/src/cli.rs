@@ -551,6 +551,15 @@ pub enum ConfigSetField {
         /// Model ID to use for command suggestion generation.
         model: ModelId,
     },
+    /// Set the provider and model for a specific agent (forge, sage, or muse).
+    AgentModel {
+        /// Agent ID (forge, sage, or muse).
+        agent: AgentId,
+        /// Provider ID to use for this agent.
+        provider: ProviderId,
+        /// Model ID to use for this agent.
+        model: ModelId,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -564,6 +573,11 @@ pub enum ConfigGetField {
     Commit,
     /// Get the command suggestion generation config.
     Suggest,
+    /// Get the per-agent model configuration for a specific agent.
+    AgentModel {
+        /// Agent ID (forge, sage, or muse).
+        agent: AgentId,
+    },
 }
 
 /// Command group for conversation management.

@@ -227,6 +227,25 @@ pub trait AppConfigService: Send + Sync {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    /// Gets the per-agent model configuration for a specific agent.
+    async fn get_agent_model_config(
+        &self,
+        agent_id: &forge_domain::AgentId,
+    ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>>;
+
+    /// Sets the per-agent model configuration for a specific agent.
+    async fn set_agent_model_config(
+        &self,
+        agent_id: forge_domain::AgentId,
+        config: forge_domain::AgentModelConfig,
+    ) -> anyhow::Result<()>;
+
+    /// Clears the per-agent model configuration, reverting to global defaults.
+    async fn clear_agent_model_config(
+        &self,
+        agent_id: forge_domain::AgentId,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1059,6 +1078,34 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
         self.config_service().set_suggest_config(config).await
+    }
+
+    async fn get_agent_model_config(
+        &self,
+        agent_id: &forge_domain::AgentId,
+    ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
+        self.config_service()
+            .get_agent_model_config(agent_id)
+            .await
+    }
+
+    async fn set_agent_model_config(
+        &self,
+        agent_id: forge_domain::AgentId,
+        config: forge_domain::AgentModelConfig,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .set_agent_model_config(agent_id, config)
+            .await
+    }
+
+    async fn clear_agent_model_config(
+        &self,
+        agent_id: forge_domain::AgentId,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .clear_agent_model_config(agent_id)
+            .await
     }
 }
 
