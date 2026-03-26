@@ -1,15 +1,13 @@
 use std::path::PathBuf;
 
-use derive_setters::Setters;
-use serde::{Deserialize, Serialize};
-use url::Url;
-
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
 use crate::{
     AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, RetryConfig, Temperature, TopK,
     TopP, Update,
 };
+use derive_setters::Setters;
+use serde::{Deserialize, Serialize};
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
@@ -58,7 +56,7 @@ pub struct ForgeConfig {
     /// Top-k parameter for relevance filtering during semantic search
     pub sem_search_top_k: usize,
     /// URL for the indexing server
-    pub services_url: Option<Url>,
+    pub services_url: String,
     /// Maximum number of file extensions to include in the system prompt
     pub max_extensions: usize,
     /// Format for automatically creating a dump when a task is completed
