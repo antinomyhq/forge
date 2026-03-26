@@ -161,7 +161,10 @@ impl AppConfigRepository for ForgeConfigRepository {
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
         // Load the global config
-        let mut fc = ConfigReader::default().read_global().build()?;
+        let mut fc = ConfigReader::default()
+            .read_defaults()
+            .read_global()
+            .build()?;
 
         debug!(config = ?fc, "loaded config for update");
 
