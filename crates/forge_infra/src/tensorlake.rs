@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, anyhow};
 use async_trait::async_trait;
@@ -62,32 +61,69 @@ struct StartProcessRequest<'a> {
     env: Option<HashMap<String, String>>,
 }
 
+/// Owns the sandbox lifetime and issues the DELETE on drop.
+///
+/// Wrapped in `Arc` inside `TensorlakeCommandExecutor` so that the sandbox is
+/// terminated exactly once — when the last clone of the executor is dropped and
+/// the `Arc` reference count reaches zero.
+struct SandboxGuard {
+    sandbox_id: Arc<Mutex<Option<String>>>,
+    client: reqwest::Client,
+    api_key: String,
+}
+
+impl Drop for SandboxGuard {
+    /// Spawns a best-effort DELETE request to terminate the sandbox.
+    ///
+    /// Because `Drop` is synchronous the HTTP call is dispatched as a detached
+    /// Tokio task. This is sufficient for normal program exit where the runtime
+    /// continues to run briefly after `main` returns; the `timeout_secs`
+    /// configured on the sandbox acts as the ultimate safety net for abrupt
+    /// termination (e.g. SIGKILL).
+    fn drop(&mut self) {
+        let sandbox_id = self.sandbox_id.clone();
+        let client = self.client.clone();
+        let api_key = self.api_key.clone();
+
+        tokio::spawn(async move {
+            let guard = sandbox_id.lock().await;
+            if let Some(id) = guard.as_deref() {
+                let url = format!("{}/sandboxes/{}", TENSORLAKE_API_BASE, id);
+                let _ = client.delete(&url).bearer_auth(&api_key).send().await;
+                tracing::debug!(sandbox_id = %id, "Tensorlake sandbox terminated");
+            }
+        });
+    }
+}
+
 /// Infrastructure implementation that executes shell commands inside an isolated
 /// Tensorlake Firecracker microVM sandbox.
 ///
 /// A single sandbox is created lazily on the first command execution and reused
 /// for the lifetime of the `TensorlakeCommandExecutor` instance. The sandbox is
-/// terminated when the executor is dropped.
+/// terminated when the last clone of the executor is dropped.
 #[derive(Clone)]
 pub struct TensorlakeCommandExecutor {
     config: TensorlakeConfig,
     client: reqwest::Client,
     /// Lazily initialized sandbox ID, shared across clones via `Arc<Mutex<…>>`.
     sandbox_id: Arc<Mutex<Option<String>>>,
-    /// Guards against duplicate DELETE requests when multiple clones are dropped.
-    /// Only the first clone to set this flag will schedule sandbox termination.
-    cleanup_scheduled: Arc<AtomicBool>,
+    /// Dropping the last clone of this `Arc` triggers `SandboxGuard::drop`,
+    /// which issues the sandbox DELETE exactly once.
+    _guard: Arc<SandboxGuard>,
 }
 
 impl TensorlakeCommandExecutor {
     /// Creates a new executor with the provided Tensorlake configuration.
     pub fn new(config: TensorlakeConfig) -> Self {
-        Self {
-            config,
-            client: reqwest::Client::new(),
-            sandbox_id: Arc::new(Mutex::new(None)),
-            cleanup_scheduled: Arc::new(AtomicBool::new(false)),
-        }
+        let client = reqwest::Client::new();
+        let sandbox_id = Arc::new(Mutex::new(None));
+        let guard = Arc::new(SandboxGuard {
+            sandbox_id: sandbox_id.clone(),
+            client: client.clone(),
+            api_key: config.api_key.clone(),
+        });
+        Self { config, client, sandbox_id, _guard: guard }
     }
 
     /// Returns the sandbox ID, creating a new sandbox if one has not been
@@ -179,33 +215,6 @@ impl TensorlakeCommandExecutor {
     /// Returns the per-sandbox proxy base URL for API calls.
     fn sandbox_proxy_url(&self, sandbox_id: &str) -> String {
         format!("https://{}.sandbox.tensorlake.ai/api/v1", sandbox_id)
-    }
-}
-
-impl Drop for TensorlakeCommandExecutor {
-    /// Schedules sandbox termination when the executor is dropped.
-    ///
-    /// Uses an `AtomicBool` flag so that only the first clone to be dropped
-    /// schedules the DELETE request — preventing duplicate API calls when
-    /// multiple clones of the executor share the same `sandbox_id` Arc.
-    fn drop(&mut self) {
-        // Only the first dropper proceeds; all subsequent clones are no-ops.
-        if self.cleanup_scheduled.swap(true, Ordering::SeqCst) {
-            return;
-        }
-
-        let sandbox_id = self.sandbox_id.clone();
-        let client = self.client.clone();
-        let api_key = self.config.api_key.clone();
-
-        tokio::spawn(async move {
-            let guard = sandbox_id.lock().await;
-            if let Some(id) = guard.as_deref() {
-                let url = format!("{}/sandboxes/{}", TENSORLAKE_API_BASE, id);
-                let _ = client.delete(&url).bearer_auth(&api_key).send().await;
-                tracing::debug!(sandbox_id = %id, "Tensorlake sandbox cleanup on drop");
-            }
-        });
     }
 }
 
@@ -405,15 +414,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_clone_does_not_duplicate_cleanup() {
+    async fn test_cleanup_fires_on_last_clone_dropped() {
         let config = TensorlakeConfig::new("key".to_string());
         let executor = TensorlakeCommandExecutor::new(config);
         let clone = executor.clone();
 
-        // First drop sets the flag and would schedule cleanup.
-        assert!(!executor.cleanup_scheduled.swap(true, Ordering::SeqCst));
-        // Second drop (the clone) sees the flag already set and is a no-op.
-        assert!(clone.cleanup_scheduled.swap(true, Ordering::SeqCst));
+        // Both the original and the clone share the same Arc<SandboxGuard>.
+        assert_eq!(Arc::strong_count(&executor._guard), 2);
+
+        // Dropping the clone reduces the count to 1 — cleanup not yet triggered.
+        drop(clone);
+        assert_eq!(Arc::strong_count(&executor._guard), 1);
+
+        // Dropping the original reduces the count to 0 — cleanup fires here.
+        // (No sandbox was provisioned so the spawned task is a no-op.)
+        drop(executor);
     }
 
     #[test]
