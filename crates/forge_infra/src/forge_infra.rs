@@ -32,7 +32,19 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
+use crate::tensorlake::{TensorlakeCommandExecutor, TensorlakeConfig};
 use crate::walker::ForgeWalkerService;
+
+/// Abstraction over the available command execution backends.
+///
+/// Commands are either executed locally on the host machine via
+/// `ForgeCommandExecutorService`, or inside an isolated Tensorlake
+/// Firecracker microVM via `TensorlakeCommandExecutor`.
+#[derive(Clone)]
+enum CommandExecutor {
+    Local(Arc<ForgeCommandExecutorService>),
+    Tensorlake(Arc<TensorlakeCommandExecutor>),
+}
 
 #[derive(Clone)]
 pub struct ForgeInfra {
@@ -45,7 +57,7 @@ pub struct ForgeInfra {
     file_meta_service: Arc<ForgeFileMetaService>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
     directory_reader_service: Arc<ForgeDirectoryReaderService>,
-    command_executor_service: Arc<ForgeCommandExecutorService>,
+    command_executor: CommandExecutor,
     inquire_service: Arc<ForgeInquire>,
     mcp_server: ForgeMcpServer,
     walker_service: Arc<ForgeWalkerService>,
@@ -56,6 +68,8 @@ pub struct ForgeInfra {
 }
 
 impl ForgeInfra {
+    /// Creates a `ForgeInfra` instance that executes shell commands locally on
+    /// the host machine.
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
@@ -77,9 +91,48 @@ impl ForgeInfra {
             file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
-            command_executor_service: Arc::new(ForgeCommandExecutorService::new(
-                env.clone(),
-                output_printer.clone(),
+            command_executor: CommandExecutor::Local(Arc::new(
+                ForgeCommandExecutorService::new(env.clone(), output_printer.clone()),
+            )),
+            inquire_service: Arc::new(ForgeInquire::new()),
+            mcp_server: ForgeMcpServer,
+            walker_service: Arc::new(ForgeWalkerService::new()),
+            strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
+            http_service,
+            grpc_client,
+            output_printer,
+        }
+    }
+
+    /// Creates a `ForgeInfra` instance that executes shell commands inside an
+    /// isolated Tensorlake Firecracker microVM sandbox.
+    ///
+    /// A single sandbox is provisioned lazily on the first command execution and
+    /// reused for the entire session. The sandbox is terminated when the returned
+    /// `ForgeInfra` is dropped.
+    pub fn new_with_tensorlake(restricted: bool, cwd: PathBuf, config: TensorlakeConfig) -> Self {
+        let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
+        let env = environment_service.get_environment();
+
+        let file_write_service = Arc::new(ForgeFileWriteService::new());
+        let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
+        let file_read_service = Arc::new(ForgeFileReadService::new());
+        let file_meta_service = Arc::new(ForgeFileMetaService);
+        let directory_reader_service =
+            Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
+        let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
+        let output_printer = Arc::new(StdConsoleWriter::default());
+
+        Self {
+            file_read_service,
+            file_write_service,
+            file_remove_service: Arc::new(ForgeFileRemoveService::new()),
+            environment_service,
+            file_meta_service,
+            create_dirs_service: Arc::new(ForgeCreateDirsService),
+            directory_reader_service,
+            command_executor: CommandExecutor::Tensorlake(Arc::new(
+                TensorlakeCommandExecutor::new(config),
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
@@ -194,9 +247,14 @@ impl CommandInfra for ForgeInfra {
         silent: bool,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
-        self.command_executor_service
-            .execute_command(command, working_dir, silent, env_vars)
-            .await
+        match &self.command_executor {
+            CommandExecutor::Local(svc) => {
+                svc.execute_command(command, working_dir, silent, env_vars).await
+            }
+            CommandExecutor::Tensorlake(svc) => {
+                svc.execute_command(command, working_dir, silent, env_vars).await
+            }
+        }
     }
 
     async fn execute_command_raw(
@@ -205,9 +263,14 @@ impl CommandInfra for ForgeInfra {
         working_dir: PathBuf,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<ExitStatus> {
-        self.command_executor_service
-            .execute_command_raw(command, working_dir, env_vars)
-            .await
+        match &self.command_executor {
+            CommandExecutor::Local(svc) => {
+                svc.execute_command_raw(command, working_dir, env_vars).await
+            }
+            CommandExecutor::Tensorlake(svc) => {
+                svc.execute_command_raw(command, working_dir, env_vars).await
+            }
+        }
     }
 }
 

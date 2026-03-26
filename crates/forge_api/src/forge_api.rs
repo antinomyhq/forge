@@ -12,7 +12,7 @@ use forge_app::{
     WorkspaceService,
 };
 use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
-use forge_infra::ForgeInfra;
+use forge_infra::{ForgeInfra, TensorlakeConfig};
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
@@ -41,8 +41,18 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
+    /// Initialises the API with the local command executor (default mode).
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
+        let repo = Arc::new(ForgeRepo::new(infra.clone()));
+        let app = Arc::new(ForgeServices::new(repo.clone()));
+        ForgeAPI::new(app, repo)
+    }
+
+    /// Initialises the API routing all shell commands through an isolated
+    /// Tensorlake Firecracker microVM sandbox.
+    pub fn init_with_tensorlake(restricted: bool, cwd: PathBuf, config: TensorlakeConfig) -> Self {
+        let infra = Arc::new(ForgeInfra::new_with_tensorlake(restricted, cwd, config));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)

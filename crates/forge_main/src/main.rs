@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
-use forge_api::ForgeAPI;
+use forge_api::{ForgeAPI, TensorlakeConfig};
 use forge_domain::TitleFormat;
 use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
@@ -64,7 +64,18 @@ async fn main() -> Result<()> {
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
-    let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
+    let tensorlake_key = cli.tensorlake.clone();
+    let mut ui = UI::init(cli, move || {
+        if let Some(api_key) = tensorlake_key {
+            ForgeAPI::init_with_tensorlake(
+                restricted,
+                cwd.clone(),
+                TensorlakeConfig::new(api_key),
+            )
+        } else {
+            ForgeAPI::init(restricted, cwd.clone())
+        }
+    })?;
     ui.run().await;
 
     Ok(())
