@@ -57,7 +57,8 @@ fn to_http_config(h: forge_config::HttpConfig) -> HttpConfig {
     }
 }
 
-/// Converts a [`forge_config::RetryConfig`] into a [`forge_domain::RetryConfig`].
+/// Converts a [`forge_config::RetryConfig`] into a
+/// [`forge_domain::RetryConfig`].
 fn to_retry_config(r: forge_config::RetryConfig) -> RetryConfig {
     RetryConfig {
         initial_backoff_ms: r.initial_backoff_ms,

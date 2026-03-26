@@ -1,13 +1,14 @@
 use std::path::PathBuf;
 
+use derive_setters::Setters;
+use serde::{Deserialize, Serialize};
+
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
 use crate::{
     AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, RetryConfig, Temperature, TopK,
     TopP, Update,
 };
-use derive_setters::Setters;
-use serde::{Deserialize, Serialize};
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
