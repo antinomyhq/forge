@@ -36,20 +36,24 @@ struct CreateSandboxResponse {
     sandbox_id: String,
 }
 
-/// Response returned by the Tensorlake sandbox command execution endpoint.
+/// Response returned by the per-sandbox process execution endpoint.
 #[derive(Debug, Deserialize)]
-struct RunCommandResponse {
-    stdout: String,
-    stderr: String,
-    exit_code: Option<i64>,
+struct StartProcessResponse {
+    pid: u64,
 }
 
-/// Request body for executing a command inside a sandbox.
+/// Combined output response from the per-sandbox output endpoint.
+#[derive(Debug, Deserialize)]
+struct ProcessOutputResponse {
+    lines: Vec<String>,
+}
+
+/// Request body for starting a process inside a sandbox.
 #[derive(Debug, Serialize)]
-struct RunCommandRequest<'a> {
-    cmd: &'a str,
+struct StartProcessRequest<'a> {
+    command: &'a str,
     args: Vec<&'a str>,
-    cwd: String,
+    working_dir: String,
 }
 
 /// Infrastructure implementation that executes shell commands inside an isolated
@@ -92,10 +96,12 @@ impl TensorlakeCommandExecutor {
 
     /// Provisions a new Tensorlake sandbox and returns its ID.
     async fn create_sandbox(&self) -> anyhow::Result<String> {
-        let url = format!("{}/v2/sandboxes", TENSORLAKE_API_BASE);
+        let url = format!("{}/sandboxes", TENSORLAKE_API_BASE);
         let body = serde_json::json!({
-            "cpus": self.config.cpus,
-            "memory_mb": self.config.memory_mb,
+            "resources": {
+                "cpus": self.config.cpus,
+                "memory_mb": self.config.memory_mb,
+            },
             "timeout_secs": self.config.timeout_secs,
         });
 
@@ -121,7 +127,48 @@ impl TensorlakeCommandExecutor {
             .await
             .context("Failed to parse Tensorlake create sandbox response")?;
 
+        // Poll until the sandbox is running (it starts as "pending")
+        self.wait_for_running(&parsed.sandbox_id).await?;
+
         Ok(parsed.sandbox_id)
+    }
+
+    /// Polls the sandbox status endpoint until the sandbox reaches the "running" state.
+    async fn wait_for_running(&self, sandbox_id: &str) -> anyhow::Result<()> {
+        let url = format!("{}/sandboxes/{}", TENSORLAKE_API_BASE, sandbox_id);
+        for attempt in 0..60 {
+            tokio::time::sleep(std::time::Duration::from_secs(if attempt == 0 { 1 } else { 2 }))
+                .await;
+
+            let resp = self
+                .client
+                .get(&url)
+                .bearer_auth(&self.config.api_key)
+                .send()
+                .await
+                .context("Failed to poll sandbox status")?;
+
+            if !resp.status().is_success() {
+                continue;
+            }
+
+            let body: serde_json::Value =
+                resp.json().await.context("Failed to parse sandbox status")?;
+
+            match body.get("status").and_then(|s| s.as_str()) {
+                Some("running") => return Ok(()),
+                Some("terminated") => {
+                    return Err(anyhow!("Tensorlake sandbox terminated unexpectedly"))
+                }
+                _ => continue,
+            }
+        }
+        Err(anyhow!("Timed out waiting for Tensorlake sandbox to become running"))
+    }
+
+    /// Returns the per-sandbox proxy base URL for API calls.
+    fn sandbox_proxy_url(&self, sandbox_id: &str) -> String {
+        format!("https://{}.sandbox.tensorlake.ai/api/v1", sandbox_id)
     }
 }
 
@@ -138,7 +185,7 @@ impl Drop for TensorlakeCommandExecutor {
         tokio::spawn(async move {
             let guard = sandbox_id.lock().await;
             if let Some(id) = guard.as_deref() {
-                let url = format!("{}/v2/sandboxes/{}", TENSORLAKE_API_BASE, id);
+                let url = format!("{}/sandboxes/{}", TENSORLAKE_API_BASE, id);
                 let _ = client.delete(&url).bearer_auth(&api_key).send().await;
                 tracing::debug!(sandbox_id = %id, "Tensorlake sandbox cleanup on drop");
             }
@@ -157,41 +204,58 @@ impl CommandInfra for TensorlakeCommandExecutor {
         _env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<CommandOutput> {
         let sandbox_id = self.ensure_sandbox().await?;
-        let cwd = working_dir.to_string_lossy().to_string();
+        let proxy = self.sandbox_proxy_url(&sandbox_id);
 
-        let url = format!("{}/v2/sandboxes/{}/commands", TENSORLAKE_API_BASE, sandbox_id);
-        let request = RunCommandRequest { cmd: "sh", args: vec!["-c", &command], cwd };
+        // The sandbox is a remote Linux microVM. Host-specific paths (e.g. macOS
+        // `/Users/…`) do not exist inside the sandbox. Fall back to `/tmp` so
+        // that process spawn never fails with "No such file or directory".
+        let cwd = {
+            let host_path = working_dir.to_string_lossy();
+            if host_path.starts_with("/Users/") || host_path.starts_with("/home/") {
+                "/tmp".to_string()
+            } else {
+                host_path.into_owned()
+            }
+        };
+
+        // Use `sh -c <command>` so pipes and redirects work correctly.
+        let start_url = format!("{}/processes", proxy);
+        let request = StartProcessRequest { command: "sh", args: vec!["-c", &command], working_dir: cwd };
 
         tracing::info!(command = %command, sandbox_id = %sandbox_id, "Executing command in Tensorlake sandbox");
 
         let response = self
             .client
-            .post(&url)
+            .post(&start_url)
             .bearer_auth(&self.config.api_key)
             .json(&request)
             .send()
             .await
-            .context("Failed to send command execution request to Tensorlake sandbox")?;
+            .context("Failed to start process in Tensorlake sandbox")?;
 
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
             return Err(anyhow!(
-                "Tensorlake command execution failed with status {status}: {text}"
+                "Tensorlake process start failed with status {status}: {text}"
             ));
         }
 
-        let result: RunCommandResponse = response
+        let started: StartProcessResponse = response
             .json()
             .await
-            .context("Failed to parse Tensorlake command execution response")?;
+            .context("Failed to parse Tensorlake process start response")?;
 
-        Ok(CommandOutput {
-            stdout: result.stdout,
-            stderr: result.stderr,
-            exit_code: result.exit_code.map(|c| c as i32),
-            command,
-        })
+        let pid = started.pid;
+
+        // Poll until the process exits.
+        let exit_code = self.wait_for_process_exit(&proxy, pid).await?;
+
+        // Collect stdout and stderr.
+        let stdout = self.get_process_output(&proxy, pid, "stdout").await?;
+        let stderr = self.get_process_output(&proxy, pid, "stderr").await?;
+
+        Ok(CommandOutput { stdout, stderr, exit_code: Some(exit_code), command })
     }
 
     /// Interactive (raw) commands are not supported in Tensorlake sandbox mode.
@@ -209,6 +273,68 @@ impl CommandInfra for TensorlakeCommandExecutor {
             "Interactive (raw) command execution is not supported in Tensorlake sandbox mode. \
              Use non-interactive commands instead."
         ))
+    }
+}
+
+impl TensorlakeCommandExecutor {
+    /// Polls the process status until it exits, returning the exit code.
+    async fn wait_for_process_exit(&self, proxy: &str, pid: u64) -> anyhow::Result<i32> {
+        let url = format!("{}/processes/{}", proxy, pid);
+        for _ in 0..300 {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+
+            let resp = self
+                .client
+                .get(&url)
+                .bearer_auth(&self.config.api_key)
+                .send()
+                .await
+                .context("Failed to poll process status")?;
+
+            if !resp.status().is_success() {
+                continue;
+            }
+
+            let body: serde_json::Value =
+                resp.json().await.context("Failed to parse process status")?;
+
+            if body.get("status").and_then(|s| s.as_str()) == Some("exited") {
+                let code = body
+                    .get("exit_code")
+                    .and_then(|c| c.as_i64())
+                    .unwrap_or(0) as i32;
+                return Ok(code);
+            }
+        }
+        Err(anyhow!("Timed out waiting for Tensorlake process {} to exit", pid))
+    }
+
+    /// Fetches the captured output lines (stdout or stderr) for a completed process.
+    async fn get_process_output(
+        &self,
+        proxy: &str,
+        pid: u64,
+        stream: &str,
+    ) -> anyhow::Result<String> {
+        let url = format!("{}/processes/{}/{}", proxy, pid, stream);
+        let resp = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.config.api_key)
+            .send()
+            .await
+            .with_context(|| format!("Failed to fetch process {stream} for pid {pid}"))?;
+
+        if !resp.status().is_success() {
+            return Ok(String::new());
+        }
+
+        let output: ProcessOutputResponse = resp
+            .json()
+            .await
+            .with_context(|| format!("Failed to parse process {stream} response"))?;
+
+        Ok(output.lines.join("\n"))
     }
 }
 
@@ -235,5 +361,13 @@ mod tests {
 
         assert_eq!(executor.config.api_key, config.api_key);
         assert_eq!(executor.config.cpus, config.cpus);
+    }
+
+    #[tokio::test]
+    async fn test_sandbox_proxy_url() {
+        let config = TensorlakeConfig::new("key".to_string());
+        let executor = TensorlakeCommandExecutor::new(config);
+        let url = executor.sandbox_proxy_url("abc123");
+        assert_eq!(url, "https://abc123.sandbox.tensorlake.ai/api/v1");
     }
 }

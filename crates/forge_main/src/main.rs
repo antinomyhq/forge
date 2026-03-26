@@ -66,11 +66,11 @@ async fn main() -> Result<()> {
     let restricted = cli.restricted;
     let tensorlake_key = cli.tensorlake.clone();
     let mut ui = UI::init(cli, move || {
-        if let Some(api_key) = tensorlake_key {
+        if let Some(api_key) = &tensorlake_key {
             ForgeAPI::init_with_tensorlake(
                 restricted,
                 cwd.clone(),
-                TensorlakeConfig::new(api_key),
+                TensorlakeConfig::new(api_key.to_string()),
             )
         } else {
             ForgeAPI::init(restricted, cwd.clone())
