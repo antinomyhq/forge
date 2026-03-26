@@ -13,17 +13,12 @@ pub struct InitAuth {
     pub token: String,
 }
 
-#[derive(Default, Clone, Serialize, Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub provider: Option<ProviderId>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub model: HashMap<ProviderId, ModelId>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit: Option<CommitConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<SuggestConfig>,
 }
 
@@ -39,4 +34,23 @@ pub struct LoginInfo {
     pub name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth_provider_id: Option<String>,
+}
+
+/// All discrete mutations that can be applied to an [`AppConfig`].
+///
+/// Instead of replacing the entire config, callers describe exactly which field
+/// they want to change. Implementations receive a list of operations, apply
+/// each in order, and persist the result atomically.
+#[derive(Debug, Clone, PartialEq)]
+pub enum AppConfigOperation {
+    /// Set or clear the authentication token.
+    KeyInfo(Option<LoginInfo>),
+    /// Set the active provider.
+    SetProvider(ProviderId),
+    /// Set the model for the given provider.
+    SetModel(ProviderId, ModelId),
+    /// Set the commit-message generation configuration.
+    SetCommitConfig(CommitConfig),
+    /// Set the shell-command suggestion configuration.
+    SetSuggestConfig(SuggestConfig),
 }
