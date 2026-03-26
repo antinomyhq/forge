@@ -60,7 +60,7 @@ impl<I> ForgeSkillRepository<I> {
 
         builtin_skills
             .into_iter()
-            .filter_map(|(path, content)| extract_skill(path, content))
+            .filter_map(|(path, content)| extract_skill(path, content).ok().flatten())
             .collect()
     }
 }
@@ -146,13 +146,6 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
                     // Read the file content
                     match infra.read_utf8(&skill_path).await {
                         Ok(content) => {
-                            let path_str = skill_path.display().to_string();
-                            let skill_name = subdir
-                                .file_name()
-                                .and_then(|s| s.to_str())
-                                .unwrap_or("unknown")
-                                .to_string();
-
                             // Get all resource files in the skill directory recursively
                             let walker = Walker::unlimited().cwd(subdir.clone());
                             let resources = infra
@@ -175,18 +168,31 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
                                 })
                                 .collect::<Vec<_>>();
 
-                            // Try to extract skill from front matter, otherwise create with
-                            // directory name
-                            if let Some(skill) = extract_skill(&path_str, &content) {
-                                Ok(Some(skill.resources(resources)))
-                            } else {
-                                // Fallback: create skill with directory name if front matter is
-                                // missing
-                                Ok(Some(
-                                    Skill::new(skill_name, content, String::new())
-                                        .path(path_str)
-                                        .resources(resources),
-                                ))
+                            // Try to extract skill from front matter, if it fails log warning
+                            // and skip this skill (continue loading other skills)
+                            match extract_skill(&skill_path.to_string_lossy(), &content) {
+                                Ok(Some(skill)) => Ok(Some(skill.resources(resources))),
+                                Ok(None) => {
+                                    // Front matter missing name/description
+                                    tracing::warn!(
+                                        "Skill at {} is missing required front matter \
+                                         (name and description). Skills must have valid YAML \
+                                         front matter with 'name' and 'description' fields.",
+                                        skill_path.display()
+                                    );
+                                    Ok(None)
+                                }
+                                Err(e) => {
+                                    // Parse error - log the actual error and continue
+                                    eprintln!("[SKILL_PARSE_ERROR] Failed to parse skill at {}: {}", skill_path.display(), e);
+                                    tracing::warn!(
+                                        "Failed to parse skill at {}: {}. \
+                                         This skill will be skipped.",
+                                        skill_path.display(),
+                                        e
+                                    );
+                                    Ok(None)
+                                }
                             }
                         }
                         Err(e) => {
@@ -258,16 +264,38 @@ struct SkillMetadata {
 /// ```
 ///
 /// Returns a tuple of (name, description) where both are Option<String>.
-fn extract_skill(path: &str, content: &str) -> Option<Skill> {
+fn extract_skill(path: &str, content: &str) -> anyhow::Result<Option<Skill>> {
     let matter = Matter::<YAML>::new();
     let result = matter.parse::<SkillMetadata>(content);
-    result.ok().and_then(|parsed| {
-        let command = parsed.content;
-        parsed
-            .data
-            .and_then(|data| data.name.zip(data.description))
-            .map(|(name, description)| Skill::new(name, command, description).path(path))
-    })
+    let parsed = match result {
+        Ok(p) => p,
+        Err(e) => {
+            anyhow::bail!(
+                "Failed to parse skill front matter at {}: {}",
+                path,
+                e
+            );
+        }
+    };
+
+    let command = parsed.content;
+
+    let Some((name, description)) = parsed.data.and_then(|data| data.name.zip(data.description))
+    else {
+        return Ok(None);
+    };
+
+    // Validate that description is not empty (required for skill ranking)
+    if description.trim().is_empty() {
+        anyhow::bail!(
+            "Skill '{}' at {} has an empty description. \
+             Skills must have a non-empty description for the skill ranking service.",
+            name,
+            path
+        );
+    }
+
+    Ok(Some(Skill::new(name, command, description).path(path)))
 }
 
 /// Resolves skill conflicts by keeping the last occurrence of each skill name

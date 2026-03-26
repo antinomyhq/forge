@@ -62,10 +62,33 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommen
             return Ok(());
         };
 
+        // Enhance the query with context for better skill matching.
+        // Extract key action words that match skill description patterns.
+        let trimmed = user_query.trim().trim_end_matches(|c: char| c == '.' || c == '?');
+        
+        // Extract meaningful words: actions and nouns that match skill triggers
+        let words: Vec<&str> = trimmed.split_whitespace().collect();
+        let key_terms: Vec<&str> = words.iter()
+            .filter(|w| w.len() > 3)  // Skip short words
+            .filter(|w| !["that", "this", "with", "from", "have", "will", "would", "should", "could"].contains(*w))
+            .cloned()
+            .collect();
+        
+        let enhanced_query = format!(
+            "skill: {}",
+            key_terms.join(" ")
+        );
+        println!("[SKILL_RECOMMENDATION] Original query: {}", user_query);
+        println!("[SKILL_RECOMMENDATION] Enhanced query: {}", enhanced_query);
+
         // Call the remote ranking service to get relevant skills for this query.
-        let selected = match self.services.recommend_skills(user_query.clone()).await {
-            Ok(s) => s,
+        let selected = match self.services.recommend_skills(enhanced_query).await {
+            Ok(s) => {
+                println!("[SKILL_RECOMMENDATION] recommend_skills returned: {:?}", s);
+                s
+            }
             Err(e) => {
+                println!("[SKILL_RECOMMENDATION] recommend_skills failed: {:?}", e);
                 warn!(
                     agent_id = %event.agent.id,
                     error = ?e,
@@ -77,6 +100,7 @@ impl<S: WorkspaceService> EventHandle<EventData<StartPayload>> for SkillRecommen
         };
 
         if selected.is_empty() {
+            println!("[SKILL_RECOMMENDATION] No skills selected for query: {}", user_query);
             return Ok(());
         }
 

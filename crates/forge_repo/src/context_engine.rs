@@ -393,10 +393,12 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
             .skills
             .into_iter()
             .map(|skill| proto_generated::Skill {
-                name: skill.name,
-                description: skill.description,
+                name: skill.name.clone(),
+                description: skill.description.clone(),
             })
             .collect();
+
+        println!("[SKILL_SELECT] select_skill called with {} skills, user_prompt: {}", skills.len(), request.user_prompt);
 
         let grpc_request =
             tonic::Request::new(SelectSkillRequest { skills, user_prompt: request.user_prompt });
@@ -407,11 +409,13 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let mut client = ForgeServiceClient::new(channel);
         let response = client.select_skill(grpc_request).await?.into_inner();
 
-        let selected_skills = response
+        let selected_skills: Vec<_> = response
             .skills
             .into_iter()
             .map(|skill| SelectedSkill::new(skill.name, skill.relevance))
             .collect();
+
+        println!("[SKILL_SELECT] Returning {} selected skills: {:?}", selected_skills.len(), selected_skills);
 
         Ok(selected_skills)
     }

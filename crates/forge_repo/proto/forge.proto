@@ -338,6 +338,11 @@ message SelectedSkill {
 message SelectSkillRequest {
   repeated Skill skills      = 1;
   string         user_prompt = 2;
+  SelectSkillBody body       = 3;
+}
+
+message SelectSkillBody {
+  repeated Skill skills = 1;
 }
 
 message SelectSkillResponse {

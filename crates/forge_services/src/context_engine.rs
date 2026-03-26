@@ -714,6 +714,8 @@ impl<
     }
 
     async fn recommend_skills(&self, use_case: String) -> Result<Vec<forge_domain::SelectedSkill>> {
+        println!("[SKILL_RECOMMEND] recommend_skills called with: {}", use_case);
+
         let (token, _user_id) = self.get_workspace_credentials().await?;
 
         let skill_infos: Vec<SkillInfo> = self
@@ -724,11 +726,16 @@ impl<
             .map(|s| SkillInfo::new(&s.name, &s.description))
             .collect();
 
+        println!("[SKILL_RECOMMEND] Loaded {} skills: {:?}", skill_infos.len(), skill_infos);
+
         let params = SkillSelectionParams::new(skill_infos, use_case);
 
-        self.infra
+        let result = self.infra
             .select_skill(params, &token)
             .await
-            .context("Failed to select skills")
+            .context("Failed to select skills");
+
+        println!("[SKILL_RECOMMEND] select_skill result: {:?}", result);
+        result
     }
 }
