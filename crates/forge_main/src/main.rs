@@ -10,6 +10,10 @@ use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Enable ANSI color support on Windows console
+    #[cfg(windows)]
+    let _ = enable_ansi_support::enable_ansi_support();
+
     // Install default rustls crypto provider (ring) before any TLS connections
     // This is required for rustls 0.23+ when multiple crypto providers are
     // available
