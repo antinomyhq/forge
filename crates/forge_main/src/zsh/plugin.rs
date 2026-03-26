@@ -1,6 +1,5 @@
 use std::fs;
-use std::io::{BufRead, BufReader};
-use std::io::ErrorKind;
+use std::io::{BufRead, BufReader, ErrorKind};
 use std::path::PathBuf;
 use std::process::Stdio;
 
@@ -89,8 +88,9 @@ fn execute_shell_script_with_streaming(
             ErrorKind::NotFound if shell_name == "zsh" => {
                 anyhow::anyhow!(missing_zsh_error_message(script_name))
             }
-            _ => anyhow::Error::new(error)
-                .context(format!("Failed to execute {shell_name} {script_name} script")),
+            _ => anyhow::Error::new(error).context(format!(
+                "Failed to execute {shell_name} {script_name} script"
+            )),
         })?;
 
     // Get stdout and stderr handles
@@ -123,9 +123,9 @@ fn execute_shell_script_with_streaming(
     });
 
     // Wait for the child process to complete
-    let status = child
-        .wait()
-        .context(format!("Failed to wait for {shell_name} {script_name} script"))?;
+    let status = child.wait().context(format!(
+        "Failed to wait for {shell_name} {script_name} script"
+    ))?;
 
     if !status.success() {
         let exit_code = status
@@ -405,8 +405,7 @@ mod tests {
     #[test]
     fn test_missing_zsh_error_message_for_non_windows() {
         let actual = missing_zsh_error_message("doctor");
-        let expected =
-            "Failed to execute zsh doctor script because `zsh` was not found in PATH. Install zsh and try again.";
+        let expected = "Failed to execute zsh doctor script because `zsh` was not found in PATH. Install zsh and try again.";
 
         if !cfg!(windows) {
             assert_eq!(actual, expected);
