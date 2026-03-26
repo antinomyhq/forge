@@ -69,12 +69,13 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
                 .ok_or(forge_domain::Error::NoDefaultProvider)?,
         };
 
-        // Only return the model if the session's provider matches the requested provider
+        // Only return the model if the session's provider matches the requested
+        // provider
         if session.provider_id.as_deref() == Some(provider_id.as_ref()) {
             session
                 .model_id
                 .as_ref()
-                .map(|mid| ModelId::new(mid))
+                .map(ModelId::new)
                 .ok_or_else(|| forge_domain::Error::no_default_model(provider_id.clone()).into())
         } else {
             Err(forge_domain::Error::no_default_model(provider_id.clone()).into())
@@ -245,15 +246,13 @@ mod tests {
                         });
                     }
                     AppConfigOperation::SetCommitConfig(commit) => {
-                        config.commit = commit
-                            .provider
-                            .as_ref()
-                            .zip(commit.model.as_ref())
-                            .map(|(pid, mid)| {
+                        config.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
+                            |(pid, mid)| {
                                 SessionConfig::default()
                                     .provider_id(pid.as_ref().to_string())
                                     .model_id(mid.to_string())
-                            });
+                            },
+                        );
                     }
                     AppConfigOperation::SetSuggestConfig(suggest) => {
                         config.suggest = Some(
@@ -483,10 +482,7 @@ mod tests {
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
             .map(|id| ProviderId::from(id.clone()));
-        let actual_model = config
-            .session
-            .as_ref()
-            .and_then(|s| s.model_id.as_deref());
+        let actual_model = config.session.as_ref().and_then(|s| s.model_id.as_deref());
 
         assert_eq!(actual_provider, Some(ProviderId::ANTHROPIC));
         assert_eq!(actual_model, Some("claude-3"));

@@ -79,14 +79,11 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
             .as_ref()
             .map(|id| forge_domain::ProviderId::from(id.clone()))
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
-        let default_provider = self
-            .repository
-            .get_provider(default_provider_id)
-            .await?;
+        let default_provider = self.repository.get_provider(default_provider_id).await?;
         let default_model = session
             .model_id
             .as_ref()
-            .map(|mid| forge_domain::ModelId::new(mid))
+            .map(forge_domain::ModelId::new)
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "No default model configured for provider {}",
