@@ -66,7 +66,7 @@ impl ForgeInfra {
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service =
             Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
-        let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
+        let grpc_client = Arc::new(ForgeGrpcClient::new(env.service_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
         Self {

@@ -60,7 +60,7 @@ impl Default for TestContext {
                 home: Some(PathBuf::from("/Users/tushar")),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/Users/tushar/projects"),
-                forge_api_url: Url::parse("http://localhost:8000").unwrap(),
+                service_url: Url::parse("http://localhost:8000").unwrap(),
 
                 // No retry policy by default
                 retry_config: RetryConfig {
@@ -92,7 +92,6 @@ impl Default for TestContext {
                 sem_search_limit: 100,
                 sem_search_top_k: 10,
                 max_image_size: 262144,
-                workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 max_extensions: 15,
                 parallel_file_reads: 64,
                 model_cache_ttl: 604_800,

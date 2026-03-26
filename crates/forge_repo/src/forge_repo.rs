@@ -42,7 +42,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    config_repository: Arc<ForgeConfigRepository<F>>,
+    config_repository: Arc<ForgeConfigRepository>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -64,7 +64,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let config_repository = Arc::new(ForgeConfigRepository::new(infra.clone()));
+        let config_repository = Arc::new(ForgeConfigRepository::new());
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),

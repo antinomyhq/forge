@@ -31,9 +31,6 @@ pub struct Environment {
     pub shell: String,
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
-    /// Base URL for Forge's backend APIs
-    #[dummy(expr = "url::Url::parse(\"https://example.com\").unwrap()")]
-    pub forge_api_url: Url,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch.
@@ -87,7 +84,7 @@ pub struct Environment {
     /// URL for the indexing server.
     /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
-    pub workspace_server_url: Url,
+    pub service_url: Url,
     /// Maximum number of file extensions to include in the system prompt.
     /// Controlled by FORGE_MAX_EXTENSIONS environment variable.
     pub max_extensions: usize,
@@ -328,7 +325,7 @@ fn test_command_path() {
         home: Some(PathBuf::from("/home/user")),
         shell: "zsh".to_string(),
         base_path: PathBuf::from("/home/user/.forge"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
+        service_url: "https://api.example.com".parse().unwrap(),
         retry_config: RetryConfig::default(),
         max_search_lines: 1000,
         max_search_result_bytes: 10240,
@@ -349,7 +346,6 @@ fn test_command_path() {
         sem_search_limit: 100,
         sem_search_top_k: 10,
         max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         max_extensions: 15,
         auto_dump: None,
         parallel_file_reads: 64,
@@ -374,7 +370,7 @@ fn test_command_cwd_path() {
         home: Some(PathBuf::from("/home/user")),
         shell: "zsh".to_string(),
         base_path: PathBuf::from("/home/user/.forge"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
+        service_url: "https://api.example.com".parse().unwrap(),
         retry_config: RetryConfig::default(),
         max_search_lines: 1000,
         max_search_result_bytes: 10240,
@@ -395,7 +391,6 @@ fn test_command_cwd_path() {
         sem_search_limit: 100,
         sem_search_top_k: 10,
         max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         max_extensions: 15,
         auto_dump: None,
         parallel_file_reads: 64,
@@ -420,7 +415,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         home: Some(PathBuf::from("/different/home")),
         shell: "bash".to_string(),
         base_path: PathBuf::from("/completely/different/base"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
+        service_url: "https://api.example.com".parse().unwrap(),
         retry_config: RetryConfig::default(),
         max_search_lines: 1000,
         max_search_result_bytes: 10240,
@@ -441,7 +436,6 @@ fn test_command_cwd_path_independent_from_command_path() {
         sem_search_limit: 100,
         sem_search_top_k: 10,
         max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         max_extensions: 15,
         auto_dump: None,
         parallel_file_reads: 64,

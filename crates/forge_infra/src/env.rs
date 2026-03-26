@@ -38,7 +38,7 @@ impl ForgeEnvironmentInfra {
         let cwd = self.cwd.clone();
         let retry_config = resolve_retry_config();
 
-        let forge_api_url = self
+        let service_url = self
             .get_env_var("FORGE_API_URL")
             .as_ref()
             .and_then(|url| Url::parse(url.as_str()).ok())
@@ -83,15 +83,11 @@ impl ForgeEnvironmentInfra {
             http: resolve_http_config(),
             max_file_size: 10 << 20, // 10 MiB
             max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(10 << 20), /* 10 MiB */
-            forge_api_url,
+            service_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
             sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(200),
             sem_search_top_k: parse_env::<usize>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(20),
-            workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
-                .as_ref()
-                .and_then(|url| Url::parse(url.as_str()).ok())
-                .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             max_extensions: parse_env::<usize>("FORGE_MAX_EXTENSIONS").unwrap_or(15),
             auto_dump: parse_env::<AutoDumpFormat>("FORGE_AUTO_DUMP"),
             parallel_file_reads: parse_env::<usize>("FORGE_PARALLEL_FILE_READS").unwrap_or_else(

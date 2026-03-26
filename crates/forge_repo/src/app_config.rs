@@ -100,10 +100,6 @@ fn to_environment(fc: ForgeConfig) -> anyhow::Result<Environment> {
         base_path: dirs::home_dir()
             .map(|h| h.join("forge"))
             .unwrap_or_else(|| PathBuf::from(".").join("forge")),
-        forge_api_url: std::env::var("FORGE_API_URL")
-            .ok()
-            .and_then(|u| Url::parse(&u).ok())
-            .unwrap_or_else(|| Url::parse("https://antinomy.ai/api/v1/").unwrap()),
 
         // --- ForgeConfig-mapped fields ---
         retry_config: fc.retry.map(to_retry_config).unwrap_or_default(),
@@ -126,7 +122,7 @@ fn to_environment(fc: ForgeConfig) -> anyhow::Result<Environment> {
         max_conversations: fc.max_conversations,
         sem_search_limit: fc.max_sem_search_results,
         sem_search_top_k: fc.sem_search_top_k,
-        workspace_server_url: Url::parse(fc.services_url.as_str())?,
+        service_url: Url::parse(fc.services_url.as_str())?,
         max_extensions: fc.max_extensions,
         auto_dump: fc.auto_dump.map(to_auto_dump_format),
         parallel_file_reads: fc.max_parallel_file_reads,
