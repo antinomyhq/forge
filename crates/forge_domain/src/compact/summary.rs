@@ -101,7 +101,20 @@ impl SummaryToolCall {
     pub fn shell(command: impl Into<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::Shell { command: command.into() },
+            tool: SummaryTool::Shell { command: command.into(), log_file: None },
+            is_success: true,
+        }
+    }
+
+    /// Creates a Shell tool call with a log file for nohup background
+    /// processes.
+    pub fn shell_with_log(command: impl Into<String>, log_file: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::Shell {
+                command: command.into(),
+                log_file: Some(log_file.into()),
+            },
             is_success: true,
         }
     }
@@ -183,7 +196,7 @@ pub enum SummaryTool {
     FileRead { path: String },
     FileUpdate { path: String },
     FileRemove { path: String },
-    Shell { command: String },
+    Shell { command: String, #[serde(skip_serializing_if = "Option::is_none")] log_file: Option<String> },
     Search { pattern: String },
     SemSearch { queries: Vec<SearchQuery> },
     Undo { path: String },
@@ -283,7 +296,7 @@ impl From<&Context> for ContextSummary {
                 .push(SummaryBlock { role: current_role, contents: std::mem::take(&mut buffer) });
         }
 
-        // Update tool call success status based on results
+        // Update tool call success status and extract nohup log file paths
         messages
             .iter_mut()
             .flat_map(|message| message.contents.iter_mut())
@@ -293,6 +306,21 @@ impl From<&Context> for ContextSummary {
                     && let Some(result) = tool_results.get(call_id)
                 {
                     tool_data.is_success = !result.is_error();
+
+                    // For nohup shell commands, extract the log file path from
+                    // the tool result output so it is preserved through
+                    // compaction.
+                    if let SummaryTool::Shell { log_file, .. } = &mut tool_data.tool {
+                        if let Some(output_str) = result.output.as_str() {
+                            if let Some(path) = output_str
+                                .lines()
+                                .find(|line| line.starts_with("Log file: "))
+                                .map(|line| line.trim_start_matches("Log file: ").trim())
+                            {
+                                *log_file = Some(path.to_string());
+                            }
+                        }
+                    }
                 }
             });
 
@@ -342,7 +370,10 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
-            ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
+            ToolCatalog::Shell(input) => Some(SummaryTool::Shell {
+                command: input.command,
+                log_file: None, // Will be populated from tool result for nohup commands
+            }),
             ToolCatalog::FsSearch(input) => {
                 // Use glob, file_type, or pattern as the search identifier
                 let pattern = input.glob.or(input.file_type).unwrap_or(input.pattern);
@@ -911,7 +942,7 @@ mod tests {
 
         let expected = Block::ToolCall(SummaryToolCall {
             id: None,
-            tool: SummaryTool::Shell { command: "cargo build".to_string() },
+            tool: SummaryTool::Shell { command: "cargo build".to_string(), log_file: None },
             is_success: true,
         });
 
