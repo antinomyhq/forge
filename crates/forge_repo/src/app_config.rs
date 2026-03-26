@@ -1,10 +1,14 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
-use forge_domain::{AppConfigOperation, AppConfigRepository, Environment, SessionConfig};
+use forge_domain::{
+    AppConfigOperation, AppConfigRepository, AutoDumpFormat, Environment, HttpConfig, RetryConfig,
+    SessionConfig, TlsBackend, TlsVersion,
+};
 use tokio::sync::Mutex;
 use tracing::{debug, error};
+use url::Url;
 
 /// Converts a [`ModelConfig`] into a domain-level [`SessionConfig`].
 fn to_session_config(mc: &ModelConfig) -> SessionConfig {
@@ -14,12 +18,123 @@ fn to_session_config(mc: &ModelConfig) -> SessionConfig {
     }
 }
 
-/// Populates an [`Environment`] with user configuration fields from a
-/// [`ForgeConfig`].
-fn apply_forge_config(env: &mut Environment, fc: &ForgeConfig) {
-    env.session = fc.session.as_ref().map(to_session_config);
-    env.commit = fc.commit.as_ref().map(to_session_config);
-    env.suggest = fc.suggest.as_ref().map(to_session_config);
+/// Converts a [`forge_config::TlsVersion`] into a [`forge_domain::TlsVersion`].
+fn to_tls_version(v: forge_config::TlsVersion) -> TlsVersion {
+    match v {
+        forge_config::TlsVersion::V1_0 => TlsVersion::V1_0,
+        forge_config::TlsVersion::V1_1 => TlsVersion::V1_1,
+        forge_config::TlsVersion::V1_2 => TlsVersion::V1_2,
+        forge_config::TlsVersion::V1_3 => TlsVersion::V1_3,
+    }
+}
+
+/// Converts a [`forge_config::TlsBackend`] into a [`forge_domain::TlsBackend`].
+fn to_tls_backend(b: forge_config::TlsBackend) -> TlsBackend {
+    match b {
+        forge_config::TlsBackend::Default => TlsBackend::Default,
+        forge_config::TlsBackend::Rustls => TlsBackend::Rustls,
+    }
+}
+
+/// Converts a [`forge_config::HttpConfig`] into a [`forge_domain::HttpConfig`].
+fn to_http_config(h: forge_config::HttpConfig) -> HttpConfig {
+    HttpConfig {
+        connect_timeout: h.connect_timeout_secs,
+        read_timeout: h.read_timeout_secs,
+        pool_idle_timeout: h.pool_idle_timeout_secs,
+        pool_max_idle_per_host: h.pool_max_idle_per_host,
+        max_redirects: h.max_redirects,
+        hickory: h.hickory,
+        tls_backend: to_tls_backend(h.tls_backend),
+        min_tls_version: h.min_tls_version.map(to_tls_version),
+        max_tls_version: h.max_tls_version.map(to_tls_version),
+        adaptive_window: h.adaptive_window,
+        keep_alive_interval: h.keep_alive_interval_secs,
+        keep_alive_timeout: h.keep_alive_timeout_secs,
+        keep_alive_while_idle: h.keep_alive_while_idle,
+        accept_invalid_certs: h.accept_invalid_certs,
+        root_cert_paths: h.root_cert_paths,
+    }
+}
+
+/// Converts a [`forge_config::RetryConfig`] into a [`forge_domain::RetryConfig`].
+fn to_retry_config(r: forge_config::RetryConfig) -> RetryConfig {
+    RetryConfig {
+        initial_backoff_ms: r.initial_backoff_ms,
+        min_delay_ms: r.min_delay_ms,
+        backoff_factor: r.backoff_factor,
+        max_retry_attempts: r.max_attempts,
+        retry_status_codes: r.status_codes,
+        max_delay: r.max_delay_secs,
+        suppress_retry_errors: r.suppress_errors,
+    }
+}
+
+/// Converts a [`forge_config::AutoDumpFormat`] into a
+/// [`forge_domain::AutoDumpFormat`].
+fn to_auto_dump_format(f: forge_config::AutoDumpFormat) -> AutoDumpFormat {
+    match f {
+        forge_config::AutoDumpFormat::Json => AutoDumpFormat::Json,
+        forge_config::AutoDumpFormat::Html => AutoDumpFormat::Html,
+    }
+}
+
+/// Builds a [`forge_domain::Environment`] entirely from a [`ForgeConfig`],
+/// mapping every config field to its corresponding environment field.
+///
+/// Infrastructure-only fields (`os`, `pid`, `cwd`, `home`, `shell`,
+/// `base_path`, `forge_api_url`) are resolved using the same approach as the
+/// infra layer: OS APIs and well-known fallbacks.
+fn to_environment(fc: ForgeConfig) -> anyhow::Result<Environment> {
+    Ok(Environment {
+        // --- Infrastructure-derived fields ---
+        os: std::env::consts::OS.to_string(),
+        pid: std::process::id(),
+        cwd: std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+        home: dirs::home_dir(),
+        shell: if cfg!(target_os = "windows") {
+            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+        } else {
+            std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+        },
+        base_path: dirs::home_dir()
+            .map(|h| h.join("forge"))
+            .unwrap_or_else(|| PathBuf::from(".").join("forge")),
+        forge_api_url: std::env::var("FORGE_API_URL")
+            .ok()
+            .and_then(|u| Url::parse(&u).ok())
+            .unwrap_or_else(|| Url::parse("https://antinomy.ai/api/v1/").unwrap()),
+
+        // --- ForgeConfig-mapped fields ---
+        retry_config: fc.retry.map(to_retry_config).unwrap_or_default(),
+        max_search_lines: fc.max_search_lines,
+        max_search_result_bytes: fc.max_search_result_bytes,
+        fetch_truncation_limit: fc.max_fetch_chars,
+        stdout_max_prefix_length: fc.max_stdout_prefix_lines,
+        stdout_max_suffix_length: fc.max_stdout_suffix_lines,
+        stdout_max_line_length: fc.max_stdout_line_chars,
+        max_line_length: fc.max_line_chars,
+        max_read_size: fc.max_read_lines,
+        max_file_read_batch_size: fc.max_file_read_batch_size,
+        http: fc.http.map(to_http_config).unwrap_or_default(),
+        max_file_size: fc.max_file_size_bytes,
+        max_image_size: fc.max_image_size_bytes,
+        tool_timeout: fc.tool_timeout_secs,
+        auto_open_dump: fc.auto_open_dump,
+        debug_requests: fc.debug_requests,
+        custom_history_path: fc.custom_history_path,
+        max_conversations: fc.max_conversations,
+        sem_search_limit: fc.max_sem_search_results,
+        sem_search_top_k: fc.sem_search_top_k,
+        workspace_server_url: Url::parse(fc.services_url.as_str())?,
+        max_extensions: fc.max_extensions,
+        auto_dump: fc.auto_dump.map(to_auto_dump_format),
+        parallel_file_reads: fc.max_parallel_file_reads,
+        model_cache_ttl: fc.model_cache_ttl_secs,
+        session: fc.session.as_ref().map(to_session_config),
+        commit: fc.commit.as_ref().map(to_session_config),
+        suggest: fc.suggest.as_ref().map(to_session_config),
+    })
 }
 
 /// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
@@ -65,16 +180,14 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
 /// Repository for managing application configuration with caching support.
 ///
 /// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
-/// maintains an in-memory cache to reduce disk access. Merges the on-disk
-/// config into an [`Environment`] provided by the infrastructure layer.
-pub struct ForgeConfigRepository<F> {
-    infra: Arc<F>,
+/// maintains an in-memory cache to reduce disk access.
+pub struct ForgeConfigRepository {
     cache: Arc<Mutex<Option<ForgeConfig>>>,
 }
 
-impl<F> ForgeConfigRepository<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, cache: Arc::new(Mutex::new(None)) }
+impl ForgeConfigRepository {
+    pub fn new() -> Self {
+        Self { cache: Arc::new(Mutex::new(None)) }
     }
 
     /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
@@ -96,7 +209,7 @@ impl<F> ForgeConfigRepository<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra> AppConfigRepository for ForgeConfigRepository<F> {
+impl AppConfigRepository for ForgeConfigRepository {
     async fn get_app_config(&self) -> anyhow::Result<Environment> {
         // Get the ForgeConfig (cached or from disk)
         let fc = {
@@ -112,10 +225,8 @@ impl<F: EnvironmentInfra> AppConfigRepository for ForgeConfigRepository<F> {
             }
         };
 
-        // Build an Environment from the infra layer and merge in config fields
-        let mut env = self.infra.get_environment();
-        apply_forge_config(&mut env, &fc);
-        Ok(env)
+        // Build a fresh Environment from every ForgeConfig field
+        to_environment(fc)
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
