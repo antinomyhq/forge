@@ -58,7 +58,7 @@ pub struct ForgeConfig {
     /// Top-k parameter for relevance filtering during semantic search
     pub sem_search_top_k: usize,
     /// URL for the indexing server
-    pub workspace_server_url: Option<Url>,
+    pub services_url: Option<Url>,
     /// Maximum number of file extensions to include in the system prompt
     pub max_extensions: usize,
     /// Format for automatically creating a dump when a task is completed
