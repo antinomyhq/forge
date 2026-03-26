@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig};
+use crate::{HttpConfig, RetryConfig, SessionConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -103,6 +103,17 @@ pub struct Environment {
     /// TTL in seconds for the model API list cache.
     /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
     pub model_cache_ttl: u64,
+
+    // --- User configuration fields (from ForgeConfig) ---
+    /// The active session (provider + model).
+    #[dummy(default)]
+    pub session: Option<SessionConfig>,
+    /// Provider and model for commit message generation.
+    #[dummy(default)]
+    pub commit: Option<SessionConfig>,
+    /// Provider and model for shell command suggestion generation.
+    #[dummy(default)]
+    pub suggest: Option<SessionConfig>,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -343,6 +354,9 @@ fn test_command_path() {
         auto_dump: None,
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
+        session: None,
+        commit: None,
+        suggest: None,
     };
 
     let actual = fixture.command_path();
@@ -386,6 +400,9 @@ fn test_command_cwd_path() {
         auto_dump: None,
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
+        session: None,
+        commit: None,
+        suggest: None,
     };
 
     let actual = fixture.command_cwd_path();
@@ -429,6 +446,9 @@ fn test_command_cwd_path_independent_from_command_path() {
         auto_dump: None,
         parallel_file_reads: 64,
         model_cache_ttl: 604_800,
+        session: None,
+        commit: None,
+        suggest: None,
     };
 
     let command_path = fixture.command_path();

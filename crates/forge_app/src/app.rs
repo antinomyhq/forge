@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Local;
-use forge_domain::{InitAuth, *};
+use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
@@ -32,7 +31,6 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    authenticator: Authenticator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -40,7 +38,6 @@ impl<S: Services> ForgeApp<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
-            authenticator: Authenticator::new(services.clone()),
             services,
         }
     }
@@ -314,15 +311,6 @@ impl<S: Services> ForgeApp<S> {
         Ok(results)
     }
 
-    pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
-        self.authenticator.login(init_auth).await
-    }
-    pub async fn init_auth(&self) -> Result<InitAuth> {
-        self.authenticator.init().await
-    }
-    pub async fn logout(&self) -> Result<()> {
-        self.authenticator.logout().await
-    }
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }

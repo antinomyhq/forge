@@ -8,13 +8,12 @@ use forge_app::{
     FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
     KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
-use forge_config::ForgeConfig;
 use forge_domain::{
     AnyProvider, AppConfigOperation, AppConfigRepository, AuthCredential,
     ChatCompletionMessage, ChatRepository, CommandOutput, Context, Conversation, ConversationId,
-    ConversationRepository, Environment, FileInfo, FuzzySearchRepository, McpServerConfig,
-    MigrationResult, Model, ModelId, Provider, ProviderId, ProviderRepository, ResultStream,
-    SearchMatch, Skill, SkillRepository, Snapshot, SnapshotRepository,
+    ConversationRepository, Environment, FileInfo, FuzzySearchRepository,
+    McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderRepository,
+    ResultStream, SearchMatch, Skill, SkillRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -43,7 +42,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    config_repository: Arc<ForgeConfigRepository>,
+    config_repository: Arc<ForgeConfigRepository<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -65,7 +64,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let config_repository = Arc::new(ForgeConfigRepository::new());
+        let config_repository = Arc::new(ForgeConfigRepository::new(infra.clone()));
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -195,8 +194,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
-    async fn get_app_config(&self) -> anyhow::Result<ForgeConfig> {
+impl<F: EnvironmentInfra + Send + Sync> AppConfigRepository for ForgeRepo<F> {
+    async fn get_app_config(&self) -> anyhow::Result<Environment> {
         self.config_repository.get_app_config().await
     }
 

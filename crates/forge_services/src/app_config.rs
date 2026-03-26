@@ -136,10 +136,10 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Mutex;
 
-    use forge_config::{ForgeConfig, ModelConfig};
     use forge_domain::{
-        AnyProvider, AppConfigOperation, ChatRepository, InputModality, MigrationResult, Model,
-        ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
+        AnyProvider, AppConfigOperation, ChatRepository, Environment, InputModality,
+        MigrationResult, Model, ModelSource, Provider, ProviderId, ProviderResponse,
+        ProviderTemplate, SessionConfig,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -148,14 +148,15 @@ mod tests {
 
     #[derive(Clone)]
     struct MockInfra {
-        config: Arc<Mutex<ForgeConfig>>,
+        config: Arc<Mutex<Environment>>,
         providers: Vec<Provider<Url>>,
     }
 
     impl MockInfra {
         fn new() -> Self {
+            use fake::{Fake, Faker};
             Self {
-                config: Arc::new(Mutex::new(ForgeConfig::default())),
+                config: Arc::new(Mutex::new(Faker.fake())),
                 providers: vec![
                     Provider {
                         id: ProviderId::OPENAI,
@@ -216,7 +217,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AppConfigRepository for MockInfra {
-        async fn get_app_config(&self) -> anyhow::Result<ForgeConfig> {
+        async fn get_app_config(&self) -> anyhow::Result<Environment> {
             Ok(self.config.lock().unwrap().clone())
         }
 
@@ -224,37 +225,21 @@ mod tests {
             let mut config = self.config.lock().unwrap();
             for op in ops {
                 match op {
-                    AppConfigOperation::KeyInfo(Some(info)) => {
-                        config.api_key = Some(info.api_key);
-                        config.api_key_name = Some(info.api_key_name);
-                        config.api_key_masked = Some(info.api_key_masked);
-                        config.email = info.email;
-                        config.name = info.name;
-                        config.auth_provider_id = info.auth_provider_id;
-                    }
-                    AppConfigOperation::KeyInfo(None) => {
-                        config.api_key = None;
-                        config.api_key_name = None;
-                        config.api_key_masked = None;
-                        config.email = None;
-                        config.name = None;
-                        config.auth_provider_id = None;
-                    }
                     AppConfigOperation::SetProvider(pid) => {
                         let pid_str = pid.as_ref().to_string();
                         config.session = Some(match config.session.take() {
-                            Some(mc) => mc.provider_id(pid_str),
-                            None => ModelConfig::default().provider_id(pid_str),
+                            Some(sc) => sc.provider_id(pid_str),
+                            None => SessionConfig::default().provider_id(pid_str),
                         });
                     }
                     AppConfigOperation::SetModel(pid, mid) => {
                         let pid_str = pid.as_ref().to_string();
                         let mid_str = mid.to_string();
                         config.session = Some(match config.session.take() {
-                            Some(mc) if mc.provider_id.as_deref() == Some(&pid_str) => {
-                                mc.model_id(mid_str)
+                            Some(sc) if sc.provider_id.as_deref() == Some(&pid_str) => {
+                                sc.model_id(mid_str)
                             }
-                            _ => ModelConfig::default()
+                            _ => SessionConfig::default()
                                 .provider_id(pid_str)
                                 .model_id(mid_str),
                         });
@@ -265,14 +250,14 @@ mod tests {
                             .as_ref()
                             .zip(commit.model.as_ref())
                             .map(|(pid, mid)| {
-                                ModelConfig::default()
+                                SessionConfig::default()
                                     .provider_id(pid.as_ref().to_string())
                                     .model_id(mid.to_string())
                             });
                     }
                     AppConfigOperation::SetSuggestConfig(suggest) => {
                         config.suggest = Some(
-                            ModelConfig::default()
+                            SessionConfig::default()
                                 .provider_id(suggest.provider.as_ref().to_string())
                                 .model_id(suggest.model.to_string()),
                         );

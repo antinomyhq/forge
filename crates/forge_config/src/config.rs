@@ -77,24 +77,6 @@ pub struct ForgeConfig {
     /// Provider and model to use for shell command suggestion generation
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
-    /// API key for Forge authentication
-    #[serde(default)]
-    pub api_key: Option<String>,
-    /// Display name of the API key
-    #[serde(default)]
-    pub api_key_name: Option<String>,
-    /// Masked representation of the API key for display purposes
-    #[serde(default)]
-    pub api_key_masked: Option<String>,
-    /// Email address associated with the Forge account
-    #[serde(default)]
-    pub email: Option<String>,
-    /// Display name of the authenticated user
-    #[serde(default)]
-    pub name: Option<String>,
-    /// Identifier of the authentication provider used for login
-    #[serde(default)]
-    pub auth_provider_id: Option<String>,
 
     // --- Workflow fields ---
     /// Configuration for automatic forge updates

@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileInfo, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
+    FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node,
     Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
     ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
@@ -487,12 +487,8 @@ pub trait ShellService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User>;
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage>;
-    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
-    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -936,28 +932,12 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AuthService for I {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
-        self.auth_service().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
-        self.auth_service().login(auth).await
-    }
-
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         self.auth_service().user_info(api_key).await
     }
 
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
         self.auth_service().user_usage(api_key).await
-    }
-
-    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
-        self.auth_service().get_auth_token().await
-    }
-
-    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()> {
-        self.auth_service().set_auth_token(token).await
     }
 }
 

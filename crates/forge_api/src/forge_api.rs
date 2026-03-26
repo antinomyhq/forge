@@ -11,7 +11,7 @@ use forge_app::{
     McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
 };
-use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
+use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -211,18 +211,6 @@ impl<
         self.infra.execute_command_raw(command, cwd, None).await
     }
 
-    async fn init_login(&self) -> Result<InitAuth> {
-        self.app().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> Result<()> {
-        self.app().login(auth).await
-    }
-
-    async fn logout(&self) -> Result<()> {
-        self.app().logout().await
-    }
-
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(Some(agent_id)).await
@@ -298,10 +286,6 @@ impl<
 
     async fn set_suggest_config(&self, config: SuggestConfig) -> anyhow::Result<()> {
         self.services.set_suggest_config(config).await
-    }
-
-    async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
-        self.services.auth_service().get_auth_token().await
     }
 
     async fn reload_mcp(&self) -> Result<()> {

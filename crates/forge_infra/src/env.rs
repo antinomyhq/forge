@@ -102,6 +102,9 @@ impl ForgeEnvironmentInfra {
                 },
             ),
             model_cache_ttl: parse_env::<u64>("FORGE_MODEL_CACHE_TTL").unwrap_or(604_800), /* 1 week */
+            session: None,
+            commit: None,
+            suggest: None,
         }
     }
 

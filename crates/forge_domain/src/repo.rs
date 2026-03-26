@@ -3,12 +3,10 @@ use std::path::Path;
 use anyhow::Result;
 use url::Url;
 
-use forge_config::ForgeConfig;
-
 use crate::{
     AnyProvider, AppConfigOperation, AuthCredential, ChatCompletionMessage, Context, Conversation,
-    ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
+    ConversationId, Environment, MigrationResult, Model, ModelId, Provider, ProviderId,
+    ProviderTemplate, ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -93,11 +91,11 @@ pub trait ConversationRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
-    /// Retrieves the current application configuration.
+    /// Retrieves the current application configuration as an [`Environment`].
     ///
     /// # Errors
     /// Returns an error if the configuration cannot be read.
-    async fn get_app_config(&self) -> anyhow::Result<ForgeConfig>;
+    async fn get_app_config(&self) -> anyhow::Result<Environment>;
 
     /// Applies a list of configuration operations to the persisted config.
     ///

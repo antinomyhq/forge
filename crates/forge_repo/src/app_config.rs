@@ -1,30 +1,31 @@
 use std::sync::Arc;
 
+use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
-use forge_domain::{AppConfigOperation, AppConfigRepository};
+use forge_domain::{AppConfigOperation, AppConfigRepository, Environment, SessionConfig};
 use tokio::sync::Mutex;
 use tracing::{debug, error};
+
+/// Converts a [`ModelConfig`] into a domain-level [`SessionConfig`].
+fn to_session_config(mc: &ModelConfig) -> SessionConfig {
+    SessionConfig {
+        provider_id: mc.provider_id.clone(),
+        model_id: mc.model_id.clone(),
+    }
+}
+
+/// Populates an [`Environment`] with user configuration fields from a
+/// [`ForgeConfig`].
+fn apply_forge_config(env: &mut Environment, fc: &ForgeConfig) {
+    env.session = fc.session.as_ref().map(to_session_config);
+    env.commit = fc.commit.as_ref().map(to_session_config);
+    env.suggest = fc.suggest.as_ref().map(to_session_config);
+}
 
 /// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
 /// in-place.
 fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
     match op {
-        AppConfigOperation::KeyInfo(Some(info)) => {
-            fc.api_key = Some(info.api_key);
-            fc.api_key_name = Some(info.api_key_name);
-            fc.api_key_masked = Some(info.api_key_masked);
-            fc.email = info.email;
-            fc.name = info.name;
-            fc.auth_provider_id = info.auth_provider_id;
-        }
-        AppConfigOperation::KeyInfo(None) => {
-            fc.api_key = None;
-            fc.api_key_name = None;
-            fc.api_key_masked = None;
-            fc.email = None;
-            fc.name = None;
-            fc.auth_provider_id = None;
-        }
         AppConfigOperation::SetProvider(provider_id) => {
             let pid = provider_id.as_ref().to_string();
             fc.session = Some(match fc.session.take() {
@@ -64,14 +65,16 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
 /// Repository for managing application configuration with caching support.
 ///
 /// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
-/// maintains an in-memory cache to reduce disk access.
-pub struct ForgeConfigRepository {
+/// maintains an in-memory cache to reduce disk access. Merges the on-disk
+/// config into an [`Environment`] provided by the infrastructure layer.
+pub struct ForgeConfigRepository<F> {
+    infra: Arc<F>,
     cache: Arc<Mutex<Option<ForgeConfig>>>,
 }
 
-impl ForgeConfigRepository {
-    pub fn new() -> Self {
-        Self { cache: Arc::new(Mutex::new(None)) }
+impl<F> ForgeConfigRepository<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra, cache: Arc::new(Mutex::new(None)) }
     }
 
     /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
@@ -93,22 +96,26 @@ impl ForgeConfigRepository {
 }
 
 #[async_trait::async_trait]
-impl AppConfigRepository for ForgeConfigRepository {
-    async fn get_app_config(&self) -> anyhow::Result<ForgeConfig> {
-        // Check cache first
-        let cache = self.cache.lock().await;
-        if let Some(ref config) = *cache {
-            return Ok(config.clone());
-        }
-        drop(cache);
+impl<F: EnvironmentInfra> AppConfigRepository for ForgeConfigRepository<F> {
+    async fn get_app_config(&self) -> anyhow::Result<Environment> {
+        // Get the ForgeConfig (cached or from disk)
+        let fc = {
+            let cache = self.cache.lock().await;
+            if let Some(ref config) = *cache {
+                config.clone()
+            } else {
+                drop(cache);
+                let config = self.read().await;
+                let mut cache = self.cache.lock().await;
+                *cache = Some(config.clone());
+                config
+            }
+        };
 
-        // Cache miss, read from file
-        let config = self.read().await;
-
-        let mut cache = self.cache.lock().await;
-        *cache = Some(config.clone());
-
-        Ok(config)
+        // Build an Environment from the infra layer and merge in config fields
+        let mut env = self.infra.get_environment();
+        apply_forge_config(&mut env, &fc);
+        Ok(env)
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
@@ -138,47 +145,10 @@ impl AppConfigRepository for ForgeConfigRepository {
 #[cfg(test)]
 mod tests {
     use forge_config::{ForgeConfig, ModelConfig};
-    use forge_domain::{AppConfigOperation, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig};
+    use forge_domain::{AppConfigOperation, CommitConfig, ModelId, ProviderId, SuggestConfig};
     use pretty_assertions::assert_eq;
 
     use super::apply_op;
-
-    // ── apply_op ──────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_apply_op_key_info_some_sets_all_fields() {
-        let mut fixture = ForgeConfig::default();
-        let login = LoginInfo {
-            api_key: "key-123".to_string(),
-            api_key_name: "prod".to_string(),
-            api_key_masked: "key-***".to_string(),
-            email: Some("dev@forge.dev".to_string()),
-            name: Some("Bob".to_string()),
-            auth_provider_id: Some("google".to_string()),
-        };
-        apply_op(AppConfigOperation::KeyInfo(Some(login)), &mut fixture);
-        let expected = ForgeConfig::default()
-            .api_key("key-123".to_string())
-            .api_key_name("prod".to_string())
-            .api_key_masked("key-***".to_string())
-            .email("dev@forge.dev".to_string())
-            .name("Bob".to_string())
-            .auth_provider_id("google".to_string());
-        assert_eq!(fixture, expected);
-    }
-
-    #[test]
-    fn test_apply_op_key_info_none_clears_all_fields() {
-        let mut fixture = ForgeConfig::default()
-            .api_key("key-abc".to_string())
-            .api_key_name("old".to_string())
-            .api_key_masked("old-***".to_string())
-            .email("old@example.com".to_string())
-            .name("Old Name".to_string())
-            .auth_provider_id("github".to_string());
-        apply_op(AppConfigOperation::KeyInfo(None), &mut fixture);
-        assert_eq!(fixture, ForgeConfig::default());
-    }
 
     #[test]
     fn test_apply_op_set_provider_creates_session_when_absent() {

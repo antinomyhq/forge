@@ -1,28 +1,19 @@
-use derive_more::From;
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 use crate::{CommitConfig, ModelId, ProviderId, SuggestConfig};
 
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct InitAuth {
-    pub session_id: String,
-    pub auth_url: String,
-    pub token: String,
-}
-
-#[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct LoginInfo {
-    pub api_key: String,
-    pub api_key_name: String,
-    pub api_key_masked: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub email: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub auth_provider_id: Option<String>,
+/// Domain-level session configuration pairing a provider with a model.
+///
+/// Used inside [`Environment`] to represent the active session, decoupled from
+/// the on-disk configuration format.
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
+#[setters(strip_option, into)]
+pub struct SessionConfig {
+    /// The active provider ID (e.g. `"anthropic"`).
+    pub provider_id: Option<String>,
+    /// The model ID to use with this provider.
+    pub model_id: Option<String>,
 }
 
 /// All discrete mutations that can be applied to the application configuration.
@@ -32,8 +23,6 @@ pub struct LoginInfo {
 /// each in order, and persist the result atomically.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AppConfigOperation {
-    /// Set or clear the authentication token.
-    KeyInfo(Option<LoginInfo>),
     /// Set the active provider.
     SetProvider(ProviderId),
     /// Set the model for the given provider.

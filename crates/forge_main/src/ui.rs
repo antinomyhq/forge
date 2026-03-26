@@ -1454,7 +1454,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => None,
         };
 
-        let key_info = self.api.get_login_info().await;
         // Fetch agent
         let agent = self.api.get_active_agent().await;
 
@@ -1502,11 +1501,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             _ => {
                 // No provider available
             }
-        }
-
-        // Add user information if available
-        if let Some(login_info) = key_info? {
-            info = info.extend(Info::from(&login_info));
         }
 
         // Add conversation information if available
