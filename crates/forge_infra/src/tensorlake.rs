@@ -349,7 +349,8 @@ impl TensorlakeCommandExecutor {
                 .context("Failed to poll process status")?;
 
             if !resp.status().is_success() {
-                continue;
+                let status = resp.status();
+                return Err(anyhow!("Failed to poll process {pid} status: HTTP {status}"));
             }
 
             let body: serde_json::Value =
@@ -383,7 +384,8 @@ impl TensorlakeCommandExecutor {
             .with_context(|| format!("Failed to fetch process {stream} for pid {pid}"))?;
 
         if !resp.status().is_success() {
-            return Ok(String::new());
+            let status = resp.status();
+            return Err(anyhow!("Failed to fetch {stream} for pid {pid}: HTTP {status}"));
         }
 
         let output: ProcessOutputResponse = resp
