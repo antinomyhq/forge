@@ -195,8 +195,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + Send + Sync> AppConfigRepository for ForgeRepo<F> {
-    async fn get_app_config(&self) -> anyhow::Result<Environment> {
-        self.config_repository.get_app_config().await
+    fn get_app_config(&self) -> Environment {
+        self.config_repository.get_app_config()
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {

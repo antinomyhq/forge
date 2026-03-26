@@ -92,10 +92,7 @@ pub trait ConversationRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
     /// Retrieves the current application configuration as an [`Environment`].
-    ///
-    /// # Errors
-    /// Returns an error if the configuration cannot be read.
-    async fn get_app_config(&self) -> anyhow::Result<Environment>;
+    fn get_app_config(&self) -> Environment;
 
     /// Applies a list of configuration operations to the persisted config.
     ///

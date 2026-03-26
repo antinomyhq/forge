@@ -6,7 +6,6 @@ use forge_domain::{
     AppConfigOperation, AppConfigRepository, AutoDumpFormat, Environment, HttpConfig, RetryConfig,
     SessionConfig, TlsBackend, TlsVersion,
 };
-use tokio::sync::Mutex;
 use tracing::{debug, error};
 use url::Url;
 
@@ -86,8 +85,8 @@ fn to_auto_dump_format(f: forge_config::AutoDumpFormat) -> AutoDumpFormat {
 /// Infrastructure-only fields (`os`, `pid`, `cwd`, `home`, `shell`,
 /// `base_path`, `forge_api_url`) are resolved using the same approach as the
 /// infra layer: OS APIs and well-known fallbacks.
-fn to_environment(fc: ForgeConfig) -> anyhow::Result<Environment> {
-    Ok(Environment {
+fn to_environment(fc: ForgeConfig) -> Environment {
+    Environment {
         // --- Infrastructure-derived fields ---
         os: std::env::consts::OS.to_string(),
         pid: std::process::id(),
@@ -123,7 +122,8 @@ fn to_environment(fc: ForgeConfig) -> anyhow::Result<Environment> {
         max_conversations: fc.max_conversations,
         sem_search_limit: fc.max_sem_search_results,
         sem_search_top_k: fc.sem_search_top_k,
-        service_url: Url::parse(fc.services_url.as_str())?,
+        service_url: Url::parse(fc.services_url.as_str())
+            .unwrap_or_else(|_| Url::parse("http://api.forgecode.dev").unwrap()),
         max_extensions: fc.max_extensions,
         auto_dump: fc.auto_dump.map(to_auto_dump_format),
         parallel_file_reads: fc.max_parallel_file_reads,
@@ -131,7 +131,7 @@ fn to_environment(fc: ForgeConfig) -> anyhow::Result<Environment> {
         session: fc.session.as_ref().map(to_session_config),
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
-    })
+    }
 }
 
 /// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
@@ -179,19 +179,17 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
 /// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
 /// maintains an in-memory cache to reduce disk access.
 pub struct ForgeConfigRepository {
-    cache: Arc<Mutex<Option<ForgeConfig>>>,
+    cache: Arc<std::sync::Mutex<Option<ForgeConfig>>>,
 }
 
 impl ForgeConfigRepository {
     pub fn new() -> Self {
-        Self { cache: Arc::new(Mutex::new(None)) }
+        Self { cache: Arc::new(std::sync::Mutex::new(None)) }
     }
 
     /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
-    async fn read(&self) -> ForgeConfig {
-        let config = ForgeConfig::read();
-
-        match config {
+    fn read_from_disk() -> ForgeConfig {
+        match ForgeConfig::read() {
             Ok(config) => {
                 debug!(config = ?config, "read .forge.toml");
                 config
@@ -207,22 +205,18 @@ impl ForgeConfigRepository {
 
 #[async_trait::async_trait]
 impl AppConfigRepository for ForgeConfigRepository {
-    async fn get_app_config(&self) -> anyhow::Result<Environment> {
-        // Get the ForgeConfig (cached or from disk)
+    fn get_app_config(&self) -> Environment {
         let fc = {
-            let cache = self.cache.lock().await;
+            let mut cache = self.cache.lock().expect("cache mutex poisoned");
             if let Some(ref config) = *cache {
                 config.clone()
             } else {
-                drop(cache);
-                let config = self.read().await;
-                let mut cache = self.cache.lock().await;
+                let config = Self::read_from_disk();
                 *cache = Some(config.clone());
                 config
             }
         };
 
-        // Build a fresh Environment from every ForgeConfig field
         to_environment(fc)
     }
 
@@ -246,8 +240,7 @@ impl AppConfigRepository for ForgeConfigRepository {
         debug!(config = ?fc, "written .forge.toml");
 
         // Reset cache
-        let mut cache = self.cache.lock().await;
-        *cache = None;
+        *self.cache.lock().expect("cache mutex poisoned") = None;
 
         Ok(())
     }
