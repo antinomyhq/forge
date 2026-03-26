@@ -4,9 +4,9 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
-    ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
+    AnyProvider, AppConfig, AppConfigOperation, AuthCredential, ChatCompletionMessage, Context,
+    Conversation, ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId,
+    ProviderTemplate, ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -91,8 +91,21 @@ pub trait ConversationRepository: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AppConfigRepository: Send + Sync {
+    /// Retrieves the current application configuration.
+    ///
+    /// # Errors
+    /// Returns an error if the configuration cannot be read.
     async fn get_app_config(&self) -> anyhow::Result<AppConfig>;
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
+
+    /// Applies a list of configuration operations to the persisted config.
+    ///
+    /// Implementations should load the current config, apply each operation in
+    /// order via [`AppConfigOperation::apply`], and persist the result
+    /// atomically.
+    ///
+    /// # Errors
+    /// Returns an error if the configuration cannot be read or written.
+    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

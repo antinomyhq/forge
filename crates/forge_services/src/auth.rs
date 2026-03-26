@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{AuthService, EnvironmentInfra, Error, HttpInfra, User, UserUsage};
-use forge_domain::{AppConfigRepository, InitAuth, LoginInfo};
+use forge_domain::{AppConfigOperation, AppConfigRepository, InitAuth, LoginInfo};
 use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
@@ -102,10 +102,9 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
     }
 
     async fn set_auth_token(&self, login: Option<LoginInfo>) -> anyhow::Result<()> {
-        let mut config = self.infra.get_app_config().await?;
-        config.key_info = login;
-        self.infra.set_app_config(&config).await?;
-        Ok(())
+        self.infra
+            .update_app_config(vec![AppConfigOperation::KeyInfo(login)])
+            .await
     }
 }
 

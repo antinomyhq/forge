@@ -176,8 +176,7 @@ function _forge_action_model() {
                 _forge_exec_interactive config set provider "$provider_id" --model "$model_id"
                 return
             fi
-
-            _forge_exec config set model "$model_id"
+             _forge_exec config set model "$model_id"
         fi
     )
 }
@@ -380,6 +379,48 @@ function _forge_action_model_reset() {
 function _forge_action_config() {
     echo
     $_FORGE_BIN config list
+}
+
+# Action handler: Open the global forge config file in an editor
+function _forge_action_config_edit() {
+    echo
+
+    # Determine editor in order of preference: FORGE_EDITOR > EDITOR > nano
+    local editor_cmd="${FORGE_EDITOR:-${EDITOR:-nano}}"
+
+    # Validate editor exists
+    if ! command -v "${editor_cmd%% *}" &>/dev/null; then
+        _forge_log error "Editor not found: $editor_cmd (set FORGE_EDITOR or EDITOR)"
+        return 1
+    fi
+
+    local config_file="${HOME}/forge/.forge.toml"
+
+    # Ensure the config directory exists
+    if [[ ! -d "${HOME}/forge" ]]; then
+        mkdir -p "${HOME}/forge" || {
+            _forge_log error "Failed to create ~/forge directory"
+            return 1
+        }
+    fi
+
+    # Create the config file if it does not yet exist
+    if [[ ! -f "$config_file" ]]; then
+        touch "$config_file" || {
+            _forge_log error "Failed to create $config_file"
+            return 1
+        }
+    fi
+
+    # Open editor with its own TTY session
+    (eval "$editor_cmd '$config_file'" </dev/tty >/dev/tty 2>&1)
+    local exit_code=$?
+
+    if [[ $exit_code -ne 0 ]]; then
+        _forge_log error "Editor exited with error code $exit_code"
+    fi
+
+    _forge_reset
 }
 
 # Action handler: Show tools

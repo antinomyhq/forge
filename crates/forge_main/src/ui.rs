@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+use console::style;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
@@ -1214,6 +1215,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
+                .sort_by(&[1, 0])
                 .to_case(&[1], Case::UpperSnake)
                 .map_col(0, |col| {
                     if col.as_deref() == Some(headers::ID) {
@@ -1421,24 +1423,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Show failed MCP servers
-        if !all_tools.mcp.get_failures().is_empty() {
-            info = info.add_title("FAILED");
-            for (server_name, error) in all_tools.mcp.get_failures().iter() {
-                // Truncate error message for readability
-                let truncated_error = if error.len() > 80 {
-                    format!("{}...", &error[..77])
-                } else {
-                    error.clone()
-                };
-                info = info.add_value(format!("[✗] {server_name} - {truncated_error}"));
-            }
-        }
-
         if porcelain {
             self.writeln(Porcelain::from(&info).uppercase_headers().truncate(3, 60))?;
         } else {
             self.writeln(info)?;
+        }
+
+        // Show failed MCP servers
+        if !porcelain && !all_tools.mcp.get_failures().is_empty() {
+            self.writeln("MCP FAILURES\n".dimmed().bold())?;
+            for (_, error) in all_tools.mcp.get_failures().iter() {
+                let error = style(error).red();
+                self.writeln(error)?;
+            }
         }
 
         Ok(())

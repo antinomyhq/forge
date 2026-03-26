@@ -9,11 +9,11 @@ use forge_app::{
     KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
-    ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
-    Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
-    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
-    Snapshot, SnapshotRepository,
+    AnyProvider, AppConfig, AppConfigOperation, AppConfigRepository, AuthCredential,
+    ChatCompletionMessage, ChatRepository, CommandOutput, Context, Conversation, ConversationId,
+    ConversationRepository, Environment, FileInfo, FuzzySearchRepository, McpServerConfig,
+    MigrationResult, Model, ModelId, Provider, ProviderId, ProviderRepository, ResultStream,
+    SearchMatch, Skill, SkillRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -23,7 +23,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::agent::ForgeAgentRepository;
-use crate::app_config::AppConfigRepositoryImpl;
+use crate::app_config::ForgeConfigRepository;
 use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -42,7 +42,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
+    config_repository: Arc<ForgeConfigRepository>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -54,11 +54,7 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
-    pub fn new(
-        infra: Arc<F>,
-        override_model: Option<forge_domain::ModelId>,
-        override_provider: Option<forge_domain::ProviderId>,
-    ) -> Self {
+    pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -68,11 +64,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             env.workspace_hash(),
         ));
 
-        let app_config_repository = Arc::new(
-            AppConfigRepositoryImpl::new(infra.clone())
-                .override_model(override_model)
-                .override_provider(override_provider),
-        );
+        let config_repository = Arc::new(ForgeConfigRepository::new());
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -91,7 +83,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             infra,
             file_snapshot_service,
             conversation_repository,
-            app_config_repository,
+            config_repository,
             mcp_cache_repository,
             provider_repository,
             chat_repository,
@@ -202,15 +194,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
-    for ForgeRepo<F>
-{
+impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
-        self.app_config_repository.get_app_config().await
+        self.config_repository.get_app_config().await
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_repository.set_app_config(config).await
+    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        self.config_repository.update_app_config(ops).await
     }
 }
 

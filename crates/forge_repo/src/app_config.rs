@@ -1,152 +1,181 @@
 use std::sync::Arc;
 
-use anyhow::bail;
-use bytes::Bytes;
-use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId};
+use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
+use forge_domain::{
+    AppConfig, AppConfigOperation, AppConfigRepository, CommitConfig, LoginInfo, ModelId,
+    ProviderId, SuggestConfig,
+};
 use tokio::sync::Mutex;
+use tracing::{debug, error};
+
+/// Converts a [`ForgeConfig`] into an [`AppConfig`].
+///
+/// `ForgeConfig` flattens login info as top-level fields and represents the
+/// active model as a single [`ModelConfig`]. This conversion reconstructs the
+/// nested [`LoginInfo`] and per-provider model map used by the domain.
+fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
+    let key_info = fc.api_key.map(|api_key| LoginInfo {
+        api_key,
+        api_key_name: fc.api_key_name.unwrap_or_default(),
+        api_key_masked: fc.api_key_masked.unwrap_or_default(),
+        email: fc.email,
+        name: fc.name,
+        auth_provider_id: fc.auth_provider_id,
+    });
+
+    let (provider, model) = match fc.session {
+        Some(mc) => {
+            let provider_id = mc.provider_id.map(ProviderId::from);
+            let mut map = std::collections::HashMap::new();
+            if let (Some(ref pid), Some(mid)) = (provider_id.clone(), mc.model_id.map(ModelId::new))
+            {
+                map.insert(pid.clone(), mid);
+            }
+            (provider_id, map)
+        }
+        None => (None, std::collections::HashMap::new()),
+    };
+
+    let commit = fc.commit.map(|mc| CommitConfig {
+        provider: mc.provider_id.map(ProviderId::from),
+        model: mc.model_id.map(ModelId::new),
+    });
+
+    let suggest = fc.suggest.and_then(|mc| {
+        mc.provider_id
+            .zip(mc.model_id)
+            .map(|(pid, mid)| SuggestConfig {
+                provider: ProviderId::from(pid),
+                model: ModelId::new(mid),
+            })
+    });
+
+    AppConfig { key_info, provider, model, commit, suggest }
+}
+
+/// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
+/// in-place, bypassing the intermediate [`AppConfig`] representation.
+fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
+    match op {
+        AppConfigOperation::KeyInfo(Some(info)) => {
+            fc.api_key = Some(info.api_key);
+            fc.api_key_name = Some(info.api_key_name);
+            fc.api_key_masked = Some(info.api_key_masked);
+            fc.email = info.email;
+            fc.name = info.name;
+            fc.auth_provider_id = info.auth_provider_id;
+        }
+        AppConfigOperation::KeyInfo(None) => {
+            fc.api_key = None;
+            fc.api_key_name = None;
+            fc.api_key_masked = None;
+            fc.email = None;
+            fc.name = None;
+            fc.auth_provider_id = None;
+        }
+        AppConfigOperation::SetProvider(provider_id) => {
+            let pid = provider_id.as_ref().to_string();
+            fc.session = Some(match fc.session.take() {
+                Some(mc) => mc.provider_id(pid),
+                None => ModelConfig::default().provider_id(pid),
+            });
+        }
+        AppConfigOperation::SetModel(provider_id, model_id) => {
+            let pid = provider_id.as_ref().to_string();
+            let mid = model_id.to_string();
+            fc.session = Some(match fc.session.take() {
+                Some(mc) if mc.provider_id.as_deref() == Some(&pid) => mc.model_id(mid),
+                _ => ModelConfig::default().provider_id(pid).model_id(mid),
+            });
+        }
+        AppConfigOperation::SetCommitConfig(commit) => {
+            fc.commit = commit
+                .provider
+                .as_ref()
+                .zip(commit.model.as_ref())
+                .map(|(pid, mid)| {
+                    ModelConfig::default()
+                        .provider_id(pid.as_ref().to_string())
+                        .model_id(mid.to_string())
+                });
+        }
+        AppConfigOperation::SetSuggestConfig(suggest) => {
+            fc.suggest = Some(
+                ModelConfig::default()
+                    .provider_id(suggest.provider.as_ref().to_string())
+                    .model_id(suggest.model.to_string()),
+            );
+        }
+    }
+}
 
 /// Repository for managing application configuration with caching support.
 ///
-/// This repository uses infrastructure traits for file I/O operations and
-/// maintains an in-memory cache to reduce file system access. The configuration
-/// file path is automatically inferred from the environment.
-#[derive(derive_setters::Setters)]
-#[setters(into)]
-pub struct AppConfigRepositoryImpl<F> {
-    infra: Arc<F>,
-    cache: Arc<Mutex<Option<AppConfig>>>,
-    override_model: Option<ModelId>,
-    override_provider: Option<ProviderId>,
+/// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
+/// maintains an in-memory cache to reduce disk access.
+pub struct ForgeConfigRepository {
+    cache: Arc<Mutex<Option<ForgeConfig>>>,
 }
 
-impl<F> AppConfigRepositoryImpl<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self {
-            infra,
-            cache: Arc::new(Mutex::new(None)),
-            override_model: None,
-            override_provider: None,
-        }
+impl ForgeConfigRepository {
+    pub fn new() -> Self {
+        Self { cache: Arc::new(Mutex::new(None)) }
     }
-}
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositoryImpl<F> {
-    /// Reads configuration from the JSON file with fallback strategies:
-    async fn read(&self) -> AppConfig {
-        let path = self.infra.get_environment().app_config();
-        let content = match self.infra.read_utf8(&path).await {
-            Ok(content) => content,
+    /// Reads [`AppConfig`] from disk via [`ForgeConfig::read`].
+    async fn read(&self) -> ForgeConfig {
+        let config = ForgeConfig::read();
+
+        match config {
+            Ok(config) => {
+                debug!(config = ?config, "read .forge.toml");
+                config
+            }
             Err(e) => {
-                tracing::error!(
-                    path = %path.display(),
-                    error = %e,
-                    "Failed to read config file. Using default config."
-                );
-                return AppConfig::default();
-            }
-        };
-
-        // Strategy 1: Try normal parsing
-        serde_json::from_str::<AppConfig>(&content)
-            .or_else(|_| {
-                // Strategy 2: Try JSON repair for syntactically broken JSON
-                tracing::warn!(path = %path.display(), "Failed to parse config file, attempting repair...");
-                forge_json_repair::json_repair::<AppConfig>(&content).inspect(|_| {
-                    tracing::info!(path = %path.display(), "Successfully repaired config file");
-                })
-            })
-            .inspect_err(|e| {
-                tracing::error!(
-                    path = %path.display(),
-                    error = %e,
-                    "Failed to repair config file. Using default config."
-                );
-            })
-            .unwrap_or_default()
-    }
-
-    async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
-        let path = self.infra.get_environment().app_config();
-        let content = serde_json::to_string_pretty(config)?;
-        self.infra.write(&path, Bytes::from(content)).await?;
-        Ok(())
-    }
-
-    fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
-        (self.override_model.clone(), self.override_provider.clone())
-    }
-
-    fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {
-        let (model, provider) = self.get_overrides();
-
-        // Override the default provider first
-        if let Some(ref provider_id) = provider {
-            config.provider = Some(provider_id.clone());
-
-            // If we have both provider and model overrides, ensure the model is set for
-            // this provider
-            if let Some(ref model_id) = model {
-                config.model.insert(provider_id.clone(), model_id.clone());
+                // NOTE: This should never-happen
+                error!(error = ?e, "Failed to read config file. Using default config.");
+                Default::default()
             }
         }
-
-        // If only model override (no provider override), update existing provider
-        // models
-        if provider.is_none()
-            && let Some(model_id) = model
-        {
-            if config.model.is_empty() {
-                // If no models configured but we have a default provider, set the model for it
-                if let Some(ref default_provider) = config.provider {
-                    config.model.insert(default_provider.clone(), model_id);
-                }
-            } else {
-                // Update all existing provider models
-                for (_, mut_model_id) in config.model.iter_mut() {
-                    *mut_model_id = model_id.clone();
-                }
-            }
-        }
-
-        config
     }
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
-    for AppConfigRepositoryImpl<F>
-{
+impl AppConfigRepository for ForgeConfigRepository {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
         // Check cache first
         let cache = self.cache.lock().await;
-        if let Some(ref cached_config) = *cache {
-            // Apply overrides even to cached config since overrides can change via env vars
-            return Ok(self.apply_overrides(cached_config.clone()));
+        if let Some(ref config) = *cache {
+            return Ok(forge_config_to_app_config(config.clone()));
         }
         drop(cache);
 
         // Cache miss, read from file
         let config = self.read().await;
 
-        // Update cache with the newly read config (without overrides)
         let mut cache = self.cache.lock().await;
         *cache = Some(config.clone());
 
-        // Apply overrides to the config before returning
-        Ok(self.apply_overrides(config))
+        Ok(forge_config_to_app_config(config))
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        let (model, provider) = self.get_overrides();
+    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        // Load the global config
+        let mut fc = ConfigReader::default().read_global().build()?;
 
-        if model.is_some() || provider.is_some() {
-            bail!("Could not save configuration: Model or Provider was overridden")
+        debug!(config = ?fc, "loaded config for update");
+
+        // Apply each operation directly onto ForgeConfig
+        debug!(?ops, "applying app config operations");
+        for op in ops {
+            apply_op(op, &mut fc);
         }
 
-        self.write(config).await?;
+        // Persist
+        fc.write()?;
+        debug!(config = ?fc, "written .forge.toml");
 
-        // Bust the cache after successful write
+        // Reset cache
         let mut cache = self.cache.lock().await;
         *cache = None;
 
@@ -156,416 +185,311 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
 
-    use std::collections::{BTreeMap, HashMap};
-    use std::path::{Path, PathBuf};
-    use std::str::FromStr;
-    use std::sync::Mutex;
-
-    use bytes::Bytes;
-    use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-    use forge_domain::{AppConfig, Environment, ProviderId};
+    use forge_config::{ForgeConfig, ModelConfig};
+    use forge_domain::{
+        AppConfig, AppConfigOperation, CommitConfig, LoginInfo, ModelId, ProviderId, SuggestConfig,
+    };
     use pretty_assertions::assert_eq;
-    use tempfile::TempDir;
 
-    use super::*;
+    use super::{apply_op, forge_config_to_app_config};
 
-    /// Mock infrastructure for testing that stores files in memory
-    #[derive(Clone)]
-    struct MockInfra {
-        files: Arc<Mutex<HashMap<PathBuf, String>>>,
-        config_path: PathBuf,
-    }
+    // ── forge_config_to_app_config ────────────────────────────────────────────
 
-    impl MockInfra {
-        fn new(config_path: PathBuf) -> Self {
-            Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
-        }
-    }
-
-    impl EnvironmentInfra for MockInfra {
-        fn get_environment(&self) -> Environment {
-            use fake::{Fake, Faker};
-            let mut env: Environment = Faker.fake();
-            env = env.base_path(self.config_path.parent().unwrap().to_path_buf());
-            env
-        }
-
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            None
-        }
-
-        fn get_env_vars(&self) -> BTreeMap<String, String> {
-            BTreeMap::new()
-        }
-
-        fn is_restricted(&self) -> bool {
-            false
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FileReaderInfra for MockInfra {
-        async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
-            self.files
-                .lock()
-                .unwrap()
-                .get(path)
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("File not found"))
-        }
-
-        fn read_batch_utf8(
-            &self,
-            _batch_size: usize,
-            _paths: Vec<PathBuf>,
-        ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
-            futures::stream::empty()
-        }
-
-        async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
-            unimplemented!()
-        }
-
-        async fn range_read_utf8(
-            &self,
-            _path: &Path,
-            _start_line: u64,
-            _end_line: u64,
-        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
-            unimplemented!()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FileWriterInfra for MockInfra {
-        async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
-            let content = String::from_utf8(contents.to_vec())?;
-            self.files
-                .lock()
-                .unwrap()
-                .insert(path.to_path_buf(), content);
-            Ok(())
-        }
-
-        async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
-            unimplemented!()
-        }
-    }
-
-    fn repository_fixture() -> (AppConfigRepositoryImpl<MockInfra>, TempDir) {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-        let infra = Arc::new(MockInfra::new(config_path));
-        (AppConfigRepositoryImpl::new(infra), temp_dir)
-    }
-
-    fn repository_with_config_fixture() -> (AppConfigRepositoryImpl<MockInfra>, TempDir) {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-
-        // Create a config file with default config
-        let config = AppConfig::default();
-        let content = serde_json::to_string_pretty(&config).unwrap();
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra.files.lock().unwrap().insert(config_path, content);
-
-        (AppConfigRepositoryImpl::new(infra), temp_dir)
-    }
-
-    #[tokio::test]
-    async fn test_get_app_config_exists() {
-        let expected = AppConfig::default();
-        let (repo, _temp_dir) = repository_with_config_fixture();
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_get_app_config_not_exists() {
-        let (repo, _temp_dir) = repository_fixture();
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        // Should return default config when file doesn't exist
+    #[test]
+    fn test_empty_forge_config_produces_empty_app_config() {
+        let fixture = ForgeConfig::default();
+        let actual = forge_config_to_app_config(fixture);
         let expected = AppConfig::default();
         assert_eq!(actual, expected);
     }
 
-    #[tokio::test]
-    async fn test_set_app_config() {
-        let fixture = AppConfig::default();
-        let (repo, _temp_dir) = repository_fixture();
-
-        let actual = repo.set_app_config(&fixture).await;
-
-        assert!(actual.is_ok());
-
-        // Verify the config was actually written by reading it back
-        let read_config = repo.get_app_config().await.unwrap();
-        assert_eq!(read_config, fixture);
-    }
-
-    #[tokio::test]
-    async fn test_cache_behavior() {
-        let (repo, _temp_dir) = repository_with_config_fixture();
-
-        // First read should populate cache
-        let first_read = repo.get_app_config().await.unwrap();
-
-        // Second read should use cache (no file system access)
-        let second_read = repo.get_app_config().await.unwrap();
-        assert_eq!(first_read, second_read);
-
-        // Write new config should bust cache
-        let new_config = AppConfig::default();
-        repo.set_app_config(&new_config).await.unwrap();
-
-        // Next read should get fresh data
-        let third_read = repo.get_app_config().await.unwrap();
-        assert_eq!(third_read, new_config);
-    }
-
-    #[tokio::test]
-    async fn test_read_handles_custom_provider() {
-        let fixture = r#"{
-            "provider": "xyz",
-            "model": {}
-        }"#;
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra
-            .files
-            .lock()
-            .unwrap()
-            .insert(config_path, fixture.to_string());
-
-        let repo = AppConfigRepositoryImpl::new(infra);
-
-        let actual = repo.get_app_config().await.unwrap();
-
+    #[test]
+    fn test_full_login_info_is_mapped() {
+        let fixture = ForgeConfig::default()
+            .api_key("key-abc".to_string())
+            .api_key_name("My Key".to_string())
+            .api_key_masked("key-***".to_string())
+            .email("user@example.com".to_string())
+            .name("Alice".to_string())
+            .auth_provider_id("github".to_string());
+        let actual = forge_config_to_app_config(fixture);
         let expected = AppConfig {
-            provider: Some(ProviderId::from_str("xyz").unwrap()),
+            key_info: Some(LoginInfo {
+                api_key: "key-abc".to_string(),
+                api_key_name: "My Key".to_string(),
+                api_key_masked: "key-***".to_string(),
+                email: Some("user@example.com".to_string()),
+                name: Some("Alice".to_string()),
+                auth_provider_id: Some("github".to_string()),
+            }),
             ..Default::default()
         };
         assert_eq!(actual, expected);
     }
 
-    #[tokio::test]
-    async fn test_read_returns_default_if_not_exists() {
-        let (repo, _temp_dir) = repository_fixture();
-
-        let config = repo.get_app_config().await.unwrap();
-
-        // Config should be the default
-        assert_eq!(config, AppConfig::default());
+    #[test]
+    fn test_session_with_provider_and_model() {
+        let fixture = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("anthropic".to_string())
+                    .model_id("claude-3".to_string()),
+            ),
+            ..Default::default()
+        };
+        let actual = forge_config_to_app_config(fixture);
+        let provider = ProviderId::from("anthropic".to_string());
+        let expected = AppConfig {
+            provider: Some(provider.clone()),
+            model: HashMap::from([(provider, ModelId::new("claude-3"))]),
+            ..Default::default()
+        };
+        assert_eq!(actual, expected);
     }
 
-    #[tokio::test]
-    async fn test_override_model() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
+    #[test]
+    fn test_session_with_only_provider_leaves_model_map_empty() {
+        let fixture = ForgeConfig {
+            session: Some(ModelConfig::default().provider_id("openai".to_string())),
+            ..Default::default()
+        };
+        let actual = forge_config_to_app_config(fixture);
+        let expected = AppConfig {
+            provider: Some(ProviderId::from("openai".to_string())),
+            model: HashMap::new(),
+            ..Default::default()
+        };
+        assert_eq!(actual, expected);
+    }
 
-        // Set up a config with a specific model
-        let mut config = AppConfig::default();
-        config.model.insert(
-            ProviderId::ANTHROPIC,
-            ModelId::new("claude-3-5-sonnet-20241022"),
-        );
-        let content = serde_json::to_string_pretty(&config).unwrap();
+    #[test]
+    fn test_commit_config_is_mapped() {
+        let fixture = ForgeConfig {
+            commit: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-4o".to_string()),
+            ),
+            ..Default::default()
+        };
+        let actual = forge_config_to_app_config(fixture);
+        let expected = AppConfig {
+            commit: Some(CommitConfig {
+                provider: Some(ProviderId::from("openai".to_string())),
+                model: Some(ModelId::new("gpt-4o")),
+            }),
+            ..Default::default()
+        };
+        assert_eq!(actual, expected);
+    }
 
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra.files.lock().unwrap().insert(config_path, content);
-
-        let repo =
-            AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
-        let actual = repo.get_app_config().await.unwrap();
-
-        // The override model should be applied to all providers
+    #[test]
+    fn test_suggest_config_requires_both_provider_and_model() {
+        let fixture_provider_only = ForgeConfig {
+            suggest: Some(ModelConfig::default().provider_id("openai".to_string())),
+            ..Default::default()
+        };
         assert_eq!(
-            actual.model.get(&ProviderId::ANTHROPIC),
-            Some(&ModelId::new("override-model"))
+            forge_config_to_app_config(fixture_provider_only).suggest,
+            None
         );
+
+        let fixture_model_only = ForgeConfig {
+            suggest: Some(ModelConfig { model_id: Some("gpt-4o".to_string()), provider_id: None }),
+            ..Default::default()
+        };
+        assert_eq!(forge_config_to_app_config(fixture_model_only).suggest, None);
     }
 
-    #[tokio::test]
-    async fn test_override_provider() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-
-        // Set up a config with a specific provider
-        let config = AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
-        let content = serde_json::to_string_pretty(&config).unwrap();
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra.files.lock().unwrap().insert(config_path, content);
-
-        let repo = AppConfigRepositoryImpl::new(infra).override_provider(ProviderId::OPENAI);
-        let actual = repo.get_app_config().await.unwrap();
-
-        // The override provider should be applied
-        assert_eq!(actual.provider, Some(ProviderId::OPENAI));
+    #[test]
+    fn test_suggest_config_with_both_fields_is_mapped() {
+        let fixture = ForgeConfig {
+            suggest: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-4o-mini".to_string()),
+            ),
+            ..Default::default()
+        };
+        let actual = forge_config_to_app_config(fixture);
+        let expected = AppConfig {
+            suggest: Some(SuggestConfig {
+                provider: ProviderId::from("openai".to_string()),
+                model: ModelId::new("gpt-4o-mini"),
+            }),
+            ..Default::default()
+        };
+        assert_eq!(actual, expected);
     }
 
-    #[tokio::test]
-    async fn test_override_prevents_config_write() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
+    // ── apply_op ──────────────────────────────────────────────────────────────
 
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo =
-            AppConfigRepositoryImpl::new(infra).override_model(ModelId::new("override-model"));
+    #[test]
+    fn test_apply_op_key_info_some_sets_all_fields() {
+        let mut fixture = ForgeConfig::default();
+        let login = LoginInfo {
+            api_key: "key-123".to_string(),
+            api_key_name: "prod".to_string(),
+            api_key_masked: "key-***".to_string(),
+            email: Some("dev@forge.dev".to_string()),
+            name: Some("Bob".to_string()),
+            auth_provider_id: Some("google".to_string()),
+        };
+        apply_op(AppConfigOperation::KeyInfo(Some(login)), &mut fixture);
+        let expected = ForgeConfig::default()
+            .api_key("key-123".to_string())
+            .api_key_name("prod".to_string())
+            .api_key_masked("key-***".to_string())
+            .email("dev@forge.dev".to_string())
+            .name("Bob".to_string())
+            .auth_provider_id("google".to_string());
+        assert_eq!(fixture, expected);
+    }
 
-        // Attempting to write config when override is set should fail
-        let config = AppConfig::default();
-        let actual = repo.set_app_config(&config).await;
+    #[test]
+    fn test_apply_op_key_info_none_clears_all_fields() {
+        let mut fixture = ForgeConfig::default()
+            .api_key("key-abc".to_string())
+            .api_key_name("old".to_string())
+            .api_key_masked("old-***".to_string())
+            .email("old@example.com".to_string())
+            .name("Old Name".to_string())
+            .auth_provider_id("github".to_string());
+        apply_op(AppConfigOperation::KeyInfo(None), &mut fixture);
+        assert_eq!(fixture, ForgeConfig::default());
+    }
 
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("Model or Provider was overridden")
+    #[test]
+    fn test_apply_op_set_provider_creates_session_when_absent() {
+        let mut fixture = ForgeConfig::default();
+        apply_op(
+            AppConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
+            &mut fixture,
         );
+        let expected = ForgeConfig {
+            session: Some(ModelConfig::default().provider_id("anthropic".to_string())),
+            ..Default::default()
+        };
+        assert_eq!(fixture, expected);
     }
 
-    #[tokio::test]
-    async fn test_provider_override_applied_with_no_config() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-        let expected = ProviderId::from_str("open_router").unwrap();
-
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_provider(expected.clone())
-            .override_model(ModelId::new("test-model"));
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.provider, Some(expected));
+    #[test]
+    fn test_apply_op_set_provider_updates_existing_session_keeping_model() {
+        let mut fixture = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-4".to_string()),
+            ),
+            ..Default::default()
+        };
+        apply_op(
+            AppConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
+            &mut fixture,
+        );
+        let expected = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("anthropic".to_string())
+                    .model_id("gpt-4".to_string()),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(fixture, expected);
     }
 
-    #[tokio::test]
-    async fn test_model_override_applied_with_no_config() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-        let provider = ProviderId::OPENAI;
-        let expected = ModelId::new("gpt-4-test");
-
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_provider(provider.clone())
-            .override_model(expected.clone());
-
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.model.get(&provider), Some(&expected));
+    #[test]
+    fn test_apply_op_set_model_for_matching_provider_updates_model() {
+        let mut fixture = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-3.5".to_string()),
+            ),
+            ..Default::default()
+        };
+        apply_op(
+            AppConfigOperation::SetModel(
+                ProviderId::from("openai".to_string()),
+                ModelId::new("gpt-4"),
+            ),
+            &mut fixture,
+        );
+        let expected = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-4".to_string()),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(fixture, expected);
     }
 
-    #[tokio::test]
-    async fn test_provider_override_on_cached_config() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-        let expected = ProviderId::ANTHROPIC;
-
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_provider(expected.clone())
-            .override_model(ModelId::new("test-model"));
-
-        // First call populates cache
-        repo.get_app_config().await.unwrap();
-
-        // Second call should still apply override to cached config
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.provider, Some(expected));
+    #[test]
+    fn test_apply_op_set_model_for_different_provider_replaces_session() {
+        let mut fixture = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-4".to_string()),
+            ),
+            ..Default::default()
+        };
+        apply_op(
+            AppConfigOperation::SetModel(
+                ProviderId::from("anthropic".to_string()),
+                ModelId::new("claude-3"),
+            ),
+            &mut fixture,
+        );
+        let expected = ForgeConfig {
+            session: Some(
+                ModelConfig::default()
+                    .provider_id("anthropic".to_string())
+                    .model_id("claude-3".to_string()),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(fixture, expected);
     }
 
-    #[tokio::test]
-    async fn test_model_override_on_cached_config() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-        let provider = ProviderId::OPENAI;
-        let expected = ModelId::new("gpt-4-cached");
-
-        let infra = Arc::new(MockInfra::new(config_path));
-        let repo = AppConfigRepositoryImpl::new(infra)
-            .override_provider(provider.clone())
-            .override_model(expected.clone());
-
-        // First call populates cache
-        repo.get_app_config().await.unwrap();
-
-        // Second call should still apply override to cached config
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.model.get(&provider), Some(&expected));
+    #[test]
+    fn test_apply_op_set_commit_config() {
+        let mut fixture = ForgeConfig::default();
+        let commit = CommitConfig::default()
+            .provider(ProviderId::from("openai".to_string()))
+            .model(ModelId::new("gpt-4o"));
+        apply_op(AppConfigOperation::SetCommitConfig(commit), &mut fixture);
+        let expected = ForgeConfig {
+            commit: Some(
+                ModelConfig::default()
+                    .provider_id("openai".to_string())
+                    .model_id("gpt-4o".to_string()),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(fixture, expected);
     }
 
-    #[tokio::test]
-    async fn test_model_override_with_existing_provider() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-        let expected = ModelId::new("override-model");
-
-        // Set up config with provider but no model
-        let config = AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
-        let content = serde_json::to_string_pretty(&config).unwrap();
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra.files.lock().unwrap().insert(config_path, content);
-
-        let repo = AppConfigRepositoryImpl::new(infra).override_model(expected.clone());
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.model.get(&ProviderId::ANTHROPIC), Some(&expected));
-    }
-
-    #[tokio::test]
-    async fn test_read_repairs_invalid_json() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-
-        // Invalid JSON with trailing comma
-        let json = r#"{"provider": "openai",}"#;
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra
-            .files
-            .lock()
-            .unwrap()
-            .insert(config_path, json.to_string());
-
-        let repo = AppConfigRepositoryImpl::new(infra);
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual.provider, Some(ProviderId::OPENAI));
-    }
-
-    #[tokio::test]
-    async fn test_read_returns_default_on_unrepairable_json() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let config_path = temp_dir.path().join(".config.json");
-
-        // JSON that can't be repaired to AppConfig
-        let json = r#"["this", "is", "an", "array"]"#;
-
-        let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra
-            .files
-            .lock()
-            .unwrap()
-            .insert(config_path, json.to_string());
-
-        let repo = AppConfigRepositoryImpl::new(infra);
-        let actual = repo.get_app_config().await.unwrap();
-
-        assert_eq!(actual, AppConfig::default());
+    #[test]
+    fn test_apply_op_set_suggest_config() {
+        let mut fixture = ForgeConfig::default();
+        let suggest = SuggestConfig {
+            provider: ProviderId::from("anthropic".to_string()),
+            model: ModelId::new("claude-3-haiku"),
+        };
+        apply_op(AppConfigOperation::SetSuggestConfig(suggest), &mut fixture);
+        let expected = ForgeConfig {
+            suggest: Some(
+                ModelConfig::default()
+                    .provider_id("anthropic".to_string())
+                    .model_id("claude-3-haiku".to_string()),
+            ),
+            ..Default::default()
+        };
+        assert_eq!(fixture, expected);
     }
 }
