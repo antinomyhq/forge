@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Skill;
-use forge_app::{
-    EnvironmentInfra, FileInfoInfra, FileReaderInfra, TemplateEngine, Walker, WalkerInfra,
-};
+use forge_app::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, Walker, WalkerInfra};
 use forge_domain::SkillRepository;
 use futures::future::join_all;
 use gray_matter::Matter;
@@ -98,7 +96,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> SkillR
         let rendered_skills = skills
             .into_iter()
             .map(|skill| self.render_skill(skill, &env))
-            .collect::<anyhow::Result<Vec<_>>>()?;
+            .collect::<Vec<_>>();
 
         Ok(rendered_skills)
     }
@@ -219,20 +217,17 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
     ///
     /// # Arguments
     /// * `skill` - The skill to render
-    /// * `env` - The environment containing path information
-    ///
-    /// # Errors
-    /// Returns an error if template rendering fails
-    fn render_skill(&self, skill: Skill, env: &forge_domain::Environment) -> anyhow::Result<Skill> {
-        let skill_context = serde_json::json!({
-            "global_skills_path": env.global_skills_path().display().to_string(),
-            "local_skills_path": env.local_skills_path().display().to_string(),
-        });
+    /// * `env` - The environment containing path informations
+    fn render_skill(&self, skill: Skill, env: &forge_domain::Environment) -> Skill {
+        let global = env.global_skills_path().display().to_string();
+        let local = env.local_skills_path().display().to_string();
 
-        let rendered_command = TemplateEngine::default()
-            .render_template(forge_domain::Template::new(&skill.command), &skill_context)?;
+        let rendered = skill
+            .command
+            .replace("{{global_skills_path}}", &global)
+            .replace("{{local_skills_path}}", &local);
 
-        Ok(skill.command(rendered_command))
+        skill.command(rendered)
     }
 }
 
