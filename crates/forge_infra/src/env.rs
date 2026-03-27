@@ -354,29 +354,12 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
     use std::path::PathBuf;
 
     use forge_config::ForgeConfig;
     use pretty_assertions::assert_eq;
-    use tempfile::{TempDir, tempdir};
 
     use super::*;
-
-    fn setup_envs(structure: Vec<(&str, &str)>) -> (TempDir, PathBuf) {
-        let root = tempdir().unwrap();
-        let root_path = root.path().to_path_buf();
-
-        for (rel_path, content) in &structure {
-            let dir = root_path.join(rel_path);
-            fs::create_dir_all(&dir).unwrap();
-            fs::write(dir.join(".env"), content).unwrap();
-        }
-
-        let deepest_path = root_path.join(structure[0].0);
-        // We MUST return root path, because dropping it will remove temp dir
-        (root, deepest_path)
-    }
 
     #[test]
     fn test_to_environment_default_config() {
