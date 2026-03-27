@@ -169,6 +169,45 @@ impl FromStr for AutoDumpFormat {
 }
 
 impl Environment {
+    /// Applies a single [`ConfigOperation`] to this environment in-place.
+    pub fn apply_op(&mut self, op: ConfigOperation) {
+        match op {
+            ConfigOperation::SetProvider(provider_id) => {
+                let pid = provider_id.as_ref().to_string();
+                self.session = Some(match self.session.take() {
+                    Some(sc) => sc.provider_id(pid),
+                    None => SessionConfig::default().provider_id(pid),
+                });
+            }
+            ConfigOperation::SetModel(provider_id, model_id) => {
+                let pid = provider_id.as_ref().to_string();
+                let mid = model_id.to_string();
+                self.session = Some(match self.session.take() {
+                    Some(sc) if sc.provider_id.as_deref() == Some(&pid) => sc.model_id(mid),
+                    _ => SessionConfig::default().provider_id(pid).model_id(mid),
+                });
+            }
+            ConfigOperation::SetCommitConfig(commit) => {
+                self.commit = commit
+                    .provider
+                    .as_ref()
+                    .zip(commit.model.as_ref())
+                    .map(|(pid, mid)| {
+                        SessionConfig::default()
+                            .provider_id(pid.as_ref().to_string())
+                            .model_id(mid.to_string())
+                    });
+            }
+            ConfigOperation::SetSuggestConfig(suggest) => {
+                self.suggest = Some(
+                    SessionConfig::default()
+                        .provider_id(suggest.provider.as_ref().to_string())
+                        .model_id(suggest.model.to_string()),
+                );
+            }
+        }
+    }
+
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
@@ -269,6 +308,100 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    fn fixture_env() -> Environment {
+        Faker.fake()
+    }
+
+    #[test]
+    fn test_apply_op_set_provider_creates_session_when_absent() {
+        let mut fixture = fixture_env();
+        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
+            "anthropic".to_string(),
+        )));
+        let expected = SessionConfig::default().provider_id("anthropic".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_provider_updates_existing_session_keeping_model() {
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4".to_string()),
+        );
+        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
+            "anthropic".to_string(),
+        )));
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("gpt-4".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_model_for_matching_provider_updates_model() {
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-3.5".to_string()),
+        );
+        fixture.apply_op(ConfigOperation::SetModel(
+            ProviderId::from("openai".to_string()),
+            ModelId::new("gpt-4"),
+        ));
+        let expected = SessionConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_model_for_different_provider_replaces_session() {
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4".to_string()),
+        );
+        fixture.apply_op(ConfigOperation::SetModel(
+            ProviderId::from("anthropic".to_string()),
+            ModelId::new("claude-3"),
+        ));
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_commit_config() {
+        let mut fixture = fixture_env();
+        let commit = CommitConfig::default()
+            .provider(ProviderId::from("openai".to_string()))
+            .model(ModelId::new("gpt-4o"));
+        fixture.apply_op(ConfigOperation::SetCommitConfig(commit));
+        let expected = SessionConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4o".to_string());
+        assert_eq!(fixture.commit, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_suggest_config() {
+        let mut fixture = fixture_env();
+        let suggest = SuggestConfig {
+            provider: ProviderId::from("anthropic".to_string()),
+            model: ModelId::new("claude-3-haiku"),
+        };
+        fixture.apply_op(ConfigOperation::SetSuggestConfig(suggest));
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3-haiku".to_string());
+        assert_eq!(fixture.suggest, Some(expected));
+    }
 
     #[test]
     fn test_agent_cwd_path() {
