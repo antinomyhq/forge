@@ -8,7 +8,7 @@ use forge_domain::{
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
     FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
     ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
-    ToolOutput, Environment, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ToolOutput, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -337,25 +337,6 @@ pub trait WorkspaceService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait WorkflowService {
-    /// Find a forge.yaml config file by traversing parent directories.
-    /// Returns the path to the first found config file, or the original path if
-    /// none is found.
-    async fn resolve(&self, path: Option<std::path::PathBuf>) -> std::path::PathBuf;
-
-    /// Reads the workflow from the given path.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Environment>;
-
-    /// Reads the workflow from the given path and merges it with an default
-    /// workflow.
-    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Environment> {
-        self.read_workflow(path).await
-    }
-}
-
-#[async_trait::async_trait]
 pub trait FileDiscoveryService: Send + Sync {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>>;
 
@@ -568,7 +549,6 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type CustomInstructionsService: CustomInstructionsService;
-    type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
     type FsWriteService: FsWriteService;
@@ -596,7 +576,6 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
-    fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
     fn fs_create_service(&self) -> &Self::FsWriteService;
@@ -750,17 +729,6 @@ impl<I: Services> TemplateService for I {
 impl<I: Services> AttachmentService for I {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.attachment_service().attachments(url).await
-    }
-}
-
-#[async_trait::async_trait]
-impl<I: Services> WorkflowService for I {
-    async fn resolve(&self, path: Option<std::path::PathBuf>) -> std::path::PathBuf {
-        self.workflow_service().resolve(path).await
-    }
-
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Environment> {
-        self.workflow_service().read_workflow(path).await
     }
 }
 

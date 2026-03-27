@@ -28,7 +28,6 @@ use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
     ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
-use crate::workflow::ForgeWorkflowService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
@@ -62,7 +61,6 @@ pub struct ForgeServices<
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
-    workflow_service: Arc<ForgeWorkflowService<F>>,
     discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsWrite<F>>,
@@ -116,7 +114,6 @@ impl<
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
-        let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
@@ -150,7 +147,6 @@ impl<
             conversation_service,
             attachment_service,
             template_service,
-            workflow_service,
             discovery_service: suggestion_service,
             mcp_manager,
             file_create_service,
@@ -220,7 +216,6 @@ impl<
     }
     type AttachmentService = ForgeChatRequest<F>;
     type CustomInstructionsService = ForgeCustomInstructionsService<F>;
-    type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
     type FsWriteService = ForgeFsWrite<F>;
@@ -261,10 +256,6 @@ impl<
 
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService {
         &self.custom_instructions_service
-    }
-
-    fn workflow_service(&self) -> &Self::WorkflowService {
-        self.workflow_service.as_ref()
     }
 
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService {

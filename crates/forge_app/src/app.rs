@@ -12,7 +12,7 @@ use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, 
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{
-    AgentRegistry, CustomInstructionsService, ProviderAuthService, TemplateService,
+    AgentRegistry, CustomInstructionsService, ProviderAuthService,
 };
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
@@ -21,7 +21,6 @@ use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
     AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService, Services,
-    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -55,7 +54,7 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Discover files using the discovery service
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let workflow = services.get_environment();
         let environment = services.get_environment();
 
         let files = services.list_current_directory().await?;
@@ -201,7 +200,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
 
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let workflow = self.services.get_environment();
 
         // Get agent and apply workflow config
         let agent = self.services.get_agent(&active_agent_id).await?;
