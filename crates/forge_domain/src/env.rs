@@ -149,13 +149,6 @@ pub struct Environment {
     pub is_restricted: bool,
 
     // --- Workflow configuration fields ---
-    /// A set of custom rules that all agents should follow, applied in addition
-    /// to each agent's individual rules.
-    #[dummy(default)]
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[setters(into)]
-    pub custom_rules: Option<String>,
-
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).
     #[dummy(default)]
@@ -179,11 +172,6 @@ pub struct Environment {
     #[dummy(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<MaxTokens>,
-
-    /// Flag to enable/disable tool support for all agents.
-    /// If not specified, each agent's individual setting will be used.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub tool_supported: Option<bool>,
 
     /// Maximum tool failures per turn before the orchestrator forces completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -275,12 +263,10 @@ impl Default for Environment {
             commit: Default::default(),
             suggest: Default::default(),
             is_restricted: Default::default(),
-            custom_rules: Default::default(),
             temperature: Default::default(),
             top_p: Default::default(),
             top_k: Default::default(),
             max_tokens: Default::default(),
-            tool_supported: Default::default(),
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
             compact: Default::default(),
@@ -346,9 +332,6 @@ impl Environment {
         self.base_path.join(".mcp.json")
     }
 
-    pub fn templates(&self) -> PathBuf {
-        self.base_path.join("templates")
-    }
     pub fn agent_path(&self) -> PathBuf {
         self.base_path.join("agents")
     }
@@ -356,13 +339,6 @@ impl Environment {
         self.cwd.join(".forge/agents")
     }
 
-    pub fn command_path(&self) -> PathBuf {
-        self.base_path.join("commands")
-    }
-
-    pub fn command_cwd_path(&self) -> PathBuf {
-        self.cwd.join(".forge/commands")
-    }
     pub fn permissions_path(&self) -> PathBuf {
         self.base_path.join("permissions.yaml")
     }
@@ -604,179 +580,3 @@ mod tests {
     }
 }
 
-#[test]
-fn test_command_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/current/working/dir"),
-        home: Some(PathBuf::from("/home/user")),
-        shell: "zsh".to_string(),
-        base_path: PathBuf::from("/home/user/.forge"),
-        service_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_line_length: 2000,
-        max_read_size: 2000,
-        max_file_read_batch_size: 50,
-        http: HttpConfig::default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        max_extensions: 15,
-        auto_dump: None,
-        parallel_file_reads: 64,
-        model_cache_ttl: 604_800,
-        session: None,
-        commit: None,
-        suggest: None,
-        is_restricted: false,
-        custom_rules: None,
-        temperature: None,
-        top_p: None,
-        top_k: None,
-        max_tokens: None,
-        tool_supported: None,
-        max_tool_failure_per_turn: None,
-        max_requests_per_turn: None,
-        compact: None,
-        updates: None,
-    };
-
-    let actual = fixture.command_path();
-    let expected = PathBuf::from("/home/user/.forge/commands");
-
-    assert_eq!(actual, expected);
-}
-
-#[test]
-fn test_command_cwd_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/current/working/dir"),
-        home: Some(PathBuf::from("/home/user")),
-        shell: "zsh".to_string(),
-        base_path: PathBuf::from("/home/user/.forge"),
-        service_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_line_length: 2000,
-        max_read_size: 2000,
-        max_file_read_batch_size: 50,
-        http: HttpConfig::default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        max_extensions: 15,
-        auto_dump: None,
-        parallel_file_reads: 64,
-        model_cache_ttl: 604_800,
-        session: None,
-        commit: None,
-        suggest: None,
-        is_restricted: false,
-        custom_rules: None,
-        temperature: None,
-        top_p: None,
-        top_k: None,
-        max_tokens: None,
-        tool_supported: None,
-        max_tool_failure_per_turn: None,
-        max_requests_per_turn: None,
-        compact: None,
-        updates: None,
-    };
-
-    let actual = fixture.command_cwd_path();
-    let expected = PathBuf::from("/current/working/dir/.forge/commands");
-
-    assert_eq!(actual, expected);
-}
-
-#[test]
-fn test_command_cwd_path_independent_from_command_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/different/current/dir"),
-        home: Some(PathBuf::from("/different/home")),
-        shell: "bash".to_string(),
-        base_path: PathBuf::from("/completely/different/base"),
-        service_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_line_length: 2000,
-        max_read_size: 2000,
-        max_file_read_batch_size: 50,
-        http: HttpConfig::default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        max_extensions: 15,
-        auto_dump: None,
-        parallel_file_reads: 64,
-        model_cache_ttl: 604_800,
-        session: None,
-        commit: None,
-        suggest: None,
-        is_restricted: false,
-        custom_rules: None,
-        temperature: None,
-        top_p: None,
-        top_k: None,
-        max_tokens: None,
-        tool_supported: None,
-        max_tool_failure_per_turn: None,
-        max_requests_per_turn: None,
-        compact: None,
-        updates: None,
-    };
-
-    let command_path = fixture.command_path();
-    let command_cwd_path = fixture.command_cwd_path();
-    let expected_command_path = PathBuf::from("/completely/different/base/commands");
-    let expected_command_cwd_path = PathBuf::from("/different/current/dir/.forge/commands");
-
-    // Verify that command_path uses base_path
-    assert_eq!(command_path, expected_command_path);
-
-    // Verify that command_cwd_path is independent and always relative to CWD
-    assert_eq!(command_cwd_path, expected_command_cwd_path);
-
-    // Verify they are different paths
-    assert_ne!(command_path, command_cwd_path);
-}

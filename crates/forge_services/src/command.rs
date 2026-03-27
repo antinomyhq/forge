@@ -58,12 +58,15 @@ impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + D
         let mut commands = self.init_default()?;
 
         // Load custom commands from global directory
-        let dir = self.infra.get_environment().command_path();
+        // FIXME: Add a helper functions here - `.command_path()`
+        let dir = self.infra.get_environment().base_path.join("commands");
         let custom_commands = self.init_command_dir(&dir).await?;
         commands.extend(custom_commands);
 
         // Load custom commands from CWD
-        let dir = self.infra.get_environment().command_cwd_path();
+
+        // FIXME: Add a helper functions here - `.command_path_local()`
+        let dir = self.infra.get_environment().cwd.join(".forge/commands");
         let cwd_commands = self.init_command_dir(&dir).await?;
 
         commands.extend(cwd_commands);

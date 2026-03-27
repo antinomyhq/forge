@@ -1,13 +1,31 @@
-use forge_domain::{ChatCompletionMessage, CommandOutput, Content, FinishReason, Environment};
+use forge_domain::{Agent, AgentId, ChatCompletionMessage, CommandOutput, Content, FinishReason, ModelId, ProviderId, Template};
 use insta::assert_snapshot;
 
 use crate::ShellOutput;
 use crate::orch_spec::orch_runner::TestContext;
 
+const USER_PROMPT: &str = r#"
+  <{{event.name}}>{{event.value}}</{{event.name}}>
+  <system_date>{{current_date}}</system_date>
+"#;
+
+
+fn agent_with_tool_support(tool_supported: bool) -> Agent {
+    Agent::new(
+        AgentId::new("forge"),
+        ProviderId::ANTHROPIC,
+        ModelId::new("claude-3-5-sonnet-20241022"),
+    )
+    .system_prompt(Template::new("You are Forge"))
+    .user_prompt(Template::new(USER_PROMPT))
+    .tools(vec![("fs_read").into(), ("fs_write").into()])
+    .tool_supported(tool_supported)
+}
+
 #[tokio::test]
 async fn test_system_prompt() {
     let mut ctx = TestContext::default()
-        .env(Environment::default().tool_supported(false))
+        .agent(agent_with_tool_support(false))
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))
                 .finish_reason(FinishReason::Stop),
@@ -21,9 +39,8 @@ async fn test_system_prompt() {
 #[tokio::test]
 async fn test_system_prompt_tool_supported() {
     let mut ctx = TestContext::default()
-        .env(
-            Environment::default()
-                .tool_supported(true)
+        .agent(
+            agent_with_tool_support(true)
                 .custom_rules("Do it nicely"),
         )
         .files(vec![
@@ -55,7 +72,7 @@ async fn test_system_prompt_with_extensions() {
     };
 
     let mut ctx = TestContext::default()
-        .env(Environment::default().tool_supported(true))
+        .agent(agent_with_tool_support(true))
         .mock_shell_outputs(vec![shell_output])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))
@@ -92,7 +109,7 @@ async fn test_system_prompt_with_extensions_truncated() {
     };
 
     let mut ctx = TestContext::default()
-        .env(Environment::default().tool_supported(true))
+        .agent(agent_with_tool_support(true))
         .mock_shell_outputs(vec![shell_output])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))

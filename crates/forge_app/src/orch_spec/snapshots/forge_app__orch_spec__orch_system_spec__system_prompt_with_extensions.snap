@@ -5,12 +5,15 @@ expression: system_messages
 You are Forge
 
 <system_information>
-<operating_system></operating_system>
-<current_working_directory></current_working_directory>
-<default_shell></default_shell>
-<home_directory></home_directory>
+<operating_system>MacOS</operating_system>
+<current_working_directory>/Users/tushar</current_working_directory>
+<default_shell>bash</default_shell>
+<home_directory>/Users/tushar</home_directory>
 <workspace_extensions command="git ls-files" files="9" extensions="4">
-(showing top 0 of 4 extensions; other extensions account for 100% of files)
+ - .rs: 4 files (44%)
+ - .(no ext): 2 files (22%)
+ - .md: 2 files (22%)
+ - .toml: 1 files (11%)
 </workspace_extensions>
 </system_information>
 

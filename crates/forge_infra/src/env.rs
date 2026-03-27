@@ -168,12 +168,10 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
-        custom_rules: fc.custom_rules,
         temperature: fc.temperature.map(Temperature::from),
         top_p: fc.top_p.map(TopP::new_unchecked),
         top_k: fc.top_k.map(TopK::new_unchecked),
         max_tokens: fc.max_tokens.map(MaxTokens::new_unchecked),
-        tool_supported: None,
         max_tool_failure_per_turn: fc.max_tool_failure_per_turn,
         max_requests_per_turn: fc.max_requests_per_turn,
         compact: fc.compact.map(to_compact),
@@ -332,7 +330,6 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.restricted = env.is_restricted;
 
     // --- Workflow fields ---
-    fc.custom_rules = env.custom_rules.clone();
     fc.temperature = env.temperature.map(|t| t.value());
     fc.top_p = env.top_p.map(|t| t.value());
     fc.top_k = env.top_k.map(|t| t.value());

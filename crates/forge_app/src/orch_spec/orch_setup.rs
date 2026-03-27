@@ -101,12 +101,10 @@ impl Default for TestContext {
                 top_p: None,
                 top_k: None,
                 max_tokens: None,
-                tool_supported: Some(true),
                 max_tool_failure_per_turn: None,
                 max_requests_per_turn: None,
                 compact: None,
                 updates: None,
-                custom_rules: None,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

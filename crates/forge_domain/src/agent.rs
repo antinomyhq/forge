@@ -133,9 +133,6 @@ impl Agent {
             agent.max_tokens = Some(max_tokens);
         }
 
-        if let Some(tool_supported) = env.tool_supported {
-            agent.tool_supported = Some(tool_supported);
-        }
         if agent.max_tool_failure_per_turn.is_none()
             && let Some(max_tool_failure_per_turn) = env.max_tool_failure_per_turn
         {
