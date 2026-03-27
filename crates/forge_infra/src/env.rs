@@ -263,56 +263,6 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc
 }
 
-/// Trait for parsing environment variable values with custom logic for
-/// different types.
-#[cfg(test)]
-trait FromEnvStr: Sized {
-    fn from_env_str(s: &str) -> Option<Self>;
-}
-
-/// Custom implementation for bool with support for multiple truthy values.
-/// Supports: "true", "1", "yes" (case-insensitive) as true; everything else as
-/// false.
-#[cfg(test)]
-impl FromEnvStr for bool {
-    fn from_env_str(s: &str) -> Option<Self> {
-        Some(matches!(s.to_lowercase().as_str(), "true" | "1" | "yes"))
-    }
-}
-
-// Macro to implement FromEnvStr for types that already implement FromStr
-macro_rules! impl_from_env_str_via_from_str {
-    ($($t:ty),* $(,)?) => {
-        $(
-            #[cfg(test)]
-            impl FromEnvStr for $t {
-                fn from_env_str(s: &str) -> Option<Self> {
-                    <$t as std::str::FromStr>::from_str(s).ok()
-                }
-            }
-        )*
-    };
-}
-
-// Implement FromEnvStr for commonly used types
-impl_from_env_str_via_from_str! {
-    u8, u16, u32, u64, u128, usize,
-    i8, i16, i32, i64, i128, isize,
-    f32, f64,
-    String,
-    forge_domain::TlsBackend,
-    forge_domain::TlsVersion,
-    forge_domain::AutoDumpFormat,
-}
-
-/// Parse environment variable using custom FromEnvStr trait.
-#[cfg(test)]
-fn parse_env<T: FromEnvStr>(name: &str) -> Option<T> {
-    std::env::var(name)
-        .ok()
-        .and_then(|val| T::from_env_str(&val))
-}
-
 /// Infrastructure implementation for managing application configuration with
 /// caching support.
 ///
@@ -431,111 +381,12 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     }
 }
 
-/// Resolves retry configuration from environment variables or returns defaults.
-#[cfg(test)]
-fn resolve_retry_config() -> RetryConfig {
-    let mut config = RetryConfig::default();
-
-    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_INITIAL_BACKOFF_MS") {
-        config.initial_backoff_ms = parsed;
-    }
-    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_BACKOFF_FACTOR") {
-        config.backoff_factor = parsed;
-    }
-    if let Some(parsed) = parse_env::<usize>("FORGE_RETRY_MAX_ATTEMPTS") {
-        config.max_retry_attempts = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_SUPPRESS_RETRY_ERRORS") {
-        config.suppress_retry_errors = parsed;
-    }
-
-    // Special handling for comma-separated status codes
-    if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
-        let status_codes: Vec<u16> = val
-            .split(',')
-            .filter_map(|code| code.trim().parse::<u16>().ok())
-            .collect();
-        if !status_codes.is_empty() {
-            config.retry_status_codes = status_codes;
-        }
-    }
-
-    config
-}
-
-#[cfg(test)]
-fn resolve_http_config() -> forge_domain::HttpConfig {
-    let mut config = forge_domain::HttpConfig::default();
-
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_CONNECT_TIMEOUT") {
-        config.connect_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_READ_TIMEOUT") {
-        config.read_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_POOL_IDLE_TIMEOUT") {
-        config.pool_idle_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
-        config.pool_max_idle_per_host = parsed;
-    }
-    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_MAX_REDIRECTS") {
-        config.max_redirects = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_USE_HICKORY") {
-        config.hickory = parsed;
-    }
-    if let Some(parsed) = parse_env::<TlsBackend>("FORGE_HTTP_TLS_BACKEND") {
-        config.tls_backend = parsed;
-    }
-    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MIN_TLS_VERSION") {
-        config.min_tls_version = Some(parsed);
-    }
-    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MAX_TLS_VERSION") {
-        config.max_tls_version = Some(parsed);
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ADAPTIVE_WINDOW") {
-        config.adaptive_window = parsed;
-    }
-
-    // Special handling for keep_alive_interval to allow disabling it
-    if let Ok(val) = std::env::var("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
-        if val.to_lowercase() == "none" || val.to_lowercase() == "disabled" {
-            config.keep_alive_interval = None;
-        } else if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
-            config.keep_alive_interval = Some(parsed);
-        }
-    }
-
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_TIMEOUT") {
-        config.keep_alive_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE") {
-        config.keep_alive_while_idle = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ACCEPT_INVALID_CERTS") {
-        config.accept_invalid_certs = parsed;
-    }
-    if let Some(val) = parse_env::<String>("FORGE_HTTP_ROOT_CERT_PATHS") {
-        let paths: Vec<String> = val
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        if !paths.is_empty() {
-            config.root_cert_paths = Some(paths);
-        }
-    }
-
-    config
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
     use std::{env, fs};
 
-    use forge_domain::{TlsBackend, TlsVersion};
+    use forge_config::ForgeConfig;
     use pretty_assertions::assert_eq;
     use serial_test::serial;
     use tempfile::{TempDir, tempdir};
@@ -557,62 +408,20 @@ mod tests {
         (root, deepest_path)
     }
 
-    fn clean_retry_env_vars() {
-        let retry_env_vars = [
-            "FORGE_RETRY_INITIAL_BACKOFF_MS",
-            "FORGE_RETRY_BACKOFF_FACTOR",
-            "FORGE_RETRY_MAX_ATTEMPTS",
-            "FORGE_RETRY_STATUS_CODES",
-            "FORGE_SUPPRESS_RETRY_ERRORS",
-        ];
-
-        for var in &retry_env_vars {
-            unsafe {
-                env::remove_var(var);
-            }
-        }
-    }
-
-    fn clean_http_env_vars() {
-        let http_env_vars = [
-            "FORGE_HTTP_CONNECT_TIMEOUT",
-            "FORGE_HTTP_READ_TIMEOUT",
-            "FORGE_HTTP_POOL_IDLE_TIMEOUT",
-            "FORGE_HTTP_POOL_MAX_IDLE_PER_HOST",
-            "FORGE_HTTP_MAX_REDIRECTS",
-            "FORGE_HTTP_USE_HICKORY",
-            "FORGE_HTTP_TLS_BACKEND",
-            "FORGE_HTTP_MIN_TLS_VERSION",
-            "FORGE_HTTP_MAX_TLS_VERSION",
-            "FORGE_HTTP_ADAPTIVE_WINDOW",
-            "FORGE_HTTP_KEEP_ALIVE_INTERVAL",
-            "FORGE_HTTP_KEEP_ALIVE_TIMEOUT",
-            "FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE",
-            "FORGE_HTTP_ACCEPT_INVALID_CERTS",
-            "FORGE_HTTP_ROOT_CERT_PATHS",
-        ];
-
-        for var in &http_env_vars {
-            unsafe {
-                env::remove_var(var);
-            }
-        }
-    }
-
     #[test]
     #[serial]
     fn test_dot_env_loading() {
-        // Test single env file
+        // Single env file
         let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
         ForgeEnvironmentInfra::dot_env(&cwd);
         assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
 
-        // Test nested env files with override (closer files win)
+        // Nested env files with override (closer files win)
         let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY2=SUB"), ("a", "TEST_KEY2=ROOT")]);
         ForgeEnvironmentInfra::dot_env(&cwd);
         assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
 
-        // Test multiple keys from different levels
+        // Multiple keys from different levels
         let (_root, cwd) = setup_envs(vec![
             ("a/b", "SUB_KEY3=SUB_VAL"),
             ("a", "ROOT_KEY3=ROOT_VAL"),
@@ -621,235 +430,25 @@ mod tests {
         assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
         assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
 
-        // Test standard env precedence (std env wins over .env files)
+        // Standard env precedence (std env wins over .env files)
         let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY4=SUB_VAL")]);
         unsafe {
             env::set_var("TEST_KEY4", "STD_ENV_VAL");
         }
         ForgeEnvironmentInfra::dot_env(&cwd);
         assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
-    }
 
-    #[test]
-    #[serial]
-    fn test_retry_config_parsing() {
-        clean_retry_env_vars();
-
-        // Test defaults
-        let actual = resolve_retry_config();
-        let expected = RetryConfig::default();
-        assert_eq!(actual.max_retry_attempts, expected.max_retry_attempts);
-        assert_eq!(actual.initial_backoff_ms, expected.initial_backoff_ms);
-        assert_eq!(actual.backoff_factor, expected.backoff_factor);
-        assert_eq!(actual.retry_status_codes, expected.retry_status_codes);
-        assert_eq!(actual.suppress_retry_errors, expected.suppress_retry_errors);
-
-        // Test environment variable overrides
-        unsafe {
-            env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "500");
-            env::set_var("FORGE_RETRY_BACKOFF_FACTOR", "3");
-            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "5");
-            env::set_var("FORGE_RETRY_STATUS_CODES", "429,500,502");
-            env::set_var("FORGE_SUPPRESS_RETRY_ERRORS", "true");
-        }
-
-        let actual = resolve_retry_config();
-        assert_eq!(actual.initial_backoff_ms, 500);
-        assert_eq!(actual.backoff_factor, 3);
-        assert_eq!(actual.max_retry_attempts, 5);
-        assert_eq!(actual.retry_status_codes, vec![429, 500, 502]);
-        assert!(actual.suppress_retry_errors);
-
-        clean_retry_env_vars();
-    }
-
-    #[test]
-    #[serial]
-    fn test_retry_config_invalid_values() {
-        clean_retry_env_vars();
-
-        // Set invalid values - should fallback to defaults
-        unsafe {
-            env::set_var("FORGE_RETRY_INITIAL_BACKOFF_MS", "invalid");
-            env::set_var("FORGE_RETRY_MAX_ATTEMPTS", "abc");
-            env::set_var("FORGE_RETRY_STATUS_CODES", "invalid,codes");
-        }
-
-        let actual = resolve_retry_config();
-        let expected = RetryConfig::default();
-        assert_eq!(actual.initial_backoff_ms, expected.initial_backoff_ms);
-        assert_eq!(actual.max_retry_attempts, expected.max_retry_attempts);
-        assert_eq!(actual.retry_status_codes, expected.retry_status_codes);
-
-        clean_retry_env_vars();
-    }
-
-    #[test]
-    #[serial]
-    fn test_http_config_parsing() {
-        clean_http_env_vars();
-
-        // Test defaults
-        let actual = resolve_http_config();
-        let expected = forge_domain::HttpConfig::default();
-        assert_eq!(actual.connect_timeout, expected.connect_timeout);
-        assert_eq!(actual.read_timeout, expected.read_timeout);
-        assert_eq!(actual.tls_backend, expected.tls_backend);
-        assert_eq!(actual.hickory, expected.hickory);
-        assert_eq!(actual.accept_invalid_certs, expected.accept_invalid_certs);
-        assert_eq!(actual.root_cert_paths, expected.root_cert_paths);
-
-        // Test environment variable overrides
-        unsafe {
-            env::set_var("FORGE_HTTP_CONNECT_TIMEOUT", "30");
-            env::set_var("FORGE_HTTP_USE_HICKORY", "true");
-            env::set_var("FORGE_HTTP_TLS_BACKEND", "rustls");
-            env::set_var("FORGE_HTTP_MIN_TLS_VERSION", "1.2");
-            env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", "30");
-            env::set_var("FORGE_HTTP_ACCEPT_INVALID_CERTS", "true");
-            env::set_var(
-                "FORGE_HTTP_ROOT_CERT_PATHS",
-                "/path/to/cert1.pem,/path/to/cert2.crt",
-            );
-        }
-
-        let actual = resolve_http_config();
-        assert_eq!(actual.connect_timeout, 30);
-        assert!(actual.hickory);
-        assert_eq!(actual.tls_backend, TlsBackend::Rustls);
-        assert_eq!(actual.min_tls_version, Some(TlsVersion::V1_2));
-        assert_eq!(actual.keep_alive_interval, Some(30));
-        assert!(actual.accept_invalid_certs);
-        assert_eq!(
-            actual.root_cert_paths,
-            Some(vec![
-                "/path/to/cert1.pem".to_string(),
-                "/path/to/cert2.crt".to_string()
-            ])
-        );
-
-        clean_http_env_vars();
-    }
-
-    #[test]
-    #[serial]
-    fn test_http_config_keep_alive_special_cases() {
-        clean_http_env_vars();
-
-        // Test "none" and "disabled" values disable keep_alive_interval
-        for disable_value in ["none", "disabled", "NONE", "DISABLED"] {
-            unsafe {
-                env::set_var("FORGE_HTTP_KEEP_ALIVE_INTERVAL", disable_value);
-            }
-            let actual = resolve_http_config();
-            assert_eq!(actual.keep_alive_interval, None);
-        }
-
-        clean_http_env_vars();
-    }
-
-    #[test]
-    #[serial]
-    fn test_max_search_result_bytes() {
-        unsafe {
-            env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
-        }
-
-        let infra = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
-
-        // Test default value — driven by ForgeConfig defaults, not env vars
-        let environment = infra.get_environment();
-        // ForgeConfig::default() sets max_search_result_bytes to some value;
-        // just assert it's non-zero
-        assert!(environment.max_search_result_bytes > 0);
-
-        unsafe {
-            env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_auto_open_dump_env_var() {
-        let cwd = tempdir().unwrap().path().to_path_buf();
-        let infra = ForgeEnvironmentInfra::new(false, cwd);
-
-        // Test default value when env var is not set
-        {
-            unsafe {
-                env::remove_var("FORGE_DUMP_AUTO_OPEN");
-            }
-            let env = infra.get_environment();
-            assert!(!env.auto_open_dump);
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_auto_dump_env_var() {
-        let cwd = tempdir().unwrap().path().to_path_buf();
-        let infra = ForgeEnvironmentInfra::new(false, cwd);
-
-        // Test default value when env var is not set
-        {
-            unsafe {
-                env::remove_var("FORGE_AUTO_DUMP");
-            }
-            let env = infra.get_environment();
-            assert_eq!(env.auto_dump, None);
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_tool_timeout_env_var() {
-        let cwd = tempdir().unwrap().path().to_path_buf();
-        let infra = ForgeEnvironmentInfra::new(false, cwd);
-
-        // Test default value when env var is not set
-        {
-            unsafe {
-                env::remove_var("FORGE_TOOL_TIMEOUT");
-            }
-            let env = infra.get_environment();
-            assert!(env.tool_timeout > 0);
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_max_conversations_env_var() {
-        let cwd = tempfile::tempdir().unwrap();
-        let infra = ForgeEnvironmentInfra::new(false, cwd.path().to_path_buf());
-
-        // Test default value
-        unsafe {
-            std::env::remove_var("FORGE_MAX_CONVERSATIONS");
-        }
-        let env = infra.get_environment();
-        assert!(env.max_conversations > 0);
-
-        unsafe {
-            std::env::remove_var("FORGE_MAX_CONVERSATIONS");
-        }
-    }
-
-    #[test]
-    #[serial]
-    fn test_multiline_env_vars() {
+        // Multiline values
         let content = r#"MULTI_LINE='line1
 line2
 line3'
 SIMPLE=value"#;
-
         let (_root, cwd) = setup_envs(vec![("", content)]);
         ForgeEnvironmentInfra::dot_env(&cwd);
-
-        // Verify multiline variable
-        let multi = env::var("MULTI_LINE").expect("MULTI_LINE should be set");
-        assert_eq!(multi, "line1\nline2\nline3");
-
-        // Verify simple var
+        assert_eq!(
+            env::var("MULTI_LINE").expect("MULTI_LINE should be set"),
+            "line1\nline2\nline3"
+        );
         assert_eq!(env::var("SIMPLE").unwrap(), "value");
 
         unsafe {
@@ -859,47 +458,146 @@ SIMPLE=value"#;
     }
 
     #[test]
-    #[serial]
-    fn test_unified_parse_env_functionality() {
-        // Test boolean parsing with custom logic
-        unsafe {
-            env::set_var("TEST_BOOL_TRUE", "yes");
-            env::set_var("TEST_BOOL_FALSE", "no");
-        }
+    fn test_to_environment_default_config() {
+        let fixture = ForgeConfig::default();
+        let actual = to_environment(fixture, false, PathBuf::from("/test/cwd"));
 
-        assert_eq!(parse_env::<bool>("TEST_BOOL_TRUE"), Some(true));
-        assert_eq!(parse_env::<bool>("TEST_BOOL_FALSE"), Some(false));
+        // Config-derived fields should all be zero/default since ForgeConfig
+        // derives Default (all-zeros) without the defaults file.
+        assert_eq!(actual.cwd, PathBuf::from("/test/cwd"));
+        assert!(!actual.is_restricted);
+        assert_eq!(actual.retry_config, RetryConfig::default());
+        assert_eq!(actual.http, HttpConfig::default());
+        assert!(!actual.auto_open_dump);
+        assert_eq!(actual.auto_dump, None);
+        assert_eq!(actual.debug_requests, None);
+        assert_eq!(actual.custom_history_path, None);
+        assert_eq!(actual.session, None);
+        assert_eq!(actual.commit, None);
+        assert_eq!(actual.suggest, None);
+    }
 
-        // Test numeric parsing
-        unsafe {
-            env::set_var("TEST_U64", "123");
-            env::set_var("TEST_F64", "45.67");
-        }
+    #[test]
+    fn test_to_environment_restricted_mode() {
+        let fixture = ForgeConfig::default();
+        let actual = to_environment(fixture, true, PathBuf::from("/tmp"));
 
-        assert_eq!(parse_env::<u64>("TEST_U64"), Some(123));
-        assert_eq!(parse_env::<f64>("TEST_F64"), Some(45.67));
+        assert!(actual.is_restricted);
+    }
 
-        // Test string parsing
-        unsafe {
-            env::set_var("TEST_STRING", "hello world");
-        }
+    #[test]
+    fn test_to_environment_maps_all_config_fields() {
+        let fixture = ForgeConfig {
+            max_search_lines: 500,
+            max_search_result_bytes: 2048,
+            max_fetch_chars: 10_000,
+            max_stdout_prefix_lines: 50,
+            max_stdout_suffix_lines: 75,
+            max_stdout_line_chars: 300,
+            max_line_chars: 1500,
+            max_read_lines: 3000,
+            max_file_read_batch_size: 25,
+            max_file_size_bytes: 5_000_000,
+            max_image_size_bytes: 100_000,
+            tool_timeout_secs: 120,
+            auto_open_dump: true,
+            max_conversations: 42,
+            max_sem_search_results: 77,
+            sem_search_top_k: 5,
+            max_extensions: 10,
+            max_parallel_file_reads: 32,
+            model_cache_ttl_secs: 3600,
+            ..ForgeConfig::default()
+        };
 
+        let actual = to_environment(fixture, false, PathBuf::from("/work"));
+
+        assert_eq!(actual.max_search_lines, 500);
+        assert_eq!(actual.max_search_result_bytes, 2048);
+        assert_eq!(actual.fetch_truncation_limit, 10_000);
+        assert_eq!(actual.stdout_max_prefix_length, 50);
+        assert_eq!(actual.stdout_max_suffix_length, 75);
+        assert_eq!(actual.stdout_max_line_length, 300);
+        assert_eq!(actual.max_line_length, 1500);
+        assert_eq!(actual.max_read_size, 3000);
+        assert_eq!(actual.max_file_read_batch_size, 25);
+        assert_eq!(actual.max_file_size, 5_000_000);
+        assert_eq!(actual.max_image_size, 100_000);
+        assert_eq!(actual.tool_timeout, 120);
+        assert!(actual.auto_open_dump);
+        assert_eq!(actual.max_conversations, 42);
+        assert_eq!(actual.sem_search_limit, 77);
+        assert_eq!(actual.sem_search_top_k, 5);
+        assert_eq!(actual.max_extensions, 10);
+        assert_eq!(actual.parallel_file_reads, 32);
+        assert_eq!(actual.model_cache_ttl, 3600);
+    }
+
+    #[test]
+    fn test_forge_config_round_trip() {
+        let fixture = ForgeConfig {
+            max_search_lines: 500,
+            max_search_result_bytes: 2048,
+            max_fetch_chars: 10_000,
+            max_stdout_prefix_lines: 50,
+            max_stdout_suffix_lines: 75,
+            max_stdout_line_chars: 300,
+            max_line_chars: 1500,
+            max_read_lines: 3000,
+            max_file_read_batch_size: 25,
+            max_file_size_bytes: 5_000_000,
+            max_image_size_bytes: 100_000,
+            tool_timeout_secs: 120,
+            auto_open_dump: true,
+            max_conversations: 42,
+            max_sem_search_results: 77,
+            sem_search_top_k: 5,
+            max_extensions: 10,
+            max_parallel_file_reads: 32,
+            model_cache_ttl_secs: 3600,
+            ..ForgeConfig::default()
+        };
+
+        let env = to_environment(fixture.clone(), false, PathBuf::from("/work"));
+        let actual = to_forge_config(&env);
+
+        // Round-tripped fields should match the original
+        assert_eq!(actual.max_search_lines, fixture.max_search_lines);
         assert_eq!(
-            parse_env::<String>("TEST_STRING"),
-            Some("hello world".to_string())
+            actual.max_search_result_bytes,
+            fixture.max_search_result_bytes
         );
-
-        // Test missing env var
-        assert_eq!(parse_env::<bool>("NONEXISTENT_VAR"), None);
-        assert_eq!(parse_env::<u64>("NONEXISTENT_VAR"), None);
-
-        // Clean up
-        unsafe {
-            env::remove_var("TEST_BOOL_TRUE");
-            env::remove_var("TEST_BOOL_FALSE");
-            env::remove_var("TEST_U64");
-            env::remove_var("TEST_F64");
-            env::remove_var("TEST_STRING");
-        }
+        assert_eq!(actual.max_fetch_chars, fixture.max_fetch_chars);
+        assert_eq!(
+            actual.max_stdout_prefix_lines,
+            fixture.max_stdout_prefix_lines
+        );
+        assert_eq!(
+            actual.max_stdout_suffix_lines,
+            fixture.max_stdout_suffix_lines
+        );
+        assert_eq!(actual.max_stdout_line_chars, fixture.max_stdout_line_chars);
+        assert_eq!(actual.max_line_chars, fixture.max_line_chars);
+        assert_eq!(actual.max_read_lines, fixture.max_read_lines);
+        assert_eq!(
+            actual.max_file_read_batch_size,
+            fixture.max_file_read_batch_size
+        );
+        assert_eq!(actual.max_file_size_bytes, fixture.max_file_size_bytes);
+        assert_eq!(actual.max_image_size_bytes, fixture.max_image_size_bytes);
+        assert_eq!(actual.tool_timeout_secs, fixture.tool_timeout_secs);
+        assert_eq!(actual.auto_open_dump, fixture.auto_open_dump);
+        assert_eq!(actual.max_conversations, fixture.max_conversations);
+        assert_eq!(
+            actual.max_sem_search_results,
+            fixture.max_sem_search_results
+        );
+        assert_eq!(actual.sem_search_top_k, fixture.sem_search_top_k);
+        assert_eq!(actual.max_extensions, fixture.max_extensions);
+        assert_eq!(
+            actual.max_parallel_file_reads,
+            fixture.max_parallel_file_reads
+        );
+        assert_eq!(actual.model_cache_ttl_secs, fixture.model_cache_ttl_secs);
     }
 }
