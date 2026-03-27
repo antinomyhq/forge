@@ -29,8 +29,9 @@ pub(super) struct OpenAIResponsesProvider<H> {
 impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     /// Creates a new OpenAI Responses provider
     ///
-    /// For the Codex provider, the configured URL is used directly as the
-    /// responses endpoint (e.g., `chatgpt.com/backend-api/codex/responses`).
+    /// For providers whose configured URL already points at a full Responses
+    /// endpoint, the configured URL is used directly (for example,
+    /// `chatgpt.com/backend-api/codex/responses`).
     /// For all other providers, the path is rewritten to `{host}/v1/responses`.
     ///
     /// # Panics
@@ -39,10 +40,12 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         use forge_domain::ProviderId;
 
-        if provider.id == ProviderId::CODEX || provider.id == ProviderId::OPENCODE_ZEN {
-            // Codex and OpenCode Zen use the configured URL directly as the
-            // responses endpoint (their URLs already contain the full path,
-            // e.g. `opencode.ai/zen/v1/responses`).
+        if provider.id == ProviderId::CODEX
+            || provider.id == ProviderId::OPENCODE_ZEN
+            || provider.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE
+        {
+            // These providers already configure a complete Responses endpoint,
+            // so preserve the configured path exactly as-is.
             let responses_url = provider.url.clone();
             let api_base = {
                 let mut base = provider.url.clone();
@@ -632,6 +635,32 @@ mod tests {
         assert_eq!(
             provider_impl.responses_url.as_str(),
             "https://api.openai.com/v1/responses"
+        );
+    }
+
+    #[test]
+    fn test_openai_responses_provider_new_preserves_existing_base_path_for_compatible_provider() {
+        let provider = Provider {
+            id: ProviderId::OPENAI_RESPONSES_COMPATIBLE,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAIResponses),
+            url: Url::parse("https://provider.example/custom-prefix/v1/responses").unwrap(),
+            credential: make_credential(ProviderId::OPENAI_RESPONSES_COMPATIBLE, "test-key"),
+            custom_headers: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: None,
+        };
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+
+        assert_eq!(
+            provider_impl.api_base.as_str(),
+            "https://provider.example/custom-prefix/v1"
+        );
+        assert_eq!(
+            provider_impl.responses_url.as_str(),
+            "https://provider.example/custom-prefix/v1/responses"
         );
     }
 
