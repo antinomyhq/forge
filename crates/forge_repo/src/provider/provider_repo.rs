@@ -122,7 +122,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
     }
 }
 
-impl<F: EnvironmentInfra + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     ForgeProviderRepository<F>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
@@ -416,8 +416,8 @@ impl<F: EnvironmentInfra + EnvironmentInfra + FileReaderInfra + FileWriterInfra 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
-    ProviderRepository for ForgeProviderRepository<F>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
+    for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await)
