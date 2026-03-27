@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    ConfigOperation, AppConfigRepository, AutoDumpFormat, Environment, HttpConfig, RetryConfig,
+    AppConfigRepository, AutoDumpFormat, ConfigOperation, Environment, HttpConfig, RetryConfig,
     SessionConfig, TlsBackend, TlsVersion,
 };
 use tracing::{debug, error};
@@ -135,44 +135,69 @@ fn to_environment(fc: ForgeConfig) -> Environment {
     }
 }
 
-/// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
+/// Applies a single [`ConfigOperation`] directly onto an [`Environment`]
 /// in-place.
-fn apply_op(op: ConfigOperation, fc: &mut ForgeConfig) {
+fn apply_op(op: ConfigOperation, env: &mut Environment) {
     match op {
         ConfigOperation::SetProvider(provider_id) => {
             let pid = provider_id.as_ref().to_string();
-            fc.session = Some(match fc.session.take() {
-                Some(mc) => mc.provider_id(pid),
-                None => ModelConfig::default().provider_id(pid),
+            env.session = Some(match env.session.take() {
+                Some(sc) => sc.provider_id(pid),
+                None => SessionConfig::default().provider_id(pid),
             });
         }
         ConfigOperation::SetModel(provider_id, model_id) => {
             let pid = provider_id.as_ref().to_string();
             let mid = model_id.to_string();
-            fc.session = Some(match fc.session.take() {
-                Some(mc) if mc.provider_id.as_deref() == Some(&pid) => mc.model_id(mid),
-                _ => ModelConfig::default().provider_id(pid).model_id(mid),
+            env.session = Some(match env.session.take() {
+                Some(sc) if sc.provider_id.as_deref() == Some(&pid) => sc.model_id(mid),
+                _ => SessionConfig::default().provider_id(pid).model_id(mid),
             });
         }
         ConfigOperation::SetCommitConfig(commit) => {
-            fc.commit = commit
+            env.commit = commit
                 .provider
                 .as_ref()
                 .zip(commit.model.as_ref())
                 .map(|(pid, mid)| {
-                    ModelConfig::default()
+                    SessionConfig::default()
                         .provider_id(pid.as_ref().to_string())
                         .model_id(mid.to_string())
                 });
         }
         ConfigOperation::SetSuggestConfig(suggest) => {
-            fc.suggest = Some(
-                ModelConfig::default()
+            env.suggest = Some(
+                SessionConfig::default()
                     .provider_id(suggest.provider.as_ref().to_string())
                     .model_id(suggest.model.to_string()),
             );
         }
     }
+}
+
+/// Converts the user-configurable fields of an [`Environment`] back into a
+/// [`ForgeConfig`] suitable for persisting.
+///
+/// Only the fields that [`ConfigOperation`] can mutate (`session`, `commit`,
+/// `suggest`) are extracted; everything else retains its on-disk value by
+/// remaining at the caller-supplied base [`ForgeConfig`].
+fn to_forge_config(env: &Environment, mut base: ForgeConfig) -> ForgeConfig {
+    base.session = env.session.as_ref().map(|sc| {
+        ModelConfig::default()
+            .provider_id(sc.provider_id.clone().unwrap_or_default())
+            .model_id(sc.model_id.clone().unwrap_or_default())
+    });
+    base.commit = env.commit.as_ref().map(|sc| {
+        ModelConfig::default()
+            .provider_id(sc.provider_id.clone().unwrap_or_default())
+            .model_id(sc.model_id.clone().unwrap_or_default())
+    });
+    base.suggest = env.suggest.as_ref().map(|sc| {
+        ModelConfig::default()
+            .provider_id(sc.provider_id.clone().unwrap_or_default())
+            .model_id(sc.model_id.clone().unwrap_or_default())
+    });
+    base
 }
 
 /// Repository for managing application configuration with caching support.
@@ -223,20 +248,22 @@ impl AppConfigRepository for ForgeConfigRepository {
 
     async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
         // Load the global config
-        let mut fc = ConfigReader::default()
+        let fc = ConfigReader::default()
             .read_defaults()
             .read_global()
             .build()?;
 
         debug!(config = ?fc, "loaded config for update");
 
-        // Apply each operation directly onto ForgeConfig
+        // Convert to Environment and apply each operation
         debug!(?ops, "applying app config operations");
+        let mut env = to_environment(fc.clone());
         for op in ops {
-            apply_op(op, &mut fc);
+            apply_op(op, &mut env);
         }
 
-        // Persist
+        // Convert Environment back to ForgeConfig and persist
+        let fc = to_forge_config(&env, fc);
         fc.write()?;
         debug!(config = ?fc, "written .forge.toml");
 
@@ -249,61 +276,53 @@ impl AppConfigRepository for ForgeConfigRepository {
 
 #[cfg(test)]
 mod tests {
-    use forge_config::{ForgeConfig, ModelConfig};
-    use forge_domain::{ConfigOperation, CommitConfig, ModelId, ProviderId, SuggestConfig};
+    use forge_domain::{ConfigOperation, CommitConfig, Environment, ModelId, ProviderId, SessionConfig, SuggestConfig};
     use pretty_assertions::assert_eq;
 
     use super::apply_op;
 
+    fn fixture_env() -> Environment {
+        use fake::{Fake, Faker};
+        Faker.fake()
+    }
+
     #[test]
     fn test_apply_op_set_provider_creates_session_when_absent() {
-        let mut fixture = ForgeConfig::default();
+        let mut fixture = fixture_env();
         apply_op(
             ConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
             &mut fixture,
         );
-        let expected = ForgeConfig {
-            session: Some(ModelConfig::default().provider_id("anthropic".to_string())),
-            ..Default::default()
-        };
-        assert_eq!(fixture, expected);
+        let expected = SessionConfig::default().provider_id("anthropic".to_string());
+        assert_eq!(fixture.session, Some(expected));
     }
 
     #[test]
     fn test_apply_op_set_provider_updates_existing_session_keeping_model() {
-        let mut fixture = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-4".to_string()),
-            ),
-            ..Default::default()
-        };
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4".to_string()),
+        );
         apply_op(
             ConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
             &mut fixture,
         );
-        let expected = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("anthropic".to_string())
-                    .model_id("gpt-4".to_string()),
-            ),
-            ..Default::default()
-        };
-        assert_eq!(fixture, expected);
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("gpt-4".to_string());
+        assert_eq!(fixture.session, Some(expected));
     }
 
     #[test]
     fn test_apply_op_set_model_for_matching_provider_updates_model() {
-        let mut fixture = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-3.5".to_string()),
-            ),
-            ..Default::default()
-        };
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-3.5".to_string()),
+        );
         apply_op(
             ConfigOperation::SetModel(
                 ProviderId::from("openai".to_string()),
@@ -311,27 +330,20 @@ mod tests {
             ),
             &mut fixture,
         );
-        let expected = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-4".to_string()),
-            ),
-            ..Default::default()
-        };
-        assert_eq!(fixture, expected);
+        let expected = SessionConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4".to_string());
+        assert_eq!(fixture.session, Some(expected));
     }
 
     #[test]
     fn test_apply_op_set_model_for_different_provider_replaces_session() {
-        let mut fixture = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-4".to_string()),
-            ),
-            ..Default::default()
-        };
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4".to_string()),
+        );
         apply_op(
             ConfigOperation::SetModel(
                 ProviderId::from("anthropic".to_string()),
@@ -339,51 +351,36 @@ mod tests {
             ),
             &mut fixture,
         );
-        let expected = ForgeConfig {
-            session: Some(
-                ModelConfig::default()
-                    .provider_id("anthropic".to_string())
-                    .model_id("claude-3".to_string()),
-            ),
-            ..Default::default()
-        };
-        assert_eq!(fixture, expected);
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3".to_string());
+        assert_eq!(fixture.session, Some(expected));
     }
 
     #[test]
     fn test_apply_op_set_commit_config() {
-        let mut fixture = ForgeConfig::default();
+        let mut fixture = fixture_env();
         let commit = CommitConfig::default()
             .provider(ProviderId::from("openai".to_string()))
             .model(ModelId::new("gpt-4o"));
         apply_op(ConfigOperation::SetCommitConfig(commit), &mut fixture);
-        let expected = ForgeConfig {
-            commit: Some(
-                ModelConfig::default()
-                    .provider_id("openai".to_string())
-                    .model_id("gpt-4o".to_string()),
-            ),
-            ..Default::default()
-        };
-        assert_eq!(fixture, expected);
+        let expected = SessionConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4o".to_string());
+        assert_eq!(fixture.commit, Some(expected));
     }
 
     #[test]
     fn test_apply_op_set_suggest_config() {
-        let mut fixture = ForgeConfig::default();
+        let mut fixture = fixture_env();
         let suggest = SuggestConfig {
             provider: ProviderId::from("anthropic".to_string()),
             model: ModelId::new("claude-3-haiku"),
         };
         apply_op(ConfigOperation::SetSuggestConfig(suggest), &mut fixture);
-        let expected = ForgeConfig {
-            suggest: Some(
-                ModelConfig::default()
-                    .provider_id("anthropic".to_string())
-                    .model_id("claude-3-haiku".to_string()),
-            ),
-            ..Default::default()
-        };
-        assert_eq!(fixture, expected);
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3-haiku".to_string());
+        assert_eq!(fixture.suggest, Some(expected));
     }
 }
