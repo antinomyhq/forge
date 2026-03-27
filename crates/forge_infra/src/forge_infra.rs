@@ -55,8 +55,8 @@ pub struct ForgeInfra {
 }
 
 impl ForgeInfra {
-    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
-        let config_infra = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
+    pub fn new(cwd: PathBuf) -> Self {
+        let config_infra = Arc::new(ForgeEnvironmentInfra::new(cwd));
         let env = config_infra.get_environment();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());

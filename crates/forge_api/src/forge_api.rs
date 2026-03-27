@@ -40,8 +40,8 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
-    pub fn init(restricted: bool, cwd: PathBuf) -> Self {
-        let infra = Arc::new(ForgeInfra::new(restricted, cwd));
+    pub fn init(cwd: PathBuf) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)

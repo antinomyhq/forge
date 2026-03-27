@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_app::EnvironmentInfra;
@@ -84,7 +84,7 @@ fn to_auto_dump_format(f: forge_config::AutoDumpFormat) -> AutoDumpFormat {
 /// Builds a [`forge_domain::Environment`] entirely from a [`ForgeConfig`] and
 /// runtime context (`restricted`, `cwd`), mapping every config field to its
 /// corresponding environment field.
-fn to_environment(fc: ForgeConfig, restricted: bool, cwd: PathBuf) -> Environment {
+fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
     Environment {
         // --- Infrastructure-derived fields ---
         os: std::env::consts::OS.to_string(),
@@ -130,7 +130,7 @@ fn to_environment(fc: ForgeConfig, restricted: bool, cwd: PathBuf) -> Environmen
         session: fc.session.as_ref().map(to_session_config),
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
-        is_restricted: restricted,
+        is_restricted: fc.restricted,
     }
 }
 
@@ -270,7 +270,6 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
 /// maintains an in-memory cache to reduce disk access. Also handles
 /// environment variable discovery via `.env` files and OS APIs.
 pub struct ForgeEnvironmentInfra {
-    restricted: bool,
     cwd: PathBuf,
     cache: Arc<std::sync::Mutex<Option<ForgeConfig>>>,
 }
@@ -281,13 +280,8 @@ impl ForgeEnvironmentInfra {
     /// # Arguments
     /// * `restricted` - If true, enables restricted mode
     /// * `cwd` - The working directory path; used to resolve `.env` files
-    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
-        Self::dot_env(&cwd);
-        Self {
-            restricted,
-            cwd,
-            cache: Arc::new(std::sync::Mutex::new(None)),
-        }
+    pub fn new(cwd: PathBuf) -> Self {
+        Self { cwd, cache: Arc::new(std::sync::Mutex::new(None)) }
     }
 
     /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
@@ -303,29 +297,6 @@ impl ForgeEnvironmentInfra {
                 Default::default()
             }
         }
-    }
-
-    /// Loads all `.env` files walking up from `cwd`, giving priority to closer
-    /// (deeper) files.
-    fn dot_env(cwd: &Path) -> Option<()> {
-        let mut paths = vec![];
-        let mut current = PathBuf::new();
-
-        for component in cwd.components() {
-            current.push(component);
-            paths.push(current.clone());
-        }
-
-        paths.reverse();
-
-        for path in paths {
-            let env_file = path.join(".env");
-            if env_file.is_file() {
-                dotenvy::from_path(&env_file).ok();
-            }
-        }
-
-        Some(())
     }
 }
 
@@ -350,7 +321,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
             }
         };
 
-        to_environment(fc, self.restricted, self.cwd.clone())
+        to_environment(fc, self.cwd.clone())
     }
 
     async fn update_environment(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
@@ -364,7 +335,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
         // Convert to Environment and apply each operation
         debug!(?ops, "applying app config operations");
-        let mut env = to_environment(fc.clone(), self.restricted, self.cwd.clone());
+        let mut env = to_environment(fc.clone(), self.cwd.clone());
         for op in ops {
             env.apply_op(op);
         }
@@ -384,11 +355,11 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use std::{env, fs};
+    use std::fs;
 
     use forge_config::ForgeConfig;
     use pretty_assertions::assert_eq;
-    use serial_test::serial;
+    
     use tempfile::{TempDir, tempdir};
 
     use super::*;
@@ -409,58 +380,9 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_dot_env_loading() {
-        // Single env file
-        let (_root, cwd) = setup_envs(vec![("", "TEST_KEY1=VALUE1")]);
-        ForgeEnvironmentInfra::dot_env(&cwd);
-        assert_eq!(env::var("TEST_KEY1").unwrap(), "VALUE1");
-
-        // Nested env files with override (closer files win)
-        let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY2=SUB"), ("a", "TEST_KEY2=ROOT")]);
-        ForgeEnvironmentInfra::dot_env(&cwd);
-        assert_eq!(env::var("TEST_KEY2").unwrap(), "SUB");
-
-        // Multiple keys from different levels
-        let (_root, cwd) = setup_envs(vec![
-            ("a/b", "SUB_KEY3=SUB_VAL"),
-            ("a", "ROOT_KEY3=ROOT_VAL"),
-        ]);
-        ForgeEnvironmentInfra::dot_env(&cwd);
-        assert_eq!(env::var("ROOT_KEY3").unwrap(), "ROOT_VAL");
-        assert_eq!(env::var("SUB_KEY3").unwrap(), "SUB_VAL");
-
-        // Standard env precedence (std env wins over .env files)
-        let (_root, cwd) = setup_envs(vec![("a/b", "TEST_KEY4=SUB_VAL")]);
-        unsafe {
-            env::set_var("TEST_KEY4", "STD_ENV_VAL");
-        }
-        ForgeEnvironmentInfra::dot_env(&cwd);
-        assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
-
-        // Multiline values
-        let content = r#"MULTI_LINE='line1
-line2
-line3'
-SIMPLE=value"#;
-        let (_root, cwd) = setup_envs(vec![("", content)]);
-        ForgeEnvironmentInfra::dot_env(&cwd);
-        assert_eq!(
-            env::var("MULTI_LINE").expect("MULTI_LINE should be set"),
-            "line1\nline2\nline3"
-        );
-        assert_eq!(env::var("SIMPLE").unwrap(), "value");
-
-        unsafe {
-            env::remove_var("MULTI_LINE");
-            env::remove_var("SIMPLE");
-        }
-    }
-
-    #[test]
     fn test_to_environment_default_config() {
         let fixture = ForgeConfig::default();
-        let actual = to_environment(fixture, false, PathBuf::from("/test/cwd"));
+        let actual = to_environment(fixture, PathBuf::from("/test/cwd"));
 
         // Config-derived fields should all be zero/default since ForgeConfig
         // derives Default (all-zeros) without the defaults file.
@@ -479,8 +401,8 @@ SIMPLE=value"#;
 
     #[test]
     fn test_to_environment_restricted_mode() {
-        let fixture = ForgeConfig::default();
-        let actual = to_environment(fixture, true, PathBuf::from("/tmp"));
+        let fixture = ForgeConfig::default().restricted(true);
+        let actual = to_environment(fixture, PathBuf::from("/tmp"));
 
         assert!(actual.is_restricted);
     }
@@ -498,15 +420,14 @@ SIMPLE=value"#;
         use fake::{Fake, Faker};
 
         let cwd = PathBuf::from("/identity/test");
-        let restricted = true;
 
         for _ in 0..100 {
             let fixture: ForgeConfig = Faker.fake();
 
             // fc -> env -> fc' -> env'
-            let env = to_environment(fixture, restricted, cwd.clone());
+            let env = to_environment(fixture, cwd.clone());
             let fc_prime = to_forge_config(&env);
-            let env_prime = to_environment(fc_prime, restricted, cwd.clone());
+            let env_prime = to_environment(fc_prime, cwd.clone());
 
             // Infrastructure-derived fields (os, pid, home, shell, base_path)
             // are re-derived from the runtime, so they are equal by
