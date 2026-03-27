@@ -1,0 +1,23 @@
+[package]
+name = "forge_shell_smoke"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+description = "PTY-based smoke tests for the forge CLI and ZSH plugin"
+
+[dependencies]
+anyhow.workspace = true
+portable-pty.workspace = true
+
+[[bin]]
+name = "forge_smoke"
+path = "src/bin/forge_smoke.rs"
+
+[[bin]]
+name = "zsh_plugin_smoke"
+path = "src/bin/zsh_plugin_smoke.rs"
+
+[lib]
+name = "forge_shell_smoke"
+path = "src/lib.rs"
+doctest = false

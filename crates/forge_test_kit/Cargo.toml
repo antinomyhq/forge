@@ -8,10 +8,12 @@ rust-version.workspace = true
 tokio = { workspace = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
+forge_shell_smoke = { path = "../forge_shell_smoke", optional = true }
 
 [features]
 default = []
 json = ["serde", "serde_json"]
+pty = ["dep:forge_shell_smoke"]
 
 [lib]
 doctest = false
