@@ -314,6 +314,16 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
+    /// Returns the global commands directory path (base_path/commands)
+    pub fn command_path(&self) -> PathBuf {
+        self.base_path.join("commands")
+    }
+
+    /// Returns the project-local commands directory path (.forge/commands)
+    pub fn command_path_local(&self) -> PathBuf {
+        self.cwd.join(".forge/commands")
+    }
+
     /// Returns the path to the credentials file where provider API keys are
     /// stored
     pub fn credentials_path(&self) -> PathBuf {
@@ -516,6 +526,46 @@ mod tests {
         assert_eq!(local_path, expected_local);
 
         // Verify they are different paths
+        assert_ne!(global_path, local_path);
+    }
+
+    #[test]
+    fn test_command_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.command_path();
+        let expected = PathBuf::from("/home/user/.forge/commands");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_command_path_local() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.command_path_local();
+        let expected = PathBuf::from("/projects/my-app/.forge/commands");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_command_paths_independent() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture
+            .cwd(PathBuf::from("/projects/my-app"))
+            .base_path(PathBuf::from("/home/user/.forge"));
+
+        let global_path = fixture.command_path();
+        let local_path = fixture.command_path_local();
+
+        let expected_global = PathBuf::from("/home/user/.forge/commands");
+        let expected_local = PathBuf::from("/projects/my-app/.forge/commands");
+
+        assert_eq!(global_path, expected_global);
+        assert_eq!(local_path, expected_local);
         assert_ne!(global_path, local_path);
     }
 }
