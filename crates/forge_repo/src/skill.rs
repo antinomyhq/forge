@@ -296,7 +296,7 @@ mod tests {
     fn fixture_skill_repo() -> (ForgeSkillRepository<ForgeInfra>, std::path::PathBuf) {
         let skill_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src/fixtures/skills_with_resources");
-        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let infra = Arc::new(ForgeInfra::new(std::env::current_dir().unwrap()));
         let repo = ForgeSkillRepository::new(infra);
         (repo, skill_dir)
     }

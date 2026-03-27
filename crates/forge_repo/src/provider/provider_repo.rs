@@ -127,7 +127,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
-        let provider_json_path = environment.base_path.join("provider.json");
+        let provider_json_path = environment.provider_config_path();
 
         let json_str = self.infra.read_utf8(&provider_json_path).await?;
         let configs = serde_json::from_str(&json_str)?;
@@ -663,6 +663,13 @@ mod env_tests {
             env
         }
 
+        async fn update_environment(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
         }
@@ -672,10 +679,6 @@ mod env_tests {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect()
-        }
-
-        fn is_restricted(&self) -> bool {
-            false
         }
     }
 
@@ -1150,6 +1153,13 @@ mod env_tests {
                 env
             }
 
+            async fn update_environment(
+                &self,
+                _ops: Vec<forge_domain::ConfigOperation>,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
             fn get_env_var(&self, key: &str) -> Option<String> {
                 self.env_vars.get(key).cloned()
             }
@@ -1159,10 +1169,6 @@ mod env_tests {
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
-            }
-
-            fn is_restricted(&self) -> bool {
-                false
             }
         }
 

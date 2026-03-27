@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use forge_app::AppConfigService;
+use forge_app::{AppConfigService, EnvironmentInfra};
 use forge_domain::{
-    AppConfigOperation, AppConfigRepository, ModelId, ProviderId, ProviderRepository,
+    CommitConfig, ConfigOperation, ModelId, ProviderId, ProviderRepository, SuggestConfig,
 };
 use tracing::debug;
 
@@ -18,86 +18,113 @@ impl<F> ForgeAppConfigService<F> {
     }
 }
 
-impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
+impl<F: ProviderRepository + EnvironmentInfra> ForgeAppConfigService<F> {
     /// Helper method to apply a config operation atomically.
-    async fn update(&self, op: AppConfigOperation) -> anyhow::Result<()> {
+    async fn update(&self, op: ConfigOperation) -> anyhow::Result<()> {
         debug!(op = ?op, "Updating app config");
-        self.infra.update_app_config(vec![op]).await
+        self.infra.update_environment(vec![op]).await
     }
 }
 
 #[async_trait::async_trait]
-impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
+impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
-        let app_config = self.infra.get_app_config().await?;
-        app_config
-            .provider
+        let env = self.infra.get_environment();
+        env.session
+            .as_ref()
+            .and_then(|s| s.provider_id.as_ref())
+            .map(|id| ProviderId::from(id.clone()))
             .ok_or_else(|| forge_domain::Error::NoDefaultProvider.into())
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(AppConfigOperation::SetProvider(provider_id))
-            .await
+        self.update(ConfigOperation::SetProvider(provider_id)).await
     }
 
     async fn get_provider_model(
         &self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        let config = self.infra.get_app_config().await?;
+        let env = self.infra.get_environment();
+
+        let session = env
+            .session
+            .as_ref()
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+
+        let active_provider = session
+            .provider_id
+            .as_ref()
+            .map(|id| ProviderId::from(id.clone()));
 
         let provider_id = match provider_id {
             Some(id) => id,
-            None => config
-                .provider
+            None => active_provider
                 .as_ref()
                 .ok_or(forge_domain::Error::NoDefaultProvider)?,
         };
 
-        Ok(config
-            .model
-            .get(provider_id)
-            .cloned()
-            .ok_or_else(|| forge_domain::Error::no_default_model(provider_id.clone()))?)
+        // Only return the model if the session's provider matches the requested
+        // provider
+        if session.provider_id.as_deref() == Some(provider_id.as_ref()) {
+            session
+                .model_id
+                .as_ref()
+                .map(ModelId::new)
+                .ok_or_else(|| forge_domain::Error::no_default_model(provider_id.clone()).into())
+        } else {
+            Err(forge_domain::Error::no_default_model(provider_id.clone()).into())
+        }
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = self
-            .infra
-            .get_app_config()
-            .await?
-            .provider
+        let env = self.infra.get_environment();
+        let provider_id = env
+            .session
+            .as_ref()
+            .and_then(|s| s.provider_id.as_ref())
+            .map(|id| ProviderId::from(id.clone()))
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
 
-        self.update(AppConfigOperation::SetModel(provider_id, model))
+        self.update(ConfigOperation::SetModel(provider_id, model))
             .await
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
-        let config = self.infra.get_app_config().await?;
-        Ok(config.commit)
+        let env = self.infra.get_environment();
+        Ok(env.commit.map(|mc| CommitConfig {
+            provider: mc.provider_id.map(ProviderId::from),
+            model: mc.model_id.map(ModelId::new),
+        }))
     }
 
     async fn set_commit_config(
         &self,
         commit_config: forge_domain::CommitConfig,
     ) -> anyhow::Result<()> {
-        self.update(AppConfigOperation::SetCommitConfig(commit_config))
+        self.update(ConfigOperation::SetCommitConfig(commit_config))
             .await
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
-        let config = self.infra.get_app_config().await?;
-        Ok(config.suggest)
+        let env = self.infra.get_environment();
+        Ok(env.suggest.and_then(|mc| {
+            mc.provider_id
+                .zip(mc.model_id)
+                .map(|(pid, mid)| SuggestConfig {
+                    provider: ProviderId::from(pid),
+                    model: ModelId::new(mid),
+                })
+        }))
     }
 
     async fn set_suggest_config(
         &self,
         suggest_config: forge_domain::SuggestConfig,
     ) -> anyhow::Result<()> {
-        self.update(AppConfigOperation::SetSuggestConfig(suggest_config))
+        self.update(ConfigOperation::SetSuggestConfig(suggest_config))
             .await
     }
 }
@@ -108,8 +135,9 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, AppConfigOperation, ChatRepository, InputModality, MigrationResult,
+        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality, MigrationResult,
         Model, ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
+        SessionConfig,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -118,14 +146,15 @@ mod tests {
 
     #[derive(Clone)]
     struct MockInfra {
-        app_config: Arc<Mutex<AppConfig>>,
+        env: Arc<Mutex<Environment>>,
         providers: Vec<Provider<Url>>,
     }
 
     impl MockInfra {
         fn new() -> Self {
+            use fake::{Fake, Faker};
             Self {
-                app_config: Arc::new(Mutex::new(AppConfig::default())),
+                env: Arc::new(Mutex::new(Faker.fake())),
                 providers: vec![
                     Provider {
                         id: ProviderId::OPENAI,
@@ -184,26 +213,67 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
-    impl AppConfigRepository for MockInfra {
-        async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
-            Ok(self.app_config.lock().unwrap().clone())
+    impl EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> Environment {
+            self.env.lock().unwrap().clone()
         }
 
-        async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
-            let mut config = self.app_config.lock().unwrap();
-            for op in ops {
-                match op {
-                    AppConfigOperation::KeyInfo(info) => config.key_info = info,
-                    AppConfigOperation::SetProvider(pid) => config.provider = Some(pid),
-                    AppConfigOperation::SetModel(pid, mid) => {
-                        config.model.insert(pid, mid);
+        fn update_environment(
+            &self,
+            ops: Vec<ConfigOperation>,
+        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+            let env = self.env.clone();
+            async move {
+                let mut env = env.lock().unwrap();
+                for op in ops {
+                    match op {
+                        ConfigOperation::SetProvider(pid) => {
+                            let pid_str = pid.as_ref().to_string();
+                            env.session = Some(match env.session.take() {
+                                Some(sc) => sc.provider_id(pid_str),
+                                None => SessionConfig::default().provider_id(pid_str),
+                            });
+                        }
+                        ConfigOperation::SetModel(pid, mid) => {
+                            let pid_str = pid.as_ref().to_string();
+                            let mid_str = mid.to_string();
+                            env.session = Some(match env.session.take() {
+                                Some(sc) if sc.provider_id.as_deref() == Some(&pid_str) => {
+                                    sc.model_id(mid_str)
+                                }
+                                _ => SessionConfig::default()
+                                    .provider_id(pid_str)
+                                    .model_id(mid_str),
+                            });
+                        }
+                        ConfigOperation::SetCommitConfig(commit) => {
+                            env.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
+                                |(pid, mid)| {
+                                    SessionConfig::default()
+                                        .provider_id(pid.as_ref().to_string())
+                                        .model_id(mid.to_string())
+                                },
+                            );
+                        }
+                        ConfigOperation::SetSuggestConfig(suggest) => {
+                            env.suggest = Some(
+                                SessionConfig::default()
+                                    .provider_id(suggest.provider.as_ref().to_string())
+                                    .model_id(suggest.model.to_string()),
+                            );
+                        }
                     }
-                    AppConfigOperation::SetCommitConfig(commit) => config.commit = Some(commit),
-                    AppConfigOperation::SetSuggestConfig(suggest) => config.suggest = Some(suggest),
                 }
+                Ok(())
             }
-            Ok(())
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
         }
     }
 
@@ -336,8 +406,12 @@ mod tests {
 
         service.set_default_provider(ProviderId::ANTHROPIC).await?;
 
-        let config = fixture.get_app_config().await?;
-        let actual = config.provider;
+        let env = fixture.get_environment();
+        let actual = env
+            .session
+            .as_ref()
+            .and_then(|s| s.provider_id.as_ref())
+            .map(|id| ProviderId::from(id.clone()));
         let expected = Some(ProviderId::ANTHROPIC);
 
         assert_eq!(actual, expected);
@@ -385,9 +459,9 @@ mod tests {
             .set_default_model("gpt-4".to_string().into())
             .await?;
 
-        let config = fixture.get_app_config().await?;
-        let actual = config.model.get(&ProviderId::OPENAI).cloned();
-        let expected = Some("gpt-4".to_string().into());
+        let env = fixture.get_environment();
+        let actual = env.session.as_ref().and_then(|s| s.model_id.as_deref());
+        let expected = Some("gpt-4");
 
         assert_eq!(actual, expected);
         Ok(())
@@ -398,24 +472,30 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        // Set models for different providers by switching active provider
+        // Set model for OpenAI first
         service.set_default_provider(ProviderId::OPENAI).await?;
         service
             .set_default_model("gpt-4".to_string().into())
             .await?;
 
+        // Then switch to Anthropic and set its model
         service.set_default_provider(ProviderId::ANTHROPIC).await?;
         service
             .set_default_model("claude-3".to_string().into())
             .await?;
 
-        let config = fixture.get_app_config().await?;
-        let actual = config.model;
-        let mut expected = HashMap::new();
-        expected.insert(ProviderId::OPENAI, "gpt-4".to_string().into());
-        expected.insert(ProviderId::ANTHROPIC, "claude-3".to_string().into());
+        // ForgeConfig only tracks a single active session, so the last
+        // provider/model pair wins
+        let env = fixture.get_environment();
+        let actual_provider = env
+            .session
+            .as_ref()
+            .and_then(|s| s.provider_id.as_ref())
+            .map(|id| ProviderId::from(id.clone()));
+        let actual_model = env.session.as_ref().and_then(|s| s.model_id.as_deref());
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual_provider, Some(ProviderId::ANTHROPIC));
+        assert_eq!(actual_model, Some("claude-3"));
         Ok(())
     }
 }
