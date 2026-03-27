@@ -194,11 +194,11 @@ impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
         self.infra.get_environment()
     }
 
-    fn update_app_config(
+    fn update_environment(
         &self,
         ops: Vec<forge_domain::ConfigOperation>,
     ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
-        self.infra.update_app_config(ops)
+        self.infra.update_environment(ops)
     }
 
     fn get_env_var(&self, key: &str) -> Option<String> {

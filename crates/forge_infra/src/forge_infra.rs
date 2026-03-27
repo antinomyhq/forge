@@ -107,11 +107,11 @@ impl EnvironmentInfra for ForgeInfra {
         self.config_infra.get_environment()
     }
 
-    async fn update_app_config(
+    async fn update_environment(
         &self,
         ops: Vec<forge_domain::ConfigOperation>,
     ) -> anyhow::Result<()> {
-        self.config_infra.update_app_config(ops).await
+        self.config_infra.update_environment(ops).await
     }
 }
 

@@ -32,7 +32,7 @@ pub trait EnvironmentInfra: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the configuration cannot be read or written.
-    fn update_app_config(
+    fn update_environment(
         &self,
         ops: Vec<ConfigOperation>,
     ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;

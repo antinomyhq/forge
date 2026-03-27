@@ -663,7 +663,7 @@ mod env_tests {
             env
         }
 
-        async fn update_app_config(
+        async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
         ) -> anyhow::Result<()> {
@@ -1153,7 +1153,7 @@ mod env_tests {
                 env
             }
 
-            async fn update_app_config(
+            async fn update_environment(
                 &self,
                 _ops: Vec<forge_domain::ConfigOperation>,
             ) -> anyhow::Result<()> {

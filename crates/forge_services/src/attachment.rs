@@ -166,7 +166,7 @@ pub mod tests {
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
-        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
+        async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }
@@ -485,12 +485,12 @@ pub mod tests {
             self.env_service.get_environment()
         }
 
-        fn update_app_config(
+        fn update_environment(
             &self,
             ops: Vec<ConfigOperation>,
         ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
             let env_service = self.env_service.clone();
-            async move { env_service.update_app_config(ops).await }
+            async move { env_service.update_environment(ops).await }
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {

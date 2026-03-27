@@ -22,7 +22,7 @@ impl<F: ProviderRepository + EnvironmentInfra> ForgeAppConfigService<F> {
     /// Helper method to apply a config operation atomically.
     async fn update(&self, op: ConfigOperation) -> anyhow::Result<()> {
         debug!(op = ?op, "Updating app config");
-        self.infra.update_app_config(vec![op]).await
+        self.infra.update_environment(vec![op]).await
     }
 }
 
@@ -219,7 +219,7 @@ mod tests {
             self.config.lock().unwrap().clone()
         }
 
-        fn update_app_config(
+        fn update_environment(
             &self,
             ops: Vec<ConfigOperation>,
         ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {

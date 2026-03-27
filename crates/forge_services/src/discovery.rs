@@ -95,7 +95,7 @@ mod tests {
             env
         }
 
-        async fn update_app_config(
+        async fn update_environment(
             &self,
             _ops: Vec<ConfigOperation>,
         ) -> anyhow::Result<()> {

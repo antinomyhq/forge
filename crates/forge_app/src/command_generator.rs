@@ -143,7 +143,7 @@ mod tests {
             self.environment.clone()
         }
 
-        async fn update_app_config(
+        async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
         ) -> anyhow::Result<()> {

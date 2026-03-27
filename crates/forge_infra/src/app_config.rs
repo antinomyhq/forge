@@ -263,7 +263,7 @@ impl EnvironmentInfra for ForgeConfigInfra {
         to_environment(fc)
     }
 
-    async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
+    async fn update_environment(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
         // Load the global config
         let fc = ConfigReader::default()
             .read_defaults()
