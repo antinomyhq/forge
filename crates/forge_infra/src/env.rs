@@ -600,4 +600,92 @@ SIMPLE=value"#;
         );
         assert_eq!(actual.model_cache_ttl_secs, fixture.model_cache_ttl_secs);
     }
+
+    #[test]
+    fn test_forge_config_environment_identity() {
+        // Identity property: for any ForgeConfig `fc`, the config-mapped fields
+        // of the Environment produced by `to_environment(fc)` must survive a
+        // full round-trip through `to_forge_config` and back unchanged.
+        //
+        //   fc  -->  env  -->  fc'  -->  env'
+        //            ^                    ^
+        //            |--- config fields --|  must be equal
+        let fixture = ForgeConfig {
+            max_search_lines: 999,
+            max_search_result_bytes: 4096,
+            max_fetch_chars: 20_000,
+            max_stdout_prefix_lines: 111,
+            max_stdout_suffix_lines: 222,
+            max_stdout_line_chars: 333,
+            max_line_chars: 444,
+            max_read_lines: 555,
+            max_file_read_batch_size: 66,
+            max_file_size_bytes: 7_777_777,
+            max_image_size_bytes: 88_888,
+            tool_timeout_secs: 999,
+            auto_open_dump: true,
+            debug_requests: Some(PathBuf::from("/tmp/debug")),
+            custom_history_path: Some(PathBuf::from("/custom/history")),
+            max_conversations: 50,
+            max_sem_search_results: 200,
+            sem_search_top_k: 15,
+            services_url: "https://custom.example.com".to_string(),
+            max_extensions: 25,
+            auto_dump: Some(forge_config::AutoDumpFormat::Html),
+            max_parallel_file_reads: 128,
+            model_cache_ttl_secs: 7200,
+            retry: Some(forge_config::RetryConfig {
+                initial_backoff_ms: 100,
+                min_delay_ms: 50,
+                backoff_factor: 3,
+                max_attempts: 5,
+                status_codes: vec![429, 503],
+                max_delay_secs: Some(60),
+                suppress_errors: true,
+            }),
+            http: Some(forge_config::HttpConfig {
+                connect_timeout_secs: 10,
+                read_timeout_secs: 30,
+                pool_idle_timeout_secs: 90,
+                pool_max_idle_per_host: 20,
+                max_redirects: 5,
+                hickory: true,
+                tls_backend: forge_config::TlsBackend::Rustls,
+                min_tls_version: Some(forge_config::TlsVersion::V1_2),
+                max_tls_version: Some(forge_config::TlsVersion::V1_3),
+                adaptive_window: true,
+                keep_alive_interval_secs: Some(15),
+                keep_alive_timeout_secs: 20,
+                keep_alive_while_idle: true,
+                accept_invalid_certs: true,
+                root_cert_paths: Some(vec!["/etc/ssl/custom.pem".to_string()]),
+            }),
+            session: Some(ModelConfig {
+                provider_id: Some("anthropic".to_string()),
+                model_id: Some("claude-3".to_string()),
+            }),
+            commit: Some(ModelConfig {
+                provider_id: Some("openai".to_string()),
+                model_id: Some("gpt-4".to_string()),
+            }),
+            suggest: Some(ModelConfig {
+                provider_id: Some("google".to_string()),
+                model_id: Some("gemini".to_string()),
+            }),
+            ..ForgeConfig::default()
+        };
+
+        let cwd = PathBuf::from("/identity/test");
+        let restricted = true;
+
+        // fc -> env -> fc' -> env'
+        let env = to_environment(fixture.clone(), restricted, cwd.clone());
+        let fc_prime = to_forge_config(&env);
+        let env_prime = to_environment(fc_prime, restricted, cwd);
+
+        // Infrastructure-derived fields (os, pid, home, shell, base_path) are
+        // re-derived from the runtime, so they are equal by construction.
+        // Config-mapped fields must satisfy the identity: env == env'
+        assert_eq!(env, env_prime);
+    }
 }
