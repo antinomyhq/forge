@@ -1,7 +1,8 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// TLS version enum for configuring TLS protocol versions.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 pub enum TlsVersion {
     #[serde(rename = "1.0")]
@@ -15,7 +16,7 @@ pub enum TlsVersion {
 }
 
 /// TLS backend option.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 pub enum TlsBackend {
     #[serde(rename = "default")]
@@ -25,7 +26,7 @@ pub enum TlsBackend {
 }
 
 /// HTTP client configuration.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 pub struct HttpConfig {
     pub connect_timeout_secs: u64,

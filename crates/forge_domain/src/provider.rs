@@ -211,7 +211,7 @@ pub struct Provider<T> {
     pub models: Option<ModelSource<T>>,
     pub auth_methods: Vec<crate::AuthMethod>,
     #[serde(default)]
-    pub url_params: Vec<crate::URLParam>,
+    pub url_params: Vec<crate::URLParamSpec>,
     pub credential: Option<AuthCredential>,
     /// Custom HTTP headers to include in API requests for this provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -298,7 +298,7 @@ impl AnyProvider {
             AnyProvider::Template(_) => None,
         }
     }
-    pub fn url_params(&self) -> &[crate::URLParam] {
+    pub fn url_params(&self) -> &[crate::URLParamSpec] {
         match self {
             AnyProvider::Url(p) => &p.url_params,
             AnyProvider::Template(p) => &p.url_params,
