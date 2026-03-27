@@ -261,14 +261,17 @@ impl CommandInfra for TensorlakeCommandExecutor {
         // The sandbox is a remote Linux microVM. Host-specific paths (e.g. macOS
         // `/Users/…`) do not exist inside the sandbox. Fall back to `/tmp` so
         // that process spawn never fails with "No such file or directory".
+
         let cwd = {
             let host_path = working_dir.to_string_lossy();
-            if host_path.starts_with("/Users/") || host_path.starts_with("/home/") {
+            // Handle both Unix and Windows paths
+            if host_path.starts_with("/Users/") || host_path.starts_with("/home/") || host_path.contains(":\\") {
                 "/tmp".to_string()
             } else {
                 host_path.into_owned()
             }
         };
+
 
         // Parse `KEY=VALUE` strings into the dict format the Tensorlake API expects.
         let env = env_vars.map(|vars| {
