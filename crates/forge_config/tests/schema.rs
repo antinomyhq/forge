@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use pretty_assertions::assert_eq;
-
 use forge_config::ForgeConfig;
+use pretty_assertions::assert_eq;
 
 #[tokio::test]
 async fn generate_workflow_schema() -> anyhow::Result<()> {

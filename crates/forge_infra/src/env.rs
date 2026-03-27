@@ -109,11 +109,10 @@ fn to_compact(c: forge_config::Compact) -> Compact {
         token_threshold: c.token_threshold,
         turn_threshold: c.turn_threshold,
         message_threshold: c.message_threshold,
-        model: c.model.map(|s| ModelId::new(s)),
+        model: c.model.map(ModelId::new),
         on_turn_end: c.on_turn_end,
     }
 }
-
 
 /// Builds a [`forge_domain::Environment`] entirely from a [`ForgeConfig`] and
 /// runtime context (`restricted`, `cwd`), mapping every config field to its

@@ -173,7 +173,8 @@ pub struct Environment {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tokens: Option<MaxTokens>,
 
-    /// Maximum tool failures per turn before the orchestrator forces completion.
+    /// Maximum tool failures per turn before the orchestrator forces
+    /// completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_tool_failure_per_turn: Option<usize>,
 
