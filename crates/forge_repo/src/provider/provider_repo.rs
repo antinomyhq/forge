@@ -127,7 +127,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
-        let provider_json_path = environment.base_path.join("provider.json");
+        let provider_json_path = environment.provider_config_path();
 
         let json_str = self.infra.read_utf8(&provider_json_path).await?;
         let configs = serde_json::from_str(&json_str)?;

@@ -324,6 +324,28 @@ impl Environment {
         self.cwd.join(".forge/commands")
     }
 
+    /// Returns the global AGENTS.md path (base_path/AGENTS.md)
+    pub fn global_agentsmd_path(&self) -> PathBuf {
+        self.base_path.join("AGENTS.md")
+    }
+
+    /// Returns the project-local AGENTS.md path (cwd/AGENTS.md)
+    pub fn local_agentsmd_path(&self) -> PathBuf {
+        self.cwd.join("AGENTS.md")
+    }
+
+    /// Returns the plans directory path relative to the current working
+    /// directory (cwd/plans)
+    pub fn plans_path(&self) -> PathBuf {
+        self.cwd.join("plans")
+    }
+
+    /// Returns the path to the custom provider configuration file
+    /// (base_path/provider.json)
+    pub fn provider_config_path(&self) -> PathBuf {
+        self.base_path.join("provider.json")
+    }
+
     /// Returns the path to the credentials file where provider API keys are
     /// stored
     pub fn credentials_path(&self) -> PathBuf {
@@ -567,5 +589,49 @@ mod tests {
         assert_eq!(global_path, expected_global);
         assert_eq!(local_path, expected_local);
         assert_ne!(global_path, local_path);
+    }
+
+    #[test]
+    fn test_global_agents_md_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.global_agentsmd_path();
+        let expected = PathBuf::from("/home/user/.forge/AGENTS.md");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_local_agents_md_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.local_agentsmd_path();
+        let expected = PathBuf::from("/projects/my-app/AGENTS.md");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plans_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.plans_path();
+        let expected = PathBuf::from("/projects/my-app/plans");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_provider_config_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.provider_config_path();
+        let expected = PathBuf::from("/home/user/.forge/provider.json");
+
+        assert_eq!(actual, expected);
     }
 }
