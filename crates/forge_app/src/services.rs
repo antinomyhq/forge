@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, AppConfigRepository, Attachment, AuthContextRequest, AuthContextResponse,
     AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node,
+    File, FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node,
     Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
     ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
@@ -615,8 +615,6 @@ pub trait Services: Send + Sync + 'static + Clone + AppConfigRepository {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
-    fn get_environment(&self) -> Environment;
-    fn is_restricted(&self) -> bool;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn agent_registry(&self) -> &Self::AgentRegistry;

@@ -115,6 +115,11 @@ pub struct ForgeConfig {
     /// agent's individual setting when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
+
+    /// Whether the application is running in restricted mode.
+    /// When true, tool execution requires explicit permission grants.
+    #[serde(default)]
+    pub restricted: bool,
 }
 
 impl ForgeConfig {

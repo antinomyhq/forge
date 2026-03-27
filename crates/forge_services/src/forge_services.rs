@@ -8,7 +8,7 @@ use forge_app::{
 use forge_domain::{
     AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
     ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
-    WorkspaceIndexRepository, Environment,
+    WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -258,14 +258,6 @@ impl<
 
     fn attachment_service(&self) -> &Self::AttachmentService {
         &self.attachment_service
-    }
-
-    fn get_environment(&self) -> Environment {
-        self.infra.get_environment()
-    }
-
-    fn is_restricted(&self) -> bool {
-        self.infra.is_restricted()
     }
 
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService {

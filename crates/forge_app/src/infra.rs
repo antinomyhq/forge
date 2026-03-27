@@ -21,8 +21,6 @@ use crate::{WalkedFile, Walker};
 pub trait EnvironmentInfra: Send + Sync {
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
-    /// Returns whether the application is running in restricted mode.
-    fn is_restricted(&self) -> bool;
 }
 
 /// Repository for accessing system environment information

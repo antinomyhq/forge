@@ -111,6 +111,9 @@ pub struct Environment {
     /// Provider and model for shell command suggestion generation.
     #[dummy(default)]
     pub suggest: Option<SessionConfig>,
+    /// Whether the application is running in restricted mode.
+    /// When true, tool execution requires explicit permission grants.
+    pub is_restricted: bool,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -353,6 +356,7 @@ fn test_command_path() {
         session: None,
         commit: None,
         suggest: None,
+        is_restricted: false,
     };
 
     let actual = fixture.command_path();
@@ -398,6 +402,7 @@ fn test_command_cwd_path() {
         session: None,
         commit: None,
         suggest: None,
+        is_restricted: false,
     };
 
     let actual = fixture.command_cwd_path();
@@ -443,6 +448,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         session: None,
         commit: None,
         suggest: None,
+        is_restricted: false,
     };
 
     let command_path = fixture.command_path();

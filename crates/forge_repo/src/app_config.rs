@@ -131,6 +131,7 @@ fn to_environment(fc: ForgeConfig) -> Environment {
         session: fc.session.as_ref().map(to_session_config),
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
+        is_restricted: fc.restricted,
     }
 }
 

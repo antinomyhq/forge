@@ -101,6 +101,7 @@ impl ForgeEnvironmentInfra {
             session: None,
             commit: None,
             suggest: None,
+            is_restricted: self.restricted,
         }
     }
 
@@ -135,10 +136,6 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_env_vars(&self) -> BTreeMap<String, String> {
         // TODO: Maybe cache it?
         std::env::vars().collect()
-    }
-
-    fn is_restricted(&self) -> bool {
-        self.restricted
     }
 }
 

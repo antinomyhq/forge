@@ -112,7 +112,7 @@ impl<S: Services> ToolRegistry<S> {
 
             // Check permissions before executing the tool (only in restricted mode)
             // This is done BEFORE the timeout to ensure permissions are never timed out
-            if self.services.is_restricted()
+            if env.is_restricted
                 && self.check_tool_permission(&tool_input, context).await?
             {
                 // Send formatted output message for policy denial

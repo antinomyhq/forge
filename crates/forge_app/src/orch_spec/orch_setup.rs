@@ -98,6 +98,7 @@ impl Default for TestContext {
                 session: None,
                 commit: None,
                 suggest: None,
+                is_restricted: false,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(
