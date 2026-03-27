@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::domain::File;
-use forge_app::{DirectoryReaderInfra, FileDiscoveryService, Walker, WalkerInfra};
-use forge_domain::AppConfigRepository;
+use forge_app::{
+    DirectoryReaderInfra, EnvironmentInfra, FileDiscoveryService, Walker, WalkerInfra,
+};
 
 pub struct ForgeDiscoveryService<F> {
     service: Arc<F>,
@@ -15,7 +16,7 @@ impl<F> ForgeDiscoveryService<F> {
     }
 }
 
-impl<F: AppConfigRepository + WalkerInfra> ForgeDiscoveryService<F> {
+impl<F: EnvironmentInfra + WalkerInfra> ForgeDiscoveryService<F> {
     async fn discover_with_config(&self, config: Walker) -> Result<Vec<File>> {
         let files = self.service.walk(config).await?;
         Ok(files
@@ -26,7 +27,7 @@ impl<F: AppConfigRepository + WalkerInfra> ForgeDiscoveryService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + WalkerInfra + DirectoryReaderInfra + Send + Sync> FileDiscoveryService
+impl<F: EnvironmentInfra + WalkerInfra + DirectoryReaderInfra + Send + Sync> FileDiscoveryService
     for ForgeDiscoveryService<F>
 {
     async fn collect_files(&self, config: Walker) -> Result<Vec<File>> {
@@ -61,9 +62,9 @@ impl<F: AppConfigRepository + WalkerInfra + DirectoryReaderInfra + Send + Sync> 
 mod tests {
     use std::path::PathBuf;
 
-    use forge_app::WalkedFile;
     use forge_app::domain::Environment;
-    use forge_domain::{ConfigOperation, AppConfigRepository};
+    use forge_app::{EnvironmentInfra, WalkedFile};
+    use forge_domain::ConfigOperation;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -86,8 +87,7 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
-    impl AppConfigRepository for MockInfra {
+    impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
@@ -95,8 +95,19 @@ mod tests {
             env
         }
 
-        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
-            unimplemented!()
+        fn update_app_config(
+            &self,
+            _ops: Vec<ConfigOperation>,
+        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+            async { unimplemented!() }
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
         }
     }
 

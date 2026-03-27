@@ -8,10 +8,9 @@ use forge_app::domain::{
     ReadRule, Rule, WriteRule,
 };
 use forge_app::{
-    DirectoryReaderInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, PolicyDecision,
-    PolicyService, UserInfra,
+    DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    PolicyDecision, PolicyService, UserInfra,
 };
-use forge_domain::AppConfigRepository;
 use strum_macros::{Display, EnumIter};
 
 /// User response for permission confirmation requests
@@ -42,11 +41,7 @@ static DEFAULT_POLICIES: LazyLock<PolicyConfig> = LazyLock::new(|| {
 
 impl<I> ForgePolicyService<I>
 where
-    I: FileReaderInfra
-        + FileWriterInfra
-        + FileInfoInfra
-        + AppConfigRepository
-        + DirectoryReaderInfra,
+    I: FileReaderInfra + FileWriterInfra + FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra,
 {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
@@ -157,7 +152,7 @@ where
     I: FileReaderInfra
         + FileWriterInfra
         + FileInfoInfra
-        + AppConfigRepository
+        + EnvironmentInfra
         + DirectoryReaderInfra
         + UserInfra,
 {

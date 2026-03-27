@@ -4,9 +4,9 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    AgentId, AnyProvider, AppConfigRepository, Attachment, AuthContextRequest, AuthContextResponse,
-    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File,
-    FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
+    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
+    FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
     ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
     ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
@@ -16,8 +16,8 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
-use crate::Walker;
 use crate::user::{User, UserUsage};
+use crate::{EnvironmentInfra, Walker};
 
 #[derive(Debug, Clone)]
 pub struct ShellOutput {
@@ -565,7 +565,7 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-pub trait Services: Send + Sync + 'static + Clone + AppConfigRepository {
+pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;

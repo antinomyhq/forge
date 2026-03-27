@@ -6,9 +6,8 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
-    ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
-    WorkspaceIndexRepository,
+    ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -49,7 +48,7 @@ pub struct ForgeServices<
         + WalkerInfra
         + SnapshotRepository
         + ConversationRepository
-        + AppConfigRepository
+        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -102,7 +101,7 @@ impl<
         + UserInfra
         + SnapshotRepository
         + ConversationRepository
-        + AppConfigRepository
+        + EnvironmentInfra
         + ChatRepository
         + ProviderRepository
         + KVStore
@@ -197,7 +196,7 @@ impl<
         + Clone
         + SnapshotRepository
         + ConversationRepository
-        + AppConfigRepository
+        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -352,11 +351,9 @@ impl<
     }
 }
 
-#[async_trait::async_trait]
 impl<
-    F: AppConfigRepository
+    F: EnvironmentInfra
         + HttpInfra
-        + EnvironmentInfra
         + McpServerInfra
         + WalkerInfra
         + SnapshotRepository
@@ -370,16 +367,24 @@ impl<
         + ValidationRepository
         + Send
         + Sync,
-> forge_domain::AppConfigRepository for ForgeServices<F>
+> forge_app::EnvironmentInfra for ForgeServices<F>
 {
     fn get_environment(&self) -> forge_domain::Environment {
         self.infra.get_environment()
     }
 
-    async fn update_app_config(
+    fn update_app_config(
         &self,
         ops: Vec<forge_domain::ConfigOperation>,
-    ) -> anyhow::Result<()> {
-        self.infra.update_app_config(ops).await
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+        self.infra.update_app_config(ops)
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.infra.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+        self.infra.get_env_vars()
     }
 }

@@ -2,7 +2,6 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-use forge_app::EnvironmentInfra;
 use forge_domain::{AutoDumpFormat, Environment, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 
@@ -128,12 +127,14 @@ impl ForgeEnvironmentInfra {
     }
 }
 
-impl EnvironmentInfra for ForgeEnvironmentInfra {
-    fn get_env_var(&self, key: &str) -> Option<String> {
+impl ForgeEnvironmentInfra {
+    /// Returns the value of the environment variable `key`.
+    pub fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
     }
 
-    fn get_env_vars(&self) -> BTreeMap<String, String> {
+    /// Returns all environment variables as a [`BTreeMap`].
+    pub fn get_env_vars(&self) -> BTreeMap<String, String> {
         // TODO: Maybe cache it?
         std::env::vars().collect()
     }

@@ -1,10 +1,12 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    AppConfigRepository, AutoDumpFormat, ConfigOperation, Environment, HttpConfig, RetryConfig,
-    SessionConfig, TlsBackend, TlsVersion,
+    AutoDumpFormat, ConfigOperation, Environment, HttpConfig, RetryConfig, SessionConfig,
+    TlsBackend, TlsVersion,
 };
 use tracing::{debug, error};
 use url::Url;
@@ -200,15 +202,17 @@ fn to_forge_config(env: &Environment, mut base: ForgeConfig) -> ForgeConfig {
     base
 }
 
-/// Repository for managing application configuration with caching support.
+/// Infrastructure implementation for managing application configuration with
+/// caching support.
 ///
 /// Uses [`ForgeConfig::read`] and [`ForgeConfig::write`] for all file I/O and
 /// maintains an in-memory cache to reduce disk access.
-pub struct ForgeConfigRepository {
+pub struct ForgeConfigInfra {
     cache: Arc<std::sync::Mutex<Option<ForgeConfig>>>,
 }
 
-impl ForgeConfigRepository {
+impl ForgeConfigInfra {
+    /// Creates a new [`ForgeConfigInfra`].
     pub fn new() -> Self {
         Self { cache: Arc::new(std::sync::Mutex::new(None)) }
     }
@@ -229,8 +233,15 @@ impl ForgeConfigRepository {
     }
 }
 
-#[async_trait::async_trait]
-impl AppConfigRepository for ForgeConfigRepository {
+impl EnvironmentInfra for ForgeConfigInfra {
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        std::env::var(key).ok()
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        std::env::vars().collect()
+    }
+
     fn get_environment(&self) -> Environment {
         let fc = {
             let mut cache = self.cache.lock().expect("cache mutex poisoned");
@@ -276,7 +287,10 @@ impl AppConfigRepository for ForgeConfigRepository {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ConfigOperation, CommitConfig, Environment, ModelId, ProviderId, SessionConfig, SuggestConfig};
+    use forge_domain::{
+        CommitConfig, ConfigOperation, Environment, ModelId, ProviderId, SessionConfig,
+        SuggestConfig,
+    };
     use pretty_assertions::assert_eq;
 
     use super::apply_op;

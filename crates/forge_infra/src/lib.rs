@@ -1,3 +1,4 @@
+mod app_config;
 mod console;
 pub mod executor;
 
@@ -19,6 +20,7 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
+pub use app_config::ForgeConfigInfra;
 pub use console::StdConsoleWriter;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;

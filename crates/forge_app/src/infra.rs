@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, FileInfo, McpServerConfig, OAuthConfig, OAuthTokenResponse,
-    ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
+    OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -16,11 +16,26 @@ use url::Url;
 
 use crate::{WalkedFile, Walker};
 
-/// Infrastructure trait for accessing environment configuration and system
-/// variables.
+/// Infrastructure trait for accessing environment configuration, system
+/// variables, and persisted application configuration.
 pub trait EnvironmentInfra: Send + Sync {
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
+
+    /// Retrieves the current application configuration as an [`Environment`].
+    fn get_environment(&self) -> Environment;
+
+    /// Applies a list of configuration operations to the persisted config.
+    ///
+    /// Implementations should load the current config, apply each operation in
+    /// order, and persist the result atomically.
+    ///
+    /// # Errors
+    /// Returns an error if the configuration cannot be read or written.
+    fn update_app_config(
+        &self,
+        ops: Vec<ConfigOperation>,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;
 }
 
 /// Repository for accessing system environment information

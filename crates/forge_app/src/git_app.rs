@@ -2,13 +2,13 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_domain::{AppConfigRepository, *};
+use forge_domain::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, ProviderAuthService, ProviderService,
-    ShellService, TemplateService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentInfra, ProviderAuthService,
+    ProviderService, ShellService, TemplateService,
 };
 
 /// Errors specific to GitApp operations
@@ -94,7 +94,7 @@ impl<S> GitApp<S> {
 
 impl<S> GitApp<S>
 where
-    S: AppConfigRepository
+    S: EnvironmentInfra
         + ShellService
         + AgentRegistry
         + TemplateService

@@ -4,8 +4,9 @@ use forge_app::domain::{
     Attachment, AttachmentContent, DirectoryEntry, FileTag, Image, LineNumbers,
 };
 use forge_app::utils::format_display_path;
-use forge_app::{AttachmentService, DirectoryReaderInfra, FileInfoInfra, FileReaderInfra};
-use forge_domain::AppConfigRepository;
+use forge_app::{
+    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
+};
 
 use crate::range::resolve_range;
 
@@ -14,7 +15,7 @@ pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderInfra>
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
     ForgeChatRequest<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -113,8 +114,8 @@ impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderI
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderInfra>
-    AttachmentService for ForgeChatRequest<F>
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra> AttachmentService
+    for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
@@ -135,7 +136,7 @@ pub mod tests {
         AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
-    use forge_domain::{ConfigOperation, AppConfigRepository, FileInfo};
+    use forge_domain::{ConfigOperation, FileInfo};
     use futures::stream;
 
     use crate::attachment::ForgeChatRequest;
@@ -143,7 +144,6 @@ pub mod tests {
     #[derive(Debug)]
     pub struct MockEnvironmentInfra {}
 
-    #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
@@ -152,10 +152,7 @@ pub mod tests {
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
         }
-    }
 
-    #[async_trait::async_trait]
-    impl AppConfigRepository for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
@@ -169,8 +166,11 @@ pub mod tests {
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
-        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
-            unimplemented!()
+        fn update_app_config(
+            &self,
+            _ops: Vec<ConfigOperation>,
+        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+            async { unimplemented!() }
         }
     }
 
@@ -483,25 +483,25 @@ pub mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl EnvironmentInfra for MockCompositeService {
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            None
-        }
-
-        fn get_env_vars(&self) -> BTreeMap<String, String> {
-            BTreeMap::new()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl AppConfigRepository for MockCompositeService {
         fn get_environment(&self) -> Environment {
             self.env_service.get_environment()
         }
 
-        async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
-            self.env_service.update_app_config(ops).await
+        fn update_app_config(
+            &self,
+            ops: Vec<ConfigOperation>,
+        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+            let env_service = self.env_service.clone();
+            async move { env_service.update_app_config(ops).await }
+        }
+
+        fn get_env_var(&self, key: &str) -> Option<String> {
+            self.env_service.get_env_var(key)
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            self.env_service.get_env_vars()
         }
     }
 

@@ -9,11 +9,11 @@ use forge_app::{
     KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AnyProvider, ConfigOperation, AppConfigRepository, AuthCredential, ChatCompletionMessage,
-    ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
-    Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
-    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
-    Snapshot, SnapshotRepository,
+    AnyProvider, AuthCredential, ChatCompletionMessage, ChatRepository, CommandOutput, Context,
+    Conversation, ConversationId, ConversationRepository, Environment, FileInfo,
+    FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
+    ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository, Snapshot,
+    SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -23,7 +23,6 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::agent::ForgeAgentRepository;
-use crate::app_config::ForgeConfigRepository;
 use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -42,7 +41,6 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    config_repository: Arc<ForgeConfigRepository>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -53,9 +51,7 @@ pub struct ForgeRepo<F> {
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
 }
 
-impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra>
-    ForgeRepo<F>
-{
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -65,8 +61,6 @@ impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + GrpcInfra + Ht
             db_pool.clone(),
             env.workspace_hash(),
         ));
-
-        let config_repository = Arc::new(ForgeConfigRepository::new());
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -85,7 +79,6 @@ impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + GrpcInfra + Ht
             infra,
             file_snapshot_service,
             conversation_repository,
-            config_repository,
             mcp_cache_repository,
             provider_repository,
             chat_repository,
@@ -147,7 +140,7 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
     ChatRepository for ForgeRepo<F>
 {
     async fn chat(
@@ -165,15 +158,8 @@ impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + HttpInfra + Se
 }
 
 #[async_trait::async_trait]
-impl<
-    F: AppConfigRepository
-        + EnvironmentInfra
-        + FileReaderInfra
-        + FileWriterInfra
-        + HttpInfra
-        + Send
-        + Sync,
-> ProviderRepository for ForgeRepo<F>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+    ProviderRepository for ForgeRepo<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await
@@ -203,13 +189,24 @@ impl<
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
     fn get_environment(&self) -> Environment {
-        self.config_repository.get_environment()
+        self.infra.get_environment()
     }
 
-    async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
-        self.config_repository.update_app_config(ops).await
+    fn update_app_config(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+        self.infra.update_app_config(ops)
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.infra.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        self.infra.get_env_vars()
     }
 }
 
@@ -262,17 +259,6 @@ impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
         body: Bytes,
     ) -> anyhow::Result<EventSource> {
         self.infra.http_eventsource(url, headers, body).await
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
-    fn get_env_var(&self, key: &str) -> Option<String> {
-        self.infra.get_env_var(key)
-    }
-
-    fn get_env_vars(&self) -> BTreeMap<String, String> {
-        self.infra.get_env_vars()
     }
 }
 
@@ -470,7 +456,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + AppConfigRepository + DirectoryReaderInfra + Send + Sync> AgentRepository
+impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> AgentRepository
     for ForgeRepo<F>
 {
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
@@ -479,7 +465,7 @@ impl<F: FileInfoInfra + AppConfigRepository + DirectoryReaderInfra + Send + Sync
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + AppConfigRepository + FileReaderInfra + WalkerInfra + Send + Sync>
+impl<F: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra + Send + Sync>
     SkillRepository for ForgeRepo<F>
 {
     async fn load_skills(&self) -> anyhow::Result<Vec<Skill>> {

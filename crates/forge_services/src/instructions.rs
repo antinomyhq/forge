@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::{CommandInfra, CustomInstructionsService, FileReaderInfra};
-use forge_domain::AppConfigRepository;
+use forge_app::{CommandInfra, CustomInstructionsService, EnvironmentInfra, FileReaderInfra};
 
 /// This service looks for AGENTS.md files in three locations in order of
 /// priority:
@@ -15,7 +14,7 @@ pub struct ForgeCustomInstructionsService<F> {
     cache: tokio::sync::OnceCell<Vec<String>>,
 }
 
-impl<F: AppConfigRepository + FileReaderInfra + CommandInfra> ForgeCustomInstructionsService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> ForgeCustomInstructionsService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra, cache: Default::default() }
     }
@@ -82,7 +81,7 @@ impl<F: AppConfigRepository + FileReaderInfra + CommandInfra> ForgeCustomInstruc
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + FileReaderInfra + CommandInfra> CustomInstructionsService
+impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> CustomInstructionsService
     for ForgeCustomInstructionsService<F>
 {
     async fn get_custom_instructions(&self) -> Vec<String> {

@@ -4,10 +4,9 @@ use anyhow::Context;
 use bytes::Bytes;
 use chrono::Local;
 use forge_app::{
-    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, PlanCreateOutput,
-    PlanCreateService,
+    EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
+    PlanCreateOutput, PlanCreateService,
 };
-use forge_domain::AppConfigRepository;
 
 /// Creates a new plan file with the specified name, version, and content. Use
 /// this tool to create structured project plans, task breakdowns, or
@@ -27,7 +26,7 @@ impl<
         + FileInfoInfra
         + FileReaderInfra
         + FileWriterInfra
-        + AppConfigRepository
+        + EnvironmentInfra
         + Send
         + Sync,
 > PlanCreateService for ForgePlanCreate<F>

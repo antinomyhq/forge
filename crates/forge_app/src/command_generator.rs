@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{AppConfigRepository, *};
+use forge_domain::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::{AppConfigService, FileDiscoveryService, ProviderService, TemplateEngine};
+use crate::{
+    AppConfigService, EnvironmentInfra, FileDiscoveryService, ProviderService, TemplateEngine,
+};
 
 /// Response struct for shell command generation using JSON format
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -23,7 +25,7 @@ pub struct CommandGenerator<S> {
 
 impl<S> CommandGenerator<S>
 where
-    S: AppConfigRepository + FileDiscoveryService + ProviderService + AppConfigService,
+    S: EnvironmentInfra + FileDiscoveryService + ProviderService + AppConfigService,
 {
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
@@ -136,16 +138,24 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl AppConfigRepository for MockServices {
+    impl EnvironmentInfra for MockServices {
         fn get_environment(&self) -> Environment {
             self.environment.clone()
         }
 
-        async fn update_app_config(
+        fn update_app_config(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
-        ) -> anyhow::Result<()> {
-            unimplemented!()
+        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+            async { unimplemented!() }
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
         }
     }
 

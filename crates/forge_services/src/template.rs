@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::{FileReaderInfra, TemplateService};
-use forge_domain::{AppConfigRepository, Template};
+use forge_app::{EnvironmentInfra, FileReaderInfra, TemplateService};
+use forge_domain::Template;
 use futures::future;
 use handlebars::Handlebars;
 use tokio::sync::RwLock;
@@ -14,7 +14,7 @@ pub struct ForgeTemplateService<F> {
     infra: Arc<F>,
 }
 
-impl<F: AppConfigRepository + FileReaderInfra> ForgeTemplateService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> ForgeTemplateService<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let hb = forge_app::TemplateEngine::handlebar_instance();
         Self { hb: Arc::new(RwLock::new(hb)), infra }
@@ -69,7 +69,7 @@ fn compile_template(name: &str, content: &str) -> anyhow::Result<handlebars::tem
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + FileReaderInfra> TemplateService for ForgeTemplateService<F> {
+impl<F: EnvironmentInfra + FileReaderInfra> TemplateService for ForgeTemplateService<F> {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
         let cwd = &self.infra.get_environment().cwd;
 

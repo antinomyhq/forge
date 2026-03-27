@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{CommandInfra, ShellOutput, ShellService};
-use forge_domain::AppConfigRepository;
+use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
 
 // Strips out the ansi codes from content.
@@ -23,7 +22,7 @@ pub struct ForgeShell<I> {
     infra: Arc<I>,
 }
 
-impl<I: AppConfigRepository> ForgeShell<I> {
+impl<I: EnvironmentInfra> ForgeShell<I> {
     /// Create a new Shell with environment configuration
     pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
@@ -39,7 +38,7 @@ impl<I: AppConfigRepository> ForgeShell<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: CommandInfra + AppConfigRepository> ShellService for ForgeShell<I> {
+impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
     async fn execute(
         &self,
         command: String,
@@ -71,8 +70,8 @@ mod tests {
 
     use async_trait::async_trait;
     use forge_app::domain::{CommandOutput, Environment};
-    use forge_app::{CommandInfra, ShellService};
-    use forge_domain::{ConfigOperation, AppConfigRepository};
+    use forge_app::{CommandInfra, EnvironmentInfra, ShellService};
+    use forge_domain::ConfigOperation;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -111,15 +110,25 @@ mod tests {
         }
     }
 
-    #[async_trait]
-    impl AppConfigRepository for MockCommandInfra {
+    impl EnvironmentInfra for MockCommandInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             Faker.fake()
         }
 
-        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
-            unimplemented!()
+        fn update_app_config(
+            &self,
+            _ops: Vec<ConfigOperation>,
+        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+            async { unimplemented!() }
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
         }
     }
 

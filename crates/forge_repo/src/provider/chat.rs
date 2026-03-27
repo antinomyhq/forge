@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderResponse, ResultStream,
 };
-use forge_domain::{AppConfigRepository, ChatRepository, Provider, ProviderId};
+use forge_app::{EnvironmentInfra, HttpInfra};
+use forge_domain::{ChatRepository, Provider, ProviderId};
 use forge_infra::CacacheStorage;
 use tokio::task::AbortHandle;
 use url::Url;
@@ -24,7 +24,7 @@ pub struct ForgeChatRepository<F> {
     bg_refresh: BgRefresh,
 }
 
-impl<F: AppConfigRepository + HttpInfra> ForgeChatRepository<F> {
+impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
     /// Creates a new ForgeChatRepository with the given infrastructure.
     ///
     /// # Arguments
@@ -67,7 +67,7 @@ impl<F: AppConfigRepository + HttpInfra> ForgeChatRepository<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + HttpInfra + Sync> ChatRepository for ForgeChatRepository<F> {
+impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatRepository<F> {
     async fn chat(
         &self,
         model_id: &ModelId,

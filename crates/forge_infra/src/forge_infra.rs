@@ -16,6 +16,7 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
+use crate::app_config::ForgeConfigInfra;
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
 use crate::console::StdConsoleWriter;
 use crate::env::ForgeEnvironmentInfra;
@@ -41,6 +42,7 @@ pub struct ForgeInfra {
     file_write_service: Arc<ForgeFileWriteService>,
     file_remove_service: Arc<ForgeFileRemoveService>,
     environment_service: Arc<ForgeEnvironmentInfra>,
+    config_infra: Arc<ForgeConfigInfra>,
     file_meta_service: Arc<ForgeFileMetaService>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
     directory_reader_service: Arc<ForgeDirectoryReaderService>,
@@ -73,6 +75,7 @@ impl ForgeInfra {
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
             environment_service,
+            config_infra: Arc::new(ForgeConfigInfra::new()),
             file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
@@ -99,19 +102,16 @@ impl EnvironmentInfra for ForgeInfra {
     fn get_env_vars(&self) -> BTreeMap<String, String> {
         self.environment_service.get_env_vars()
     }
-}
 
-#[async_trait::async_trait]
-impl forge_domain::AppConfigRepository for ForgeInfra {
     fn get_environment(&self) -> forge_domain::Environment {
-        self.environment_service.get()
+        self.config_infra.get_environment()
     }
 
     async fn update_app_config(
         &self,
-        _ops: Vec<forge_domain::ConfigOperation>,
+        ops: Vec<forge_domain::ConfigOperation>,
     ) -> anyhow::Result<()> {
-        Ok(())
+        self.config_infra.update_app_config(ops).await
     }
 }
 
