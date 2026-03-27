@@ -96,9 +96,10 @@ fn parse_token_value(val: &str) -> Option<usize> {
     if let Some(inner) = val
         .strip_prefix("Actual(")
         .or_else(|| val.strip_prefix("Approx("))
-        && let Some(num) = inner.strip_suffix(')') {
-            return num.parse().ok();
-        }
+        && let Some(num) = inner.strip_suffix(')')
+    {
+        return num.parse().ok();
+    }
 
     val.parse().ok()
 }
