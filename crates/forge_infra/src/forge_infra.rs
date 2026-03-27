@@ -91,9 +91,10 @@ impl ForgeInfra {
             file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
-            command_executor: CommandExecutor::Local(Arc::new(
-                ForgeCommandExecutorService::new(env.clone(), output_printer.clone()),
-            )),
+            command_executor: CommandExecutor::Local(Arc::new(ForgeCommandExecutorService::new(
+                env.clone(),
+                output_printer.clone(),
+            ))),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
@@ -107,9 +108,9 @@ impl ForgeInfra {
     /// Creates a `ForgeInfra` instance that executes shell commands inside an
     /// isolated Tensorlake Firecracker microVM sandbox.
     ///
-    /// A single sandbox is provisioned lazily on the first command execution and
-    /// reused for the entire session. The sandbox is terminated when the returned
-    /// `ForgeInfra` is dropped.
+    /// A single sandbox is provisioned lazily on the first command execution
+    /// and reused for the entire session. The sandbox is terminated when
+    /// the returned `ForgeInfra` is dropped.
     pub fn new_with_tensorlake(restricted: bool, cwd: PathBuf, config: TensorlakeConfig) -> Self {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
@@ -249,10 +250,12 @@ impl CommandInfra for ForgeInfra {
     ) -> anyhow::Result<CommandOutput> {
         match &self.command_executor {
             CommandExecutor::Local(svc) => {
-                svc.execute_command(command, working_dir, silent, env_vars).await
+                svc.execute_command(command, working_dir, silent, env_vars)
+                    .await
             }
             CommandExecutor::Tensorlake(svc) => {
-                svc.execute_command(command, working_dir, silent, env_vars).await
+                svc.execute_command(command, working_dir, silent, env_vars)
+                    .await
             }
         }
     }
@@ -265,10 +268,12 @@ impl CommandInfra for ForgeInfra {
     ) -> anyhow::Result<ExitStatus> {
         match &self.command_executor {
             CommandExecutor::Local(svc) => {
-                svc.execute_command_raw(command, working_dir, env_vars).await
+                svc.execute_command_raw(command, working_dir, env_vars)
+                    .await
             }
             CommandExecutor::Tensorlake(svc) => {
-                svc.execute_command_raw(command, working_dir, env_vars).await
+                svc.execute_command_raw(command, working_dir, env_vars)
+                    .await
             }
         }
     }

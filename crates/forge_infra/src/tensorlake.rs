@@ -20,7 +20,8 @@ pub struct TensorlakeConfig {
     pub cpus: f64,
     /// Memory in megabytes to allocate for the sandbox (default: 4096).
     pub memory_mb: u64,
-    /// Inactivity timeout in seconds before the sandbox auto-suspends (default: 3600).
+    /// Inactivity timeout in seconds before the sandbox auto-suspends (default:
+    /// 3600).
     pub timeout_secs: u64,
     /// Base URL for the Tensorlake API (default: `https://api.tensorlake.ai`).
     /// Overridable in tests to point at a local mock server.
@@ -28,7 +29,8 @@ pub struct TensorlakeConfig {
 }
 
 impl TensorlakeConfig {
-    /// Creates a new `TensorlakeConfig` with the given API key and sensible defaults.
+    /// Creates a new `TensorlakeConfig` with the given API key and sensible
+    /// defaults.
     pub fn new(api_key: String) -> Self {
         Self {
             api_key,
@@ -110,8 +112,8 @@ impl Drop for SandboxGuard {
     }
 }
 
-/// Infrastructure implementation that executes shell commands inside an isolated
-/// Tensorlake Firecracker microVM sandbox.
+/// Infrastructure implementation that executes shell commands inside an
+/// isolated Tensorlake Firecracker microVM sandbox.
 ///
 /// A single sandbox is created lazily on the first command execution and reused
 /// for the lifetime of the `TensorlakeCommandExecutor` instance. The sandbox is
@@ -194,12 +196,17 @@ impl TensorlakeCommandExecutor {
         Ok(parsed.sandbox_id)
     }
 
-    /// Polls the sandbox status endpoint until the sandbox reaches the "running" state.
+    /// Polls the sandbox status endpoint until the sandbox reaches the
+    /// "running" state.
     async fn wait_for_running(&self, sandbox_id: &str) -> anyhow::Result<()> {
         let url = format!("{}/sandboxes/{}", self.config.base_url, sandbox_id);
         for attempt in 0..60 {
-            tokio::time::sleep(std::time::Duration::from_secs(if attempt == 0 { 1 } else { 2 }))
-                .await;
+            tokio::time::sleep(std::time::Duration::from_secs(if attempt == 0 {
+                1
+            } else {
+                2
+            }))
+            .await;
 
             let resp = self
                 .client
@@ -213,18 +220,22 @@ impl TensorlakeCommandExecutor {
                 continue;
             }
 
-            let body: serde_json::Value =
-                resp.json().await.context("Failed to parse sandbox status")?;
+            let body: serde_json::Value = resp
+                .json()
+                .await
+                .context("Failed to parse sandbox status")?;
 
             match body.get("status").and_then(|s| s.as_str()) {
                 Some("running") => return Ok(()),
                 Some("terminated") => {
-                    return Err(anyhow!("Tensorlake sandbox terminated unexpectedly"))
+                    return Err(anyhow!("Tensorlake sandbox terminated unexpectedly"));
                 }
                 _ => continue,
             }
         }
-        Err(anyhow!("Timed out waiting for Tensorlake sandbox to become running"))
+        Err(anyhow!(
+            "Timed out waiting for Tensorlake sandbox to become running"
+        ))
     }
 
     /// Returns the per-sandbox proxy base URL for API calls.
@@ -235,7 +246,8 @@ impl TensorlakeCommandExecutor {
 
 #[async_trait]
 impl CommandInfra for TensorlakeCommandExecutor {
-    /// Executes a shell command inside the Tensorlake sandbox and returns the captured output.
+    /// Executes a shell command inside the Tensorlake sandbox and returns the
+    /// captured output.
     async fn execute_command(
         &self,
         command: String,
@@ -317,9 +329,9 @@ impl CommandInfra for TensorlakeCommandExecutor {
 
     /// Interactive (raw) commands are not supported in Tensorlake sandbox mode.
     ///
-    /// Raw command execution requires an attached TTY which is not available over
-    /// the Tensorlake HTTP API. This method always returns an error directing the
-    /// caller to use `execute_command` instead.
+    /// Raw command execution requires an attached TTY which is not available
+    /// over the Tensorlake HTTP API. This method always returns an error
+    /// directing the caller to use `execute_command` instead.
     async fn execute_command_raw(
         &self,
         _command: &str,
@@ -350,24 +362,29 @@ impl TensorlakeCommandExecutor {
 
             if !resp.status().is_success() {
                 let status = resp.status();
-                return Err(anyhow!("Failed to poll process {pid} status: HTTP {status}"));
+                return Err(anyhow!(
+                    "Failed to poll process {pid} status: HTTP {status}"
+                ));
             }
 
-            let body: serde_json::Value =
-                resp.json().await.context("Failed to parse process status")?;
+            let body: serde_json::Value = resp
+                .json()
+                .await
+                .context("Failed to parse process status")?;
 
             if body.get("status").and_then(|s| s.as_str()) == Some("exited") {
-                let code = body
-                    .get("exit_code")
-                    .and_then(|c| c.as_i64())
-                    .unwrap_or(0) as i32;
+                let code = body.get("exit_code").and_then(|c| c.as_i64()).unwrap_or(0) as i32;
                 return Ok(code);
             }
         }
-        Err(anyhow!("Timed out waiting for Tensorlake process {} to exit", pid))
+        Err(anyhow!(
+            "Timed out waiting for Tensorlake process {} to exit",
+            pid
+        ))
     }
 
-    /// Fetches the captured output lines (stdout or stderr) for a completed process.
+    /// Fetches the captured output lines (stdout or stderr) for a completed
+    /// process.
     async fn get_process_output(
         &self,
         proxy: &str,
@@ -385,7 +402,9 @@ impl TensorlakeCommandExecutor {
 
         if !resp.status().is_success() {
             let status = resp.status();
-            return Err(anyhow!("Failed to fetch {stream} for pid {pid}: HTTP {status}"));
+            return Err(anyhow!(
+                "Failed to fetch {stream} for pid {pid}: HTTP {status}"
+            ));
         }
 
         let output: ProcessOutputResponse = resp
@@ -449,9 +468,10 @@ mod tests {
         drop(executor);
     }
 
-    /// Verifies that dropping the executor sends a DELETE /sandboxes/{id} request
-    /// synchronously — i.e. the request completes before `drop` returns, so the
-    /// mock server receives it before `assert_hits` is checked.
+    /// Verifies that dropping the executor sends a DELETE /sandboxes/{id}
+    /// request synchronously — i.e. the request completes before `drop`
+    /// returns, so the mock server receives it before `assert_hits` is
+    /// checked.
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sandbox_terminated_on_drop() {
         let mut server = mockito::Server::new_async().await;
@@ -481,8 +501,8 @@ mod tests {
         mock.assert_async().await;
     }
 
-    /// Verifies that a clone and the original share the guard, and the DELETE is
-    /// sent exactly once — only when the last clone is dropped.
+    /// Verifies that a clone and the original share the guard, and the DELETE
+    /// is sent exactly once — only when the last clone is dropped.
     #[tokio::test(flavor = "multi_thread")]
     async fn test_sandbox_terminated_exactly_once_across_clones() {
         let mut server = mockito::Server::new_async().await;

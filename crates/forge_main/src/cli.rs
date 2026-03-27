@@ -50,7 +50,8 @@ pub struct Cli {
     #[arg(long)]
     pub sandbox: Option<String>,
 
-    /// Run all shell commands inside an isolated Tensorlake Firecracker microVM sandbox.
+    /// Run all shell commands inside an isolated Tensorlake Firecracker microVM
+    /// sandbox.
     ///
     /// Requires a valid Tensorlake API key. Can also be supplied via the
     /// TENSORLAKE_API_KEY environment variable. When set, every shell tool call
