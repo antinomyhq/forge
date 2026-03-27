@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::Context;
-use forge_app::domain::Workflow;
+use forge_app::domain::Environment;
 use forge_app::{FileReaderInfra, FileWriterInfra, WorkflowService};
 
 /// A workflow loader to load the workflow from the given path.
@@ -57,16 +57,16 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
     /// If the path is just "forge.yaml", searches for it in parent directories.
     /// If the file doesn't exist anywhere, returns a default workflow without
     /// creating any file.
-    async fn read(&self, path: &Path) -> anyhow::Result<Workflow> {
+    async fn read(&self, path: &Path) -> anyhow::Result<Environment> {
         // First, try to find the config file in parent directories if needed
         let path = &self.resolve_path(Some(path.into())).await;
 
         if !path.exists() {
             // Return a default workflow without creating a file
-            Ok(Workflow::new())
+            Ok(Environment::new())
         } else {
             let content = self.infra.read_utf8(path).await?;
-            let workflow: Workflow = serde_yml::from_str(&content)
+            let workflow: Environment = serde_yml::from_str(&content)
                 .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
             Ok(workflow)
         }
@@ -79,7 +79,7 @@ impl<F: FileWriterInfra + FileReaderInfra> WorkflowService for ForgeWorkflowServ
         self.resolve_path(path).await
     }
 
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Environment> {
         let path_to_use = path.unwrap_or_else(|| Path::new("forge.yaml"));
         self.read(path_to_use).await
     }

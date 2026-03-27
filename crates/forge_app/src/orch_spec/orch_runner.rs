@@ -92,7 +92,8 @@ impl Runner {
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
         let agent = agent
-            .apply_workflow_config(&setup.workflow)
+            // FIXME: rename to apply_env
+            .apply_workflow_config(&setup.env)
             .model(setup.model.clone());
 
         // Render system prompt into context.

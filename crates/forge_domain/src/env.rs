@@ -7,7 +7,10 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{CommitConfig, HttpConfig, ModelId, ProviderId, RetryConfig, SuggestConfig};
+use crate::{
+    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, RetryConfig, SuggestConfig,
+    Temperature, TopK, TopP, Update,
+};
 
 /// Domain-level session configuration pairing a provider with a model.
 ///
@@ -144,6 +147,61 @@ pub struct Environment {
     /// Whether the application is running in restricted mode.
     /// When true, tool execution requires explicit permission grants.
     pub is_restricted: bool,
+
+    // --- Workflow configuration fields ---
+    /// A set of custom rules that all agents should follow, applied in addition
+    /// to each agent's individual rules.
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[setters(into)]
+    pub custom_rules: Option<String>,
+
+    /// Output randomness for all agents; lower values are deterministic, higher
+    /// values are creative (0.0–2.0).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<Temperature>,
+
+    /// Nucleus sampling threshold for all agents; limits token selection to the
+    /// top cumulative probability mass (0.0–1.0).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<TopP>,
+
+    /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
+    /// highest-probability tokens (1–1000).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<TopK>,
+
+    /// Maximum tokens the model may generate per response for all agents
+    /// (1–100,000).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<MaxTokens>,
+
+    /// Flag to enable/disable tool support for all agents.
+    /// If not specified, each agent's individual setting will be used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_supported: Option<bool>,
+
+    /// Maximum tool failures per turn before the orchestrator forces completion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tool_failure_per_turn: Option<usize>,
+
+    /// Maximum number of requests that can be made in a single turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_requests_per_turn: Option<usize>,
+
+    /// Context compaction settings applied to all agents.
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compact: Option<Compact>,
+
+    /// Configuration for automatic forge updates.
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updates: Option<Update>,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -164,6 +222,69 @@ impl FromStr for AutoDumpFormat {
             "html" => Ok(AutoDumpFormat::Html),
             "json" | "true" | "1" | "yes" => Ok(AutoDumpFormat::Json),
             _ => Err(()),
+        }
+    }
+}
+
+impl Environment {
+    /// Returns an empty [`Environment`] with all fields set to their zero/None
+    /// defaults. Infrastructure-derived fields (os, pid, cwd, shell, etc.)
+    /// are empty; this is primarily useful for constructing partial
+    /// environments that will be merged or overridden by the infrastructure
+    /// layer.
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl Default for Environment {
+    fn default() -> Self {
+        Self {
+            os: Default::default(),
+            pid: Default::default(),
+            cwd: Default::default(),
+            home: Default::default(),
+            shell: Default::default(),
+            base_path: Default::default(),
+            retry_config: Default::default(),
+            max_search_lines: Default::default(),
+            max_search_result_bytes: Default::default(),
+            fetch_truncation_limit: Default::default(),
+            stdout_max_prefix_length: Default::default(),
+            stdout_max_suffix_length: Default::default(),
+            stdout_max_line_length: Default::default(),
+            max_line_length: Default::default(),
+            max_read_size: Default::default(),
+            max_file_read_batch_size: Default::default(),
+            http: Default::default(),
+            max_file_size: Default::default(),
+            max_image_size: Default::default(),
+            tool_timeout: Default::default(),
+            auto_open_dump: Default::default(),
+            debug_requests: Default::default(),
+            custom_history_path: Default::default(),
+            max_conversations: Default::default(),
+            sem_search_limit: Default::default(),
+            sem_search_top_k: Default::default(),
+            service_url: Url::parse("https://api.forgecode.dev").unwrap(),
+            max_extensions: Default::default(),
+            auto_dump: Default::default(),
+            parallel_file_reads: Default::default(),
+            model_cache_ttl: Default::default(),
+            session: Default::default(),
+            commit: Default::default(),
+            suggest: Default::default(),
+            is_restricted: Default::default(),
+            custom_rules: Default::default(),
+            temperature: Default::default(),
+            top_p: Default::default(),
+            top_k: Default::default(),
+            max_tokens: Default::default(),
+            tool_supported: Default::default(),
+            max_tool_failure_per_turn: Default::default(),
+            max_requests_per_turn: Default::default(),
+            compact: Default::default(),
+            updates: Default::default(),
         }
     }
 }
@@ -521,6 +642,16 @@ fn test_command_path() {
         commit: None,
         suggest: None,
         is_restricted: false,
+        custom_rules: None,
+        temperature: None,
+        top_p: None,
+        top_k: None,
+        max_tokens: None,
+        tool_supported: None,
+        max_tool_failure_per_turn: None,
+        max_requests_per_turn: None,
+        compact: None,
+        updates: None,
     };
 
     let actual = fixture.command_path();
@@ -567,6 +698,16 @@ fn test_command_cwd_path() {
         commit: None,
         suggest: None,
         is_restricted: false,
+        custom_rules: None,
+        temperature: None,
+        top_p: None,
+        top_k: None,
+        max_tokens: None,
+        tool_supported: None,
+        max_tool_failure_per_turn: None,
+        max_requests_per_turn: None,
+        compact: None,
+        updates: None,
     };
 
     let actual = fixture.command_cwd_path();
@@ -613,6 +754,16 @@ fn test_command_cwd_path_independent_from_command_path() {
         commit: None,
         suggest: None,
         is_restricted: false,
+        custom_rules: None,
+        temperature: None,
+        top_p: None,
+        top_k: None,
+        max_tokens: None,
+        tool_supported: None,
+        max_tool_failure_per_turn: None,
+        max_requests_per_turn: None,
+        compact: None,
+        updates: None,
     };
 
     let command_path = fixture.command_path();

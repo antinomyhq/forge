@@ -81,7 +81,7 @@ where
 
 #[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
 #[serde(transparent)]
-pub struct SummaryTag(String);
+pub struct SummaryTag(pub String);
 
 impl Default for SummaryTag {
     fn default() -> Self {

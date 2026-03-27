@@ -2885,7 +2885,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), None).await;
+            let env = self.api.environment();
+            on_update(self.api.clone(), env.updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -60,16 +59,6 @@ impl<S: Services> ForgeApp<S> {
         let environment = services.get_environment();
 
         let files = services.list_current_directory().await?;
-
-        // Register templates using workflow path or environment fallback
-        let template_path = workflow
-            .templates
-            .as_ref()
-            .map_or(environment.templates(), |templates| {
-                PathBuf::from(templates)
-            });
-
-        services.register_template(template_path).await?;
 
         let custom_instructions = services.get_custom_instructions().await;
 

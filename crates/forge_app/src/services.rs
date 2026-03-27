@@ -8,9 +8,8 @@ use forge_domain::{
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
     FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
     ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
-    ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ToolOutput, Environment, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
-use merge::Merge;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
@@ -347,15 +346,12 @@ pub trait WorkflowService {
     /// Reads the workflow from the given path.
     /// If no path is provided, it will try to find forge.yaml in the current
     /// directory or its parent directories.
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Environment>;
 
     /// Reads the workflow from the given path and merges it with an default
     /// workflow.
-    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let workflow = self.read_workflow(path).await?;
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow);
-        Ok(base_workflow)
+    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Environment> {
+        self.read_workflow(path).await
     }
 }
 
@@ -763,7 +759,7 @@ impl<I: Services> WorkflowService for I {
         self.workflow_service().resolve(path).await
     }
 
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
+    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Environment> {
         self.workflow_service().read_workflow(path).await
     }
 }

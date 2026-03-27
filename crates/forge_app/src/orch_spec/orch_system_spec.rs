@@ -1,4 +1,4 @@
-use forge_domain::{ChatCompletionMessage, CommandOutput, Content, FinishReason, Workflow};
+use forge_domain::{ChatCompletionMessage, CommandOutput, Content, FinishReason, Environment};
 use insta::assert_snapshot;
 
 use crate::ShellOutput;
@@ -7,7 +7,7 @@ use crate::orch_spec::orch_runner::TestContext;
 #[tokio::test]
 async fn test_system_prompt() {
     let mut ctx = TestContext::default()
-        .workflow(Workflow::default().tool_supported(false))
+        .env(Environment::default().tool_supported(false))
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))
                 .finish_reason(FinishReason::Stop),
@@ -21,8 +21,8 @@ async fn test_system_prompt() {
 #[tokio::test]
 async fn test_system_prompt_tool_supported() {
     let mut ctx = TestContext::default()
-        .workflow(
-            Workflow::default()
+        .env(
+            Environment::default()
                 .tool_supported(true)
                 .custom_rules("Do it nicely"),
         )
@@ -55,7 +55,7 @@ async fn test_system_prompt_with_extensions() {
     };
 
     let mut ctx = TestContext::default()
-        .workflow(Workflow::default().tool_supported(true))
+        .env(Environment::default().tool_supported(true))
         .mock_shell_outputs(vec![shell_output])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))
@@ -92,7 +92,7 @@ async fn test_system_prompt_with_extensions_truncated() {
     };
 
     let mut ctx = TestContext::default()
-        .workflow(Workflow::default().tool_supported(true))
+        .env(Environment::default().tool_supported(true))
         .mock_shell_outputs(vec![shell_output])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))
