@@ -64,6 +64,11 @@ impl Default for SummaryTag {
 }
 
 impl SummaryTag {
+    /// Creates a new [`SummaryTag`] wrapping the given string.
+    pub fn new(s: impl Into<String>) -> Self {
+        SummaryTag(s.into())
+    }
+
     /// Returns the inner string slice
     pub fn as_str(&self) -> &str {
         self.0.as_str()

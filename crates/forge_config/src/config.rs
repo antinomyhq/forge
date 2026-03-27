@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use derive_setters::Setters;
 use fake::Dummy;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::reader::ConfigReader;
@@ -10,7 +11,7 @@ use crate::{AutoDumpFormat, Compact, HttpConfig, ModelConfig, RetryConfig, Updat
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
-#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
