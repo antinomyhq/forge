@@ -377,17 +377,6 @@
           "default": 0,
           "minimum": 0
         },
-        "summary_tag": {
-          "description": "Optional tag name to extract content from when summarizing (e.g.,\n\"summary\")",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SummaryTag"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "token_threshold": {
           "description": "Maximum number of tokens before triggering compaction",
           "type": [
@@ -597,10 +586,6 @@
         "status_codes",
         "suppress_errors"
       ]
-    },
-    "SummaryTag": {
-      "description": "Optional tag name used when extracting summarized content during compaction",
-      "type": "string"
     },
     "TlsBackend": {
       "description": "TLS backend option.",

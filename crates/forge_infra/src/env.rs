@@ -110,9 +110,6 @@ fn to_compact(c: forge_config::Compact) -> Compact {
         turn_threshold: c.turn_threshold,
         message_threshold: c.message_threshold,
         model: c.model.map(|s| ModelId::new(s)),
-        summary_tag: c
-            .summary_tag
-            .map(|t| forge_domain::SummaryTag(t.as_str().to_string())),
         on_turn_end: c.on_turn_end,
     }
 }
@@ -272,10 +269,6 @@ fn from_compact(c: &Compact) -> forge_config::Compact {
         turn_threshold: c.turn_threshold,
         message_threshold: c.message_threshold,
         model: c.model.as_ref().map(|m| m.to_string()),
-        summary_tag: c
-            .summary_tag
-            .as_ref()
-            .map(|t| forge_config::SummaryTag::new(t.as_str())),
         on_turn_end: c.on_turn_end,
     }
 }
