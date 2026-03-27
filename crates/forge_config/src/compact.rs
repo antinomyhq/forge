@@ -427,7 +427,9 @@ impl From<UpdateFrequency> for Duration {
 }
 
 /// Configuration for automatic forge updates
-#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema, Setters, PartialEq, fake::Dummy)]
+#[derive(
+    Debug, Clone, Serialize, Deserialize, Default, JsonSchema, Setters, PartialEq, fake::Dummy,
+)]
 #[setters(strip_option, into)]
 pub struct Update {
     /// How frequently forge checks for updates
