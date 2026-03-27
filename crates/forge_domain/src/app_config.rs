@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use derive_more::From;
+use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{CommitConfig, ModelId, ProviderId, SuggestConfig};
+use crate::{AgentId, CommitConfig, ModelId, ProviderId, SuggestConfig};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -13,6 +14,19 @@ pub struct InitAuth {
     pub token: String,
 }
 
+/// Per-agent model and provider configuration.
+///
+/// Allows overriding the default provider and model for a specific agent
+/// (e.g., forge, sage, muse). Both fields must be specified together.
+#[derive(Debug, Clone, Serialize, Deserialize, Setters, PartialEq)]
+#[setters(into)]
+pub struct AgentModelConfig {
+    /// Provider ID to use for this agent.
+    pub provider: ProviderId,
+    /// Model ID to use for this agent.
+    pub model: ModelId,
+}
+
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct AppConfig {
     pub key_info: Option<LoginInfo>,
@@ -20,6 +34,9 @@ pub struct AppConfig {
     pub model: HashMap<ProviderId, ModelId>,
     pub commit: Option<CommitConfig>,
     pub suggest: Option<SuggestConfig>,
+    /// Per-agent model overrides. When set, the agent will use the specified
+    /// provider and model instead of the global defaults.
+    pub agent_models: HashMap<AgentId, AgentModelConfig>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
@@ -53,4 +70,8 @@ pub enum AppConfigOperation {
     SetCommitConfig(CommitConfig),
     /// Set the shell-command suggestion configuration.
     SetSuggestConfig(SuggestConfig),
+    /// Set the model and provider for a specific agent.
+    SetAgentModel(AgentId, AgentModelConfig),
+    /// Clear the per-agent model override, reverting to global defaults.
+    ClearAgentModel(AgentId),
 }

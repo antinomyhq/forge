@@ -239,6 +239,61 @@ function _forge_action_suggest_model() {
     )
 }
 
+# Helper: Select model for a specific agent (forge, sage, or muse).
+# Calls `forge config set agent-model <agent_id> <provider_id> <model_id>` on selection.
+# Arguments:
+#   $1  agent_id    - The agent to configure (forge, sage, or muse)
+#   $2  input_text  - Optional pre-fill query for fzf
+function _forge_action_agent_model() {
+    local agent_id="$1"
+    local input_text="$2"
+    (
+        echo
+        # config get agent-model outputs two lines: provider_id (raw) then model_id
+        local agent_output current_agent_model current_agent_provider
+        agent_output=$(_forge_exec config get agent-model "$agent_id" 2>/dev/null)
+        current_agent_provider=$(echo "$agent_output" | head -n 1)
+        current_agent_model=$(echo "$agent_output" | tail -n 1)
+
+        # If output contains "Not set", clear the values
+        if [[ "$agent_output" == *"Not set"* ]]; then
+            current_agent_provider=""
+            current_agent_model=""
+        fi
+
+        local prompt_label="${agent_id:u} Model"
+        local selected
+        # provider_id from config get agent-model is the raw id, matching porcelain field 4
+        selected=$(_forge_pick_model "${prompt_label} ❯ " "$current_agent_model" "$input_text" "$current_agent_provider" 4)
+
+        if [[ -n "$selected" ]]; then
+            # Field 1 = model_id (raw), field 4 = provider_id (raw)
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set agent-model "$agent_id" "$provider_id" "$model_id"
+        fi
+    )
+}
+
+# Action handler: Select model for the forge agent
+function _forge_action_forge_model() {
+    _forge_action_agent_model "forge" "$1"
+}
+
+# Action handler: Select model for the sage agent
+function _forge_action_sage_model() {
+    _forge_action_agent_model "sage" "$1"
+}
+
+# Action handler: Select model for the muse agent
+function _forge_action_muse_model() {
+    _forge_action_agent_model "muse" "$1"
+}
+
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo

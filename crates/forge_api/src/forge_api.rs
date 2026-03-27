@@ -300,6 +300,31 @@ impl<
         self.services.set_suggest_config(config).await
     }
 
+    async fn get_agent_model_config(
+        &self,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<Option<AgentModelConfig>> {
+        self.services.get_agent_model_config(agent_id).await
+    }
+
+    async fn set_agent_model_config(
+        &self,
+        agent_id: AgentId,
+        config: AgentModelConfig,
+    ) -> anyhow::Result<()> {
+        let result = self.services.set_agent_model_config(agent_id, config).await;
+        // Invalidate agent cache so the new model is picked up
+        let _ = self.services.reload_agents().await;
+        result
+    }
+
+    async fn clear_agent_model_config(&self, agent_id: AgentId) -> anyhow::Result<()> {
+        let result = self.services.clear_agent_model_config(agent_id).await;
+        // Invalidate agent cache
+        let _ = self.services.reload_agents().await;
+        result
+    }
+
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
         self.services.auth_service().get_auth_token().await
     }
