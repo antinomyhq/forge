@@ -284,10 +284,7 @@ mod tests {
             Ok(())
         }
 
-        async fn clear_agent_model_config(
-            &self,
-            _agent_id: forge_domain::AgentId,
-        ) -> Result<()> {
+        async fn clear_agent_model_config(&self, _agent_id: forge_domain::AgentId) -> Result<()> {
             Ok(())
         }
     }

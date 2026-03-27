@@ -1331,19 +1331,34 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
         // Per-agent model overrides
-        let forge_config = self.api.get_agent_model_config(&AgentId::FORGE).await.ok().flatten();
+        let forge_config = self
+            .api
+            .get_agent_model_config(&AgentId::FORGE)
+            .await
+            .ok()
+            .flatten();
         let forge_model = forge_config
             .as_ref()
             .map(|c| format!("{} ({})", c.model.as_str(), c.provider))
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
-        let sage_config = self.api.get_agent_model_config(&AgentId::SAGE).await.ok().flatten();
+        let sage_config = self
+            .api
+            .get_agent_model_config(&AgentId::SAGE)
+            .await
+            .ok()
+            .flatten();
         let sage_model = sage_config
             .as_ref()
             .map(|c| format!("{} ({})", c.model.as_str(), c.provider))
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
-        let muse_config = self.api.get_agent_model_config(&AgentId::MUSE).await.ok().flatten();
+        let muse_config = self
+            .api
+            .get_agent_model_config(&AgentId::MUSE)
+            .await
+            .ok()
+            .flatten();
         let muse_model = muse_config
             .as_ref()
             .map(|c| format!("{} ({})", c.model.as_str(), c.provider))
@@ -3476,10 +3491,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.api
                     .set_agent_model_config(agent.clone(), agent_config)
                     .await?;
-                self.writeln_title(
-                    TitleFormat::action(validated_model.as_str())
-                        .sub_title(format!("is now the model for agent '{agent}' (provider: '{provider}')")),
-                )?;
+                self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
+                    format!("is now the model for agent '{agent}' (provider: '{provider}')"),
+                ))?;
             }
         }
 

@@ -57,17 +57,13 @@ fn forge_config_to_app_config(fc: ForgeConfig) -> AppConfig {
         (AgentId::SAGE, fc.sage_model),
         (AgentId::MUSE, fc.muse_model),
     ] {
-        if let Some(mc) = mc_opt {
-            if let (Some(pid), Some(mid)) = (mc.provider_id, mc.model_id) {
+        if let Some(mc) = mc_opt
+            && let (Some(pid), Some(mid)) = (mc.provider_id, mc.model_id) {
                 agent_models.insert(
                     agent_id,
-                    AgentModelConfig {
-                        provider: ProviderId::from(pid),
-                        model: ModelId::new(mid),
-                    },
+                    AgentModelConfig { provider: ProviderId::from(pid), model: ModelId::new(mid) },
                 );
             }
-        }
     }
 
     AppConfig { key_info, provider, model, commit, suggest, agent_models }

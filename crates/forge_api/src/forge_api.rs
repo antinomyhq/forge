@@ -312,10 +312,7 @@ impl<
         agent_id: AgentId,
         config: AgentModelConfig,
     ) -> anyhow::Result<()> {
-        let result = self
-            .services
-            .set_agent_model_config(agent_id, config)
-            .await;
+        let result = self.services.set_agent_model_config(agent_id, config).await;
         // Invalidate agent cache so the new model is picked up
         let _ = self.services.reload_agents().await;
         result

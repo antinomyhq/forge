@@ -242,10 +242,8 @@ pub trait AppConfigService: Send + Sync {
     ) -> anyhow::Result<()>;
 
     /// Clears the per-agent model configuration, reverting to global defaults.
-    async fn clear_agent_model_config(
-        &self,
-        agent_id: forge_domain::AgentId,
-    ) -> anyhow::Result<()>;
+    async fn clear_agent_model_config(&self, agent_id: forge_domain::AgentId)
+    -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1084,9 +1082,7 @@ impl<I: Services> AppConfigService for I {
         &self,
         agent_id: &forge_domain::AgentId,
     ) -> anyhow::Result<Option<forge_domain::AgentModelConfig>> {
-        self.config_service()
-            .get_agent_model_config(agent_id)
-            .await
+        self.config_service().get_agent_model_config(agent_id).await
     }
 
     async fn set_agent_model_config(
