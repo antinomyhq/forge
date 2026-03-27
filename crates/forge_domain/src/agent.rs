@@ -140,7 +140,7 @@ impl Agent {
         }
 
         agent.tool_supported = Some(env.tool_supported);
-        
+
         if agent.max_requests_per_turn.is_none()
             && let Some(max_requests_per_turn) = env.max_requests_per_turn
         {
