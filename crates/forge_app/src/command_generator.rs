@@ -1,15 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::*;
+use forge_domain::{AppConfigRepository, *};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use forge_domain::AppConfigRepository;
-
-use crate::{
-    AppConfigService, FileDiscoveryService, ProviderService, TemplateEngine,
-};
+use crate::{AppConfigService, FileDiscoveryService, ProviderService, TemplateEngine};
 
 /// Response struct for shell command generation using JSON format
 #[derive(Debug, Clone, Deserialize, JsonSchema)]

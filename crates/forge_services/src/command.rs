@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::Command;
-use forge_app::{
-    DirectoryReaderInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
-};
+use forge_app::{DirectoryReaderInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra};
 use forge_domain::AppConfigRepository;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
@@ -38,16 +36,18 @@ impl<F> CommandLoaderService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + AppConfigRepository + DirectoryReaderInfra>
-    forge_app::CommandLoaderService for CommandLoaderService<F>
+impl<
+    F: FileReaderInfra + FileWriterInfra + FileInfoInfra + AppConfigRepository + DirectoryReaderInfra,
+> forge_app::CommandLoaderService for CommandLoaderService<F>
 {
     async fn get_commands(&self) -> anyhow::Result<Vec<Command>> {
         self.cache_or_init().await
     }
 }
 
-impl<F: FileReaderInfra + FileWriterInfra + FileInfoInfra + AppConfigRepository + DirectoryReaderInfra>
-    CommandLoaderService<F>
+impl<
+    F: FileReaderInfra + FileWriterInfra + FileInfoInfra + AppConfigRepository + DirectoryReaderInfra,
+> CommandLoaderService<F>
 {
     /// Load all command definitions with caching support
     async fn cache_or_init(&self) -> anyhow::Result<Vec<Command>> {

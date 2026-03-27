@@ -5,8 +5,7 @@ use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{McpConfig, Scope};
 use forge_app::{
-    FileInfoInfra, FileReaderInfra, FileWriterInfra, KVStore, McpConfigManager,
-    McpServerInfra,
+    FileInfoInfra, FileReaderInfra, FileWriterInfra, KVStore, McpConfigManager, McpServerInfra,
 };
 use forge_domain::AppConfigRepository;
 use merge::Merge;

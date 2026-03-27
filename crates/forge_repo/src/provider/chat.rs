@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
+use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderResponse, ResultStream,
 };
-use forge_app::{HttpInfra};
 use forge_domain::{AppConfigRepository, ChatRepository, Provider, ProviderId};
 use forge_infra::CacacheStorage;
 use tokio::task::AbortHandle;

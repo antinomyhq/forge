@@ -118,10 +118,7 @@ mod tests {
             Faker.fake()
         }
 
-        async fn update_app_config(
-            &self,
-            _ops: Vec<AppConfigOperation>,
-        ) -> anyhow::Result<()> {
+        async fn update_app_config(&self, _ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }

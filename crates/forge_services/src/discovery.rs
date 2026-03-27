@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::domain::File;
-use forge_app::{
-    DirectoryReaderInfra, FileDiscoveryService, Walker, WalkerInfra,
-};
+use forge_app::{DirectoryReaderInfra, FileDiscoveryService, Walker, WalkerInfra};
 use forge_domain::AppConfigRepository;
 
 pub struct ForgeDiscoveryService<F> {
@@ -97,10 +95,7 @@ mod tests {
             env
         }
 
-        async fn update_app_config(
-            &self,
-            _ops: Vec<AppConfigOperation>,
-        ) -> anyhow::Result<()> {
+        async fn update_app_config(&self, _ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }

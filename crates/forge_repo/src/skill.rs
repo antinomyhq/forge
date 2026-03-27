@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Skill;
-use forge_app::{
-    FileInfoInfra, FileReaderInfra, TemplateEngine, Walker, WalkerInfra,
-};
+use forge_app::{FileInfoInfra, FileReaderInfra, TemplateEngine, Walker, WalkerInfra};
 use forge_domain::{AppConfigRepository, SkillRepository};
 use futures::future::join_all;
 use gray_matter::Matter;
@@ -104,7 +102,9 @@ impl<I: FileInfoInfra + AppConfigRepository + FileReaderInfra + WalkerInfra> Ski
     }
 }
 
-impl<I: FileInfoInfra + AppConfigRepository + FileReaderInfra + WalkerInfra> ForgeSkillRepository<I> {
+impl<I: FileInfoInfra + AppConfigRepository + FileReaderInfra + WalkerInfra>
+    ForgeSkillRepository<I>
+{
     /// Loads skills from a specific directory by listing subdirectories first,
     /// then reading SKILL.md from each subdirectory if it exists
     async fn load_skills_from_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Skill>> {

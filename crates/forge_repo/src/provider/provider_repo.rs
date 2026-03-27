@@ -416,8 +416,9 @@ impl<F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInf
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
-    for ForgeProviderRepository<F>
+impl<
+    F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync,
+> ProviderRepository for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await)

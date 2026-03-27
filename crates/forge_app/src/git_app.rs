@@ -7,8 +7,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
-    AgentProviderResolver, AgentRegistry, AppConfigService,
-    ProviderAuthService, ProviderService, ShellService, TemplateService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, ProviderAuthService, ProviderService,
+    ShellService, TemplateService,
 };
 
 /// Errors specific to GitApp operations

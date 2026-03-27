@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
+use forge_domain::{Agent, AppConfigRepository, ContextMessage, Conversation, Role, TextMessage};
 use forge_template::Element;
 
-use forge_domain::AppConfigRepository;
-
-use crate::utils::format_display_path;
 use crate::FsReadService;
+use crate::utils::format_display_path;
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications

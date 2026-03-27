@@ -21,8 +21,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentProviderResolver, ConversationService, FileDiscoveryService,
-    ProviderService, Services, WorkflowService,
+    AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService, Services,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various

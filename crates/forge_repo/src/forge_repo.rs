@@ -53,7 +53,9 @@ pub struct ForgeRepo<F> {
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
 }
 
-impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
+impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra>
+    ForgeRepo<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -163,8 +165,15 @@ impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + HttpInfra + Se
 }
 
 #[async_trait::async_trait]
-impl<F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
-    ProviderRepository for ForgeRepo<F>
+impl<
+    F: AppConfigRepository
+        + EnvironmentInfra
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra
+        + Send
+        + Sync,
+> ProviderRepository for ForgeRepo<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await

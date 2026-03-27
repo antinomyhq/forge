@@ -21,8 +21,8 @@ use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
-    AgentRegistry, McpService, PolicyService, ProviderService, Services,
-    ToolResolver, WorkspaceService,
+    AgentRegistry, McpService, PolicyService, ProviderService, Services, ToolResolver,
+    WorkspaceService,
 };
 
 pub struct ToolRegistry<S> {
@@ -112,9 +112,7 @@ impl<S: Services> ToolRegistry<S> {
 
             // Check permissions before executing the tool (only in restricted mode)
             // This is done BEFORE the timeout to ensure permissions are never timed out
-            if env.is_restricted
-                && self.check_tool_permission(&tool_input, context).await?
-            {
+            if env.is_restricted && self.check_tool_permission(&tool_input, context).await? {
                 // Send formatted output message for policy denial
                 context
                     .send(forge_domain::TitleFormat::error("Permission Denied"))

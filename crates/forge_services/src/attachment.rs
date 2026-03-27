@@ -4,9 +4,7 @@ use forge_app::domain::{
     Attachment, AttachmentContent, DirectoryEntry, FileTag, Image, LineNumbers,
 };
 use forge_app::utils::format_display_path;
-use forge_app::{
-    AttachmentService, DirectoryReaderInfra, FileInfoInfra, FileReaderInfra,
-};
+use forge_app::{AttachmentService, DirectoryReaderInfra, FileInfoInfra, FileReaderInfra};
 use forge_domain::AppConfigRepository;
 
 use crate::range::resolve_range;
@@ -115,8 +113,8 @@ impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderI
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderInfra> AttachmentService
-    for ForgeChatRequest<F>
+impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderInfra>
+    AttachmentService for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
@@ -171,10 +169,7 @@ pub mod tests {
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
-        async fn update_app_config(
-            &self,
-            _ops: Vec<AppConfigOperation>,
-        ) -> anyhow::Result<()> {
+        async fn update_app_config(&self, _ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }
@@ -505,10 +500,7 @@ pub mod tests {
             self.env_service.get_environment()
         }
 
-        async fn update_app_config(
-            &self,
-            ops: Vec<AppConfigOperation>,
-        ) -> anyhow::Result<()> {
+        async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
             self.env_service.update_app_config(ops).await
         }
     }

@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{
-    Content, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
-    ReadOutput, compute_hash,
+    Content, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService, ReadOutput,
+    compute_hash,
 };
 use forge_domain::{AppConfigRepository, FileInfo, Image};
 
