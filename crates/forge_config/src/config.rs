@@ -120,7 +120,8 @@ pub struct ForgeConfig {
     pub restricted: bool,
 
     /// Whether tool use is supported in the current environment.
-    /// When false, tool calls are disabled regardless of agent configuration.    
+    /// When false, tool calls are disabled regardless of agent configuration.
+    ///
     pub tool_supported: bool,
 }
 
