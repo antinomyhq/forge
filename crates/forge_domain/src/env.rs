@@ -148,6 +148,10 @@ pub struct Environment {
     /// When true, tool execution requires explicit permission grants.
     pub is_restricted: bool,
 
+    /// Whether tool use is supported in the current environment.
+    /// When false, tool calls are disabled regardless of agent configuration.
+    pub tool_supported: bool,
+
     // --- Workflow configuration fields ---
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).

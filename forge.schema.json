@@ -248,6 +248,11 @@
       ],
       "format": "float"
     },
+    "tool_supported": {
+      "description": "Whether tool use is supported in the current environment.\nWhen false, tool calls are disabled regardless of agent configuration.",
+      "type": "boolean",
+      "default": false
+    },
     "tool_timeout_secs": {
       "description": "Maximum execution time in seconds for a single tool call",
       "type": "integer",

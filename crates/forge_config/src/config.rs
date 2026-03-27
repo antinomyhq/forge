@@ -119,6 +119,11 @@ pub struct ForgeConfig {
     /// When true, tool execution requires explicit permission grants.
     #[serde(default)]
     pub restricted: bool,
+
+    /// Whether tool use is supported in the current environment.
+    /// When false, tool calls are disabled regardless of agent configuration.
+    #[serde(default)]
+    pub tool_supported: bool,
 }
 
 impl ForgeConfig {
@@ -192,6 +197,7 @@ impl Dummy<fake::Faker> for ForgeConfig {
             max_requests_per_turn: fake::Faker.fake_with_rng(rng),
             compact: fake::Faker.fake_with_rng(rng),
             restricted: fake::Faker.fake_with_rng(rng),
+            tool_supported: fake::Faker.fake_with_rng(rng),
         }
     }
 }

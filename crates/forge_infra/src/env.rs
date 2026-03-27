@@ -164,6 +164,7 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
+        tool_supported: fc.tool_supported,
         temperature: fc.temperature.and_then(|v| Temperature::new(v).ok()),
         top_p: fc.top_p.and_then(|v| TopP::new(v).ok()),
         top_k: fc.top_k.and_then(|v| TopK::new(v).ok()),
@@ -320,6 +321,7 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.max_parallel_file_reads = env.parallel_file_reads;
     fc.model_cache_ttl_secs = env.model_cache_ttl;
     fc.restricted = env.is_restricted;
+    fc.tool_supported = env.tool_supported;
 
     // --- Workflow fields ---
     fc.temperature = env.temperature.map(|t| t.value());

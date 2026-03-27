@@ -59,6 +59,7 @@ impl Default for TestContext {
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/Users/tushar/projects"),
                 service_url: Url::parse("http://localhost:8000").unwrap(),
+                tool_supported: true,
 
                 // No retry policy by default
                 retry_config: RetryConfig {
