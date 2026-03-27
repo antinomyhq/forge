@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::AppConfigService;
 use forge_domain::{
-    AppConfigOperation, AppConfigRepository, CommitConfig, ModelId, ProviderId, ProviderRepository,
+    ConfigOperation, AppConfigRepository, CommitConfig, ModelId, ProviderId, ProviderRepository,
     SuggestConfig,
 };
 use tracing::debug;
@@ -21,7 +21,7 @@ impl<F> ForgeAppConfigService<F> {
 
 impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
     /// Helper method to apply a config operation atomically.
-    async fn update(&self, op: AppConfigOperation) -> anyhow::Result<()> {
+    async fn update(&self, op: ConfigOperation) -> anyhow::Result<()> {
         debug!(op = ?op, "Updating app config");
         self.infra.update_app_config(vec![op]).await
     }
@@ -42,7 +42,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(AppConfigOperation::SetProvider(provider_id))
+        self.update(ConfigOperation::SetProvider(provider_id))
             .await
     }
 
@@ -91,7 +91,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
             .map(|id| ProviderId::from(id.clone()))
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
 
-        self.update(AppConfigOperation::SetModel(provider_id, model))
+        self.update(ConfigOperation::SetModel(provider_id, model))
             .await
     }
 
@@ -107,7 +107,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         &self,
         commit_config: forge_domain::CommitConfig,
     ) -> anyhow::Result<()> {
-        self.update(AppConfigOperation::SetCommitConfig(commit_config))
+        self.update(ConfigOperation::SetCommitConfig(commit_config))
             .await
     }
 
@@ -127,7 +127,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         &self,
         suggest_config: forge_domain::SuggestConfig,
     ) -> anyhow::Result<()> {
-        self.update(AppConfigOperation::SetSuggestConfig(suggest_config))
+        self.update(ConfigOperation::SetSuggestConfig(suggest_config))
             .await
     }
 }
@@ -138,7 +138,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfigOperation, ChatRepository, Environment, InputModality,
+        AnyProvider, ConfigOperation, ChatRepository, Environment, InputModality,
         MigrationResult, Model, ModelSource, Provider, ProviderId, ProviderResponse,
         ProviderTemplate, SessionConfig,
     };
@@ -222,18 +222,18 @@ mod tests {
             self.config.lock().unwrap().clone()
         }
 
-        async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             let mut config = self.config.lock().unwrap();
             for op in ops {
                 match op {
-                    AppConfigOperation::SetProvider(pid) => {
+                    ConfigOperation::SetProvider(pid) => {
                         let pid_str = pid.as_ref().to_string();
                         config.session = Some(match config.session.take() {
                             Some(sc) => sc.provider_id(pid_str),
                             None => SessionConfig::default().provider_id(pid_str),
                         });
                     }
-                    AppConfigOperation::SetModel(pid, mid) => {
+                    ConfigOperation::SetModel(pid, mid) => {
                         let pid_str = pid.as_ref().to_string();
                         let mid_str = mid.to_string();
                         config.session = Some(match config.session.take() {
@@ -245,7 +245,7 @@ mod tests {
                                 .model_id(mid_str),
                         });
                     }
-                    AppConfigOperation::SetCommitConfig(commit) => {
+                    ConfigOperation::SetCommitConfig(commit) => {
                         config.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
                             |(pid, mid)| {
                                 SessionConfig::default()
@@ -254,7 +254,7 @@ mod tests {
                             },
                         );
                     }
-                    AppConfigOperation::SetSuggestConfig(suggest) => {
+                    ConfigOperation::SetSuggestConfig(suggest) => {
                         config.suggest = Some(
                             SessionConfig::default()
                                 .provider_id(suggest.provider.as_ref().to_string())

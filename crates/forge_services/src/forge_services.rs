@@ -378,7 +378,7 @@ impl<
 
     async fn update_app_config(
         &self,
-        ops: Vec<forge_domain::AppConfigOperation>,
+        ops: Vec<forge_domain::ConfigOperation>,
     ) -> anyhow::Result<()> {
         self.infra.update_app_config(ops).await
     }

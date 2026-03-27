@@ -109,7 +109,7 @@ impl forge_domain::AppConfigRepository for ForgeInfra {
 
     async fn update_app_config(
         &self,
-        _ops: Vec<forge_domain::AppConfigOperation>,
+        _ops: Vec<forge_domain::ConfigOperation>,
     ) -> anyhow::Result<()> {
         Ok(())
     }

@@ -72,7 +72,7 @@ mod tests {
     use async_trait::async_trait;
     use forge_app::domain::{CommandOutput, Environment};
     use forge_app::{CommandInfra, ShellService};
-    use forge_domain::{AppConfigOperation, AppConfigRepository};
+    use forge_domain::{ConfigOperation, AppConfigRepository};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -118,7 +118,7 @@ mod tests {
             Faker.fake()
         }
 
-        async fn update_app_config(&self, _ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }

@@ -4,7 +4,7 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfigOperation, AuthCredential, ChatCompletionMessage, Context, Conversation,
+    AnyProvider, ConfigOperation, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, Environment, MigrationResult, Model, ModelId, Provider, ProviderId,
     ProviderTemplate, ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
 };
@@ -102,7 +102,7 @@ pub trait AppConfigRepository: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the configuration cannot be read or written.
-    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()>;
+    async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

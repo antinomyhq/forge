@@ -63,7 +63,7 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_app::domain::Environment;
-    use forge_domain::{AppConfigOperation, AppConfigRepository};
+    use forge_domain::{ConfigOperation, AppConfigRepository};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -95,7 +95,7 @@ mod tests {
             env
         }
 
-        async fn update_app_config(&self, _ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }

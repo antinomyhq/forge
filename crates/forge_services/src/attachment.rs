@@ -135,7 +135,7 @@ pub mod tests {
         AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
-    use forge_domain::{AppConfigOperation, AppConfigRepository, FileInfo};
+    use forge_domain::{ConfigOperation, AppConfigRepository, FileInfo};
     use futures::stream;
 
     use crate::attachment::ForgeChatRequest;
@@ -169,7 +169,7 @@ pub mod tests {
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
-        async fn update_app_config(&self, _ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
     }
@@ -500,7 +500,7 @@ pub mod tests {
             self.env_service.get_environment()
         }
 
-        async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+        async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             self.env_service.update_app_config(ops).await
         }
     }

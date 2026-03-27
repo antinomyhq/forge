@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    AppConfigOperation, AppConfigRepository, AutoDumpFormat, Environment, HttpConfig, RetryConfig,
+    ConfigOperation, AppConfigRepository, AutoDumpFormat, Environment, HttpConfig, RetryConfig,
     SessionConfig, TlsBackend, TlsVersion,
 };
 use tracing::{debug, error};
@@ -137,16 +137,16 @@ fn to_environment(fc: ForgeConfig) -> Environment {
 
 /// Applies a single [`AppConfigOperation`] directly onto a [`ForgeConfig`]
 /// in-place.
-fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
+fn apply_op(op: ConfigOperation, fc: &mut ForgeConfig) {
     match op {
-        AppConfigOperation::SetProvider(provider_id) => {
+        ConfigOperation::SetProvider(provider_id) => {
             let pid = provider_id.as_ref().to_string();
             fc.session = Some(match fc.session.take() {
                 Some(mc) => mc.provider_id(pid),
                 None => ModelConfig::default().provider_id(pid),
             });
         }
-        AppConfigOperation::SetModel(provider_id, model_id) => {
+        ConfigOperation::SetModel(provider_id, model_id) => {
             let pid = provider_id.as_ref().to_string();
             let mid = model_id.to_string();
             fc.session = Some(match fc.session.take() {
@@ -154,7 +154,7 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
                 _ => ModelConfig::default().provider_id(pid).model_id(mid),
             });
         }
-        AppConfigOperation::SetCommitConfig(commit) => {
+        ConfigOperation::SetCommitConfig(commit) => {
             fc.commit = commit
                 .provider
                 .as_ref()
@@ -165,7 +165,7 @@ fn apply_op(op: AppConfigOperation, fc: &mut ForgeConfig) {
                         .model_id(mid.to_string())
                 });
         }
-        AppConfigOperation::SetSuggestConfig(suggest) => {
+        ConfigOperation::SetSuggestConfig(suggest) => {
             fc.suggest = Some(
                 ModelConfig::default()
                     .provider_id(suggest.provider.as_ref().to_string())
@@ -221,7 +221,7 @@ impl AppConfigRepository for ForgeConfigRepository {
         to_environment(fc)
     }
 
-    async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
+    async fn update_app_config(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
         // Load the global config
         let mut fc = ConfigReader::default()
             .read_defaults()
@@ -250,7 +250,7 @@ impl AppConfigRepository for ForgeConfigRepository {
 #[cfg(test)]
 mod tests {
     use forge_config::{ForgeConfig, ModelConfig};
-    use forge_domain::{AppConfigOperation, CommitConfig, ModelId, ProviderId, SuggestConfig};
+    use forge_domain::{ConfigOperation, CommitConfig, ModelId, ProviderId, SuggestConfig};
     use pretty_assertions::assert_eq;
 
     use super::apply_op;
@@ -259,7 +259,7 @@ mod tests {
     fn test_apply_op_set_provider_creates_session_when_absent() {
         let mut fixture = ForgeConfig::default();
         apply_op(
-            AppConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
+            ConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
             &mut fixture,
         );
         let expected = ForgeConfig {
@@ -280,7 +280,7 @@ mod tests {
             ..Default::default()
         };
         apply_op(
-            AppConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
+            ConfigOperation::SetProvider(ProviderId::from("anthropic".to_string())),
             &mut fixture,
         );
         let expected = ForgeConfig {
@@ -305,7 +305,7 @@ mod tests {
             ..Default::default()
         };
         apply_op(
-            AppConfigOperation::SetModel(
+            ConfigOperation::SetModel(
                 ProviderId::from("openai".to_string()),
                 ModelId::new("gpt-4"),
             ),
@@ -333,7 +333,7 @@ mod tests {
             ..Default::default()
         };
         apply_op(
-            AppConfigOperation::SetModel(
+            ConfigOperation::SetModel(
                 ProviderId::from("anthropic".to_string()),
                 ModelId::new("claude-3"),
             ),
@@ -356,7 +356,7 @@ mod tests {
         let commit = CommitConfig::default()
             .provider(ProviderId::from("openai".to_string()))
             .model(ModelId::new("gpt-4o"));
-        apply_op(AppConfigOperation::SetCommitConfig(commit), &mut fixture);
+        apply_op(ConfigOperation::SetCommitConfig(commit), &mut fixture);
         let expected = ForgeConfig {
             commit: Some(
                 ModelConfig::default()
@@ -375,7 +375,7 @@ mod tests {
             provider: ProviderId::from("anthropic".to_string()),
             model: ModelId::new("claude-3-haiku"),
         };
-        apply_op(AppConfigOperation::SetSuggestConfig(suggest), &mut fixture);
+        apply_op(ConfigOperation::SetSuggestConfig(suggest), &mut fixture);
         let expected = ForgeConfig {
             suggest: Some(
                 ModelConfig::default()
