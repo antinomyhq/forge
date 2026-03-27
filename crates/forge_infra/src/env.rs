@@ -354,12 +354,11 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
     use std::fs;
+    use std::path::PathBuf;
 
     use forge_config::ForgeConfig;
     use pretty_assertions::assert_eq;
-    
     use tempfile::{TempDir, tempdir};
 
     use super::*;
