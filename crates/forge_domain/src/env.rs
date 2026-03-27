@@ -214,17 +214,6 @@ impl FromStr for AutoDumpFormat {
     }
 }
 
-impl Environment {
-    /// Returns an empty [`Environment`] with all fields set to their zero/None
-    /// defaults. Infrastructure-derived fields (os, pid, cwd, shell, etc.)
-    /// are empty; this is primarily useful for constructing partial
-    /// environments that will be merged or overridden by the infrastructure
-    /// layer.
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
 impl Default for Environment {
     fn default() -> Self {
         Self {
@@ -579,4 +568,3 @@ mod tests {
         assert_ne!(global_path, local_path);
     }
 }
-
