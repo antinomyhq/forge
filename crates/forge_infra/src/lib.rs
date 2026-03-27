@@ -3,7 +3,6 @@ mod console;
 pub mod executor;
 
 mod auth;
-mod env;
 mod error;
 mod forge_infra;
 mod fs_create_dirs;
@@ -20,7 +19,7 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
-pub use app_config::ForgeConfigInfra;
+pub use app_config::ForgeEnvironmentInfra;
 pub use console::StdConsoleWriter;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;

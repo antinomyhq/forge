@@ -137,7 +137,6 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl EnvironmentInfra for MockServices {
         fn get_environment(&self) -> Environment {
             self.environment.clone()

@@ -118,7 +118,6 @@ mod tests {
         }
     }
 
-    #[async_trait::async_trait]
     impl EnvironmentInfra for TestServices {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};

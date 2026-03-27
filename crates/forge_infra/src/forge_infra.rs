@@ -16,10 +16,9 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::app_config::ForgeConfigInfra;
+use crate::app_config::ForgeEnvironmentInfra;
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
 use crate::console::StdConsoleWriter;
-use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
 use crate::fs_meta::ForgeFileMetaService;
@@ -41,8 +40,7 @@ pub struct ForgeInfra {
     file_read_service: Arc<ForgeFileReadService>,
     file_write_service: Arc<ForgeFileWriteService>,
     file_remove_service: Arc<ForgeFileRemoveService>,
-    environment_service: Arc<ForgeEnvironmentInfra>,
-    config_infra: Arc<ForgeConfigInfra>,
+    config_infra: Arc<ForgeEnvironmentInfra>,
     file_meta_service: Arc<ForgeFileMetaService>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
     directory_reader_service: Arc<ForgeDirectoryReaderService>,
@@ -58,8 +56,8 @@ pub struct ForgeInfra {
 
 impl ForgeInfra {
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
-        let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
-        let env = environment_service.get();
+        let config_infra = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
+        let env = config_infra.get_environment();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
@@ -74,8 +72,7 @@ impl ForgeInfra {
             file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
-            environment_service,
-            config_infra: Arc::new(ForgeConfigInfra::new()),
+            config_infra,
             file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
@@ -96,11 +93,11 @@ impl ForgeInfra {
 
 impl EnvironmentInfra for ForgeInfra {
     fn get_env_var(&self, key: &str) -> Option<String> {
-        self.environment_service.get_env_var(key)
+        self.config_infra.get_env_var(key)
     }
 
     fn get_env_vars(&self) -> BTreeMap<String, String> {
-        self.environment_service.get_env_vars()
+        self.config_infra.get_env_vars()
     }
 
     fn get_environment(&self) -> forge_domain::Environment {
