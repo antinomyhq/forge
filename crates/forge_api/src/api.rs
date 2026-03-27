@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, InitAuth, ModelId, ProviderModels};
+use forge_domain::{AgentId, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -114,18 +114,6 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
-
-    /// Initiates the login flow and returns authentication initialization data
-    async fn init_login(&self) -> Result<InitAuth>;
-
-    /// Retrieves the current login information if the user is authenticated
-    async fn get_login_info(&self) -> Result<Option<LoginInfo>>;
-
-    /// Completes the login process using the provided authentication data
-    async fn login(&self, auth: &InitAuth) -> Result<()>;
-
-    /// Logs out the current user and clears authentication data
-    async fn logout(&self) -> anyhow::Result<()>;
 
     /// Retrieves the provider configuration for the specified agent
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>>;

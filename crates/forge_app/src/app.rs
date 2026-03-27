@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Local;
-use forge_domain::{InitAuth, *};
+use forge_domain::*;
 use forge_stream::MpscStream;
 
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
@@ -22,8 +21,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentProviderResolver, ConversationService, EnvironmentService, FileDiscoveryService,
-    ProviderService, Services, WorkflowService,
+    AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService, Services,
+    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -32,17 +31,12 @@ use crate::{
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    authenticator: Authenticator<S>,
 }
 
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
-        Self {
-            tool_registry: ToolRegistry::new(services.clone()),
-            authenticator: Authenticator::new(services.clone()),
-            services,
-        }
+        Self { tool_registry: ToolRegistry::new(services.clone()), services }
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -314,15 +308,6 @@ impl<S: Services> ForgeApp<S> {
         Ok(results)
     }
 
-    pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
-        self.authenticator.login(init_auth).await
-    }
-    pub async fn init_auth(&self) -> Result<InitAuth> {
-        self.authenticator.init().await
-    }
-    pub async fn logout(&self) -> Result<()> {
-        self.authenticator.logout().await
-    }
     pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_workflow(path).await
     }

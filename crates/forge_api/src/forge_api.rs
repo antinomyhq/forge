@@ -7,11 +7,10 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
-    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
-    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
-    WorkspaceService,
+    FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
 };
-use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
+use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -41,8 +40,8 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
-    pub fn init(restricted: bool, cwd: PathBuf) -> Self {
-        let infra = Arc::new(ForgeInfra::new(restricted, cwd));
+    pub fn init(cwd: PathBuf) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
@@ -55,10 +54,8 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<
-    A: Services,
-    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
-> API for ForgeAPI<A, F>
+impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
+    for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -211,18 +208,6 @@ impl<
         self.infra.execute_command_raw(command, cwd, None).await
     }
 
-    async fn init_login(&self) -> Result<InitAuth> {
-        self.app().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> Result<()> {
-        self.app().login(auth).await
-    }
-
-    async fn logout(&self) -> Result<()> {
-        self.app().logout().await
-    }
-
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(Some(agent_id)).await
@@ -298,10 +283,6 @@ impl<
 
     async fn set_suggest_config(&self, config: SuggestConfig) -> anyhow::Result<()> {
         self.services.set_suggest_config(config).await
-    }
-
-    async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
-        self.services.auth_service().get_auth_token().await
     }
 
     async fn reload_mcp(&self) -> Result<()> {

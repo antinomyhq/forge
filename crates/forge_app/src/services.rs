@@ -5,10 +5,10 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileInfo, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
-    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
-    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
+    FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
+    ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
+    ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -16,8 +16,8 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
-use crate::Walker;
 use crate::user::{User, UserUsage};
+use crate::{EnvironmentInfra, Walker};
 
 #[derive(Debug, Clone)]
 pub struct ShellOutput {
@@ -288,11 +288,6 @@ pub trait AttachmentService {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
 }
 
-pub trait EnvironmentService: Send + Sync {
-    fn get_environment(&self) -> Environment;
-    /// Returns whether the application is running in restricted mode.
-    fn is_restricted(&self) -> bool;
-}
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
@@ -487,12 +482,8 @@ pub trait ShellService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User>;
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage>;
-    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
-    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -574,16 +565,12 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-/// Core app trait providing access to services and repositories.
-/// This trait follows clean architecture principles for dependency management
-/// and service/repository composition.
-pub trait Services: Send + Sync + 'static + Clone {
+pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
-    type EnvironmentService: EnvironmentService;
     type CustomInstructionsService: CustomInstructionsService;
     type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
@@ -628,7 +615,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
-    fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn agent_registry(&self) -> &Self::AgentRegistry;
@@ -915,16 +901,6 @@ impl<I: Services> ShellService for I {
     }
 }
 
-impl<I: Services> EnvironmentService for I {
-    fn get_environment(&self) -> Environment {
-        self.environment_service().get_environment()
-    }
-
-    fn is_restricted(&self) -> bool {
-        self.environment_service().is_restricted()
-    }
-}
-
 #[async_trait::async_trait]
 impl<I: Services> CustomInstructionsService for I {
     async fn get_custom_instructions(&self) -> Vec<String> {
@@ -936,28 +912,12 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AuthService for I {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
-        self.auth_service().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
-        self.auth_service().login(auth).await
-    }
-
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         self.auth_service().user_info(api_key).await
     }
 
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
         self.auth_service().user_usage(api_key).await
-    }
-
-    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
-        self.auth_service().get_auth_token().await
-    }
-
-    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()> {
-        self.auth_service().set_auth_token(token).await
     }
 }
 

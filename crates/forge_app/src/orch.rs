@@ -203,8 +203,11 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
+            // Drop ALL reasoning (including config) when reasoning is not supported by the model
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            // Strip all reasoning from messages when the model has changed (signatures are
+            // model-specific and invalid across models). No-op when model is unchanged.
+            .pipe(ReasoningNormalizer::new(model_id.clone()));
         let response = self
             .services
             .chat_agent(
