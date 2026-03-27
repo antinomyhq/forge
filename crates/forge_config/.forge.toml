@@ -23,6 +23,7 @@ max_tool_failure_per_turn = 3
 top_p = 0.8
 top_k = 30
 max_tokens = 20480
+restricted = false
 
 [retry]
 initial_backoff_ms = 200
