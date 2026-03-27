@@ -2207,6 +2207,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
 
+                let param_value = param_value.trim_end_matches('/').to_string();
+
                 Ok((param.to_string(), param_value))
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
