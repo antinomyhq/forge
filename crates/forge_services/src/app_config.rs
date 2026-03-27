@@ -31,8 +31,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
-        let config = self.infra.get_environment();
-        config
+        let env = self.infra.get_environment();
+        env
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
@@ -48,9 +48,9 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
         &self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        let config = self.infra.get_environment();
+        let env = self.infra.get_environment();
 
-        let session = config
+        let session = env
             .session
             .as_ref()
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
@@ -81,8 +81,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let config = self.infra.get_environment();
-        let provider_id = config
+        let env = self.infra.get_environment();
+        let provider_id = env
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
@@ -94,8 +94,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
-        let config = self.infra.get_environment();
-        Ok(config.commit.map(|mc| CommitConfig {
+        let env = self.infra.get_environment();
+        Ok(env.commit.map(|mc| CommitConfig {
             provider: mc.provider_id.map(ProviderId::from),
             model: mc.model_id.map(ModelId::new),
         }))
@@ -110,8 +110,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
-        let config = self.infra.get_environment();
-        Ok(config.suggest.and_then(|mc| {
+        let env = self.infra.get_environment();
+        Ok(env.suggest.and_then(|mc| {
             mc.provider_id
                 .zip(mc.model_id)
                 .map(|(pid, mid)| SuggestConfig {
@@ -147,7 +147,7 @@ mod tests {
 
     #[derive(Clone)]
     struct MockInfra {
-        config: Arc<Mutex<Environment>>,
+        env: Arc<Mutex<Environment>>,
         providers: Vec<Provider<Url>>,
     }
 
@@ -155,7 +155,7 @@ mod tests {
         fn new() -> Self {
             use fake::{Fake, Faker};
             Self {
-                config: Arc::new(Mutex::new(Faker.fake())),
+                env: Arc::new(Mutex::new(Faker.fake())),
                 providers: vec![
                     Provider {
                         id: ProviderId::OPENAI,
@@ -216,21 +216,21 @@ mod tests {
 
     impl EnvironmentInfra for MockInfra {
         fn get_environment(&self) -> Environment {
-            self.config.lock().unwrap().clone()
+            self.env.lock().unwrap().clone()
         }
 
         fn update_environment(
             &self,
             ops: Vec<ConfigOperation>,
         ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
-            let config = self.config.clone();
+            let env = self.env.clone();
             async move {
-                let mut config = config.lock().unwrap();
+                let mut env = env.lock().unwrap();
                 for op in ops {
                     match op {
                         ConfigOperation::SetProvider(pid) => {
                             let pid_str = pid.as_ref().to_string();
-                            config.session = Some(match config.session.take() {
+                            env.session = Some(match env.session.take() {
                                 Some(sc) => sc.provider_id(pid_str),
                                 None => SessionConfig::default().provider_id(pid_str),
                             });
@@ -238,7 +238,7 @@ mod tests {
                         ConfigOperation::SetModel(pid, mid) => {
                             let pid_str = pid.as_ref().to_string();
                             let mid_str = mid.to_string();
-                            config.session = Some(match config.session.take() {
+                            env.session = Some(match env.session.take() {
                                 Some(sc) if sc.provider_id.as_deref() == Some(&pid_str) => {
                                     sc.model_id(mid_str)
                                 }
@@ -248,7 +248,7 @@ mod tests {
                             });
                         }
                         ConfigOperation::SetCommitConfig(commit) => {
-                            config.commit =
+                            env.commit =
                                 commit.provider.as_ref().zip(commit.model.as_ref()).map(
                                     |(pid, mid)| {
                                         SessionConfig::default()
@@ -258,7 +258,7 @@ mod tests {
                                 );
                         }
                         ConfigOperation::SetSuggestConfig(suggest) => {
-                            config.suggest = Some(
+                            env.suggest = Some(
                                 SessionConfig::default()
                                     .provider_id(suggest.provider.as_ref().to_string())
                                     .model_id(suggest.model.to_string()),
@@ -408,8 +408,8 @@ mod tests {
 
         service.set_default_provider(ProviderId::ANTHROPIC).await?;
 
-        let config = fixture.get_environment();
-        let actual = config
+        let env = fixture.get_environment();
+        let actual = env
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
@@ -461,8 +461,8 @@ mod tests {
             .set_default_model("gpt-4".to_string().into())
             .await?;
 
-        let config = fixture.get_environment();
-        let actual = config.session.as_ref().and_then(|s| s.model_id.as_deref());
+        let env = fixture.get_environment();
+        let actual = env.session.as_ref().and_then(|s| s.model_id.as_deref());
         let expected = Some("gpt-4");
 
         assert_eq!(actual, expected);
@@ -488,13 +488,13 @@ mod tests {
 
         // ForgeConfig only tracks a single active session, so the last
         // provider/model pair wins
-        let config = fixture.get_environment();
-        let actual_provider = config
+        let env = fixture.get_environment();
+        let actual_provider = env
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
             .map(|id| ProviderId::from(id.clone()));
-        let actual_model = config.session.as_ref().and_then(|s| s.model_id.as_deref());
+        let actual_model = env.session.as_ref().and_then(|s| s.model_id.as_deref());
 
         assert_eq!(actual_provider, Some(ProviderId::ANTHROPIC));
         assert_eq!(actual_model, Some("claude-3"));

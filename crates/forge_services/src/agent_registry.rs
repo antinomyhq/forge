@@ -69,8 +69,8 @@ impl<R: AgentRepository + EnvironmentInfra + ProviderRepository> ForgeAgentRegis
         let agent_defs = self.repository.get_agents().await?;
 
         // Get default provider and model from app config
-        let config = self.repository.get_environment();
-        let session = config
+        let env = self.repository.get_environment();
+        let session = env
             .session
             .as_ref()
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
