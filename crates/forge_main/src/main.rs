@@ -6,8 +6,7 @@ use anyhow::Result;
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
-use forge_main::{utils, Cli, Sandbox, TitleDisplayExt, UI, tracker};
-use forge_main::rprompt_fast;
+use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, rprompt_fast, tracker, utils};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -36,18 +35,21 @@ async fn main() -> Result<()> {
     }));
 
     // Initialize and run the UI
-    
+
     // Fast path: zsh rprompt without conversation ID - check BEFORE Cli::parse()
     let args: Vec<String> = std::env::args().collect();
-    let has_conv = std::env::var("_FORGE_CONVERSATION_ID").ok().filter(|s| !s.trim().is_empty()).is_some();
+    let has_conv = std::env::var("_FORGE_CONVERSATION_ID")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+        .is_some();
     if args.len() >= 3 && args[1] == "zsh" && args[2] == "rprompt" && !has_conv {
         println!(" %B%F{{240}}󱙺 FORGE%f%b");
         return Ok(());
     }
 
     // Fast path: zsh rprompt WITH conversation ID - direct SQLite query
-    if args.len() >= 3 && args[1] == "zsh" && args[2] == "rprompt" && has_conv {
-        if let Ok(conv_id) = std::env::var("_FORGE_CONVERSATION_ID") {
+    if args.len() >= 3 && args[1] == "zsh" && args[2] == "rprompt" && has_conv
+        && let Ok(conv_id) = std::env::var("_FORGE_CONVERSATION_ID") {
             let conv_id = conv_id.trim();
             if !conv_id.is_empty() {
                 // Try fast path - if it fails, fall through to normal path
@@ -66,7 +68,8 @@ async fn main() -> Result<()> {
                         print!(" %B%F{{15}}{} FORGE%f%b %B%F{{15}}{}%f%b", icon, count_str);
 
                         if let Some(cost) = data.cost {
-                            let currency = std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
+                            let currency = std::env::var("FORGE_CURRENCY_SYMBOL")
+                                .unwrap_or_else(|_| "$".to_string());
                             let ratio: f64 = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
                                 .ok()
                                 .and_then(|v| v.parse().ok())
@@ -87,14 +90,16 @@ async fn main() -> Result<()> {
                         let model_str = data.model.as_deref().unwrap_or("forge");
                         let model_icon = if use_nerd_font { "󰑙" } else { "" };
 
-                        print!(" %B%F{{240}}{} FORGE%f%b %F{{240}}{}{}%f", icon, model_icon, model_str);
+                        print!(
+                            " %B%F{{240}}{} FORGE%f%b %F{{240}}{}{}%f",
+                            icon, model_icon, model_str
+                        );
                         println!();
                         return Ok(());
                     }
                 }
             }
         }
-    }
 
     let mut cli = Cli::parse();
 

@@ -1,7 +1,8 @@
 //! Fast rprompt data fetcher using direct SQLite access.
 //!
-//! This module provides a lightweight way to fetch rprompt data (token count, cost, model)
-//! directly from the SQLite database without loading the full Forge infrastructure stack.
+//! This module provides a lightweight way to fetch rprompt data (token count,
+//! cost, model) directly from the SQLite database without loading the full
+//! Forge infrastructure stack.
 
 use std::path::PathBuf;
 
@@ -95,11 +96,9 @@ fn parse_token_value(val: &str) -> Option<usize> {
     if let Some(inner) = val
         .strip_prefix("Actual(")
         .or_else(|| val.strip_prefix("Approx("))
-    {
-        if let Some(num) = inner.strip_suffix(')') {
+        && let Some(num) = inner.strip_suffix(')') {
             return num.parse().ok();
         }
-    }
 
     val.parse().ok()
 }
