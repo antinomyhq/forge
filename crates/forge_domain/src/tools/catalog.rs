@@ -566,8 +566,8 @@ pub struct Shell {
     pub description: Option<String>,
 
     /// Whether to run the command in the background using nohup.
-    /// When true, the command runs via `nohup <command> > /tmp/<log>.log 2>&1 &`
-    /// and immediately returns the log file path and process ID.
+    /// When true, the command runs via `nohup <command> > /tmp/<log>.log 2>&1
+    /// &` and immediately returns the log file path and process ID.
     /// Use this for long-running processes like web servers.
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]

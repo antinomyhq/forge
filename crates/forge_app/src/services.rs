@@ -912,7 +912,15 @@ impl<I: Services> ShellService for I {
         nohup: bool,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, silent, env_vars, description, nohup)
+            .execute(
+                command,
+                cwd,
+                keep_ansi,
+                silent,
+                env_vars,
+                description,
+                nohup,
+            )
             .await
     }
 }

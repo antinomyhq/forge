@@ -16,7 +16,13 @@ fn strip_ansi(content: String) -> String {
 fn sanitize_for_filename(command: &str) -> String {
     command
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
         .take(50)
         .collect()
 }
@@ -68,8 +74,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
             let log_path = format!("/tmp/{sanitized}-{timestamp}.log");
 
             // Construct the nohup command that runs in background and echoes PID
-            let bg_command =
-                format!("nohup {command} > '{log_path}' 2>&1 & echo $!");
+            let bg_command = format!("nohup {command} > '{log_path}' 2>&1 & echo $!");
 
             let mut output = self
                 .infra
@@ -317,10 +322,7 @@ mod tests {
         assert!(actual.output.stdout.contains("Log file: /tmp/npm_start-"));
         assert!(actual.output.stdout.contains(".log"));
         assert_eq!(actual.output.exit_code, Some(0));
-        assert_eq!(
-            actual.description,
-            Some("Start the server".to_string())
-        );
+        assert_eq!(actual.description, Some("Start the server".to_string()));
     }
 
     #[test]

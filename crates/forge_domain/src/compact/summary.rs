@@ -111,10 +111,7 @@ impl SummaryToolCall {
     pub fn shell_with_log(command: impl Into<String>, log_file: impl Into<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::Shell {
-                command: command.into(),
-                log_file: Some(log_file.into()),
-            },
+            tool: SummaryTool::Shell { command: command.into(), log_file: Some(log_file.into()) },
             is_success: true,
         }
     }
@@ -193,19 +190,47 @@ impl SummaryToolCall {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
-    FileRead { path: String },
-    FileUpdate { path: String },
-    FileRemove { path: String },
-    Shell { command: String, #[serde(skip_serializing_if = "Option::is_none")] log_file: Option<String> },
-    Search { pattern: String },
-    SemSearch { queries: Vec<SearchQuery> },
-    Undo { path: String },
-    Fetch { url: String },
-    Followup { question: String },
-    Plan { plan_name: String },
-    Skill { name: String },
-    Mcp { name: String },
-    TodoWrite { changes: Vec<TodoChange> },
+    FileRead {
+        path: String,
+    },
+    FileUpdate {
+        path: String,
+    },
+    FileRemove {
+        path: String,
+    },
+    Shell {
+        command: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        log_file: Option<String>,
+    },
+    Search {
+        pattern: String,
+    },
+    SemSearch {
+        queries: Vec<SearchQuery>,
+    },
+    Undo {
+        path: String,
+    },
+    Fetch {
+        url: String,
+    },
+    Followup {
+        question: String,
+    },
+    Plan {
+        plan_name: String,
+    },
+    Skill {
+        name: String,
+    },
+    Mcp {
+        name: String,
+    },
+    TodoWrite {
+        changes: Vec<TodoChange>,
+    },
     TodoRead,
 }
 
@@ -310,17 +335,15 @@ impl From<&Context> for ContextSummary {
                     // For nohup shell commands, extract the log file path from
                     // the tool result output so it is preserved through
                     // compaction.
-                    if let SummaryTool::Shell { log_file, .. } = &mut tool_data.tool {
-                        if let Some(output_str) = result.output.as_str() {
-                            if let Some(path) = output_str
+                    if let SummaryTool::Shell { log_file, .. } = &mut tool_data.tool
+                        && let Some(output_str) = result.output.as_str()
+                            && let Some(path) = output_str
                                 .lines()
                                 .find(|line| line.starts_with("Log file: "))
                                 .map(|line| line.trim_start_matches("Log file: ").trim())
                             {
                                 *log_file = Some(path.to_string());
                             }
-                        }
-                    }
                 }
             });
 
