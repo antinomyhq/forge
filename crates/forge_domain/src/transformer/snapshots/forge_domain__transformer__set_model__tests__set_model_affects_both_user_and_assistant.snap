@@ -30,6 +30,7 @@ after:
     - text:
         role: System
         content: System message
+        model: gpt-4
     - text:
         role: User
         content: Another user message
