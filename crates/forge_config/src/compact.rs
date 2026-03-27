@@ -3,6 +3,7 @@ use std::ops::Deref;
 use std::time::Duration;
 
 use derive_setters::Setters;
+use fake::Dummy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -105,6 +106,14 @@ impl<'de> Deserialize<'de> for Temperature {
     }
 }
 
+impl Dummy<fake::Faker> for Temperature {
+    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        let value: f32 = (0.0f32..=2.0f32).fake_with_rng(rng);
+        Self(value)
+    }
+}
+
 /// A newtype for top_p values with built-in validation
 ///
 /// Top-p (nucleus sampling) controls the diversity of the model's output:
@@ -195,6 +204,14 @@ impl<'de> Deserialize<'de> for TopP {
     }
 }
 
+impl Dummy<fake::Faker> for TopP {
+    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        let value: f32 = (0.0f32..=1.0f32).fake_with_rng(rng);
+        Self(value)
+    }
+}
+
 /// A newtype for top_k values with built-in validation
 ///
 /// Top-k controls the number of highest probability vocabulary tokens to keep:
@@ -280,6 +297,14 @@ impl<'de> Deserialize<'de> for TopK {
                 "top_k must be between 1 and 1000, got {value}"
             )))
         }
+    }
+}
+
+impl Dummy<fake::Faker> for TopK {
+    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        let value: u32 = (1u32..=1000u32).fake_with_rng(rng);
+        Self(value)
     }
 }
 
@@ -373,8 +398,16 @@ impl<'de> Deserialize<'de> for MaxTokens {
     }
 }
 
+impl Dummy<fake::Faker> for MaxTokens {
+    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        let value: u32 = (1u32..=100_000u32).fake_with_rng(rng);
+        Self(value)
+    }
+}
+
 /// Frequency at which forge checks for updates
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 pub enum UpdateFrequency {
     Daily,
@@ -394,7 +427,7 @@ impl From<UpdateFrequency> for Duration {
 }
 
 /// Configuration for automatic forge updates
-#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema, Setters, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, JsonSchema, Setters, PartialEq, fake::Dummy)]
 #[setters(strip_option, into)]
 pub struct Update {
     /// How frequently forge checks for updates
@@ -419,7 +452,7 @@ where
 }
 
 /// Optional tag name used when extracting summarized content during compaction
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq, fake::Dummy)]
 #[serde(transparent)]
 pub struct SummaryTag(String);
 
@@ -506,6 +539,23 @@ impl Compact {
             eviction_window: 0.2,
             retention_window: 0,
             on_turn_end: None,
+        }
+    }
+}
+
+impl Dummy<fake::Faker> for Compact {
+    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        Self {
+            retention_window: fake::Faker.fake_with_rng(rng),
+            eviction_window: (0.0f64..=1.0f64).fake_with_rng(rng),
+            max_tokens: fake::Faker.fake_with_rng(rng),
+            token_threshold: fake::Faker.fake_with_rng(rng),
+            turn_threshold: fake::Faker.fake_with_rng(rng),
+            message_threshold: fake::Faker.fake_with_rng(rng),
+            model: fake::Faker.fake_with_rng(rng),
+            summary_tag: fake::Faker.fake_with_rng(rng),
+            on_turn_end: fake::Faker.fake_with_rng(rng),
         }
     }
 }

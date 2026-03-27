@@ -486,206 +486,33 @@ SIMPLE=value"#;
     }
 
     #[test]
-    fn test_to_environment_maps_all_config_fields() {
-        let fixture = ForgeConfig {
-            max_search_lines: 500,
-            max_search_result_bytes: 2048,
-            max_fetch_chars: 10_000,
-            max_stdout_prefix_lines: 50,
-            max_stdout_suffix_lines: 75,
-            max_stdout_line_chars: 300,
-            max_line_chars: 1500,
-            max_read_lines: 3000,
-            max_file_read_batch_size: 25,
-            max_file_size_bytes: 5_000_000,
-            max_image_size_bytes: 100_000,
-            tool_timeout_secs: 120,
-            auto_open_dump: true,
-            max_conversations: 42,
-            max_sem_search_results: 77,
-            sem_search_top_k: 5,
-            max_extensions: 10,
-            max_parallel_file_reads: 32,
-            model_cache_ttl_secs: 3600,
-            ..ForgeConfig::default()
-        };
-
-        let actual = to_environment(fixture, false, PathBuf::from("/work"));
-
-        assert_eq!(actual.max_search_lines, 500);
-        assert_eq!(actual.max_search_result_bytes, 2048);
-        assert_eq!(actual.fetch_truncation_limit, 10_000);
-        assert_eq!(actual.stdout_max_prefix_length, 50);
-        assert_eq!(actual.stdout_max_suffix_length, 75);
-        assert_eq!(actual.stdout_max_line_length, 300);
-        assert_eq!(actual.max_line_length, 1500);
-        assert_eq!(actual.max_read_size, 3000);
-        assert_eq!(actual.max_file_read_batch_size, 25);
-        assert_eq!(actual.max_file_size, 5_000_000);
-        assert_eq!(actual.max_image_size, 100_000);
-        assert_eq!(actual.tool_timeout, 120);
-        assert!(actual.auto_open_dump);
-        assert_eq!(actual.max_conversations, 42);
-        assert_eq!(actual.sem_search_limit, 77);
-        assert_eq!(actual.sem_search_top_k, 5);
-        assert_eq!(actual.max_extensions, 10);
-        assert_eq!(actual.parallel_file_reads, 32);
-        assert_eq!(actual.model_cache_ttl, 3600);
-    }
-
-    #[test]
-    fn test_forge_config_round_trip() {
-        let fixture = ForgeConfig {
-            max_search_lines: 500,
-            max_search_result_bytes: 2048,
-            max_fetch_chars: 10_000,
-            max_stdout_prefix_lines: 50,
-            max_stdout_suffix_lines: 75,
-            max_stdout_line_chars: 300,
-            max_line_chars: 1500,
-            max_read_lines: 3000,
-            max_file_read_batch_size: 25,
-            max_file_size_bytes: 5_000_000,
-            max_image_size_bytes: 100_000,
-            tool_timeout_secs: 120,
-            auto_open_dump: true,
-            max_conversations: 42,
-            max_sem_search_results: 77,
-            sem_search_top_k: 5,
-            max_extensions: 10,
-            max_parallel_file_reads: 32,
-            model_cache_ttl_secs: 3600,
-            ..ForgeConfig::default()
-        };
-
-        let env = to_environment(fixture.clone(), false, PathBuf::from("/work"));
-        let actual = to_forge_config(&env);
-
-        // Round-tripped fields should match the original
-        assert_eq!(actual.max_search_lines, fixture.max_search_lines);
-        assert_eq!(
-            actual.max_search_result_bytes,
-            fixture.max_search_result_bytes
-        );
-        assert_eq!(actual.max_fetch_chars, fixture.max_fetch_chars);
-        assert_eq!(
-            actual.max_stdout_prefix_lines,
-            fixture.max_stdout_prefix_lines
-        );
-        assert_eq!(
-            actual.max_stdout_suffix_lines,
-            fixture.max_stdout_suffix_lines
-        );
-        assert_eq!(actual.max_stdout_line_chars, fixture.max_stdout_line_chars);
-        assert_eq!(actual.max_line_chars, fixture.max_line_chars);
-        assert_eq!(actual.max_read_lines, fixture.max_read_lines);
-        assert_eq!(
-            actual.max_file_read_batch_size,
-            fixture.max_file_read_batch_size
-        );
-        assert_eq!(actual.max_file_size_bytes, fixture.max_file_size_bytes);
-        assert_eq!(actual.max_image_size_bytes, fixture.max_image_size_bytes);
-        assert_eq!(actual.tool_timeout_secs, fixture.tool_timeout_secs);
-        assert_eq!(actual.auto_open_dump, fixture.auto_open_dump);
-        assert_eq!(actual.max_conversations, fixture.max_conversations);
-        assert_eq!(
-            actual.max_sem_search_results,
-            fixture.max_sem_search_results
-        );
-        assert_eq!(actual.sem_search_top_k, fixture.sem_search_top_k);
-        assert_eq!(actual.max_extensions, fixture.max_extensions);
-        assert_eq!(
-            actual.max_parallel_file_reads,
-            fixture.max_parallel_file_reads
-        );
-        assert_eq!(actual.model_cache_ttl_secs, fixture.model_cache_ttl_secs);
-    }
-
-    #[test]
     fn test_forge_config_environment_identity() {
-        // Identity property: for any ForgeConfig `fc`, the config-mapped fields
-        // of the Environment produced by `to_environment(fc)` must survive a
-        // full round-trip through `to_forge_config` and back unchanged.
+        // Property test: for ANY randomly generated ForgeConfig `fc`, the
+        // config-mapped fields of the Environment produced by
+        // `to_environment(fc)` must survive a full round-trip through
+        // `to_forge_config` and back unchanged.
         //
         //   fc  -->  env  -->  fc'  -->  env'
         //            ^                    ^
         //            |--- config fields --|  must be equal
-        let fixture = ForgeConfig {
-            max_search_lines: 999,
-            max_search_result_bytes: 4096,
-            max_fetch_chars: 20_000,
-            max_stdout_prefix_lines: 111,
-            max_stdout_suffix_lines: 222,
-            max_stdout_line_chars: 333,
-            max_line_chars: 444,
-            max_read_lines: 555,
-            max_file_read_batch_size: 66,
-            max_file_size_bytes: 7_777_777,
-            max_image_size_bytes: 88_888,
-            tool_timeout_secs: 999,
-            auto_open_dump: true,
-            debug_requests: Some(PathBuf::from("/tmp/debug")),
-            custom_history_path: Some(PathBuf::from("/custom/history")),
-            max_conversations: 50,
-            max_sem_search_results: 200,
-            sem_search_top_k: 15,
-            services_url: "https://custom.example.com".to_string(),
-            max_extensions: 25,
-            auto_dump: Some(forge_config::AutoDumpFormat::Html),
-            max_parallel_file_reads: 128,
-            model_cache_ttl_secs: 7200,
-            retry: Some(forge_config::RetryConfig {
-                initial_backoff_ms: 100,
-                min_delay_ms: 50,
-                backoff_factor: 3,
-                max_attempts: 5,
-                status_codes: vec![429, 503],
-                max_delay_secs: Some(60),
-                suppress_errors: true,
-            }),
-            http: Some(forge_config::HttpConfig {
-                connect_timeout_secs: 10,
-                read_timeout_secs: 30,
-                pool_idle_timeout_secs: 90,
-                pool_max_idle_per_host: 20,
-                max_redirects: 5,
-                hickory: true,
-                tls_backend: forge_config::TlsBackend::Rustls,
-                min_tls_version: Some(forge_config::TlsVersion::V1_2),
-                max_tls_version: Some(forge_config::TlsVersion::V1_3),
-                adaptive_window: true,
-                keep_alive_interval_secs: Some(15),
-                keep_alive_timeout_secs: 20,
-                keep_alive_while_idle: true,
-                accept_invalid_certs: true,
-                root_cert_paths: Some(vec!["/etc/ssl/custom.pem".to_string()]),
-            }),
-            session: Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
-            }),
-            commit: Some(ModelConfig {
-                provider_id: Some("openai".to_string()),
-                model_id: Some("gpt-4".to_string()),
-            }),
-            suggest: Some(ModelConfig {
-                provider_id: Some("google".to_string()),
-                model_id: Some("gemini".to_string()),
-            }),
-            ..ForgeConfig::default()
-        };
+        use fake::{Fake, Faker};
 
         let cwd = PathBuf::from("/identity/test");
         let restricted = true;
 
-        // fc -> env -> fc' -> env'
-        let env = to_environment(fixture.clone(), restricted, cwd.clone());
-        let fc_prime = to_forge_config(&env);
-        let env_prime = to_environment(fc_prime, restricted, cwd);
+        for _ in 0..100 {
+            let fixture: ForgeConfig = Faker.fake();
 
-        // Infrastructure-derived fields (os, pid, home, shell, base_path) are
-        // re-derived from the runtime, so they are equal by construction.
-        // Config-mapped fields must satisfy the identity: env == env'
-        assert_eq!(env, env_prime);
+            // fc -> env -> fc' -> env'
+            let env = to_environment(fixture, restricted, cwd.clone());
+            let fc_prime = to_forge_config(&env);
+            let env_prime = to_environment(fc_prime, restricted, cwd.clone());
+
+            // Infrastructure-derived fields (os, pid, home, shell, base_path)
+            // are re-derived from the runtime, so they are equal by
+            // construction. Config-mapped fields must satisfy the identity:
+            // env == env'
+            assert_eq!(env, env_prime);
+        }
     }
 }
