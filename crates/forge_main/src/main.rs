@@ -65,18 +65,15 @@ async fn main() -> Result<()> {
         (_, _) => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
 
-    // Initialize the ForgeAPI with the restricted mode if specified
-    let restricted = cli.restricted;
     let tensorlake_key = cli.tensorlake.clone();
     let mut ui = UI::init(cli, move || {
         if let Some(api_key) = &tensorlake_key {
             ForgeAPI::init_with_tensorlake(
-                restricted,
                 cwd.clone(),
                 TensorlakeConfig::new(api_key.to_string()),
             )
         } else {
-            ForgeAPI::init(restricted, cwd.clone())
+            ForgeAPI::init(cwd.clone())
         }
     })?;
     ui.run().await;
@@ -123,10 +120,9 @@ mod tests {
     #[test]
     fn test_cli_parsing_other_flags_work_with_piping() {
         // Test that other CLI flags still work when expecting stdin input
-        let cli_with_flags = Cli::parse_from(["forge", "--verbose", "--restricted"]);
+        let cli_with_flags = Cli::parse_from(["forge", "--verbose"]);
         assert_eq!(cli_with_flags.prompt, None);
         assert_eq!(cli_with_flags.verbose, true);
-        assert_eq!(cli_with_flags.restricted, true);
     }
 
     #[test]

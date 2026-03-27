@@ -3,8 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Conversation, Environment, LoginInfo, Metrics, Role, Usage, UserUsage};
-use forge_app::utils::truncate_key;
+use forge_api::{Conversation, Environment, Metrics, Role, Usage, UserUsage};
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
@@ -386,8 +385,7 @@ impl From<&Environment> for Info {
                     .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_title("API CONFIGURATION")
-            .add_key_value("Forge API URL", env.forge_api_url.to_string())
-            .add_key_value("Workspace Server URL", env.workspace_server_url.to_string())
+            .add_key_value("ForgeCode Service URL", env.service_url.to_string())
             .add_title("TOOL CONFIGURATION")
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
@@ -630,20 +628,6 @@ impl From<&ForgeCommandManager> for Info {
         info
     }
 }
-impl From<&LoginInfo> for Info {
-    fn from(login_info: &LoginInfo) -> Self {
-        let mut info = Info::new().add_title("ACCOUNT");
-
-        if let Some(email) = login_info.email.as_ref() {
-            info = info.add_key_value("Login", email);
-        }
-
-        info = info.add_key_value("Key", truncate_key(&login_info.api_key_masked));
-
-        info
-    }
-}
-
 impl From<&UserUsage> for Info {
     fn from(user_usage: &UserUsage) -> Self {
         let usage = &user_usage.usage;

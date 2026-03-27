@@ -10,8 +10,7 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
-    URLParam,
+    AuthMethod, CommandOutput, FileInfo as FileInfoData, McpServerConfig, ProviderId, URLParam,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -53,7 +52,7 @@ pub struct ForgeInfra {
     file_read_service: Arc<ForgeFileReadService>,
     file_write_service: Arc<ForgeFileWriteService>,
     file_remove_service: Arc<ForgeFileRemoveService>,
-    environment_service: Arc<ForgeEnvironmentInfra>,
+    config_infra: Arc<ForgeEnvironmentInfra>,
     file_meta_service: Arc<ForgeFileMetaService>,
     create_dirs_service: Arc<ForgeCreateDirsService>,
     directory_reader_service: Arc<ForgeDirectoryReaderService>,
@@ -70,9 +69,9 @@ pub struct ForgeInfra {
 impl ForgeInfra {
     /// Creates a `ForgeInfra` instance that executes shell commands locally on
     /// the host machine.
-    pub fn new(restricted: bool, cwd: PathBuf) -> Self {
-        let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
-        let env = environment_service.get_environment();
+    pub fn new(cwd: PathBuf) -> Self {
+        let config_infra = Arc::new(ForgeEnvironmentInfra::new(cwd));
+        let env = config_infra.get_environment();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
@@ -80,14 +79,14 @@ impl ForgeInfra {
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service =
             Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
-        let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
+        let grpc_client = Arc::new(ForgeGrpcClient::new(env.service_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
         Self {
             file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
-            environment_service,
+            config_infra,
             file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
@@ -111,9 +110,9 @@ impl ForgeInfra {
     /// A single sandbox is provisioned lazily on the first command execution
     /// and reused for the entire session. The sandbox is terminated when
     /// the returned `ForgeInfra` is dropped.
-    pub fn new_with_tensorlake(restricted: bool, cwd: PathBuf, config: TensorlakeConfig) -> Self {
-        let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
-        let env = environment_service.get_environment();
+    pub fn new_with_tensorlake(cwd: PathBuf, config: TensorlakeConfig) -> Self {
+        let config_infra = Arc::new(ForgeEnvironmentInfra::new(cwd));
+        let env = config_infra.get_environment();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
@@ -121,14 +120,14 @@ impl ForgeInfra {
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service =
             Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
-        let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
+        let grpc_client = Arc::new(ForgeGrpcClient::new(env.service_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
         Self {
             file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
-            environment_service,
+            config_infra,
             file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
             directory_reader_service,
@@ -147,20 +146,23 @@ impl ForgeInfra {
 }
 
 impl EnvironmentInfra for ForgeInfra {
-    fn get_environment(&self) -> Environment {
-        self.environment_service.get_environment()
-    }
-
     fn get_env_var(&self, key: &str) -> Option<String> {
-        self.environment_service.get_env_var(key)
+        self.config_infra.get_env_var(key)
     }
 
     fn get_env_vars(&self) -> BTreeMap<String, String> {
-        self.environment_service.get_env_vars()
+        self.config_infra.get_env_vars()
     }
 
-    fn is_restricted(&self) -> bool {
-        self.environment_service.is_restricted()
+    fn get_environment(&self) -> forge_domain::Environment {
+        self.config_infra.get_environment()
+    }
+
+    async fn update_environment(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> anyhow::Result<()> {
+        self.config_infra.update_environment(ops).await
     }
 }
 

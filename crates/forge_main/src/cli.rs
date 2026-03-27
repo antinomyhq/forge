@@ -63,11 +63,6 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
-    /// Enable restricted mode for enhanced security using the permissions
-    /// feature.
-    #[arg(long, default_value_t = false, short = 'r')]
-    pub restricted: bool,
-
     /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
@@ -75,10 +70,6 @@ pub struct Cli {
     /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
-
-    /// Path to a file containing the workflow to execute.
-    #[arg(long, short = 'w')]
-    pub workflow: Option<PathBuf>,
 
     /// Event to dispatch to the workflow in JSON format.
     #[arg(long, short = 'e')]

@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,11 +7,10 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
-    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
-    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
-    WorkspaceService,
+    FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
 };
-use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
+use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::{ForgeInfra, TensorlakeConfig};
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -42,8 +41,8 @@ impl<A, F> ForgeAPI<A, F> {
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     /// Initialises the API with the local command executor (default mode).
-    pub fn init(restricted: bool, cwd: PathBuf) -> Self {
-        let infra = Arc::new(ForgeInfra::new(restricted, cwd));
+    pub fn init(cwd: PathBuf) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
@@ -51,8 +50,8 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 
     /// Initialises the API routing all shell commands through an isolated
     /// Tensorlake Firecracker microVM sandbox.
-    pub fn init_with_tensorlake(restricted: bool, cwd: PathBuf, config: TensorlakeConfig) -> Self {
-        let infra = Arc::new(ForgeInfra::new_with_tensorlake(restricted, cwd, config));
+    pub fn init_with_tensorlake(cwd: PathBuf, config: TensorlakeConfig) -> Self {
+        let infra = Arc::new(ForgeInfra::new_with_tensorlake(cwd, config));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
@@ -65,10 +64,8 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<
-    A: Services,
-    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
-> API for ForgeAPI<A, F>
+impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
+    for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -159,14 +156,6 @@ impl<
         self.services.get_environment().clone()
     }
 
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app().read_workflow(path).await
-    }
-
-    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app().read_workflow_merged(path).await
-    }
-
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
@@ -219,18 +208,6 @@ impl<
     ) -> anyhow::Result<std::process::ExitStatus> {
         let cwd = self.environment().cwd;
         self.infra.execute_command_raw(command, cwd, None).await
-    }
-
-    async fn init_login(&self) -> Result<InitAuth> {
-        self.app().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> Result<()> {
-        self.app().login(auth).await
-    }
-
-    async fn logout(&self) -> Result<()> {
-        self.app().logout().await
     }
 
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
@@ -308,10 +285,6 @@ impl<
 
     async fn set_suggest_config(&self, config: SuggestConfig) -> anyhow::Result<()> {
         self.services.set_suggest_config(config).await
-    }
-
-    async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
-        self.services.auth_service().get_auth_token().await
     }
 
     async fn reload_mcp(&self) -> Result<()> {

@@ -1,7 +1,8 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The output format used when auto-dumping a conversation on task completion.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
 pub enum AutoDumpFormat {
     /// Dump as a JSON file
