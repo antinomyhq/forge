@@ -16,9 +16,9 @@ use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
-use crate::env::ForgeEnvironmentInfra;
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
 use crate::console::StdConsoleWriter;
+use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
 use crate::fs_meta::ForgeFileMetaService;

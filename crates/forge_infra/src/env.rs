@@ -229,7 +229,11 @@ impl ForgeEnvironmentInfra {
     /// * `cwd` - The working directory path; used to resolve `.env` files
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         Self::dot_env(&cwd);
-        Self { restricted, cwd, cache: Arc::new(std::sync::Mutex::new(None)) }
+        Self {
+            restricted,
+            cwd,
+            cache: Arc::new(std::sync::Mutex::new(None)),
+        }
     }
 
     /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
@@ -321,6 +325,105 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
         Ok(())
     }
+}
+
+/// Resolves retry configuration from environment variables or returns defaults.
+#[cfg(test)]
+fn resolve_retry_config() -> RetryConfig {
+    let mut config = RetryConfig::default();
+
+    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_INITIAL_BACKOFF_MS") {
+        config.initial_backoff_ms = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_BACKOFF_FACTOR") {
+        config.backoff_factor = parsed;
+    }
+    if let Some(parsed) = parse_env::<usize>("FORGE_RETRY_MAX_ATTEMPTS") {
+        config.max_retry_attempts = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_SUPPRESS_RETRY_ERRORS") {
+        config.suppress_retry_errors = parsed;
+    }
+
+    // Special handling for comma-separated status codes
+    if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
+        let status_codes: Vec<u16> = val
+            .split(',')
+            .filter_map(|code| code.trim().parse::<u16>().ok())
+            .collect();
+        if !status_codes.is_empty() {
+            config.retry_status_codes = status_codes;
+        }
+    }
+
+    config
+}
+
+#[cfg(test)]
+fn resolve_http_config() -> forge_domain::HttpConfig {
+    let mut config = forge_domain::HttpConfig::default();
+
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_CONNECT_TIMEOUT") {
+        config.connect_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_READ_TIMEOUT") {
+        config.read_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_POOL_IDLE_TIMEOUT") {
+        config.pool_idle_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
+        config.pool_max_idle_per_host = parsed;
+    }
+    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_MAX_REDIRECTS") {
+        config.max_redirects = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_USE_HICKORY") {
+        config.hickory = parsed;
+    }
+    if let Some(parsed) = parse_env::<TlsBackend>("FORGE_HTTP_TLS_BACKEND") {
+        config.tls_backend = parsed;
+    }
+    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MIN_TLS_VERSION") {
+        config.min_tls_version = Some(parsed);
+    }
+    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MAX_TLS_VERSION") {
+        config.max_tls_version = Some(parsed);
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ADAPTIVE_WINDOW") {
+        config.adaptive_window = parsed;
+    }
+
+    // Special handling for keep_alive_interval to allow disabling it
+    if let Ok(val) = std::env::var("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
+        if val.to_lowercase() == "none" || val.to_lowercase() == "disabled" {
+            config.keep_alive_interval = None;
+        } else if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
+            config.keep_alive_interval = Some(parsed);
+        }
+    }
+
+    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_TIMEOUT") {
+        config.keep_alive_timeout = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE") {
+        config.keep_alive_while_idle = parsed;
+    }
+    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ACCEPT_INVALID_CERTS") {
+        config.accept_invalid_certs = parsed;
+    }
+    if let Some(val) = parse_env::<String>("FORGE_HTTP_ROOT_CERT_PATHS") {
+        let paths: Vec<String> = val
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        if !paths.is_empty() {
+            config.root_cert_paths = Some(paths);
+        }
+    }
+
+    config
 }
 
 #[cfg(test)]
@@ -695,103 +798,4 @@ SIMPLE=value"#;
             env::remove_var("TEST_STRING");
         }
     }
-}
-
-/// Resolves retry configuration from environment variables or returns defaults.
-#[cfg(test)]
-fn resolve_retry_config() -> RetryConfig {
-    let mut config = RetryConfig::default();
-
-    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_INITIAL_BACKOFF_MS") {
-        config.initial_backoff_ms = parsed;
-    }
-    if let Some(parsed) = parse_env::<u64>("FORGE_RETRY_BACKOFF_FACTOR") {
-        config.backoff_factor = parsed;
-    }
-    if let Some(parsed) = parse_env::<usize>("FORGE_RETRY_MAX_ATTEMPTS") {
-        config.max_retry_attempts = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_SUPPRESS_RETRY_ERRORS") {
-        config.suppress_retry_errors = parsed;
-    }
-
-    // Special handling for comma-separated status codes
-    if let Ok(val) = std::env::var("FORGE_RETRY_STATUS_CODES") {
-        let status_codes: Vec<u16> = val
-            .split(',')
-            .filter_map(|code| code.trim().parse::<u16>().ok())
-            .collect();
-        if !status_codes.is_empty() {
-            config.retry_status_codes = status_codes;
-        }
-    }
-
-    config
-}
-
-#[cfg(test)]
-fn resolve_http_config() -> forge_domain::HttpConfig {
-    let mut config = forge_domain::HttpConfig::default();
-
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_CONNECT_TIMEOUT") {
-        config.connect_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_READ_TIMEOUT") {
-        config.read_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_POOL_IDLE_TIMEOUT") {
-        config.pool_idle_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_POOL_MAX_IDLE_PER_HOST") {
-        config.pool_max_idle_per_host = parsed;
-    }
-    if let Some(parsed) = parse_env::<usize>("FORGE_HTTP_MAX_REDIRECTS") {
-        config.max_redirects = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_USE_HICKORY") {
-        config.hickory = parsed;
-    }
-    if let Some(parsed) = parse_env::<TlsBackend>("FORGE_HTTP_TLS_BACKEND") {
-        config.tls_backend = parsed;
-    }
-    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MIN_TLS_VERSION") {
-        config.min_tls_version = Some(parsed);
-    }
-    if let Some(parsed) = parse_env::<TlsVersion>("FORGE_HTTP_MAX_TLS_VERSION") {
-        config.max_tls_version = Some(parsed);
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ADAPTIVE_WINDOW") {
-        config.adaptive_window = parsed;
-    }
-
-    // Special handling for keep_alive_interval to allow disabling it
-    if let Ok(val) = std::env::var("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
-        if val.to_lowercase() == "none" || val.to_lowercase() == "disabled" {
-            config.keep_alive_interval = None;
-        } else if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_INTERVAL") {
-            config.keep_alive_interval = Some(parsed);
-        }
-    }
-
-    if let Some(parsed) = parse_env::<u64>("FORGE_HTTP_KEEP_ALIVE_TIMEOUT") {
-        config.keep_alive_timeout = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_KEEP_ALIVE_WHILE_IDLE") {
-        config.keep_alive_while_idle = parsed;
-    }
-    if let Some(parsed) = parse_env::<bool>("FORGE_HTTP_ACCEPT_INVALID_CERTS") {
-        config.accept_invalid_certs = parsed;
-    }
-    if let Some(val) = parse_env::<String>("FORGE_HTTP_ROOT_CERT_PATHS") {
-        let paths: Vec<String> = val
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        if !paths.is_empty() {
-            config.root_cert_paths = Some(paths);
-        }
-    }
-
-    config
 }

@@ -188,15 +188,16 @@ impl Environment {
                 });
             }
             ConfigOperation::SetCommitConfig(commit) => {
-                self.commit = commit
-                    .provider
-                    .as_ref()
-                    .zip(commit.model.as_ref())
-                    .map(|(pid, mid)| {
-                        SessionConfig::default()
-                            .provider_id(pid.as_ref().to_string())
-                            .model_id(mid.to_string())
-                    });
+                self.commit =
+                    commit
+                        .provider
+                        .as_ref()
+                        .zip(commit.model.as_ref())
+                        .map(|(pid, mid)| {
+                            SessionConfig::default()
+                                .provider_id(pid.as_ref().to_string())
+                                .model_id(mid.to_string())
+                        });
             }
             ConfigOperation::SetSuggestConfig(suggest) => {
                 self.suggest = Some(

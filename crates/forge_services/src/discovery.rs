@@ -95,10 +95,7 @@ mod tests {
             env
         }
 
-        async fn update_environment(
-            &self,
-            _ops: Vec<ConfigOperation>,
-        ) -> anyhow::Result<()> {
+        async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
 
