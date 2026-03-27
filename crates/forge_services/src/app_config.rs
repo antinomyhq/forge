@@ -32,8 +32,7 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
         let env = self.infra.get_environment();
-        env
-            .session
+        env.session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
             .map(|id| ProviderId::from(id.clone()))
@@ -248,14 +247,13 @@ mod tests {
                             });
                         }
                         ConfigOperation::SetCommitConfig(commit) => {
-                            env.commit =
-                                commit.provider.as_ref().zip(commit.model.as_ref()).map(
-                                    |(pid, mid)| {
-                                        SessionConfig::default()
-                                            .provider_id(pid.as_ref().to_string())
-                                            .model_id(mid.to_string())
-                                    },
-                                );
+                            env.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
+                                |(pid, mid)| {
+                                    SessionConfig::default()
+                                        .provider_id(pid.as_ref().to_string())
+                                        .model_id(mid.to_string())
+                                },
+                            );
                         }
                         ConfigOperation::SetSuggestConfig(suggest) => {
                             env.suggest = Some(
