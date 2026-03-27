@@ -10,7 +10,7 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AuthMethod, CommandOutput, FileInfo as FileInfoData, McpServerConfig, ProviderId, URLParam,
+    AuthMethod, CommandOutput, FileInfo as FileInfoData, McpServerConfig, ProviderId, URLParamSpec,
 };
 use reqwest::header::HeaderMap;
 use reqwest::{Response, Url};
@@ -380,7 +380,7 @@ impl StrategyFactory for ForgeInfra {
         &self,
         provider_id: ProviderId,
         method: AuthMethod,
-        required_params: Vec<URLParam>,
+        required_params: Vec<URLParamSpec>,
     ) -> anyhow::Result<Self::Strategy> {
         self.strategy_factory
             .create_auth_strategy(provider_id, method, required_params)

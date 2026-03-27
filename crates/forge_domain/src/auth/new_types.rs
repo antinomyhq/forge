@@ -76,6 +76,44 @@ pub struct URLParam(String);
 #[serde(transparent)]
 pub struct URLParamValue(String);
 
+/// A URL parameter specification with its name and optional preset options.
+///
+/// When `options` is `Some`, the UI presents a dropdown for selection.
+/// When `options` is `None`, the UI presents a free-text input.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct URLParamSpec {
+    /// The parameter name used as the template variable and credential map key.
+    pub name: URLParam,
+    /// Optional list of allowed values. When present, the UI renders a
+    /// dropdown.
+    pub options: Option<Vec<String>>,
+}
+
+impl URLParamSpec {
+    /// Creates a `URLParamSpec` with only a name, rendering as a free-text
+    /// input.
+    pub fn new(name: impl Into<URLParam>) -> Self {
+        Self { name: name.into(), options: None }
+    }
+
+    /// Creates a `URLParamSpec` with preset options, rendering as a dropdown.
+    pub fn with_options(name: impl Into<URLParam>, options: Vec<String>) -> Self {
+        Self { name: name.into(), options: Some(options) }
+    }
+}
+
+impl From<URLParam> for URLParamSpec {
+    fn from(name: URLParam) -> Self {
+        Self::new(name)
+    }
+}
+
+impl From<String> for URLParamSpec {
+    fn from(name: String) -> Self {
+        Self::new(URLParam::from(name))
+    }
+}
+
 #[derive(
     Clone,
     Serialize,
