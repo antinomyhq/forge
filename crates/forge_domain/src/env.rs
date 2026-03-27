@@ -176,11 +176,7 @@ impl Environment {
             ConfigOperation::SetProviderModel(provider_id, model_id) => {
                 let pid = provider_id.as_ref().to_string();
                 let mid = model_id.to_string();
-                self.session = Some(
-                    SessionConfig::default()
-                        .provider_id(pid)
-                        .model_id(mid),
-                );
+                self.session = Some(SessionConfig::default().provider_id(pid).model_id(mid));
             }
             ConfigOperation::SetCommitConfig(commit) => {
                 self.commit =

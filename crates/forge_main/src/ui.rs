@@ -2764,9 +2764,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.on_model_selection(Some(provider.id.clone())).await?;
         } else {
             // Current model is compatible — set provider and current model together
-            let current_model = self.api.get_default_model().await.expect(
-                "model must be present since need_model_selection is false",
-            );
+            let current_model = self
+                .api
+                .get_default_model()
+                .await
+                .expect("model must be present since need_model_selection is false");
             self.api
                 .set_provider_and_model(provider.id.clone(), current_model)
                 .await?;
