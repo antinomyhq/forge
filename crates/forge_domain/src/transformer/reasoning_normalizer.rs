@@ -51,9 +51,10 @@ impl Transformer for ReasoningNormalizer {
             .find_map(|(idx, msg)| {
                 if msg.has_role(crate::Role::Assistant)
                     && let crate::ContextMessage::Text(text) = &**msg
-                        && text.model.as_ref() != Some(&self.model_id) {
-                            return Some(idx);
-                        }
+                    && text.model.as_ref() != Some(&self.model_id)
+                {
+                    return Some(idx);
+                }
                 None
             });
 
@@ -167,12 +168,13 @@ mod tests {
 
         for message in &actual.messages {
             if message.has_role(Role::Assistant)
-                && let crate::ContextMessage::Text(text) = &**message {
-                    assert_eq!(
-                        text.reasoning_details, None,
-                        "All assistant reasoning must be stripped on model change"
-                    );
-                }
+                && let crate::ContextMessage::Text(text) = &**message
+            {
+                assert_eq!(
+                    text.reasoning_details, None,
+                    "All assistant reasoning must be stripped on model change"
+                );
+            }
         }
     }
 
@@ -353,9 +355,10 @@ mod tests {
     fn all_reasoning_stripped(ctx: &Context) -> bool {
         ctx.messages.iter().all(|msg| {
             if msg.has_role(Role::Assistant)
-                && let crate::ContextMessage::Text(text) = &**msg {
-                    return text.reasoning_details.is_none();
-                }
+                && let crate::ContextMessage::Text(text) = &**msg
+            {
+                return text.reasoning_details.is_none();
+            }
             true
         })
     }

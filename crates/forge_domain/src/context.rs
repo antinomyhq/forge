@@ -704,9 +704,10 @@ impl Context {
         // Find the last assistant message with a model field
         let last_assistant_model = self.messages.iter().rev().find_map(|msg| {
             if let ContextMessage::Text(text_msg) = &**msg
-                && text_msg.has_role(Role::Assistant) {
-                    return text_msg.model.as_ref();
-                }
+                && text_msg.has_role(Role::Assistant)
+            {
+                return text_msg.model.as_ref();
+            }
             None
         });
 
