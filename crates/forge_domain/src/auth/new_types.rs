@@ -84,12 +84,14 @@ pub struct URLParamValue(String);
 pub struct URLParamSpec {
     /// The parameter name used as the template variable and credential map key.
     pub name: URLParam,
-    /// Optional list of allowed values. When present, the UI renders a dropdown.
+    /// Optional list of allowed values. When present, the UI renders a
+    /// dropdown.
     pub options: Option<Vec<String>>,
 }
 
 impl URLParamSpec {
-    /// Creates a `URLParamSpec` with only a name, rendering as a free-text input.
+    /// Creates a `URLParamSpec` with only a name, rendering as a free-text
+    /// input.
     pub fn new(name: impl Into<URLParam>) -> Self {
         Self { name: name.into(), options: None }
     }

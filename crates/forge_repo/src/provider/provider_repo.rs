@@ -509,7 +509,10 @@ mod tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER)
             .unwrap();
-        assert_eq!(openrouter_config.api_key_vars, Some("OPENROUTER_API_KEY".to_string()));
+        assert_eq!(
+            openrouter_config.api_key_vars,
+            Some("OPENROUTER_API_KEY".to_string())
+        );
         assert!(openrouter_config.url_param_vars.is_empty());
         assert_eq!(
             openrouter_config.response_type,
@@ -534,7 +537,11 @@ mod tests {
             Some("VERTEX_AI_AUTH_TOKEN".to_string())
         );
         assert_eq!(
-            config.url_param_vars.iter().map(|v| v.param_name()).collect::<Vec<_>>(),
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
             vec!["PROJECT_ID", "LOCATION"]
         );
         assert_eq!(config.response_type, Some(ProviderResponse::Google));
@@ -553,8 +560,16 @@ mod tests {
         assert_eq!(config.id, ProviderId::AZURE);
         assert_eq!(config.api_key_vars, Some("AZURE_API_KEY".to_string()));
         assert_eq!(
-            config.url_param_vars.iter().map(|v| v.param_name()).collect::<Vec<_>>(),
-            vec!["AZURE_RESOURCE_NAME", "AZURE_DEPLOYMENT_NAME", "AZURE_API_VERSION"]
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
+            vec![
+                "AZURE_RESOURCE_NAME",
+                "AZURE_DEPLOYMENT_NAME",
+                "AZURE_API_VERSION"
+            ]
         );
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
 
@@ -587,7 +602,11 @@ mod tests {
         assert_eq!(config.id, ProviderId::OPENAI_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
         assert_eq!(
-            config.url_param_vars.iter().map(|v| v.param_name()).collect::<Vec<_>>(),
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
             vec!["OPENAI_URL"]
         );
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
@@ -604,7 +623,11 @@ mod tests {
         assert_eq!(config.id, ProviderId::OPENAI_RESPONSES_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
         assert_eq!(
-            config.url_param_vars.iter().map(|v| v.param_name()).collect::<Vec<_>>(),
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
             vec!["OPENAI_URL"]
         );
         assert_eq!(
@@ -628,7 +651,11 @@ mod tests {
         assert_eq!(config.id, ProviderId::ANTHROPIC_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("ANTHROPIC_API_KEY".to_string()));
         assert_eq!(
-            config.url_param_vars.iter().map(|v| v.param_name()).collect::<Vec<_>>(),
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
             vec!["ANTHROPIC_URL"]
         );
         assert_eq!(config.response_type, Some(ProviderResponse::Anthropic));
@@ -643,7 +670,10 @@ mod tests {
             .find(|c| c.id == ProviderId::IO_INTELLIGENCE)
             .unwrap();
         assert_eq!(config.id, ProviderId::IO_INTELLIGENCE);
-        assert_eq!(config.api_key_vars, Some("IO_INTELLIGENCE_API_KEY".to_string()));
+        assert_eq!(
+            config.api_key_vars,
+            Some("IO_INTELLIGENCE_API_KEY".to_string())
+        );
         assert!(config.url_param_vars.is_empty());
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
         assert_eq!(
