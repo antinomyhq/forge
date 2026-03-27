@@ -214,56 +214,6 @@ impl FromStr for AutoDumpFormat {
     }
 }
 
-impl Default for Environment {
-    fn default() -> Self {
-        Self {
-            os: Default::default(),
-            pid: Default::default(),
-            cwd: Default::default(),
-            home: Default::default(),
-            shell: Default::default(),
-            base_path: Default::default(),
-            retry_config: Default::default(),
-            max_search_lines: Default::default(),
-            max_search_result_bytes: Default::default(),
-            fetch_truncation_limit: Default::default(),
-            stdout_max_prefix_length: Default::default(),
-            stdout_max_suffix_length: Default::default(),
-            stdout_max_line_length: Default::default(),
-            max_line_length: Default::default(),
-            max_read_size: Default::default(),
-            max_file_read_batch_size: Default::default(),
-            http: Default::default(),
-            max_file_size: Default::default(),
-            max_image_size: Default::default(),
-            tool_timeout: Default::default(),
-            auto_open_dump: Default::default(),
-            debug_requests: Default::default(),
-            custom_history_path: Default::default(),
-            max_conversations: Default::default(),
-            sem_search_limit: Default::default(),
-            sem_search_top_k: Default::default(),
-            service_url: Url::parse("https://api.forgecode.dev").unwrap(),
-            max_extensions: Default::default(),
-            auto_dump: Default::default(),
-            parallel_file_reads: Default::default(),
-            model_cache_ttl: Default::default(),
-            session: Default::default(),
-            commit: Default::default(),
-            suggest: Default::default(),
-            is_restricted: Default::default(),
-            temperature: Default::default(),
-            top_p: Default::default(),
-            top_k: Default::default(),
-            max_tokens: Default::default(),
-            max_tool_failure_per_turn: Default::default(),
-            max_requests_per_turn: Default::default(),
-            compact: Default::default(),
-            updates: Default::default(),
-        }
-    }
-}
-
 impl Environment {
     /// Applies a single [`ConfigOperation`] to this environment in-place.
     pub fn apply_op(&mut self, op: ConfigOperation) {
