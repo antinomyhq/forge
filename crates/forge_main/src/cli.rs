@@ -62,10 +62,6 @@ pub struct Cli {
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
 
-    /// Path to a file containing the workflow to execute.
-    #[arg(long, short = 'w')]
-    pub workflow: Option<PathBuf>,
-
     /// Event to dispatch to the workflow in JSON format.
     #[arg(long, short = 'e')]
     pub event: Option<String>,

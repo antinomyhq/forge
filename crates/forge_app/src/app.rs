@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
@@ -308,11 +308,4 @@ impl<S: Services> ForgeApp<S> {
         Ok(results)
     }
 
-    pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.services.read_workflow(path).await
-    }
-
-    pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.services.read_merged(path).await
-    }
 }

@@ -12,7 +12,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -25,7 +25,6 @@ use forge_select::ForgeWidget;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use futures::future;
-use merge::Merge;
 use tokio_stream::StreamExt;
 use url::Url;
 
@@ -2859,10 +2858,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Initialize the state of the UI
-    async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        // Run the independent initialization tasks in parallel for better performance
-        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-
+    async fn init_state(&mut self, first: bool) -> Result<()> {
         let _ = self.handle_migrate_credentials().await;
 
         // Ensure we have a model selected before proceeding with initialization
@@ -2882,9 +2878,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if first {
-            // Create base workflow and trigger updates if this is the first initialization
-            let mut base_workflow = Workflow::default();
-            base_workflow.merge(workflow.clone());
             // For chat, we are trying to get active agent or setting it to default.
             // So for default values, `/info` doesn't show active provider, model, etc.
             // So my default, on new, we should set the active agent.
@@ -2892,10 +2885,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
-            if !workflow.commands.is_empty() {
-                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead"))?;
-            }
+            on_update(self.api.clone(), None).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -2927,7 +2917,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
-        Ok(workflow)
+        Ok(())
     }
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
