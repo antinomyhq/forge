@@ -29,6 +29,7 @@ after:
     - text:
         role: Assistant
         content: Assistant response
+        model: gpt-4
     - text:
         role: User
         content: User message 2
