@@ -121,8 +121,15 @@ pub trait API: Sync + Send {
     /// Retrieves the provider configuration for the default agent
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
-    /// Sets the default provider for all the agents
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+    /// Sets the active provider and model simultaneously.
+    ///
+    /// Both values must be supplied together to ensure the configuration always
+    /// contains a consistent provider/model pair.
+    async fn set_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+    ) -> anyhow::Result<()>;
 
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
@@ -141,9 +148,6 @@ pub trait API: Sync + Send {
 
     /// Gets the default model
     async fn get_default_model(&self) -> Option<ModelId>;
-
-    /// Sets the operating model
-    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 
     /// Gets the commit configuration (provider and model for commit message
     /// generation).

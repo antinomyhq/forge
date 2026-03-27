@@ -2025,7 +2025,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn select_model(
         &mut self,
         provider_filter: Option<ProviderId>,
-    ) -> Result<Option<ModelId>> {
+    ) -> Result<Option<(ProviderId, ModelId)>> {
         // Check if provider is set otherwise first ask to select a provider
         if self.api.get_default_provider().await.is_err() {
             self.on_provider_selection().await?;
@@ -2123,21 +2123,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(None);
         }
 
-        // Build a flat list of (ModelId, display_line) for the data rows.
+        // Build a flat list of (ProviderId, ModelId) for the data rows.
         // The first line is the header; data rows follow in the same order as
         // the Info entries (sorted by provider, then model within provider).
-        let mut model_ids: Vec<ModelId> = Vec::new();
+        let mut provider_model_ids: Vec<(ProviderId, ModelId)> = Vec::new();
         for pm in &all_provider_models {
             for model in &pm.models {
-                model_ids.push(model.id.clone());
+                provider_model_ids.push((pm.provider_id.clone(), model.id.clone()));
             }
         }
 
         // Create display items: header line first, then data lines paired with
-        // model IDs.
+        // provider/model IDs.
         #[derive(Clone)]
         struct ModelRow {
-            model_id: Option<ModelId>,
+            provider_model: Option<(ProviderId, ModelId)>,
             display: String,
         }
         impl std::fmt::Display for ModelRow {
@@ -2148,11 +2148,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
         // Header row (non-selectable via header_lines=1)
-        rows.push(ModelRow { model_id: None, display: all_lines[0].to_string() });
+        rows.push(ModelRow { provider_model: None, display: all_lines[0].to_string() });
         // Data rows
         for (i, line) in all_lines.iter().skip(1).enumerate() {
             rows.push(ModelRow {
-                model_id: model_ids.get(i).cloned(),
+                provider_model: provider_model_ids.get(i).cloned(),
                 display: line.to_string(),
             });
         }
@@ -2165,7 +2165,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .and_then(|current| {
+                provider_model_ids
+                    .iter()
+                    .position(|(_, mid)| mid == current)
+            })
             .unwrap_or(0);
 
         match ForgeWidget::select("Model", rows)
@@ -2173,7 +2177,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .with_header_lines(1)
             .prompt()?
         {
-            Some(row) => Ok(row.model_id),
+            Some(row) => Ok(row.provider_model),
             None => Ok(None),
         }
     }
@@ -2648,17 +2652,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_filter: Option<ProviderId>,
     ) -> Result<Option<ModelId>> {
-        // Select a model
-        let model_option = self.select_model(provider_filter).await?;
+        // Select a provider+model pair
+        let selection = self.select_model(provider_filter).await?;
 
         // If no model was selected (user canceled), return early
-        let model = match model_option {
-            Some(model) => model,
+        let (provider_id, model) = match selection {
+            Some(pair) => pair,
             None => return Ok(None),
         };
 
-        // Update the operating model via API
-        self.api.set_default_model(model.clone()).await?;
+        // Update both provider and model atomically via API
+        self.api
+            .set_provider_and_model(provider_id, model.clone())
+            .await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -2714,8 +2720,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.finalize_provider_activation(provider, model).await
     }
 
-    /// Finalizes provider activation by setting it as default and ensuring
-    /// a compatible model is selected.
+    /// Finalizes provider activation by ensuring a compatible model is
+    /// selected and then atomically setting both provider and model.
     /// When `model` is `Some`, the interactive model selection is skipped and
     /// the provided model is validated and set directly.
     async fn finalize_provider_activation(
@@ -2723,21 +2729,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider: Provider<Url>,
         model: Option<ModelId>,
     ) -> Result<()> {
-        // Set the provider via API
-        self.api.set_default_provider(provider.id.clone()).await?;
-
-        self.writeln_title(
-            TitleFormat::action(format!("{}", provider.id))
-                .sub_title("is now the default provider"),
-        )?;
-
-        // If a model was pre-selected (e.g. from :model), validate and set it
-        // directly without prompting
+        // If a model was pre-selected (e.g. from :model), validate and set both
+        // provider and model atomically without prompting
         if let Some(model) = model {
             let model_id = self
                 .validate_model(model.as_str(), Some(&provider.id))
                 .await?;
-            self.api.set_default_model(model_id.clone()).await?;
+            self.api
+                .set_provider_and_model(provider.id.clone(), model_id.clone())
+                .await?;
+            self.writeln_title(
+                TitleFormat::action(format!("{}", provider.id))
+                    .sub_title("is now the default provider"),
+            )?;
             self.writeln_title(
                 TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
             )?;
@@ -2746,18 +2750,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
-        if let Some(current_model) = current_model {
+        let need_model_selection = if let Some(current_model) = current_model {
             let models = self.get_models().await?;
-            let model_available = models.iter().any(|m| m.id == current_model);
-
-            if !model_available {
-                // Prompt user to select a new model, scoped to the activated provider
-                self.writeln_title(TitleFormat::info("Please select a new model"))?;
-                self.on_model_selection(Some(provider.id.clone())).await?;
-            }
+            !models.iter().any(|m| m.id == current_model)
         } else {
-            // No model set, select one now scoped to the activated provider
+            true
+        };
+
+        if need_model_selection {
+            // Prompt user to select a new model, scoped to the activated provider.
+            // on_model_selection calls set_provider_and_model atomically.
+            self.writeln_title(TitleFormat::info("Please select a new model"))?;
             self.on_model_selection(Some(provider.id.clone())).await?;
+        } else {
+            // Current model is compatible — set provider and current model together
+            let current_model = self
+                .api
+                .get_default_model()
+                .await
+                .expect("model must be present since need_model_selection is false");
+            self.api
+                .set_provider_and_model(provider.id.clone(), current_model)
+                .await?;
+            self.writeln_title(
+                TitleFormat::action(format!("{}", provider.id))
+                    .sub_title("is now the default provider"),
+            )?;
         }
 
         Ok(())
@@ -3406,13 +3424,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ConfigSetField::Provider { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
                 self.activate_provider_with_model(provider, model).await?;
-            }
-            ConfigSetField::Model { model } => {
-                let model_id = self.validate_model(model.as_str(), None).await?;
-                self.api.set_default_model(model_id.clone()).await?;
-                self.writeln_title(
-                    TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
-                )?;
             }
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider

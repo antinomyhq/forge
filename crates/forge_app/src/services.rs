@@ -186,10 +186,14 @@ pub trait AppConfigService: Send + Sync {
     /// Gets the user's default provider ID.
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId>;
 
-    /// Sets the user's default provider preference.
-    async fn set_default_provider(
+    /// Sets the active provider and model simultaneously.
+    ///
+    /// Both values must be supplied together to ensure the persisted
+    /// configuration always contains a consistent provider/model pair.
+    async fn set_provider_and_model(
         &self,
         provider_id: forge_domain::ProviderId,
+        model: ModelId,
     ) -> anyhow::Result<()>;
 
     /// Gets the user's default model for a specific provider or the currently
@@ -205,12 +209,6 @@ pub trait AppConfigService: Send + Sync {
         &self,
         provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId>;
-
-    /// Sets the user's default model for the currently active provider.
-    ///
-    /// # Errors
-    /// Returns an error if no default provider is configured.
-    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
 
     /// Gets the commit configuration (provider and model for commit message
     /// generation).
@@ -985,12 +983,13 @@ impl<I: Services> AppConfigService for I {
         self.config_service().get_default_provider().await
     }
 
-    async fn set_default_provider(
+    async fn set_provider_and_model(
         &self,
         provider_id: forge_domain::ProviderId,
+        model: ModelId,
     ) -> anyhow::Result<()> {
         self.config_service()
-            .set_default_provider(provider_id)
+            .set_provider_and_model(provider_id, model)
             .await
     }
 
@@ -999,10 +998,6 @@ impl<I: Services> AppConfigService for I {
         provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId> {
         self.config_service().get_provider_model(provider_id).await
-    }
-
-    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        self.config_service().set_default_model(model).await
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {

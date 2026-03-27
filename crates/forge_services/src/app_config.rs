@@ -39,8 +39,13 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
             .ok_or_else(|| forge_domain::Error::NoDefaultProvider.into())
     }
 
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetProvider(provider_id)).await
+    async fn set_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        self.update(ConfigOperation::SetProviderModel(provider_id, model))
+            .await
     }
 
     async fn get_provider_model(
@@ -77,19 +82,6 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
         } else {
             Err(forge_domain::Error::no_default_model(provider_id.clone()).into())
         }
-    }
-
-    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let env = self.infra.get_environment();
-        let provider_id = env
-            .session
-            .as_ref()
-            .and_then(|s| s.provider_id.as_ref())
-            .map(|id| ProviderId::from(id.clone()))
-            .ok_or(forge_domain::Error::NoDefaultProvider)?;
-
-        self.update(ConfigOperation::SetModel(provider_id, model))
-            .await
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
@@ -227,24 +219,14 @@ mod tests {
                 let mut env = env.lock().unwrap();
                 for op in ops {
                     match op {
-                        ConfigOperation::SetProvider(pid) => {
-                            let pid_str = pid.as_ref().to_string();
-                            env.session = Some(match env.session.take() {
-                                Some(sc) => sc.provider_id(pid_str),
-                                None => SessionConfig::default().provider_id(pid_str),
-                            });
-                        }
-                        ConfigOperation::SetModel(pid, mid) => {
+                        ConfigOperation::SetProviderModel(pid, mid) => {
                             let pid_str = pid.as_ref().to_string();
                             let mid_str = mid.to_string();
-                            env.session = Some(match env.session.take() {
-                                Some(sc) if sc.provider_id.as_deref() == Some(&pid_str) => {
-                                    sc.model_id(mid_str)
-                                }
-                                _ => SessionConfig::default()
+                            env.session = Some(
+                                SessionConfig::default()
                                     .provider_id(pid_str)
                                     .model_id(mid_str),
-                            });
+                            );
                         }
                         ConfigOperation::SetCommitConfig(commit) => {
                             env.commit = commit.provider.as_ref().zip(commit.model.as_ref()).map(
@@ -372,7 +354,9 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        service.set_default_provider(ProviderId::ANTHROPIC).await?;
+        service
+            .set_provider_and_model(ProviderId::ANTHROPIC, ModelId::new("claude-3"))
+            .await?;
         let actual = service.get_default_provider().await?;
         let expected = ProviderId::ANTHROPIC;
 
@@ -389,7 +373,9 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         // Set OpenAI as the default provider in config
-        service.set_default_provider(ProviderId::OPENAI).await?;
+        service
+            .set_provider_and_model(ProviderId::OPENAI, ModelId::new("gpt-4"))
+            .await?;
 
         // Should return the provider ID even if provider is not available
         // Validation happens when getting the actual provider via ProviderService
@@ -400,21 +386,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_default_provider() -> anyhow::Result<()> {
+    async fn test_set_provider_and_model() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        service.set_default_provider(ProviderId::ANTHROPIC).await?;
+        service
+            .set_provider_and_model(ProviderId::ANTHROPIC, ModelId::new("claude-3"))
+            .await?;
 
         let env = fixture.get_environment();
-        let actual = env
+        let actual_provider = env
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
             .map(|id| ProviderId::from(id.clone()));
-        let expected = Some(ProviderId::ANTHROPIC);
+        let actual_model = env.session.as_ref().and_then(|s| s.model_id.as_deref());
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual_provider, Some(ProviderId::ANTHROPIC));
+        assert_eq!(actual_model, Some("claude-3"));
         Ok(())
     }
 
@@ -434,10 +423,8 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        // Set OpenAI as the default provider first
-        service.set_default_provider(ProviderId::OPENAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into())
+            .set_provider_and_model(ProviderId::OPENAI, "gpt-4".to_string().into())
             .await?;
         let actual = service
             .get_provider_model(Some(&ProviderId::OPENAI))
@@ -449,43 +436,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_default_model() -> anyhow::Result<()> {
+    async fn test_set_provider_and_model_replaces_previous() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        // Set OpenAI as the default provider first
-        service.set_default_provider(ProviderId::OPENAI).await?;
+        // Set OpenAI first
         service
-            .set_default_model("gpt-4".to_string().into())
+            .set_provider_and_model(ProviderId::OPENAI, "gpt-4".to_string().into())
             .await?;
 
-        let env = fixture.get_environment();
-        let actual = env.session.as_ref().and_then(|s| s.model_id.as_deref());
-        let expected = Some("gpt-4");
-
-        assert_eq!(actual, expected);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_set_multiple_default_models() -> anyhow::Result<()> {
-        let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
-
-        // Set model for OpenAI first
-        service.set_default_provider(ProviderId::OPENAI).await?;
+        // Then switch to Anthropic
         service
-            .set_default_model("gpt-4".to_string().into())
+            .set_provider_and_model(ProviderId::ANTHROPIC, "claude-3".to_string().into())
             .await?;
 
-        // Then switch to Anthropic and set its model
-        service.set_default_provider(ProviderId::ANTHROPIC).await?;
-        service
-            .set_default_model("claude-3".to_string().into())
-            .await?;
-
-        // ForgeConfig only tracks a single active session, so the last
-        // provider/model pair wins
+        // The last provider/model pair wins
         let env = fixture.get_environment();
         let actual_provider = env
             .session
