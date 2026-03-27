@@ -7,7 +7,7 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
-    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
+    FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
     McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
 };

@@ -34,7 +34,7 @@ impl ForgeEnvironmentInfra {
         }
     }
 
-    fn get(&self) -> Environment {
+    pub fn get(&self) -> Environment {
         let cwd = self.cwd.clone();
         let retry_config = resolve_retry_config();
 
@@ -128,10 +128,6 @@ impl ForgeEnvironmentInfra {
 }
 
 impl EnvironmentInfra for ForgeEnvironmentInfra {
-    fn get_environment(&self) -> Environment {
-        self.get()
-    }
-
     fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
     }
@@ -515,7 +511,7 @@ mod tests {
 
         // Test default value
         let forge_env = ForgeEnvironmentInfra::new(false, PathBuf::from("/tmp"));
-        let environment = forge_env.get_environment();
+        let environment = forge_env.get();
         let expected_default = (10.0_f64 * 1024.0).ceil() as usize;
         assert_eq!(environment.max_search_result_bytes, expected_default);
 
@@ -523,21 +519,21 @@ mod tests {
         unsafe {
             env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "1048576");
         }
-        let environment = forge_env.get_environment();
+        let environment = forge_env.get();
         assert_eq!(environment.max_search_result_bytes, 1048576);
 
         // Test fractional value gets ceiled
         unsafe {
             env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "524288.5");
         }
-        let environment = forge_env.get_environment();
+        let environment = forge_env.get();
         assert_eq!(environment.max_search_result_bytes, 524289);
 
         // Test invalid value falls back to default
         unsafe {
             env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "invalid");
         }
-        let environment = forge_env.get_environment();
+        let environment = forge_env.get();
         assert_eq!(environment.max_search_result_bytes, expected_default);
 
         unsafe {
@@ -556,7 +552,7 @@ mod tests {
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(!env.auto_open_dump);
         }
 
@@ -565,7 +561,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "true");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
@@ -577,7 +573,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "1");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
@@ -589,7 +585,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "TRUE");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
@@ -601,7 +597,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "false");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
@@ -613,7 +609,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "0");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
@@ -625,7 +621,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_DUMP_AUTO_OPEN", "invalid");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert!(!env.auto_open_dump);
             unsafe {
                 env::remove_var("FORGE_DUMP_AUTO_OPEN");
@@ -645,7 +641,7 @@ mod tests {
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, None);
         }
 
@@ -654,7 +650,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "json");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, Some(AutoDumpFormat::Json));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
@@ -666,7 +662,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "true");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, Some(AutoDumpFormat::Json));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
@@ -678,7 +674,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "1");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, Some(AutoDumpFormat::Json));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
@@ -690,7 +686,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "html");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, Some(AutoDumpFormat::Html));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
@@ -702,7 +698,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "HTML");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, Some(AutoDumpFormat::Html));
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
@@ -714,7 +710,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_AUTO_DUMP", "invalid");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.auto_dump, None);
             unsafe {
                 env::remove_var("FORGE_AUTO_DUMP");
@@ -733,7 +729,7 @@ mod tests {
             unsafe {
                 env::remove_var("FORGE_TOOL_TIMEOUT");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.tool_timeout, 300);
         }
 
@@ -742,7 +738,7 @@ mod tests {
             unsafe {
                 env::set_var("FORGE_TOOL_TIMEOUT", "15");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.tool_timeout, 15);
             unsafe {
                 env::remove_var("FORGE_TOOL_TIMEOUT");
@@ -754,7 +750,7 @@ mod tests {
             unsafe {
                 env::set_var("TOOL_TIMEOUT_SECONDS", "not-a-number");
             }
-            let env = infra.get_environment();
+            let env = infra.get();
             assert_eq!(env.tool_timeout, 300);
             unsafe {
                 env::remove_var("TOOL_TIMEOUT_SECONDS");
@@ -772,21 +768,21 @@ mod tests {
         unsafe {
             std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
         }
-        let env = infra.get_environment();
+        let env = infra.get();
         assert_eq!(env.max_image_size, 10485760); // 10 MiB
 
         // Test custom value
         unsafe {
             std::env::set_var("FORGE_MAX_IMAGE_SIZE", "1048576"); // 1 MiB
         }
-        let env = infra.get_environment();
+        let env = infra.get();
         assert_eq!(env.max_image_size, 1048576);
 
         // Test invalid value (should fallback to default)
         unsafe {
             std::env::set_var("FORGE_MAX_IMAGE_SIZE", "invalid");
         }
-        let env = infra.get_environment();
+        let env = infra.get();
         assert_eq!(env.max_image_size, 10485760);
 
         unsafe {
@@ -803,21 +799,21 @@ mod tests {
         unsafe {
             std::env::remove_var("FORGE_MAX_CONVERSATIONS");
         }
-        let env = infra.get_environment();
+        let env = infra.get();
         assert_eq!(env.max_conversations, 100);
 
         // Test custom value
         unsafe {
             std::env::set_var("FORGE_MAX_CONVERSATIONS", "50");
         }
-        let env = infra.get_environment();
+        let env = infra.get();
         assert_eq!(env.max_conversations, 50);
 
         // Test invalid value (should fallback to default)
         unsafe {
             std::env::set_var("FORGE_MAX_CONVERSATIONS", "invalid");
         }
-        let env = infra.get_environment();
+        let env = infra.get();
         assert_eq!(env.max_conversations, 100);
 
         unsafe {

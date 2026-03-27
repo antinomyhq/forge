@@ -3,8 +3,10 @@ use std::sync::Arc;
 use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
 use forge_template::Element;
 
+use forge_domain::AppConfigRepository;
+
 use crate::utils::format_display_path;
-use crate::{EnvironmentService, FsReadService};
+use crate::FsReadService;
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -20,7 +22,7 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
+impl<S: FsReadService + AppConfigRepository> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
@@ -89,7 +91,7 @@ mod tests {
 
     use super::*;
     use crate::services::Content;
-    use crate::{EnvironmentService, FsReadService, ReadOutput, compute_hash};
+    use crate::{FsReadService, ReadOutput, compute_hash};
 
     #[derive(Clone, Default)]
     struct TestServices {
@@ -118,7 +120,8 @@ mod tests {
         }
     }
 
-    impl EnvironmentService for TestServices {
+    #[async_trait::async_trait]
+    impl AppConfigRepository for TestServices {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
@@ -131,8 +134,11 @@ mod tests {
             env
         }
 
-        fn is_restricted(&self) -> bool {
-            false
+        async fn update_app_config(
+            &self,
+            _ops: Vec<forge_domain::AppConfigOperation>,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
         }
     }
 

@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
+    AuthCodeParams, CommandOutput, FileInfo, McpServerConfig, OAuthConfig,
     OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
@@ -18,15 +18,7 @@ use crate::{WalkedFile, Walker};
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.
-///
-/// This trait provides access to the application environment which includes
-/// configuration for both global and project-local agent directories. The
-/// Environment exposes:
-/// - Global agent directory via `agent_path()` (typically ~/.forge/agents)
-/// - Project-local agent directory via `agent_cwd_path()` (typically
-///   .forge/agents)
 pub trait EnvironmentInfra: Send + Sync {
-    fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
     /// Returns whether the application is running in restricted mode.

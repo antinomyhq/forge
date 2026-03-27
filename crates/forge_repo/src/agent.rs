@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::domain::{AgentDefinition, Template};
-use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
+use forge_app::{AgentRepository, DirectoryReaderInfra, FileInfoInfra};
+use forge_domain::AppConfigRepository;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -39,7 +40,7 @@ impl<I> ForgeAgentRepository<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> AgentRepository
+impl<I: FileInfoInfra + AppConfigRepository + DirectoryReaderInfra> AgentRepository
     for ForgeAgentRepository<I>
 {
     /// Load all agent definitions from all available sources with conflict
@@ -49,7 +50,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> AgentRepository
     }
 }
 
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepository<I> {
+impl<I: FileInfoInfra + AppConfigRepository + DirectoryReaderInfra> ForgeAgentRepository<I> {
     /// Load all agent definitions from all available sources
     async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
         // Load built-in agents (no path - will display as "BUILT IN")

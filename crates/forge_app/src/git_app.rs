@@ -2,12 +2,12 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_domain::*;
+use forge_domain::{AppConfigRepository, *};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentService,
+    AgentProviderResolver, AgentRegistry, AppConfigService,
     ProviderAuthService, ProviderService, ShellService, TemplateService,
 };
 
@@ -94,7 +94,7 @@ impl<S> GitApp<S> {
 
 impl<S> GitApp<S>
 where
-    S: EnvironmentService
+    S: AppConfigRepository
         + ShellService
         + AgentRegistry
         + TemplateService

@@ -21,7 +21,7 @@ use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
-    AgentRegistry, EnvironmentService, McpService, PolicyService, ProviderService, Services,
+    AgentRegistry, McpService, PolicyService, ProviderService, Services,
     ToolResolver, WorkspaceService,
 };
 

@@ -3,10 +3,10 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{
-    Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
+    Content, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
     ReadOutput, compute_hash,
 };
-use forge_domain::{FileInfo, Image};
+use forge_domain::{AppConfigRepository, FileInfo, Image};
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -102,7 +102,7 @@ impl<F> ForgeFsRead<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for ForgeFsRead<F> {
+impl<F: FileInfoInfra + AppConfigRepository + InfraFsReadService> FsReadService for ForgeFsRead<F> {
     async fn read(
         &self,
         path: String,

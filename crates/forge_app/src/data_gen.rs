@@ -11,7 +11,7 @@ use schemars::Schema;
 use tracing::{debug, info};
 
 use crate::{
-    AppConfigService, EnvironmentService, FsReadService, ProviderService, Services, TemplateEngine,
+    AppConfigService, FsReadService, ProviderService, Services, TemplateEngine,
 };
 
 pub struct DataGenerationApp<A> {

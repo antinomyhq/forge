@@ -205,7 +205,7 @@ impl ForgeConfigRepository {
 
 #[async_trait::async_trait]
 impl AppConfigRepository for ForgeConfigRepository {
-    fn get_app_config(&self) -> Environment {
+    fn get_environment(&self) -> Environment {
         let fc = {
             let mut cache = self.cache.lock().expect("cache mutex poisoned");
             if let Some(ref config) = *cache {

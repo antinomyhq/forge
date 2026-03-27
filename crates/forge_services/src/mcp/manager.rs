@@ -5,9 +5,10 @@ use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{McpConfig, Scope};
 use forge_app::{
-    EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, KVStore, McpConfigManager,
+    FileInfoInfra, FileReaderInfra, FileWriterInfra, KVStore, McpConfigManager,
     McpServerInfra,
 };
+use forge_domain::AppConfigRepository;
 use merge::Merge;
 
 pub struct ForgeMcpManager<I> {
@@ -16,7 +17,7 @@ pub struct ForgeMcpManager<I> {
 
 impl<I> ForgeMcpManager<I>
 where
-    I: McpServerInfra + FileReaderInfra + FileInfoInfra + EnvironmentInfra + KVStore,
+    I: McpServerInfra + FileReaderInfra + FileInfoInfra + AppConfigRepository + KVStore,
 {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
@@ -42,7 +43,7 @@ where
     I: McpServerInfra
         + FileReaderInfra
         + FileInfoInfra
-        + EnvironmentInfra
+        + AppConfigRepository
         + FileWriterInfra
         + KVStore,
 {

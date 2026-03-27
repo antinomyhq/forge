@@ -5,8 +5,9 @@ use forge_app::domain::{
 };
 use forge_app::utils::format_display_path;
 use forge_app::{
-    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
+    AttachmentService, DirectoryReaderInfra, FileInfoInfra, FileReaderInfra,
 };
+use forge_domain::AppConfigRepository;
 
 use crate::range::resolve_range;
 
@@ -15,7 +16,7 @@ pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
+impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderInfra>
     ForgeChatRequest<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -114,7 +115,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra> AttachmentService
+impl<F: FileReaderInfra + AppConfigRepository + FileInfoInfra + DirectoryReaderInfra> AttachmentService
     for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
@@ -136,7 +137,7 @@ pub mod tests {
         AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
         FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
-    use forge_domain::FileInfo;
+    use forge_domain::{AppConfigOperation, AppConfigRepository, FileInfo};
     use futures::stream;
 
     use crate::attachment::ForgeChatRequest;
@@ -146,6 +147,21 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            BTreeMap::new()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl AppConfigRepository for MockEnvironmentInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
@@ -159,16 +175,11 @@ pub mod tests {
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            None
-        }
-
-        fn get_env_vars(&self) -> BTreeMap<String, String> {
-            BTreeMap::new()
-        }
-
-        fn is_restricted(&self) -> bool {
-            false
+        async fn update_app_config(
+            &self,
+            _ops: Vec<AppConfigOperation>,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
         }
     }
 
@@ -483,10 +494,6 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockCompositeService {
-        fn get_environment(&self) -> Environment {
-            self.env_service.get_environment()
-        }
-
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
         }
@@ -497,6 +504,20 @@ pub mod tests {
 
         fn is_restricted(&self) -> bool {
             false
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl AppConfigRepository for MockCompositeService {
+        fn get_environment(&self) -> Environment {
+            self.env_service.get_environment()
+        }
+
+        async fn update_app_config(
+            &self,
+            ops: Vec<AppConfigOperation>,
+        ) -> anyhow::Result<()> {
+            self.env_service.update_app_config(ops).await
         }
     }
 

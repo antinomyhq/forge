@@ -53,7 +53,7 @@ pub struct ForgeRepo<F> {
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
+impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -145,7 +145,7 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+impl<F: AppConfigRepository + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
     ChatRepository for ForgeRepo<F>
 {
     async fn chat(
@@ -163,7 +163,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+impl<F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
     ProviderRepository for ForgeRepo<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
@@ -194,9 +194,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + Send + Sync> AppConfigRepository for ForgeRepo<F> {
-    fn get_app_config(&self) -> Environment {
-        self.config_repository.get_app_config()
+impl<F: Send + Sync> AppConfigRepository for ForgeRepo<F> {
+    fn get_environment(&self) -> Environment {
+        self.config_repository.get_environment()
     }
 
     async fn update_app_config(&self, ops: Vec<AppConfigOperation>) -> anyhow::Result<()> {
@@ -258,9 +258,6 @@ impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
-    fn get_environment(&self) -> Environment {
-        self.infra.get_environment()
-    }
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.infra.get_env_var(key)
     }
@@ -468,7 +465,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> AgentRepository
+impl<F: FileInfoInfra + AppConfigRepository + DirectoryReaderInfra + Send + Sync> AgentRepository
     for ForgeRepo<F>
 {
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
@@ -477,7 +474,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> A
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra + Send + Sync>
+impl<F: FileInfoInfra + AppConfigRepository + FileReaderInfra + WalkerInfra + Send + Sync>
     SkillRepository for ForgeRepo<F>
 {
     async fn load_skills(&self) -> anyhow::Result<Vec<Skill>> {

@@ -4,11 +4,11 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
-    ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
-    ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    AgentId, AnyProvider, AppConfigRepository, Attachment, AuthContextRequest, AuthContextResponse,
+    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Environment, File, FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node,
+    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
+    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -288,11 +288,6 @@ pub trait AttachmentService {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
 }
 
-pub trait EnvironmentService: Send + Sync {
-    fn get_environment(&self) -> Environment;
-    /// Returns whether the application is running in restricted mode.
-    fn is_restricted(&self) -> bool;
-}
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
@@ -570,16 +565,12 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-/// Core app trait providing access to services and repositories.
-/// This trait follows clean architecture principles for dependency management
-/// and service/repository composition.
-pub trait Services: Send + Sync + 'static + Clone {
+pub trait Services: Send + Sync + 'static + Clone + AppConfigRepository {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
-    type EnvironmentService: EnvironmentService;
     type CustomInstructionsService: CustomInstructionsService;
     type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
@@ -624,7 +615,8 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
-    fn environment_service(&self) -> &Self::EnvironmentService;
+    fn get_environment(&self) -> Environment;
+    fn is_restricted(&self) -> bool;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn agent_registry(&self) -> &Self::AgentRegistry;
@@ -908,16 +900,6 @@ impl<I: Services> ShellService for I {
         self.shell_service()
             .execute(command, cwd, keep_ansi, silent, env_vars, description)
             .await
-    }
-}
-
-impl<I: Services> EnvironmentService for I {
-    fn get_environment(&self) -> Environment {
-        self.environment_service().get_environment()
-    }
-
-    fn is_restricted(&self) -> bool {
-        self.environment_service().is_restricted()
     }
 }
 

@@ -32,7 +32,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
-        let config = self.infra.get_app_config();
+        let config = self.infra.get_environment();
         config
             .session
             .as_ref()
@@ -50,7 +50,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         &self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        let config = self.infra.get_app_config();
+        let config = self.infra.get_environment();
 
         let session = config
             .session
@@ -83,7 +83,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let config = self.infra.get_app_config();
+        let config = self.infra.get_environment();
         let provider_id = config
             .session
             .as_ref()
@@ -96,7 +96,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
-        let config = self.infra.get_app_config();
+        let config = self.infra.get_environment();
         Ok(config.commit.map(|mc| CommitConfig {
             provider: mc.provider_id.map(ProviderId::from),
             model: mc.model_id.map(ModelId::new),
@@ -112,7 +112,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
-        let config = self.infra.get_app_config();
+        let config = self.infra.get_environment();
         Ok(config.suggest.and_then(|mc| {
             mc.provider_id
                 .zip(mc.model_id)
@@ -218,7 +218,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AppConfigRepository for MockInfra {
-        fn get_app_config(&self) -> Environment {
+        fn get_environment(&self) -> Environment {
             self.config.lock().unwrap().clone()
         }
 
@@ -396,7 +396,7 @@ mod tests {
 
         service.set_default_provider(ProviderId::ANTHROPIC).await?;
 
-        let config = fixture.get_app_config();
+        let config = fixture.get_environment();
         let actual = config
             .session
             .as_ref()
@@ -449,7 +449,7 @@ mod tests {
             .set_default_model("gpt-4".to_string().into())
             .await?;
 
-        let config = fixture.get_app_config();
+        let config = fixture.get_environment();
         let actual = config.session.as_ref().and_then(|s| s.model_id.as_deref());
         let expected = Some("gpt-4");
 
@@ -476,7 +476,7 @@ mod tests {
 
         // ForgeConfig only tracks a single active session, so the last
         // provider/model pair wins
-        let config = fixture.get_app_config();
+        let config = fixture.get_environment();
         let actual_provider = config
             .session
             .as_ref()

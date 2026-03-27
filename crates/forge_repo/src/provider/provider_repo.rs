@@ -4,8 +4,8 @@ use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
-    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
-    ProviderRepository, ProviderType, URLParam, URLParamValue,
+    AnyProvider, ApiKey, AppConfigRepository, AuthCredential, AuthDetails, Error, MigrationResult,
+    Provider, ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
 use merge::Merge;
 use serde::Deserialize;
@@ -116,13 +116,13 @@ pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
 }
 
-impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
+impl<F: AppConfigRepository + HttpInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
+impl<F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     ForgeProviderRepository<F>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
@@ -416,7 +416,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
+impl<F: AppConfigRepository + EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
@@ -655,7 +655,8 @@ mod env_tests {
         }
     }
 
-    impl EnvironmentInfra for MockInfra {
+    #[async_trait::async_trait]
+    impl AppConfigRepository for MockInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
@@ -663,6 +664,15 @@ mod env_tests {
             env
         }
 
+        async fn update_app_config(
+            &self,
+            _ops: Vec<forge_domain::AppConfigOperation>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl EnvironmentInfra for MockInfra {
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
         }
@@ -1142,7 +1152,8 @@ mod env_tests {
             base_path: PathBuf,
         }
 
-        impl EnvironmentInfra for CustomMockInfra {
+        #[async_trait::async_trait]
+        impl AppConfigRepository for CustomMockInfra {
             fn get_environment(&self) -> Environment {
                 use fake::{Fake, Faker};
                 let mut env: Environment = Faker.fake();
@@ -1150,6 +1161,15 @@ mod env_tests {
                 env
             }
 
+            async fn update_app_config(
+                &self,
+                _ops: Vec<forge_domain::AppConfigOperation>,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+        }
+
+        impl EnvironmentInfra for CustomMockInfra {
             fn get_env_var(&self, key: &str) -> Option<String> {
                 self.env_vars.get(key).cloned()
             }

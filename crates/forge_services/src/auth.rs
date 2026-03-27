@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use forge_app::{AuthService, EnvironmentInfra, HttpInfra, User, UserUsage};
+use forge_app::{AuthService, HttpInfra, User, UserUsage};
+use forge_domain::AppConfigRepository;
 use reqwest::Url;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
@@ -12,7 +13,7 @@ pub struct ForgeAuthService<I> {
     infra: Arc<I>,
 }
 
-impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
+impl<I: HttpInfra + AppConfigRepository> ForgeAuthService<I> {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
@@ -61,7 +62,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: HttpInfra + EnvironmentInfra> AuthService for ForgeAuthService<I> {
+impl<I: HttpInfra + AppConfigRepository> AuthService for ForgeAuthService<I> {
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         self.user_info(api_key).await
     }

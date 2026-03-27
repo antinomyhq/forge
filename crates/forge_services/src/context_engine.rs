@@ -5,12 +5,12 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    CommandInfra, EnvironmentInfra, FileReaderInfra, SyncProgressCounter, WalkerInfra,
+    CommandInfra, FileReaderInfra, SyncProgressCounter, WalkerInfra,
     WorkspaceService, WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    UserId, WorkspaceId, WorkspaceIndexRepository,
+    AppConfigRepository, AuthCredential, AuthDetails, FileHash, FileNode, ProviderId,
+    ProviderRepository, SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -84,7 +84,7 @@ impl<
         + ProviderRepository
         + WorkspaceIndexRepository
         + FileReaderInfra
-        + EnvironmentInfra
+        + AppConfigRepository
         + CommandInfra
         + WalkerInfra,
     D: FileDiscovery + 'static,
@@ -503,7 +503,7 @@ impl<
     F: ProviderRepository
         + WorkspaceIndexRepository
         + FileReaderInfra
-        + EnvironmentInfra
+        + AppConfigRepository
         + CommandInfra
         + WalkerInfra
         + 'static,

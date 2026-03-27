@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
+use forge_app::{CommandInfra, ShellOutput, ShellService};
+use forge_domain::AppConfigRepository;
 use strip_ansi_escapes::strip;
 
 // Strips out the ansi codes from content.
@@ -22,7 +23,7 @@ pub struct ForgeShell<I> {
     infra: Arc<I>,
 }
 
-impl<I: EnvironmentInfra> ForgeShell<I> {
+impl<I: AppConfigRepository> ForgeShell<I> {
     /// Create a new Shell with environment configuration
     pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
@@ -38,7 +39,7 @@ impl<I: EnvironmentInfra> ForgeShell<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
+impl<I: CommandInfra + AppConfigRepository> ShellService for ForgeShell<I> {
     async fn execute(
         &self,
         command: String,
@@ -65,13 +66,13 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
 }
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
     use std::path::PathBuf;
     use std::sync::Arc;
 
     use async_trait::async_trait;
     use forge_app::domain::{CommandOutput, Environment};
     use forge_app::{CommandInfra, ShellService};
+    use forge_domain::{AppConfigOperation, AppConfigRepository};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -110,22 +111,18 @@ mod tests {
         }
     }
 
-    impl EnvironmentInfra for MockCommandInfra {
+    #[async_trait]
+    impl AppConfigRepository for MockCommandInfra {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             Faker.fake()
         }
 
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            Some("mock_value".to_string())
-        }
-
-        fn get_env_vars(&self) -> BTreeMap<String, String> {
-            BTreeMap::new()
-        }
-
-        fn is_restricted(&self) -> bool {
-            false
+        async fn update_app_config(
+            &self,
+            _ops: Vec<AppConfigOperation>,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
         }
     }
 

@@ -10,7 +10,7 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
+    AuthMethod, CommandOutput, FileInfo as FileInfoData, McpServerConfig, ProviderId,
     URLParam,
 };
 use reqwest::header::HeaderMap;
@@ -58,7 +58,7 @@ pub struct ForgeInfra {
 impl ForgeInfra {
     pub fn new(restricted: bool, cwd: PathBuf) -> Self {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
-        let env = environment_service.get_environment();
+        let env = environment_service.get();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
@@ -93,10 +93,6 @@ impl ForgeInfra {
 }
 
 impl EnvironmentInfra for ForgeInfra {
-    fn get_environment(&self) -> Environment {
-        self.environment_service.get_environment()
-    }
-
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.environment_service.get_env_var(key)
     }
@@ -107,6 +103,20 @@ impl EnvironmentInfra for ForgeInfra {
 
     fn is_restricted(&self) -> bool {
         self.environment_service.is_restricted()
+    }
+}
+
+#[async_trait::async_trait]
+impl forge_domain::AppConfigRepository for ForgeInfra {
+    fn get_environment(&self) -> forge_domain::Environment {
+        self.environment_service.get()
+    }
+
+    async fn update_app_config(
+        &self,
+        _ops: Vec<forge_domain::AppConfigOperation>,
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 

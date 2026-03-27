@@ -69,7 +69,7 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
         let agent_defs = self.repository.get_agents().await?;
 
         // Get default provider and model from app config
-        let config = self.repository.get_app_config();
+        let config = self.repository.get_environment();
         let session = config
             .session
             .as_ref()
