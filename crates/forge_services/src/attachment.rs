@@ -166,11 +166,8 @@ pub mod tests {
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
-        fn update_app_config(
-            &self,
-            _ops: Vec<ConfigOperation>,
-        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
-            async { unimplemented!() }
+        async fn update_app_config(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
+            unimplemented!()
         }
     }
 

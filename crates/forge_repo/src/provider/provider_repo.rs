@@ -663,11 +663,11 @@ mod env_tests {
             env
         }
 
-        fn update_app_config(
+        async fn update_app_config(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
-        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
-            async { Ok(()) }
+        ) -> anyhow::Result<()> {
+            Ok(())
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {
@@ -1153,11 +1153,11 @@ mod env_tests {
                 env
             }
 
-            fn update_app_config(
+            async fn update_app_config(
                 &self,
                 _ops: Vec<forge_domain::ConfigOperation>,
-            ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
-                async { Ok(()) }
+            ) -> anyhow::Result<()> {
+                Ok(())
             }
 
             fn get_env_var(&self, key: &str) -> Option<String> {

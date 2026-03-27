@@ -116,11 +116,11 @@ mod tests {
             Faker.fake()
         }
 
-        fn update_app_config(
+        async fn update_app_config(
             &self,
             _ops: Vec<ConfigOperation>,
-        ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
-            async { unimplemented!() }
+        ) -> anyhow::Result<()> {
+            unimplemented!()
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {

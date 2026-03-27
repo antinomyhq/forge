@@ -211,6 +211,12 @@ pub struct ForgeConfigInfra {
     cache: Arc<std::sync::Mutex<Option<ForgeConfig>>>,
 }
 
+impl Default for ForgeConfigInfra {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ForgeConfigInfra {
     /// Creates a new [`ForgeConfigInfra`].
     pub fn new() -> Self {
