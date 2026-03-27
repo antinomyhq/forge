@@ -7,7 +7,40 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig};
+use crate::{
+    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, RetryConfig, SuggestConfig,
+    Temperature, TopK, TopP, Update,
+};
+
+/// Domain-level session configuration pairing a provider with a model.
+///
+/// Used inside [`Environment`] to represent the active session, decoupled from
+/// the on-disk configuration format.
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
+#[setters(strip_option, into)]
+pub struct SessionConfig {
+    /// The active provider ID (e.g. `"anthropic"`).
+    pub provider_id: Option<String>,
+    /// The model ID to use with this provider.
+    pub model_id: Option<String>,
+}
+
+/// All discrete mutations that can be applied to the application configuration.
+///
+/// Instead of replacing the entire config, callers describe exactly which field
+/// they want to change. Implementations receive a list of operations, apply
+/// each in order, and persist the result atomically.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConfigOperation {
+    /// Set the active provider.
+    SetProvider(ProviderId),
+    /// Set the model for the given provider.
+    SetModel(ProviderId, ModelId),
+    /// Set the commit-message generation configuration.
+    SetCommitConfig(CommitConfig),
+    /// Set the shell-command suggestion configuration.
+    SetSuggestConfig(SuggestConfig),
+}
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -31,9 +64,6 @@ pub struct Environment {
     pub shell: String,
     /// The base path relative to which everything else stored.
     pub base_path: PathBuf,
-    /// Base URL for Forge's backend APIs
-    #[dummy(expr = "url::Url::parse(\"https://example.com\").unwrap()")]
-    pub forge_api_url: Url,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch.
@@ -87,7 +117,7 @@ pub struct Environment {
     /// URL for the indexing server.
     /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
-    pub workspace_server_url: Url,
+    pub service_url: Url,
     /// Maximum number of file extensions to include in the system prompt.
     /// Controlled by FORGE_MAX_EXTENSIONS environment variable.
     pub max_extensions: usize,
@@ -103,6 +133,68 @@ pub struct Environment {
     /// TTL in seconds for the model API list cache.
     /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
     pub model_cache_ttl: u64,
+
+    // --- User configuration fields (from ForgeConfig) ---
+    /// The active session (provider + model).
+    #[dummy(default)]
+    pub session: Option<SessionConfig>,
+    /// Provider and model for commit message generation.
+    #[dummy(default)]
+    pub commit: Option<SessionConfig>,
+    /// Provider and model for shell command suggestion generation.
+    #[dummy(default)]
+    pub suggest: Option<SessionConfig>,
+    /// Whether the application is running in restricted mode.
+    /// When true, tool execution requires explicit permission grants.
+    pub is_restricted: bool,
+
+    /// Whether tool use is supported in the current environment.
+    /// When false, tool calls are disabled regardless of agent configuration.
+    pub tool_supported: bool,
+
+    // --- Workflow configuration fields ---
+    /// Output randomness for all agents; lower values are deterministic, higher
+    /// values are creative (0.0–2.0).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<Temperature>,
+
+    /// Nucleus sampling threshold for all agents; limits token selection to the
+    /// top cumulative probability mass (0.0–1.0).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<TopP>,
+
+    /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
+    /// highest-probability tokens (1–1000).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<TopK>,
+
+    /// Maximum tokens the model may generate per response for all agents
+    /// (1–100,000).
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<MaxTokens>,
+
+    /// Maximum tool failures per turn before the orchestrator forces
+    /// completion.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_tool_failure_per_turn: Option<usize>,
+
+    /// Maximum number of requests that can be made in a single turn.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_requests_per_turn: Option<usize>,
+
+    /// Context compaction settings applied to all agents.
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compact: Option<Compact>,
+
+    /// Configuration for automatic forge updates.
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updates: Option<Update>,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.
@@ -128,6 +220,46 @@ impl FromStr for AutoDumpFormat {
 }
 
 impl Environment {
+    /// Applies a single [`ConfigOperation`] to this environment in-place.
+    pub fn apply_op(&mut self, op: ConfigOperation) {
+        match op {
+            ConfigOperation::SetProvider(provider_id) => {
+                let pid = provider_id.as_ref().to_string();
+                self.session = Some(match self.session.take() {
+                    Some(sc) => sc.provider_id(pid),
+                    None => SessionConfig::default().provider_id(pid),
+                });
+            }
+            ConfigOperation::SetModel(provider_id, model_id) => {
+                let pid = provider_id.as_ref().to_string();
+                let mid = model_id.to_string();
+                self.session = Some(match self.session.take() {
+                    Some(sc) if sc.provider_id.as_deref() == Some(&pid) => sc.model_id(mid),
+                    _ => SessionConfig::default().provider_id(pid).model_id(mid),
+                });
+            }
+            ConfigOperation::SetCommitConfig(commit) => {
+                self.commit =
+                    commit
+                        .provider
+                        .as_ref()
+                        .zip(commit.model.as_ref())
+                        .map(|(pid, mid)| {
+                            SessionConfig::default()
+                                .provider_id(pid.as_ref().to_string())
+                                .model_id(mid.to_string())
+                        });
+            }
+            ConfigOperation::SetSuggestConfig(suggest) => {
+                self.suggest = Some(
+                    SessionConfig::default()
+                        .provider_id(suggest.provider.as_ref().to_string())
+                        .model_id(suggest.model.to_string()),
+                );
+            }
+        }
+    }
+
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
@@ -144,9 +276,6 @@ impl Environment {
         self.base_path.join(".mcp.json")
     }
 
-    pub fn templates(&self) -> PathBuf {
-        self.base_path.join("templates")
-    }
     pub fn agent_path(&self) -> PathBuf {
         self.base_path.join("agents")
     }
@@ -154,13 +283,6 @@ impl Environment {
         self.cwd.join(".forge/agents")
     }
 
-    pub fn command_path(&self) -> PathBuf {
-        self.base_path.join("commands")
-    }
-
-    pub fn command_cwd_path(&self) -> PathBuf {
-        self.cwd.join(".forge/commands")
-    }
     pub fn permissions_path(&self) -> PathBuf {
         self.base_path.join("permissions.yaml")
     }
@@ -196,6 +318,38 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
+    /// Returns the global commands directory path (base_path/commands)
+    pub fn command_path(&self) -> PathBuf {
+        self.base_path.join("commands")
+    }
+
+    /// Returns the project-local commands directory path (.forge/commands)
+    pub fn command_path_local(&self) -> PathBuf {
+        self.cwd.join(".forge/commands")
+    }
+
+    /// Returns the global AGENTS.md path (base_path/AGENTS.md)
+    pub fn global_agentsmd_path(&self) -> PathBuf {
+        self.base_path.join("AGENTS.md")
+    }
+
+    /// Returns the project-local AGENTS.md path (cwd/AGENTS.md)
+    pub fn local_agentsmd_path(&self) -> PathBuf {
+        self.cwd.join("AGENTS.md")
+    }
+
+    /// Returns the plans directory path relative to the current working
+    /// directory (cwd/plans)
+    pub fn plans_path(&self) -> PathBuf {
+        self.cwd.join("plans")
+    }
+
+    /// Returns the path to the custom provider configuration file
+    /// (base_path/provider.json)
+    pub fn provider_config_path(&self) -> PathBuf {
+        self.base_path.join("provider.json")
+    }
+
     /// Returns the path to the credentials file where provider API keys are
     /// stored
     pub fn credentials_path(&self) -> PathBuf {
@@ -228,6 +382,100 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    fn fixture_env() -> Environment {
+        Faker.fake()
+    }
+
+    #[test]
+    fn test_apply_op_set_provider_creates_session_when_absent() {
+        let mut fixture = fixture_env();
+        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
+            "anthropic".to_string(),
+        )));
+        let expected = SessionConfig::default().provider_id("anthropic".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_provider_updates_existing_session_keeping_model() {
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4".to_string()),
+        );
+        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
+            "anthropic".to_string(),
+        )));
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("gpt-4".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_model_for_matching_provider_updates_model() {
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-3.5".to_string()),
+        );
+        fixture.apply_op(ConfigOperation::SetModel(
+            ProviderId::from("openai".to_string()),
+            ModelId::new("gpt-4"),
+        ));
+        let expected = SessionConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_model_for_different_provider_replaces_session() {
+        let mut fixture = fixture_env();
+        fixture.session = Some(
+            SessionConfig::default()
+                .provider_id("openai".to_string())
+                .model_id("gpt-4".to_string()),
+        );
+        fixture.apply_op(ConfigOperation::SetModel(
+            ProviderId::from("anthropic".to_string()),
+            ModelId::new("claude-3"),
+        ));
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3".to_string());
+        assert_eq!(fixture.session, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_commit_config() {
+        let mut fixture = fixture_env();
+        let commit = CommitConfig::default()
+            .provider(ProviderId::from("openai".to_string()))
+            .model(ModelId::new("gpt-4o"));
+        fixture.apply_op(ConfigOperation::SetCommitConfig(commit));
+        let expected = SessionConfig::default()
+            .provider_id("openai".to_string())
+            .model_id("gpt-4o".to_string());
+        assert_eq!(fixture.commit, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_suggest_config() {
+        let mut fixture = fixture_env();
+        let suggest = SuggestConfig {
+            provider: ProviderId::from("anthropic".to_string()),
+            model: ModelId::new("claude-3-haiku"),
+        };
+        fixture.apply_op(ConfigOperation::SetSuggestConfig(suggest));
+        let expected = SessionConfig::default()
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3-haiku".to_string());
+        assert_eq!(fixture.suggest, Some(expected));
+    }
 
     #[test]
     fn test_agent_cwd_path() {
@@ -306,142 +554,88 @@ mod tests {
         // Verify they are different paths
         assert_ne!(global_path, local_path);
     }
-}
 
-#[test]
-fn test_command_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/current/working/dir"),
-        home: Some(PathBuf::from("/home/user")),
-        shell: "zsh".to_string(),
-        base_path: PathBuf::from("/home/user/.forge"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_line_length: 2000,
-        max_read_size: 2000,
-        max_file_read_batch_size: 50,
-        http: HttpConfig::default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        max_extensions: 15,
-        auto_dump: None,
-        parallel_file_reads: 64,
-        model_cache_ttl: 604_800,
-    };
+    #[test]
+    fn test_command_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-    let actual = fixture.command_path();
-    let expected = PathBuf::from("/home/user/.forge/commands");
+        let actual = fixture.command_path();
+        let expected = PathBuf::from("/home/user/.forge/commands");
 
-    assert_eq!(actual, expected);
-}
+        assert_eq!(actual, expected);
+    }
 
-#[test]
-fn test_command_cwd_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/current/working/dir"),
-        home: Some(PathBuf::from("/home/user")),
-        shell: "zsh".to_string(),
-        base_path: PathBuf::from("/home/user/.forge"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_line_length: 2000,
-        max_read_size: 2000,
-        max_file_read_batch_size: 50,
-        http: HttpConfig::default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        max_extensions: 15,
-        auto_dump: None,
-        parallel_file_reads: 64,
-        model_cache_ttl: 604_800,
-    };
+    #[test]
+    fn test_command_path_local() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
 
-    let actual = fixture.command_cwd_path();
-    let expected = PathBuf::from("/current/working/dir/.forge/commands");
+        let actual = fixture.command_path_local();
+        let expected = PathBuf::from("/projects/my-app/.forge/commands");
 
-    assert_eq!(actual, expected);
-}
+        assert_eq!(actual, expected);
+    }
 
-#[test]
-fn test_command_cwd_path_independent_from_command_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/different/current/dir"),
-        home: Some(PathBuf::from("/different/home")),
-        shell: "bash".to_string(),
-        base_path: PathBuf::from("/completely/different/base"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_line_length: 2000,
-        max_read_size: 2000,
-        max_file_read_batch_size: 50,
-        http: HttpConfig::default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        max_extensions: 15,
-        auto_dump: None,
-        parallel_file_reads: 64,
-        model_cache_ttl: 604_800,
-    };
+    #[test]
+    fn test_command_paths_independent() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture
+            .cwd(PathBuf::from("/projects/my-app"))
+            .base_path(PathBuf::from("/home/user/.forge"));
 
-    let command_path = fixture.command_path();
-    let command_cwd_path = fixture.command_cwd_path();
-    let expected_command_path = PathBuf::from("/completely/different/base/commands");
-    let expected_command_cwd_path = PathBuf::from("/different/current/dir/.forge/commands");
+        let global_path = fixture.command_path();
+        let local_path = fixture.command_path_local();
 
-    // Verify that command_path uses base_path
-    assert_eq!(command_path, expected_command_path);
+        let expected_global = PathBuf::from("/home/user/.forge/commands");
+        let expected_local = PathBuf::from("/projects/my-app/.forge/commands");
 
-    // Verify that command_cwd_path is independent and always relative to CWD
-    assert_eq!(command_cwd_path, expected_command_cwd_path);
+        assert_eq!(global_path, expected_global);
+        assert_eq!(local_path, expected_local);
+        assert_ne!(global_path, local_path);
+    }
 
-    // Verify they are different paths
-    assert_ne!(command_path, command_cwd_path);
+    #[test]
+    fn test_global_agents_md_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.global_agentsmd_path();
+        let expected = PathBuf::from("/home/user/.forge/AGENTS.md");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_local_agents_md_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.local_agentsmd_path();
+        let expected = PathBuf::from("/projects/my-app/AGENTS.md");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plans_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.plans_path();
+        let expected = PathBuf::from("/projects/my-app/plans");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_provider_config_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.provider_config_path();
+        let expected = PathBuf::from("/home/user/.forge/provider.json");
+
+        assert_eq!(actual, expected);
+    }
 }

@@ -3,7 +3,6 @@ mod agent_executor;
 mod agent_provider_resolver;
 mod app;
 mod apply_tunable_parameters;
-mod authenticator;
 mod changed_files;
 mod command_generator;
 mod compact;

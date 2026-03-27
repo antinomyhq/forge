@@ -1948,17 +1948,20 @@ dependencies = [
 name = "forge_config"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "config",
  "derive_setters",
  "dirs",
  "dotenvy",
  "fake",
+ "is_ci",
  "merge",
  "pretty_assertions",
  "schemars 1.2.1",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "toml_edit",
  "tracing",
  "url",
@@ -2061,6 +2064,7 @@ dependencies = [
  "dotenvy",
  "fake",
  "forge_app",
+ "forge_config",
  "forge_domain",
  "forge_fs",
  "forge_select",
