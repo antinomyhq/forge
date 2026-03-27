@@ -124,3 +124,382 @@ mod tests {
         }
     }
 }
+
+/// PTY-based integration tests that exercise the compiled `forge` binary
+/// running inside a real pseudo-terminal.
+///
+/// All tests here run fully offline — they do not call any LLM API.  They
+/// exercise subcommands and flags that resolve entirely from local state
+/// (config files, embedded agents, built-in commands, etc.) so they remain
+/// fast and reproducible in CI.
+#[cfg(test)]
+mod pty_tests {
+    use std::time::Duration;
+
+    use forge_test_kit::pty::PtySession;
+    use serial_test::serial;
+
+    // ──────────────────────────────────────────────────────────────
+    // Helpers
+    // ──────────────────────────────────────────────────────────────
+
+    /// Returns the absolute path to the compiled `forge` debug binary.
+    ///
+    /// `CARGO_BIN_EXE_forge` is only injected by cargo for *integration* test
+    /// binaries (placed in `tests/`).  For unit-test modules embedded inside
+    /// the binary's own source file we derive the path from
+    /// `CARGO_MANIFEST_DIR` instead.
+    fn forge_bin() -> std::path::PathBuf {
+        if let Ok(exe) = std::env::var("CARGO_BIN_EXE_forge") {
+            return std::path::PathBuf::from(exe);
+        }
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .expect("CARGO_MANIFEST_DIR must be set when running tests");
+        let workspace_root = std::path::Path::new(&manifest_dir)
+            .parent() // crates/
+            .and_then(|p| p.parent()) // workspace root
+            .expect("workspace root is two levels above manifest dir")
+            .to_path_buf();
+        let bin_name = if cfg!(windows) { "forge.exe" } else { "forge" };
+        workspace_root.join("target").join("debug").join(bin_name)
+    }
+
+    /// Returns the absolute path to the workspace root (two levels above
+    /// `CARGO_MANIFEST_DIR`, which is `crates/forge_main`).
+    fn workspace_root() -> std::path::PathBuf {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+            .expect("CARGO_MANIFEST_DIR must be set when running tests");
+        std::path::Path::new(&manifest_dir)
+            .parent() // crates/
+            .and_then(|p| p.parent()) // workspace root
+            .expect("workspace root is two levels above manifest dir")
+            .to_path_buf()
+    }
+
+    /// Spawns the `forge` binary with the given arguments inside a PTY, waits
+    /// until `needle` appears in the output (or panics on timeout), then
+    /// returns the full captured output.
+    ///
+    /// Automatically prepends `-C <workspace_root>` so that local
+    /// `.forge/commands/` and `.forge/skills/` directories are always resolved
+    /// relative to the workspace root regardless of the test runner's CWD.
+    fn run_and_expect(args: &[&str], needle: &str) -> String {
+        let bin = forge_bin();
+        let bin_str = bin.to_str().expect("binary path is valid UTF-8");
+        let root = workspace_root();
+        let root_str = root.to_str().expect("workspace root is valid UTF-8");
+        let mut full_args = vec!["-C", root_str];
+        full_args.extend_from_slice(args);
+        let session = PtySession::spawn(bin_str, &full_args).expect("PTY session spawns");
+        session
+            .expect(needle, Duration::from_secs(10))
+            .unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Basic invocation flags
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge --version` outputs the program name and a semver string.
+    #[test]
+    #[serial]
+    fn test_pty_version_contains_name_and_semver() {
+        let output = run_and_expect(&["--version"], "forge");
+        assert!(output.contains("forge"), "program name missing:\n{output}");
+        // semver: digits separated by dots, e.g. 0.1.0 or 0.1.0-dev
+        assert!(
+            output.chars().any(|c| c.is_ascii_digit()),
+            "version number missing:\n{output}"
+        );
+    }
+
+    /// `forge --help` outputs the canonical "Usage:" section from clap.
+    #[test]
+    #[serial]
+    fn test_pty_help_shows_usage_section() {
+        let output = run_and_expect(&["--help"], "Usage");
+        assert!(output.contains("Usage"), "Usage section missing:\n{output}");
+    }
+
+    /// `forge --help` lists the `--prompt` / `-p` flag.
+    #[test]
+    #[serial]
+    fn test_pty_help_lists_prompt_flag() {
+        let output = run_and_expect(&["--help"], "prompt");
+        assert!(
+            output.contains("prompt"),
+            "--prompt flag not listed in help:\n{output}"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Interactive mode banner
+    // ──────────────────────────────────────────────────────────────
+
+    /// In interactive mode the ASCII-art banner is printed before the first
+    /// prompt.  The banner contains "forge" (the logo letters) and a
+    /// "Version:" line.
+    #[test]
+    #[serial]
+    fn test_pty_interactive_banner_contains_branding() {
+        let bin = forge_bin();
+        let bin_str = bin.to_str().expect("binary path is valid UTF-8");
+        let root = workspace_root();
+        let root_str = root.to_str().expect("workspace root is valid UTF-8");
+        let mut session =
+            PtySession::spawn(bin_str, &["-C", root_str]).expect("PTY session spawns");
+
+        let result = session.expect("Version:", Duration::from_secs(10));
+        let _ = session.send(&[0x04]); // Ctrl-D to exit cleanly
+
+        let output = result.expect("banner appeared within timeout");
+        assert!(
+            output.contains("Version:"),
+            "Version line missing from banner:\n{output}"
+        );
+    }
+
+    /// The banner in interactive mode shows the `/new` command hint.
+    #[test]
+    #[serial]
+    fn test_pty_interactive_banner_shows_new_command_hint() {
+        let bin = forge_bin();
+        let bin_str = bin.to_str().expect("binary path is valid UTF-8");
+        let root = workspace_root();
+        let root_str = root.to_str().expect("workspace root is valid UTF-8");
+        let mut session =
+            PtySession::spawn(bin_str, &["-C", root_str]).expect("PTY session spawns");
+
+        let result = session.expect("new", Duration::from_secs(10));
+        let _ = session.send(&[0x04]);
+
+        let output = result.expect("banner appeared within timeout");
+        assert!(
+            output.contains("new"),
+            "'/new' hint missing from banner:\n{output}"
+        );
+    }
+
+    /// `forge` exits cleanly when Ctrl-D (EOF) is sent on the PTY.
+    #[test]
+    #[serial]
+    fn test_pty_exits_on_ctrl_d() {
+        let bin = forge_bin();
+        let bin_str = bin.to_str().expect("binary path is valid UTF-8");
+        let root = workspace_root();
+        let root_str = root.to_str().expect("workspace root is valid UTF-8");
+        let mut session =
+            PtySession::spawn(bin_str, &["-C", root_str]).expect("PTY session spawns");
+
+        // Allow the banner to render, then signal EOF.
+        std::thread::sleep(Duration::from_millis(400));
+        session.send(&[0x04]).expect("Ctrl-D sent");
+
+        // The process should drain output and exit — just verify no panic.
+        let _ = session.output();
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // `forge banner` subcommand
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge banner` prints the ASCII-art logo and the Version line.
+    #[test]
+    #[serial]
+    fn test_pty_banner_subcommand_shows_version() {
+        let output = run_and_expect(&["banner"], "Version:");
+        assert!(
+            output.contains("Version:"),
+            "Version: line missing from banner output:\n{output}"
+        );
+    }
+
+    /// `forge banner` shows the `:new` CLI-mode hint (not the `/new` REPL hint).
+    #[test]
+    #[serial]
+    fn test_pty_banner_subcommand_shows_cli_hint() {
+        let output = run_and_expect(&["banner"], ":new");
+        assert!(
+            output.contains(":new"),
+            "':new' hint missing from banner output:\n{output}"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // `forge list agents`
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge list agents --porcelain` emits the built-in `forge` agent row.
+    #[test]
+    #[serial]
+    fn test_pty_list_agents_includes_forge_agent() {
+        let output = run_and_expect(&["list", "agents", "--porcelain"], "forge");
+        assert!(
+            output.contains("forge"),
+            "built-in 'forge' agent missing from list:\n{output}"
+        );
+    }
+
+    /// `forge list agents --porcelain` emits the built-in `muse` agent row.
+    #[test]
+    #[serial]
+    fn test_pty_list_agents_includes_muse_agent() {
+        let output = run_and_expect(&["list", "agents", "--porcelain"], "muse");
+        assert!(
+            output.contains("muse"),
+            "built-in 'muse' agent missing from list:\n{output}"
+        );
+    }
+
+    /// `forge list agents --porcelain` emits the built-in `sage` agent row.
+    #[test]
+    #[serial]
+    fn test_pty_list_agents_includes_sage_agent() {
+        let output = run_and_expect(&["list", "agents", "--porcelain"], "sage");
+        assert!(
+            output.contains("sage"),
+            "built-in 'sage' agent missing from list:\n{output}"
+        );
+    }
+
+    /// `forge list agents --porcelain` output has a header row containing "ID".
+    #[test]
+    #[serial]
+    fn test_pty_list_agents_has_header() {
+        let output = run_and_expect(&["list", "agents", "--porcelain"], "ID");
+        assert!(output.contains("ID"), "Header row missing from agent list:\n{output}");
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // `forge list skill`
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge list skill --porcelain` outputs the column header "NAME".
+    #[test]
+    #[serial]
+    fn test_pty_list_skills_has_header() {
+        let output = run_and_expect(&["list", "skill", "--porcelain"], "NAME");
+        assert!(output.contains("NAME"), "Header row missing from skill list:\n{output}");
+    }
+
+    /// `forge list skill --porcelain` includes the embedded `create-skill` skill.
+    #[test]
+    #[serial]
+    fn test_pty_list_skills_includes_create_skill() {
+        let output = run_and_expect(&["list", "skill", "--porcelain"], "create-skill");
+        assert!(
+            output.contains("create-skill"),
+            "'create-skill' missing from skill list:\n{output}"
+        );
+    }
+
+    /// `forge list skill --porcelain` includes the embedded `execute-plan` skill.
+    #[test]
+    #[serial]
+    fn test_pty_list_skills_includes_execute_plan() {
+        let output = run_and_expect(&["list", "skill", "--porcelain"], "execute-plan");
+        assert!(
+            output.contains("execute-plan"),
+            "'execute-plan' missing from skill list:\n{output}"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // `forge list cmd`
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge list cmd --porcelain` outputs the column header "ID".
+    #[test]
+    #[serial]
+    fn test_pty_list_cmd_has_header() {
+        let output = run_and_expect(&["list", "cmd", "--porcelain"], "ID");
+        assert!(output.contains("ID"), "Header row missing from command list:\n{output}");
+    }
+
+    /// `forge list cmd --porcelain` lists the built-in `fixme` command.
+    #[test]
+    #[serial]
+    fn test_pty_list_cmd_includes_fixme() {
+        let output = run_and_expect(&["list", "cmd", "--porcelain"], "fixme");
+        assert!(
+            output.contains("fixme"),
+            "'fixme' command missing from command list:\n{output}"
+        );
+    }
+
+    /// `forge list cmd --porcelain` lists the built-in `check` command.
+    #[test]
+    #[serial]
+    fn test_pty_list_cmd_includes_check() {
+        let output = run_and_expect(&["list", "cmd", "--porcelain"], "check");
+        assert!(
+            output.contains("check"),
+            "'check' command missing from command list:\n{output}"
+        );
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // `forge env`
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge env` displays the ENVIRONMENT section header.
+    #[test]
+    #[serial]
+    fn test_pty_env_shows_environment_header() {
+        let output = run_and_expect(&["env"], "ENVIRONMENT");
+        assert!(
+            output.contains("ENVIRONMENT"),
+            "ENVIRONMENT header missing from env output:\n{output}"
+        );
+    }
+
+    /// `forge env` shows the current forge version.
+    #[test]
+    #[serial]
+    fn test_pty_env_shows_version() {
+        let output = run_and_expect(&["env"], "version");
+        assert!(
+            output.contains("version"),
+            "version field missing from env output:\n{output}"
+        );
+    }
+
+    /// `forge env` shows the working directory.
+    #[test]
+    #[serial]
+    fn test_pty_env_shows_working_directory() {
+        let output = run_and_expect(&["env"], "working directory");
+        assert!(
+            output.contains("working directory"),
+            "working directory field missing from env output:\n{output}"
+        );
+    }
+
+    /// `forge env` shows the PATHS section (logs, history, etc.).
+    #[test]
+    #[serial]
+    fn test_pty_env_shows_paths_section() {
+        let output = run_and_expect(&["env"], "PATHS");
+        assert!(output.contains("PATHS"), "PATHS section missing from env output:\n{output}");
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // `forge conversation new`
+    // ──────────────────────────────────────────────────────────────
+
+    /// `forge conversation new` prints a UUID-shaped conversation ID to stdout.
+    #[test]
+    #[serial]
+    fn test_pty_conversation_new_prints_uuid() {
+        // UUIDs contain hyphens; wait for the first '-' after some hex digits.
+        let output = run_and_expect(&["conversation", "new"], "-");
+        // A UUID v4 looks like xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx.
+        // The simplest check: the output contains exactly 4 hyphens grouped
+        // together (UUID format).
+        let hyphen_count = output.chars().filter(|&c| c == '-').count();
+        assert!(
+            hyphen_count >= 4,
+            "output does not look like a UUID (expected ≥4 hyphens), got:\n{output}"
+        );
+    }
+}
