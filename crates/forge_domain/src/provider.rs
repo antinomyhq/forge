@@ -68,7 +68,6 @@ impl ProviderId {
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
     pub const MINIMAX: ProviderId = ProviderId(Cow::Borrowed("minimax"));
-    pub const MINIMAX_CN: ProviderId = ProviderId(Cow::Borrowed("minimax_cn"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
     pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
     pub const NOVITA: ProviderId = ProviderId(Cow::Borrowed("novita"));
@@ -100,7 +99,6 @@ impl ProviderId {
             ProviderId::IO_INTELLIGENCE,
             ProviderId::BEDROCK,
             ProviderId::MINIMAX,
-            ProviderId::MINIMAX_CN,
             ProviderId::CODEX,
             ProviderId::OPENCODE_ZEN,
             ProviderId::NOVITA,
@@ -126,7 +124,6 @@ impl ProviderId {
             "openai_responses_compatible" => "OpenAIResponsesCompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
             "minimax" => "MiniMax".to_string(),
-            "minimax_cn" => "MiniMaxCN".to_string(),
             "codex" => "Codex".to_string(),
             "novita" => "Novita".to_string(),
             _ => {
@@ -170,7 +167,6 @@ impl std::str::FromStr for ProviderId {
             "forge_services" => ProviderId::FORGE_SERVICES,
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
             "minimax" => ProviderId::MINIMAX,
-            "minimax_cn" => ProviderId::MINIMAX_CN,
             "codex" => ProviderId::CODEX,
             "novita" => ProviderId::NOVITA,
             // For custom providers, use Cow::Owned to avoid memory leaks
@@ -215,7 +211,7 @@ pub struct Provider<T> {
     pub models: Option<ModelSource<T>>,
     pub auth_methods: Vec<crate::AuthMethod>,
     #[serde(default)]
-    pub url_params: Vec<crate::URLParam>,
+    pub url_params: Vec<crate::URLParamSpec>,
     pub credential: Option<AuthCredential>,
     /// Custom HTTP headers to include in API requests for this provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -302,7 +298,7 @@ impl AnyProvider {
             AnyProvider::Template(_) => None,
         }
     }
-    pub fn url_params(&self) -> &[crate::URLParam] {
+    pub fn url_params(&self) -> &[crate::URLParamSpec] {
         match self {
             AnyProvider::Url(p) => &p.url_params,
             AnyProvider::Template(p) => &p.url_params,
