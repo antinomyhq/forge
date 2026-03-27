@@ -246,6 +246,7 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.auto_dump = env.auto_dump.as_ref().map(from_auto_dump_format);
     fc.max_parallel_file_reads = env.parallel_file_reads;
     fc.model_cache_ttl_secs = env.model_cache_ttl;
+    fc.restricted = env.is_restricted;
 
     // --- Session configs ---
     fc.session = env.session.as_ref().map(|sc| ModelConfig {
