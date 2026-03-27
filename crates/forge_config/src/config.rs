@@ -81,11 +81,6 @@ pub struct ForgeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
-    /// A set of custom rules that all agents should follow, applied in addition
-    /// to each agent's individual rules.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub custom_rules: Option<String>,
-
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -189,7 +184,6 @@ impl Dummy<fake::Faker> for ForgeConfig {
             commit: fake::Faker.fake_with_rng(rng),
             suggest: fake::Faker.fake_with_rng(rng),
             updates: fake::Faker.fake_with_rng(rng),
-            custom_rules: fake::Faker.fake_with_rng(rng),
             temperature: fake::Faker.fake_with_rng(rng),
             top_p: fake::Faker.fake_with_rng(rng),
             top_k: fake::Faker.fake_with_rng(rng),

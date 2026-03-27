@@ -49,13 +49,6 @@
         "null"
       ]
     },
-    "custom_rules": {
-      "description": "A set of custom rules that all agents should follow, applied in addition\nto each agent's individual rules.",
-      "type": [
-        "string",
-        "null"
-      ]
-    },
     "debug_requests": {
       "description": "Path where debug request files should be written",
       "type": [
