@@ -114,7 +114,7 @@ impl Agent {
     }
 
     /// Helper to prepare agents with workflow settings
-    pub fn apply_workflow_config(self, env: &Environment) -> Agent {
+    pub fn apply_env(self, env: &Environment) -> Agent {
         let mut agent = self;
 
         if let Some(temperature) = env.temperature {

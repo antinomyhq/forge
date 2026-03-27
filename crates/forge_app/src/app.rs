@@ -68,7 +68,7 @@ impl<S: Services> ForgeApp<S> {
             .get_agent(&agent_id)
             .await?
             .ok_or(crate::Error::AgentNotFound(agent_id.clone()))?
-            .apply_workflow_config(&workflow)
+            .apply_env(&workflow)
             .set_compact_model_if_none();
 
         let agent_provider = agent_provider_resolver
@@ -214,7 +214,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get compact config from the agent
         let compact = agent
-            .apply_workflow_config(&workflow)
+            .apply_env(&workflow)
             .set_compact_model_if_none()
             .compact;
 
