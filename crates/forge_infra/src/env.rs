@@ -134,29 +134,133 @@ fn to_environment(fc: ForgeConfig, restricted: bool, cwd: PathBuf) -> Environmen
     }
 }
 
-/// Converts the user-configurable fields of an [`Environment`] back into a
-/// [`ForgeConfig`] suitable for persisting.
+/// Converts a [`forge_domain::RetryConfig`] back into a
+/// [`forge_config::RetryConfig`].
+fn from_retry_config(r: &RetryConfig) -> forge_config::RetryConfig {
+    forge_config::RetryConfig {
+        initial_backoff_ms: r.initial_backoff_ms,
+        min_delay_ms: r.min_delay_ms,
+        backoff_factor: r.backoff_factor,
+        max_attempts: r.max_retry_attempts,
+        status_codes: r.retry_status_codes.clone(),
+        max_delay_secs: r.max_delay,
+        suppress_errors: r.suppress_retry_errors,
+    }
+}
+
+/// Converts a [`forge_domain::HttpConfig`] back into a
+/// [`forge_config::HttpConfig`].
+fn from_http_config(h: &HttpConfig) -> forge_config::HttpConfig {
+    forge_config::HttpConfig {
+        connect_timeout_secs: h.connect_timeout,
+        read_timeout_secs: h.read_timeout,
+        pool_idle_timeout_secs: h.pool_idle_timeout,
+        pool_max_idle_per_host: h.pool_max_idle_per_host,
+        max_redirects: h.max_redirects,
+        hickory: h.hickory,
+        tls_backend: from_tls_backend(h.tls_backend.clone()),
+        min_tls_version: h.min_tls_version.clone().map(from_tls_version),
+        max_tls_version: h.max_tls_version.clone().map(from_tls_version),
+        adaptive_window: h.adaptive_window,
+        keep_alive_interval_secs: h.keep_alive_interval,
+        keep_alive_timeout_secs: h.keep_alive_timeout,
+        keep_alive_while_idle: h.keep_alive_while_idle,
+        accept_invalid_certs: h.accept_invalid_certs,
+        root_cert_paths: h.root_cert_paths.clone(),
+    }
+}
+
+/// Converts a [`forge_domain::TlsVersion`] back into a
+/// [`forge_config::TlsVersion`].
+fn from_tls_version(v: TlsVersion) -> forge_config::TlsVersion {
+    match v {
+        TlsVersion::V1_0 => forge_config::TlsVersion::V1_0,
+        TlsVersion::V1_1 => forge_config::TlsVersion::V1_1,
+        TlsVersion::V1_2 => forge_config::TlsVersion::V1_2,
+        TlsVersion::V1_3 => forge_config::TlsVersion::V1_3,
+    }
+}
+
+/// Converts a [`forge_domain::TlsBackend`] back into a
+/// [`forge_config::TlsBackend`].
+fn from_tls_backend(b: TlsBackend) -> forge_config::TlsBackend {
+    match b {
+        TlsBackend::Default => forge_config::TlsBackend::Default,
+        TlsBackend::Rustls => forge_config::TlsBackend::Rustls,
+    }
+}
+
+/// Converts a [`forge_domain::AutoDumpFormat`] back into a
+/// [`forge_config::AutoDumpFormat`].
+fn from_auto_dump_format(f: &AutoDumpFormat) -> forge_config::AutoDumpFormat {
+    match f {
+        AutoDumpFormat::Json => forge_config::AutoDumpFormat::Json,
+        AutoDumpFormat::Html => forge_config::AutoDumpFormat::Html,
+    }
+}
+
+/// Converts an [`Environment`] back into a [`ForgeConfig`] suitable for
+/// persisting.
 ///
-/// Only the fields that [`ConfigOperation`] can mutate (`session`, `commit`,
-/// `suggest`) are extracted; everything else retains its on-disk value by
-/// remaining at the caller-supplied base [`ForgeConfig`].
-fn to_forge_config(env: &Environment, mut base: ForgeConfig) -> ForgeConfig {
-    base.session = env.session.as_ref().map(|sc| {
-        ModelConfig::default()
-            .provider_id(sc.provider_id.clone().unwrap_or_default())
-            .model_id(sc.model_id.clone().unwrap_or_default())
+/// Builds a fresh [`ForgeConfig`] from [`ForgeConfig::default()`] and maps
+/// every field that originated from [`ForgeConfig`] back from the
+/// [`Environment`], preserving the round-trip identity. Fields that only exist
+/// in [`ForgeConfig`] but are not represented in [`Environment`] (e.g.
+/// `updates`, `temperature`, `compact`) remain at their default values.
+fn to_forge_config(env: &Environment) -> ForgeConfig {
+    let mut fc = ForgeConfig::default();
+
+    // --- Fields mapped through Environment ---
+    let default_retry = RetryConfig::default();
+    fc.retry = if env.retry_config == default_retry {
+        None
+    } else {
+        Some(from_retry_config(&env.retry_config))
+    };
+    fc.max_search_lines = env.max_search_lines;
+    fc.max_search_result_bytes = env.max_search_result_bytes;
+    fc.max_fetch_chars = env.fetch_truncation_limit;
+    fc.max_stdout_prefix_lines = env.stdout_max_prefix_length;
+    fc.max_stdout_suffix_lines = env.stdout_max_suffix_length;
+    fc.max_stdout_line_chars = env.stdout_max_line_length;
+    fc.max_line_chars = env.max_line_length;
+    fc.max_read_lines = env.max_read_size;
+    fc.max_file_read_batch_size = env.max_file_read_batch_size;
+    let default_http = HttpConfig::default();
+    fc.http = if env.http == default_http {
+        None
+    } else {
+        Some(from_http_config(&env.http))
+    };
+    fc.max_file_size_bytes = env.max_file_size;
+    fc.max_image_size_bytes = env.max_image_size;
+    fc.tool_timeout_secs = env.tool_timeout;
+    fc.auto_open_dump = env.auto_open_dump;
+    fc.debug_requests = env.debug_requests.clone();
+    fc.custom_history_path = env.custom_history_path.clone();
+    fc.max_conversations = env.max_conversations;
+    fc.max_sem_search_results = env.sem_search_limit;
+    fc.sem_search_top_k = env.sem_search_top_k;
+    fc.services_url = env.service_url.to_string();
+    fc.max_extensions = env.max_extensions;
+    fc.auto_dump = env.auto_dump.as_ref().map(from_auto_dump_format);
+    fc.max_parallel_file_reads = env.parallel_file_reads;
+    fc.model_cache_ttl_secs = env.model_cache_ttl;
+
+    // --- Session configs ---
+    fc.session = env.session.as_ref().map(|sc| ModelConfig {
+        provider_id: sc.provider_id.clone(),
+        model_id: sc.model_id.clone(),
     });
-    base.commit = env.commit.as_ref().map(|sc| {
-        ModelConfig::default()
-            .provider_id(sc.provider_id.clone().unwrap_or_default())
-            .model_id(sc.model_id.clone().unwrap_or_default())
+    fc.commit = env.commit.as_ref().map(|sc| ModelConfig {
+        provider_id: sc.provider_id.clone(),
+        model_id: sc.model_id.clone(),
     });
-    base.suggest = env.suggest.as_ref().map(|sc| {
-        ModelConfig::default()
-            .provider_id(sc.provider_id.clone().unwrap_or_default())
-            .model_id(sc.model_id.clone().unwrap_or_default())
+    fc.suggest = env.suggest.as_ref().map(|sc| ModelConfig {
+        provider_id: sc.provider_id.clone(),
+        model_id: sc.model_id.clone(),
     });
-    base
+    fc
 }
 
 /// Trait for parsing environment variable values with custom logic for
@@ -316,7 +420,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         }
 
         // Convert Environment back to ForgeConfig and persist
-        let fc = to_forge_config(&env, fc);
+        let fc = to_forge_config(&env);
         fc.write()?;
         debug!(config = ?fc, "written .forge.toml");
 
