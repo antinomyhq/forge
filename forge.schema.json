@@ -192,8 +192,7 @@
     },
     "restricted": {
       "description": "Whether the application is running in restricted mode.\nWhen true, tool execution requires explicit permission grants.",
-      "type": "boolean",
-      "default": false
+      "type": "boolean"
     },
     "retry": {
       "description": "Configuration for the retry mechanism",
@@ -250,8 +249,7 @@
     },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment.\nWhen false, tool calls are disabled regardless of agent configuration.",
-      "type": "boolean",
-      "default": false
+      "type": "boolean"
     },
     "tool_timeout_secs": {
       "description": "Maximum execution time in seconds for a single tool call",
@@ -308,7 +306,9 @@
     "services_url",
     "max_extensions",
     "max_parallel_file_reads",
-    "model_cache_ttl_secs"
+    "model_cache_ttl_secs",
+    "restricted",
+    "tool_supported"
   ],
   "$defs": {
     "AutoDumpFormat": {

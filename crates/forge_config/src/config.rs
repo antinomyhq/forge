@@ -66,13 +66,13 @@ pub struct ForgeConfig {
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
     /// Default model and provider configuration used when not overridden by
-    /// individual agents.
+    /// individual agents.    
     #[serde(default)]
     pub session: Option<ModelConfig>,
-    /// Provider and model to use for commit message generation
+    /// Provider and model to use for commit message generation    
     #[serde(default)]
     pub commit: Option<ModelConfig>,
-    /// Provider and model to use for shell command suggestion generation
+    /// Provider and model to use for shell command suggestion generation    
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
 
@@ -116,13 +116,11 @@ pub struct ForgeConfig {
     pub compact: Option<Compact>,
 
     /// Whether the application is running in restricted mode.
-    /// When true, tool execution requires explicit permission grants.
-    #[serde(default)]
+    /// When true, tool execution requires explicit permission grants.    
     pub restricted: bool,
 
     /// Whether tool use is supported in the current environment.
-    /// When false, tool calls are disabled regardless of agent configuration.
-    #[serde(default)]
+    /// When false, tool calls are disabled regardless of agent configuration.    
     pub tool_supported: bool,
 }
 
