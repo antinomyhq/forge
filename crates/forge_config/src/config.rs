@@ -1,15 +1,12 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
+use fake::Dummy;
 use serde::{Deserialize, Serialize};
-use url::Url;
 
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
-use crate::{
-    AutoDumpFormat, Compact, HttpConfig, MaxTokens, ModelConfig, RetryConfig, Temperature, TopK,
-    TopP, Update,
-};
+use crate::{AutoDumpFormat, Compact, HttpConfig, ModelConfig, RetryConfig, Update};
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
@@ -58,7 +55,7 @@ pub struct ForgeConfig {
     /// Top-k parameter for relevance filtering during semantic search
     pub sem_search_top_k: usize,
     /// URL for the indexing server
-    pub workspace_server_url: Option<Url>,
+    pub services_url: String,
     /// Maximum number of file extensions to include in the system prompt
     pub max_extensions: usize,
     /// Format for automatically creating a dump when a task is completed
@@ -77,24 +74,6 @@ pub struct ForgeConfig {
     /// Provider and model to use for shell command suggestion generation
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
-    /// API key for Forge authentication
-    #[serde(default)]
-    pub api_key: Option<String>,
-    /// Display name of the API key
-    #[serde(default)]
-    pub api_key_name: Option<String>,
-    /// Masked representation of the API key for display purposes
-    #[serde(default)]
-    pub api_key_masked: Option<String>,
-    /// Email address associated with the Forge account
-    #[serde(default)]
-    pub email: Option<String>,
-    /// Display name of the authenticated user
-    #[serde(default)]
-    pub name: Option<String>,
-    /// Identifier of the authentication provider used for login
-    #[serde(default)]
-    pub auth_provider_id: Option<String>,
 
     // --- Workflow fields ---
     /// Configuration for automatic forge updates
@@ -104,22 +83,22 @@ pub struct ForgeConfig {
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<Temperature>,
+    pub temperature: Option<f32>,
 
     /// Nucleus sampling threshold for all agents; limits token selection to the
     /// top cumulative probability mass (0.0–1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<TopP>,
+    pub top_p: Option<f32>,
 
     /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
     /// highest-probability tokens (1–1000).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_k: Option<TopK>,
+    pub top_k: Option<u32>,
 
     /// Maximum tokens the model may generate per response for all agents
     /// (1–100,000).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub max_tokens: Option<MaxTokens>,
+    pub max_tokens: Option<u32>,
 
     /// Maximum tool failures per turn before the orchestrator forces
     /// completion.
@@ -134,6 +113,11 @@ pub struct ForgeConfig {
     /// agent's individual setting when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
+
+    /// Whether the application is running in restricted mode.
+    /// When true, tool execution requires explicit permission grants.
+    #[serde(default)]
+    pub restricted: bool,
 }
 
 impl ForgeConfig {
@@ -162,5 +146,51 @@ impl ForgeConfig {
     pub fn write(&self) -> crate::Result<()> {
         let path = ConfigReader::config_path();
         ConfigWriter::new(self.clone()).write(&path)
+    }
+}
+
+impl Dummy<fake::Faker> for ForgeConfig {
+    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
+        use fake::Fake;
+        Self {
+            retry: fake::Faker.fake_with_rng(rng),
+            max_search_lines: fake::Faker.fake_with_rng(rng),
+            max_search_result_bytes: fake::Faker.fake_with_rng(rng),
+            max_fetch_chars: fake::Faker.fake_with_rng(rng),
+            max_stdout_prefix_lines: fake::Faker.fake_with_rng(rng),
+            max_stdout_suffix_lines: fake::Faker.fake_with_rng(rng),
+            max_stdout_line_chars: fake::Faker.fake_with_rng(rng),
+            max_line_chars: fake::Faker.fake_with_rng(rng),
+            max_read_lines: fake::Faker.fake_with_rng(rng),
+            max_file_read_batch_size: fake::Faker.fake_with_rng(rng),
+            http: fake::Faker.fake_with_rng(rng),
+            max_file_size_bytes: fake::Faker.fake_with_rng(rng),
+            max_image_size_bytes: fake::Faker.fake_with_rng(rng),
+            tool_timeout_secs: fake::Faker.fake_with_rng(rng),
+            auto_open_dump: fake::Faker.fake_with_rng(rng),
+            debug_requests: fake::Faker.fake_with_rng(rng),
+            custom_history_path: fake::Faker.fake_with_rng(rng),
+            max_conversations: fake::Faker.fake_with_rng(rng),
+            max_sem_search_results: fake::Faker.fake_with_rng(rng),
+            sem_search_top_k: fake::Faker.fake_with_rng(rng),
+            // Must be a valid URL for the round-trip through `Url::parse`
+            services_url: "https://example.com/api".to_string(),
+            max_extensions: fake::Faker.fake_with_rng(rng),
+            auto_dump: fake::Faker.fake_with_rng(rng),
+            max_parallel_file_reads: fake::Faker.fake_with_rng(rng),
+            model_cache_ttl_secs: fake::Faker.fake_with_rng(rng),
+            session: fake::Faker.fake_with_rng(rng),
+            commit: fake::Faker.fake_with_rng(rng),
+            suggest: fake::Faker.fake_with_rng(rng),
+            updates: fake::Faker.fake_with_rng(rng),
+            temperature: fake::Faker.fake_with_rng(rng),
+            top_p: fake::Faker.fake_with_rng(rng),
+            top_k: fake::Faker.fake_with_rng(rng),
+            max_tokens: fake::Faker.fake_with_rng(rng),
+            max_tool_failure_per_turn: fake::Faker.fake_with_rng(rng),
+            max_requests_per_turn: fake::Faker.fake_with_rng(rng),
+            compact: fake::Faker.fake_with_rng(rng),
+            restricted: fake::Faker.fake_with_rng(rng),
+        }
     }
 }

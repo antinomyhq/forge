@@ -54,11 +54,6 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
-    /// Enable restricted mode for enhanced security using the permissions
-    /// feature.
-    #[arg(long, default_value_t = false, short = 'r')]
-    pub restricted: bool,
-
     /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,

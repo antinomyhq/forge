@@ -663,6 +663,13 @@ mod env_tests {
             env
         }
 
+        async fn update_environment(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
         }
@@ -672,10 +679,6 @@ mod env_tests {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect()
-        }
-
-        fn is_restricted(&self) -> bool {
-            false
         }
     }
 
@@ -1150,6 +1153,13 @@ mod env_tests {
                 env
             }
 
+            async fn update_environment(
+                &self,
+                _ops: Vec<forge_domain::ConfigOperation>,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
             fn get_env_var(&self, key: &str) -> Option<String> {
                 self.env_vars.get(key).cloned()
             }
@@ -1159,10 +1169,6 @@ mod env_tests {
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
-            }
-
-            fn is_restricted(&self) -> bool {
-                false
             }
         }
 

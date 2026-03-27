@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use forge_app::AgentRepository;
 use forge_app::domain::AgentId;
-use forge_domain::{Agent, AppConfigRepository, ProviderRepository};
+use forge_app::{AgentRepository, EnvironmentInfra};
+use forge_domain::{Agent, ProviderRepository};
 use tokio::sync::RwLock;
 
 /// AgentRegistryService manages the active-agent ID and a registry of runtime
@@ -33,7 +33,7 @@ impl<R> ForgeAgentRegistryService<R> {
     }
 }
 
-impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRegistryService<R> {
+impl<R: AgentRepository + EnvironmentInfra + ProviderRepository> ForgeAgentRegistryService<R> {
     /// Lazily initializes and returns the agents map
     /// Loads agents from repository on first call, subsequent calls return
     /// cached value
@@ -69,15 +69,21 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
         let agent_defs = self.repository.get_agents().await?;
 
         // Get default provider and model from app config
-        let app_config = self.repository.get_app_config().await?;
-        let default_provider_id = app_config
-            .provider
+        let env = self.repository.get_environment();
+        let session = env
+            .session
+            .as_ref()
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+        let default_provider_id = session
+            .provider_id
+            .as_ref()
+            .map(|id| forge_domain::ProviderId::from(id.clone()))
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
         let default_provider = self.repository.get_provider(default_provider_id).await?;
-        let default_model = app_config
-            .model
-            .get(&default_provider.id)
-            .cloned()
+        let default_model = session
+            .model_id
+            .as_ref()
+            .map(forge_domain::ModelId::new)
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "No default model configured for provider {}",
@@ -100,7 +106,7 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
 }
 
 #[async_trait::async_trait]
-impl<R: AgentRepository + AppConfigRepository + ProviderRepository> forge_app::AgentRegistry
+impl<R: AgentRepository + EnvironmentInfra + ProviderRepository> forge_app::AgentRegistry
     for ForgeAgentRegistryService<R>
 {
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
