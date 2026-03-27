@@ -693,27 +693,22 @@ impl Context {
     }
 
     /// Checks if the model has changed from the previous assistant message.
-    /// Returns true if the previous assistant message has a different model than
-    /// the provided current_model, or if there is no previous assistant message
-    /// with a model.
+    /// Returns true if the previous assistant message has a different model
+    /// than the provided current_model, or if there is no previous
+    /// assistant message with a model.
     ///
-    /// This is used to determine whether to apply reasoning normalization - we only
-    /// want to strip reasoning when switching models, not when continuing with the
-    /// same model.
+    /// This is used to determine whether to apply reasoning normalization - we
+    /// only want to strip reasoning when switching models, not when
+    /// continuing with the same model.
     pub fn has_model_changed(&self, current_model: &ModelId) -> bool {
         // Find the last assistant message with a model field
-        let last_assistant_model = self
-            .messages
-            .iter()
-            .rev()
-            .find_map(|msg| {
-                if let ContextMessage::Text(text_msg) = &**msg {
-                    if text_msg.has_role(Role::Assistant) {
-                        return text_msg.model.as_ref();
-                    }
+        let last_assistant_model = self.messages.iter().rev().find_map(|msg| {
+            if let ContextMessage::Text(text_msg) = &**msg
+                && text_msg.has_role(Role::Assistant) {
+                    return text_msg.model.as_ref();
                 }
-                None
-            });
+            None
+        });
 
         // If there's no previous assistant model, consider it as changed
         // If there is a previous model, check if it differs from current
@@ -1542,9 +1537,8 @@ mod tests {
 
     #[test]
     fn test_has_model_changed_returns_true_when_model_differs() {
-        let fixture = Context::default().add_message(
-            TextMessage::new(Role::Assistant, "Hello").model(ModelId::new("gpt-3.5")),
-        );
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "Hello").model(ModelId::new("gpt-3.5")));
         let current_model = ModelId::new("gpt-4");
 
         let actual = fixture.has_model_changed(&current_model);
@@ -1555,9 +1549,8 @@ mod tests {
 
     #[test]
     fn test_has_model_changed_returns_false_when_model_same() {
-        let fixture = Context::default().add_message(
-            TextMessage::new(Role::Assistant, "Hello").model(ModelId::new("gpt-4")),
-        );
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "Hello").model(ModelId::new("gpt-4")));
         let current_model = ModelId::new("gpt-4");
 
         let actual = fixture.has_model_changed(&current_model);
@@ -1568,8 +1561,7 @@ mod tests {
 
     #[test]
     fn test_has_model_changed_returns_true_when_previous_has_no_model() {
-        let fixture =
-            Context::default().add_message(TextMessage::new(Role::Assistant, "Hello")); // No model set
+        let fixture = Context::default().add_message(TextMessage::new(Role::Assistant, "Hello")); // No model set
         let current_model = ModelId::new("gpt-4");
 
         let actual = fixture.has_model_changed(&current_model);
@@ -1581,13 +1573,9 @@ mod tests {
     #[test]
     fn test_has_model_changed_checks_last_assistant_message_with_model() {
         let fixture = Context::default()
-            .add_message(
-                TextMessage::new(Role::Assistant, "First").model(ModelId::new("gpt-3.5")),
-            )
+            .add_message(TextMessage::new(Role::Assistant, "First").model(ModelId::new("gpt-3.5")))
             .add_message(TextMessage::new(Role::User, "Question"))
-            .add_message(
-                TextMessage::new(Role::Assistant, "Second").model(ModelId::new("gpt-4")),
-            );
+            .add_message(TextMessage::new(Role::Assistant, "Second").model(ModelId::new("gpt-4")));
         let current_model = ModelId::new("gpt-4");
 
         let actual = fixture.has_model_changed(&current_model);
@@ -1599,9 +1587,7 @@ mod tests {
     #[test]
     fn test_has_model_changed_with_multiple_messages_model_changed() {
         let fixture = Context::default()
-            .add_message(
-                TextMessage::new(Role::Assistant, "First").model(ModelId::new("gpt-3.5")),
-            )
+            .add_message(TextMessage::new(Role::Assistant, "First").model(ModelId::new("gpt-3.5")))
             .add_message(TextMessage::new(Role::User, "Question"))
             .add_message(
                 TextMessage::new(Role::Assistant, "Second").model(ModelId::new("claude-3")),
@@ -1616,11 +1602,10 @@ mod tests {
 
     #[test]
     fn test_has_model_changed_ignores_user_messages() {
-        // User messages have model tracking too, but we should only check assistant messages
+        // User messages have model tracking too, but we should only check assistant
+        // messages
         let fixture = Context::default()
-            .add_message(
-                TextMessage::new(Role::Assistant, "Response").model(ModelId::new("gpt-4")),
-            )
+            .add_message(TextMessage::new(Role::Assistant, "Response").model(ModelId::new("gpt-4")))
             .add_message(TextMessage::new(Role::User, "Question").model(ModelId::new("claude-3")));
         let current_model = ModelId::new("gpt-4");
 
@@ -1632,15 +1617,12 @@ mod tests {
 
     #[test]
     fn test_has_model_changed_continuing_same_model() {
-        // Scenario: model1 -> model2 -> model2 (the second model2 should not drop reasoning)
+        // Scenario: model1 -> model2 -> model2 (the second model2 should not drop
+        // reasoning)
         let fixture = Context::default()
-            .add_message(
-                TextMessage::new(Role::Assistant, "First").model(ModelId::new("model1")),
-            )
+            .add_message(TextMessage::new(Role::Assistant, "First").model(ModelId::new("model1")))
             .add_message(TextMessage::new(Role::User, "Question"))
-            .add_message(
-                TextMessage::new(Role::Assistant, "Second").model(ModelId::new("model2")),
-            )
+            .add_message(TextMessage::new(Role::Assistant, "Second").model(ModelId::new("model2")))
             .add_message(TextMessage::new(Role::User, "Another question"));
         let current_model = ModelId::new("model2");
 

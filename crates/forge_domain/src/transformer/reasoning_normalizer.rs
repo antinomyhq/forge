@@ -49,13 +49,11 @@ impl Transformer for ReasoningNormalizer {
             .enumerate()
             .rev()
             .find_map(|(idx, msg)| {
-                if msg.has_role(crate::Role::Assistant) {
-                    if let crate::ContextMessage::Text(text) = &**msg {
-                        if text.model.as_ref() != Some(&self.model_id) {
+                if msg.has_role(crate::Role::Assistant)
+                    && let crate::ContextMessage::Text(text) = &**msg
+                        && text.model.as_ref() != Some(&self.model_id) {
                             return Some(idx);
                         }
-                    }
-                }
                 None
             });
 
@@ -120,7 +118,8 @@ mod tests {
         }]
     }
 
-    /// Shorthand for an assistant `ContextMessage` with model and reasoning set.
+    /// Shorthand for an assistant `ContextMessage` with model and reasoning
+    /// set.
     fn assistant_msg(model: ModelId, content: &str) -> ContextMessage {
         ContextMessage::Text(
             TextMessage::new(Role::Assistant, content)
@@ -129,12 +128,16 @@ mod tests {
         )
     }
 
-    /// Builds a context where the last assistant message was produced by `prev_model`.
+    /// Builds a context where the last assistant message was produced by
+    /// `prev_model`.
     fn fixture_with_prev_model(prev_model: ModelId) -> Context {
         Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
             .add_message(ContextMessage::user("First question", None))
-            .add_message(assistant_msg(prev_model.clone(), "First assistant response"))
+            .add_message(assistant_msg(
+                prev_model.clone(),
+                "First assistant response",
+            ))
             .add_message(ContextMessage::user("Follow-up question", None))
             .add_message(assistant_msg(prev_model, "Second assistant response"))
     }
@@ -147,7 +150,10 @@ mod tests {
         let mut transformer = ReasoningNormalizer::new(model_a());
         let actual = transformer.transform(fixture.clone());
 
-        assert_eq!(actual, fixture, "Context should be unchanged when model is the same");
+        assert_eq!(
+            actual, fixture,
+            "Context should be unchanged when model is the same"
+        );
     }
 
     #[test]
@@ -160,14 +166,13 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         for message in &actual.messages {
-            if message.has_role(Role::Assistant) {
-                if let crate::ContextMessage::Text(text) = &**message {
+            if message.has_role(Role::Assistant)
+                && let crate::ContextMessage::Text(text) = &**message {
                     assert_eq!(
                         text.reasoning_details, None,
                         "All assistant reasoning must be stripped on model change"
                     );
                 }
-            }
         }
     }
 
@@ -198,7 +203,10 @@ mod tests {
         let mut transformer = ReasoningNormalizer::new(model_b());
         let actual = transformer.transform(fixture.clone());
 
-        assert_eq!(actual, fixture, "Context should be unchanged when there is no previous assistant");
+        assert_eq!(
+            actual, fixture,
+            "Context should be unchanged when there is no previous assistant"
+        );
     }
 
     // --- Back-and-forth model change tests ---
@@ -251,7 +259,10 @@ mod tests {
         // a1 (model_a) is before the cutoff → stripped
         let msgs: Vec<_> = actual.messages.iter().collect();
         if let crate::ContextMessage::Text(a1) = &**msgs[1] {
-            assert_eq!(a1.reasoning_details, None, "a1 (model_a) should be stripped");
+            assert_eq!(
+                a1.reasoning_details, None,
+                "a1 (model_a) should be stripped"
+            );
         }
         // a2 (model_b) is in the same-model tail → preserved
         if let crate::ContextMessage::Text(a2) = &**msgs[3] {
@@ -315,11 +326,17 @@ mod tests {
         let msgs: Vec<_> = actual.messages.iter().collect();
         // a1 (model_a, before cutoff) → stripped
         if let crate::ContextMessage::Text(a1) = &**msgs[1] {
-            assert_eq!(a1.reasoning_details, None, "a1 should be stripped (before cutoff)");
+            assert_eq!(
+                a1.reasoning_details, None,
+                "a1 should be stripped (before cutoff)"
+            );
         }
         // b2 (model_b, the cutoff itself) → stripped
         if let crate::ContextMessage::Text(b2) = &**msgs[3] {
-            assert_eq!(b2.reasoning_details, None, "b2 should be stripped (is the cutoff)");
+            assert_eq!(
+                b2.reasoning_details, None,
+                "b2 should be stripped (is the cutoff)"
+            );
         }
         // a3 (model_a, same-model tail) → preserved
         if let crate::ContextMessage::Text(a3) = &**msgs[5] {
@@ -331,14 +348,14 @@ mod tests {
         }
     }
 
-    /// Returns `true` when every assistant message in `ctx` has no reasoning details.
+    /// Returns `true` when every assistant message in `ctx` has no reasoning
+    /// details.
     fn all_reasoning_stripped(ctx: &Context) -> bool {
         ctx.messages.iter().all(|msg| {
-            if msg.has_role(Role::Assistant) {
-                if let crate::ContextMessage::Text(text) = &**msg {
+            if msg.has_role(Role::Assistant)
+                && let crate::ContextMessage::Text(text) = &**msg {
                     return text.reasoning_details.is_none();
                 }
-            }
             true
         })
     }
@@ -369,7 +386,7 @@ mod tests {
             .add_message(ContextMessage::user("q8", None))
             .add_message(assistant_msg(model_a(), "a8"))
             .add_message(ContextMessage::user("q9", None))
-            .add_message(assistant_msg(model_b(), "b9"))  // tail start
+            .add_message(assistant_msg(model_b(), "b9")) // tail start
             .add_message(ContextMessage::user("q10", None))
             .add_message(assistant_msg(model_b(), "b10")) // tail
             .add_message(ContextMessage::user("q11", None))
@@ -399,8 +416,7 @@ mod tests {
         for pre_msg in &assistant_msgs[..assistant_msgs.len() - 3] {
             if let crate::ContextMessage::Text(t) = &***pre_msg {
                 assert_eq!(
-                    t.reasoning_details,
-                    None,
+                    t.reasoning_details, None,
                     "pre-tail message should have reasoning stripped: {}",
                     t.content
                 );
@@ -417,7 +433,8 @@ mod tests {
         let mut transformer = ReasoningNormalizer::new(model_b());
         let actual = transformer.transform(fixture.clone());
 
-        let snapshot = TransformationSnapshot::new("ReasoningNormalizer_model_changed", fixture, actual);
+        let snapshot =
+            TransformationSnapshot::new("ReasoningNormalizer_model_changed", fixture, actual);
         assert_yaml_snapshot!(snapshot);
     }
 
@@ -427,7 +444,8 @@ mod tests {
         let mut transformer = ReasoningNormalizer::new(model_a());
         let actual = transformer.transform(fixture.clone());
 
-        let snapshot = TransformationSnapshot::new("ReasoningNormalizer_model_unchanged", fixture, actual);
+        let snapshot =
+            TransformationSnapshot::new("ReasoningNormalizer_model_unchanged", fixture, actual);
         assert_yaml_snapshot!(snapshot);
     }
 }

@@ -17,7 +17,8 @@ impl Transformer for SetModel {
     type Value = Context;
 
     fn transform(&mut self, mut value: Self::Value) -> Self::Value {
-        // Set the model for all user and assistant messages that don't already have a model set
+        // Set the model for all user and assistant messages that don't already have a
+        // model set
         for message in value.messages.iter_mut() {
             if let crate::ContextMessage::Text(text_msg) = &mut **message
                 && (text_msg.role == crate::Role::User || text_msg.role == crate::Role::Assistant)
@@ -138,11 +139,8 @@ mod tests {
         let mut transformer = SetModel::new(ModelId::new("gpt-4"));
         let actual = transformer.transform(fixture.clone());
 
-        let snapshot = TransformationSnapshot::new(
-            "SetModel(gpt-4)_user_and_assistant",
-            fixture,
-            actual,
-        );
+        let snapshot =
+            TransformationSnapshot::new("SetModel(gpt-4)_user_and_assistant", fixture, actual);
         assert_yaml_snapshot!(snapshot);
     }
 }
