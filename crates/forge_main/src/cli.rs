@@ -517,18 +517,13 @@ pub struct ConfigGetArgs {
 /// Type-safe subcommands for `forge config set`.
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConfigSetField {
-    /// Set the active model.
-    Model {
-        /// Model ID to set as default.
-        model: ModelId,
-    },
-    /// Set the active provider.
+    /// Set the active provider and model.
     Provider {
         /// Provider ID to set as default.
         provider: ProviderId,
 
         /// Optional model ID to set simultaneously, skipping interactive model
-        /// selection.
+        /// selection. When omitted, an interactive prompt is shown.
         #[arg(long)]
         model: Option<ModelId>,
     },
@@ -819,29 +814,6 @@ mod tests {
             _ => panic!("Expected Commit command"),
         };
         let expected = Some(50000);
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_with_model() {
-        let fixture = Cli::parse_from([
-            "forge",
-            "config",
-            "set",
-            "model",
-            "anthropic/claude-sonnet-4",
-        ]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => match args.field {
-                    ConfigSetField::Model { model } => Some(model.as_str().to_string()),
-                    _ => None,
-                },
-                _ => None,
-            },
-            _ => None,
-        };
-        let expected = Some("anthropic/claude-sonnet-4".to_string());
         assert_eq!(actual, expected);
     }
 

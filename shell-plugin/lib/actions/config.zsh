@@ -148,7 +148,7 @@ function _forge_pick_model() {
 }
 
 # Action handler: Select model (across all configured providers)
-# When the selected model belongs to a different provider, switches it first.
+# Always calls `forge config set provider <provider_id> --model <model_id>` on selection.
 function _forge_action_model() {
     local input_text="$1"
     (
@@ -156,27 +156,19 @@ function _forge_action_model() {
         local current_model current_provider
         current_model=$($_FORGE_BIN config get model 2>/dev/null)
         # config get provider returns the display name (e.g. "OpenAI"),
-        # which corresponds to porcelain field 3 (provider display)
+        # used to pre-select the current entry in fzf (field 3 = provider display)
         current_provider=$($_FORGE_BIN config get provider 2>/dev/null)
         local selected
         selected=$(_forge_pick_model "Model ❯ " "$current_model" "$input_text" "$current_provider" 3)
 
         if [[ -n "$selected" ]]; then
-            # Field 1 = model_id (raw), field 3 = provider display name,
-            # field 4 = provider_id (raw, for config set)
-            local model_id provider_display provider_id
-            read -r model_id provider_display provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $3, $4}')
+            # Field 1 = model_id (raw), field 4 = provider_id (raw, for config set)
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
             model_id=${model_id//[[:space:]]/}
             provider_id=${provider_id//[[:space:]]/}
-            provider_display=${provider_display//[[:space:]]/}
 
-            # Switch provider first if it differs from the current one
-            # current_provider (fetched above) is the display name, compare against that
-            if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
-                _forge_exec_interactive config set provider "$provider_id" --model "$model_id"
-                return
-            fi
-             _forge_exec config set model "$model_id"
+            _forge_exec_interactive config set provider "$provider_id" --model "$model_id"
         fi
     )
 }

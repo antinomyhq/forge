@@ -29,10 +29,11 @@ pub struct SessionConfig {
 /// each in order, and persist the result atomically.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigOperation {
-    /// Set the active provider.
-    SetProvider(ProviderId),
-    /// Set the model for the given provider.
-    SetModel(ProviderId, ModelId),
+    /// Set the active provider and model together.
+    ///
+    /// Both must be supplied at once to ensure the configuration always
+    /// contains a consistent provider/model pair.
+    SetProviderModel(ProviderId, ModelId),
     /// Set the commit-message generation configuration.
     SetCommitConfig(CommitConfig),
     /// Set the shell-command suggestion configuration.
@@ -172,20 +173,14 @@ impl Environment {
     /// Applies a single [`ConfigOperation`] to this environment in-place.
     pub fn apply_op(&mut self, op: ConfigOperation) {
         match op {
-            ConfigOperation::SetProvider(provider_id) => {
-                let pid = provider_id.as_ref().to_string();
-                self.session = Some(match self.session.take() {
-                    Some(sc) => sc.provider_id(pid),
-                    None => SessionConfig::default().provider_id(pid),
-                });
-            }
-            ConfigOperation::SetModel(provider_id, model_id) => {
+            ConfigOperation::SetProviderModel(provider_id, model_id) => {
                 let pid = provider_id.as_ref().to_string();
                 let mid = model_id.to_string();
-                self.session = Some(match self.session.take() {
-                    Some(sc) if sc.provider_id.as_deref() == Some(&pid) => sc.model_id(mid),
-                    _ => SessionConfig::default().provider_id(pid).model_id(mid),
-                });
+                self.session = Some(
+                    SessionConfig::default()
+                        .provider_id(pid)
+                        .model_id(mid),
+                );
             }
             ConfigOperation::SetCommitConfig(commit) => {
                 self.commit =
@@ -315,59 +310,28 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_op_set_provider_creates_session_when_absent() {
+    fn test_apply_op_set_provider_model_creates_session() {
         let mut fixture = fixture_env();
-        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
-            "anthropic".to_string(),
-        )));
-        let expected = SessionConfig::default().provider_id("anthropic".to_string());
-        assert_eq!(fixture.session, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_provider_updates_existing_session_keeping_model() {
-        let mut fixture = fixture_env();
-        fixture.session = Some(
-            SessionConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-4".to_string()),
-        );
-        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
-            "anthropic".to_string(),
-        )));
-        let expected = SessionConfig::default()
-            .provider_id("anthropic".to_string())
-            .model_id("gpt-4".to_string());
-        assert_eq!(fixture.session, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_model_for_matching_provider_updates_model() {
-        let mut fixture = fixture_env();
-        fixture.session = Some(
-            SessionConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-3.5".to_string()),
-        );
-        fixture.apply_op(ConfigOperation::SetModel(
-            ProviderId::from("openai".to_string()),
-            ModelId::new("gpt-4"),
+        fixture.session = None;
+        fixture.apply_op(ConfigOperation::SetProviderModel(
+            ProviderId::from("anthropic".to_string()),
+            ModelId::new("claude-3"),
         ));
         let expected = SessionConfig::default()
-            .provider_id("openai".to_string())
-            .model_id("gpt-4".to_string());
+            .provider_id("anthropic".to_string())
+            .model_id("claude-3".to_string());
         assert_eq!(fixture.session, Some(expected));
     }
 
     #[test]
-    fn test_apply_op_set_model_for_different_provider_replaces_session() {
+    fn test_apply_op_set_provider_model_replaces_existing_session() {
         let mut fixture = fixture_env();
         fixture.session = Some(
             SessionConfig::default()
                 .provider_id("openai".to_string())
                 .model_id("gpt-4".to_string()),
         );
-        fixture.apply_op(ConfigOperation::SetModel(
+        fixture.apply_op(ConfigOperation::SetProviderModel(
             ProviderId::from("anthropic".to_string()),
             ModelId::new("claude-3"),
         ));
