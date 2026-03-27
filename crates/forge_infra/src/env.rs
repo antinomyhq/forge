@@ -122,7 +122,7 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         sem_search_limit: fc.max_sem_search_results,
         sem_search_top_k: fc.sem_search_top_k,
         service_url: Url::parse(fc.services_url.as_str())
-            .unwrap_or_else(|_| Url::parse("http://api.forgecode.dev").unwrap()),
+            .unwrap_or_else(|_| Url::parse("https://api.forgecode.dev").unwrap()),
         max_extensions: fc.max_extensions,
         auto_dump: fc.auto_dump.map(to_auto_dump_format),
         parallel_file_reads: fc.max_parallel_file_reads,
