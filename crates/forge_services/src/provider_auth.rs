@@ -188,9 +188,7 @@ where
                             match strategy.refresh(&existing_credential).await {
                                 Ok(refreshed) => {
                                     // Store refreshed credential
-                                    self.infra
-                                        .upsert_credential(refreshed.clone())
-                                        .await?;
+                                    self.infra.upsert_credential(refreshed.clone()).await?;
 
                                     // Update provider with refreshed credential
                                     provider.credential = Some(refreshed);
