@@ -354,7 +354,7 @@ pub trait StrategyFactory: Send + Sync {
         &self,
         provider_id: forge_domain::ProviderId,
         auth_method: forge_domain::AuthMethod,
-        required_params: Vec<forge_domain::URLParam>,
+        required_params: Vec<forge_domain::URLParamSpec>,
     ) -> anyhow::Result<Self::Strategy>;
 }
 

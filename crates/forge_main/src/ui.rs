@@ -2193,22 +2193,39 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let mut input = ForgeWidget::input(format!("Enter {param}"));
+                let param_value = if let Some(options) = &param.options {
+                    // Dropdown path: user selects from preset options
+                    let starting = existing_url_params
+                        .and_then(|p| p.get(&param.name))
+                        .and_then(|v| options.iter().position(|o| o.as_str() == v.as_str()))
+                        .unwrap_or(0);
+                    ForgeWidget::select(format!("Select {}", param.name), options.clone())
+                        .with_starting_cursor(starting)
+                        .prompt()?
+                        .context("Parameter selection cancelled")?
+                } else {
+                    // Free-text path (existing behavior)
+                    let mut input = ForgeWidget::input(format!("Enter {}", param.name));
 
-                // Add default value if it exists in the credential
-                if let Some(params) = existing_url_params
-                    && let Some(default_value) = params.get(param)
-                {
-                    input = input.with_default(default_value.as_str());
-                }
+                    // Add default value if it exists in the credential
+                    if let Some(params) = existing_url_params
+                        && let Some(default_value) = params.get(&param.name)
+                    {
+                        input = input.with_default(default_value.as_str());
+                    }
 
-                let param_value = input.prompt()?.context("Parameter input cancelled")?;
+                    let param_value = input.prompt()?.context("Parameter input cancelled")?;
 
-                anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
+                    anyhow::ensure!(
+                        !param_value.trim().is_empty(),
+                        "{} cannot be empty",
+                        param.name
+                    );
 
-                let param_value = param_value.trim_end_matches('/').to_string();
+                    param_value.trim_end_matches('/').to_string()
+                };
 
-                Ok((param.to_string(), param_value))
+                Ok((param.name.to_string(), param_value))
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
