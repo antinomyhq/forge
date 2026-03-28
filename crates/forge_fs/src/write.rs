@@ -22,7 +22,9 @@ impl crate::ForgeFS {
             .append(true)
             .open(path.as_ref())
             .await
-            .with_context(|| format!("Failed to open file {} for append", path.as_ref().display()))?;
+            .with_context(|| {
+                format!("Failed to open file {} for append", path.as_ref().display())
+            })?;
 
         file.write_all(contents.as_ref())
             .await

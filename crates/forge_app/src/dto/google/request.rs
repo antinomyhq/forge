@@ -567,7 +567,9 @@ impl From<forge_domain::Image> for Part {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ConversationId, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolResult};
+    use forge_domain::{
+        Context, ConversationId, ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolResult,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -575,7 +577,9 @@ mod tests {
     #[test]
     fn test_request_includes_conversation_id_label_when_present() {
         let fixture = ConversationId::generate();
-        let actual = serde_json::to_value(Request::from(Context::default().conversation_id(fixture))).unwrap();
+        let actual =
+            serde_json::to_value(Request::from(Context::default().conversation_id(fixture)))
+                .unwrap();
         let expected = serde_json::Value::String(fixture.to_string());
 
         assert_eq!(actual["labels"]["conversation_id"], expected);
@@ -587,7 +591,13 @@ mod tests {
         let actual = serde_json::to_value(Request::from(fixture)).unwrap();
         let expected = serde_json::Value::Null;
 
-        assert_eq!(actual.get("labels").cloned().unwrap_or(serde_json::Value::Null), expected);
+        assert_eq!(
+            actual
+                .get("labels")
+                .cloned()
+                .unwrap_or(serde_json::Value::Null),
+            expected
+        );
     }
 
     #[test]

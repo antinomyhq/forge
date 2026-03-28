@@ -209,13 +209,7 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
 }
 
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
-    fn write_debug_request(
-        &self,
-        method: &str,
-        url: &Url,
-        headers: &HeaderMap,
-        body: &Bytes,
-    ) {
+    fn write_debug_request(&self, method: &str, url: &Url, headers: &HeaderMap, body: &Bytes) {
         if let Some(debug_path) = &self.env.debug_requests {
             let file_writer = self.file.clone();
             let debug_path = debug_path.clone();
@@ -391,7 +385,9 @@ mod tests {
         let http = ForgeHttpInfra::new(create_test_env(None), Arc::new(fixture.clone()));
         let url = Url::parse("https://api.test.com/messages").unwrap();
 
-        let _actual = http.eventsource(&url, None, Bytes::from("{\"ok\":true}")).await;
+        let _actual = http
+            .eventsource(&url, None, Bytes::from("{\"ok\":true}"))
+            .await;
         wait_for_background_write().await;
 
         let actual = fixture.writes().await;
@@ -403,7 +399,10 @@ mod tests {
     async fn test_eventsource_debug_requests_append_jsonl_entry() {
         let fixture = MockFileWriter::new();
         let debug_path = PathBuf::from("/tmp/forge-test/debug.jsonl");
-        let http = ForgeHttpInfra::new(create_test_env(Some(debug_path.clone())), Arc::new(fixture.clone()));
+        let http = ForgeHttpInfra::new(
+            create_test_env(Some(debug_path.clone())),
+            Arc::new(fixture.clone()),
+        );
         let url = Url::parse("https://api.test.com/messages").unwrap();
         let body = Bytes::from_static(br#"{"request":"body"}"#);
 
@@ -418,19 +417,27 @@ mod tests {
         assert_eq!(actual["method"], Value::String("POST".to_string()));
         assert_eq!(actual["url"], Value::String(url.to_string()));
         assert_eq!(actual["request"], serde_json::json!({"request": "body"}));
-        assert_eq!(actual["headers"]["content-type"], Value::String("application/json".to_string()));
+        assert_eq!(
+            actual["headers"]["content-type"],
+            Value::String("application/json".to_string())
+        );
     }
 
     #[tokio::test]
     async fn test_post_debug_requests_append_jsonl_entry_and_redact_headers() {
         let fixture = MockFileWriter::new();
         let debug_path = PathBuf::from("/tmp/forge-test/debug-post.jsonl");
-        let http = ForgeHttpInfra::new(create_test_env(Some(debug_path.clone())), Arc::new(fixture.clone()));
+        let http = ForgeHttpInfra::new(
+            create_test_env(Some(debug_path.clone())),
+            Arc::new(fixture.clone()),
+        );
         let url = Url::parse("http://127.0.0.1:9/responses").unwrap();
         let mut headers = HeaderMap::new();
         headers.insert("x-goog-api-key", HeaderValue::from_static("secret"));
 
-        let _actual = http.post(&url, Some(headers), Bytes::from("not-json")).await;
+        let _actual = http
+            .post(&url, Some(headers), Bytes::from("not-json"))
+            .await;
         wait_for_background_write().await;
 
         let actual = fixture.writes().await;
@@ -441,6 +448,9 @@ mod tests {
         assert_eq!(actual["method"], Value::String("POST".to_string()));
         assert_eq!(actual["url"], Value::String(url.to_string()));
         assert_eq!(actual["request"], Value::String("not-json".to_string()));
-        assert_eq!(actual["headers"]["x-goog-api-key"], Value::String("[REDACTED]".to_string()));
+        assert_eq!(
+            actual["headers"]["x-goog-api-key"],
+            Value::String("[REDACTED]".to_string())
+        );
     }
 }
