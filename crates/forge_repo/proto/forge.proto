@@ -333,7 +333,6 @@ message Skill {
 message SelectedSkill {
   string name      = 1;
   float  relevance = 2;
-  uint64 rank      = 3;
 }
 
 message SelectSkillRequest {
