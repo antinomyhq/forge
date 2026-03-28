@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
@@ -52,19 +52,6 @@ pub trait API: Sync + Send {
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
-
-    /// Initializes a workflow configuration from the given path
-    /// The workflow at the specified path is merged with the default
-    /// configuration If no path is provided, it will try to find forge.yaml
-    /// in the current directory or its parent directories
-    async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow>;
-
-    /// Reads the workflow from the given path and merges it with a default
-    /// workflow. This provides a convenient way to get a complete workflow
-    /// configuration without having to manually handle the merge logic.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories
-    async fn read_merged(&self, path: Option<&Path>) -> Result<Workflow>;
 
     /// Returns the conversation with the given ID
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;

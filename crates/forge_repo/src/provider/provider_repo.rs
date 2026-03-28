@@ -5,7 +5,7 @@ use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
     AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
-    ProviderRepository, ProviderType, URLParam, URLParamValue,
+    ProviderRepository, ProviderType, URLParam, URLParamSpec, URLParamValue,
 };
 use merge::Merge;
 use serde::Deserialize;
@@ -20,6 +20,37 @@ enum Models {
     Hardcoded(Vec<forge_app::domain::Model>),
 }
 
+/// A single URL parameter variable entry, supporting both plain names and names
+/// with preset options for dropdown selection in the UI.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(untagged)]
+enum UrlParamVarConfig {
+    /// A plain environment variable name with free-text UI input.
+    Plain(String),
+    /// A parameter with a constrained set of options, rendered as a dropdown.
+    WithOptions { name: String, options: Vec<String> },
+}
+
+impl UrlParamVarConfig {
+    /// Returns the parameter name (used as env var name and template variable).
+    fn param_name(&self) -> &str {
+        match self {
+            Self::Plain(s) => s,
+            Self::WithOptions { name, .. } => name,
+        }
+    }
+
+    /// Converts into a `URLParamSpec` for use in the domain layer.
+    fn into_spec(self) -> URLParamSpec {
+        match self {
+            Self::Plain(s) => URLParamSpec::new(URLParam::from(s)),
+            Self::WithOptions { name, options } => {
+                URLParamSpec::with_options(URLParam::from(name), options)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Merge)]
 struct ProviderConfig {
     #[merge(strategy = overwrite)]
@@ -32,7 +63,7 @@ struct ProviderConfig {
     api_key_vars: Option<String>,
     #[serde(default)]
     #[merge(strategy = merge::vec::append)]
-    url_param_vars: Vec<String>,
+    url_param_vars: Vec<UrlParamVarConfig>,
     #[serde(default)]
     #[merge(strategy = overwrite)]
     response_type: Option<ProviderResponse>,
@@ -92,7 +123,7 @@ impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
             url_params: config
                 .url_param_vars
                 .iter()
-                .map(|v| URLParam::from(v.clone()))
+                .map(|v| v.clone().into_spec())
                 .collect(),
             credential: None,
             custom_headers: config.custom_headers.clone(),
@@ -127,7 +158,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
-        let provider_json_path = environment.base_path.join("provider.json");
+        let provider_json_path = environment.provider_config_path();
 
         let json_str = self.infra.read_utf8(&provider_json_path).await?;
         let configs = serde_json::from_str(&json_str)?;
@@ -242,10 +273,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         let mut url_params = std::collections::HashMap::new();
 
         for env_var in &config.url_param_vars {
-            if let Some(value) = self.infra.get_env_var(env_var) {
-                url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
+            let name = env_var.param_name();
+            if let Some(value) = self.infra.get_env_var(name) {
+                url_params.insert(URLParam::from(name.to_string()), URLParamValue::from(value));
             } else {
-                return Err(Error::env_var_not_found(config.id.clone(), env_var).into());
+                return Err(Error::env_var_not_found(config.id.clone(), name).into());
             }
         }
 
@@ -308,7 +340,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             url_params: config
                 .url_param_vars
                 .iter()
-                .map(|v| URLParam::from(v.clone()))
+                .map(|v| v.clone().into_spec())
                 .collect(),
             credential: Some(credential),
             custom_headers: config.custom_headers.clone(),
@@ -481,7 +513,7 @@ mod tests {
             openrouter_config.api_key_vars,
             Some("OPENROUTER_API_KEY".to_string())
         );
-        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
+        assert!(openrouter_config.url_param_vars.is_empty());
         assert_eq!(
             openrouter_config.response_type,
             Some(ProviderResponse::OpenAI)
@@ -505,8 +537,12 @@ mod tests {
             Some("VERTEX_AI_AUTH_TOKEN".to_string())
         );
         assert_eq!(
-            config.url_param_vars,
-            vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
+            vec!["PROJECT_ID", "LOCATION"]
         );
         assert_eq!(config.response_type, Some(ProviderResponse::Google));
         assert!(&config.url.contains("{{"));
@@ -524,11 +560,15 @@ mod tests {
         assert_eq!(config.id, ProviderId::AZURE);
         assert_eq!(config.api_key_vars, Some("AZURE_API_KEY".to_string()));
         assert_eq!(
-            config.url_param_vars,
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
             vec![
-                "AZURE_RESOURCE_NAME".to_string(),
-                "AZURE_DEPLOYMENT_NAME".to_string(),
-                "AZURE_API_VERSION".to_string()
+                "AZURE_RESOURCE_NAME",
+                "AZURE_DEPLOYMENT_NAME",
+                "AZURE_API_VERSION"
             ]
         );
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
@@ -561,7 +601,14 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::OPENAI_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
-        assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
+        assert_eq!(
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
+            vec!["OPENAI_URL"]
+        );
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
         assert!(&config.url.contains("{{OPENAI_URL}}"));
     }
@@ -575,7 +622,14 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::OPENAI_RESPONSES_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
-        assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
+        assert_eq!(
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
+            vec!["OPENAI_URL"]
+        );
         assert_eq!(
             config.response_type,
             Some(ProviderResponse::OpenAIResponses)
@@ -596,7 +650,14 @@ mod tests {
             .unwrap();
         assert_eq!(config.id, ProviderId::ANTHROPIC_COMPATIBLE);
         assert_eq!(config.api_key_vars, Some("ANTHROPIC_API_KEY".to_string()));
-        assert_eq!(config.url_param_vars, vec!["ANTHROPIC_URL".to_string()]);
+        assert_eq!(
+            config
+                .url_param_vars
+                .iter()
+                .map(|v| v.param_name())
+                .collect::<Vec<_>>(),
+            vec!["ANTHROPIC_URL"]
+        );
         assert_eq!(config.response_type, Some(ProviderResponse::Anthropic));
         assert!(config.url.contains("{{ANTHROPIC_URL}}"));
     }
@@ -613,7 +674,7 @@ mod tests {
             config.api_key_vars,
             Some("IO_INTELLIGENCE_API_KEY".to_string())
         );
-        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        assert!(config.url_param_vars.is_empty());
         assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
         assert_eq!(
             config.url.as_str(),

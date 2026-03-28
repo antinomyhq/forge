@@ -311,6 +311,7 @@ impl<S: AgentService> Orchestrator<S> {
                 message.reasoning_details.clone(),
                 message.usage,
                 tool_call_records,
+                message.phase,
             );
 
             if self.error_tracker.limit_reached() {

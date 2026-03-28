@@ -1,4 +1,3 @@
-use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -12,9 +11,7 @@ use crate::dto::ToolsOverview;
 use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{
-    AgentRegistry, CustomInstructionsService, ProviderAuthService, TemplateService,
-};
+use crate::services::{AgentRegistry, CustomInstructionsService, ProviderAuthService};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -22,7 +19,6 @@ use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
     AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService, Services,
-    WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -56,20 +52,10 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Discover files using the discovery service
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let workflow = services.get_environment();
         let environment = services.get_environment();
 
         let files = services.list_current_directory().await?;
-
-        // Register templates using workflow path or environment fallback
-        let template_path = workflow
-            .templates
-            .as_ref()
-            .map_or(environment.templates(), |templates| {
-                PathBuf::from(templates)
-            });
-
-        services.register_template(template_path).await?;
 
         let custom_instructions = services.get_custom_instructions().await;
 
@@ -82,7 +68,7 @@ impl<S: Services> ForgeApp<S> {
             .get_agent(&agent_id)
             .await?
             .ok_or(crate::Error::AgentNotFound(agent_id.clone()))?
-            .apply_workflow_config(&workflow)
+            .apply_env(&workflow)
             .set_compact_model_if_none();
 
         let agent_provider = agent_provider_resolver
@@ -212,7 +198,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
 
-        let workflow = self.services.read_merged(None).await.unwrap_or_default();
+        let workflow = self.services.get_environment();
 
         // Get agent and apply workflow config
         let agent = self.services.get_agent(&active_agent_id).await?;
@@ -228,7 +214,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get compact config from the agent
         let compact = agent
-            .apply_workflow_config(&workflow)
+            .apply_env(&workflow)
             .set_compact_model_if_none()
             .compact;
 
@@ -306,13 +292,5 @@ impl<S: Services> ForgeApp<S> {
         // Execute all provider fetches concurrently and fail fast on errors so
         // callers such as login/model selection can surface the root cause.
         futures::future::try_join_all(futures).await
-    }
-
-    pub async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.services.read_workflow(path).await
-    }
-
-    pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
-        self.services.read_merged(path).await
     }
 }

@@ -138,9 +138,9 @@ dependencies = [
 
 [[package]]
 name = "async-openai"
-version = "0.33.1"
+version = "0.34.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc48c3deb4ad9a2ee8c8e364c79eb0f74e69e17ed7e883d55988b90ea44fe986"
+checksum = "ec08254d61379df136135d3d1ac04301be7699fd7d9e57655c63ac7d650a6922"
 dependencies = [
  "derive_builder 0.20.2",
  "getrandom 0.3.4",
@@ -1948,17 +1948,20 @@ dependencies = [
 name = "forge_config"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "config",
  "derive_setters",
  "dirs",
  "dotenvy",
  "fake",
+ "is_ci",
  "merge",
  "pretty_assertions",
  "schemars 1.2.1",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "toml_edit",
  "tracing",
  "url",

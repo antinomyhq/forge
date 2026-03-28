@@ -480,7 +480,7 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
         &self,
         provider_id: ProviderId,
         auth_method: forge_domain::AuthMethod,
-        required_params: Vec<forge_domain::URLParam>,
+        required_params: Vec<forge_domain::URLParamSpec>,
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)

@@ -7,6 +7,20 @@ use super::{ToolCall, ToolCallFull};
 use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
 
+/// Labels an assistant message as intermediate commentary or the final answer.
+///
+/// For models like `gpt-5.3-codex` and beyond, when sending follow-up requests,
+/// preserve and resend phase on all assistant messages -- dropping it can
+/// degrade performance.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MessagePhase {
+    /// Intermediate commentary produced while the model is reasoning.
+    Commentary,
+    /// The final answer from the model.
+    FinalAnswer,
+}
+
 #[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
 pub struct Usage {
     pub prompt_tokens: TokenCount,
@@ -47,6 +61,9 @@ pub struct ChatCompletionMessage {
     pub tool_calls: Vec<ToolCall>,
     pub finish_reason: Option<FinishReason>,
     pub usage: Option<Usage>,
+    /// Phase label for assistant messages (e.g. `Commentary` or `FinalAnswer`).
+    /// Preserved from the response and replayed back on subsequent requests.
+    pub phase: Option<MessagePhase>,
 }
 
 impl From<FinishReason> for ChatCompletionMessage {
@@ -176,6 +193,9 @@ pub struct ChatCompletionMessageFull {
     pub reasoning_details: Option<Vec<ReasoningFull>>,
     pub usage: Usage,
     pub finish_reason: Option<FinishReason>,
+    /// Phase label for the assistant message (e.g. `Commentary` or
+    /// `FinalAnswer`).
+    pub phase: Option<MessagePhase>,
 }
 
 #[cfg(test)]
