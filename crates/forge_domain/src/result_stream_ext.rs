@@ -246,10 +246,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .find_map(|message| message.thought_signature.clone());
 
         // Get phase from the last message that has one
-        let phase = messages
-            .iter()
-            .rev()
-            .find_map(|message| message.phase);
+        let phase = messages.iter().rev().find_map(|message| message.phase);
 
         // Check for empty completion - map to retryable error for retry
         if content.trim().is_empty()

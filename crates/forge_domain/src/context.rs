@@ -14,13 +14,12 @@ fn is_false(value: &bool) -> bool {
     !value
 }
 
-use crate::MessagePhase;
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
-    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
+    Attachment, AttachmentContent, ConversationId, EventValue, Image, MessagePhase, ModelId,
+    ReasoningFull, ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Response format for structured output
@@ -316,7 +315,8 @@ pub struct TextMessage {
     #[serde(default, skip_serializing_if = "is_false")]
     pub droppable: bool,
     /// Phase label for assistant messages (`Commentary` or `FinalAnswer`).
-    /// Preserved from OpenAI Responses API and replayed back on subsequent requests.
+    /// Preserved from OpenAI Responses API and replayed back on subsequent
+    /// requests.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub phase: Option<MessagePhase>,
 }

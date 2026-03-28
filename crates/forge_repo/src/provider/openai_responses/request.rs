@@ -1297,9 +1297,9 @@ mod tests {
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Hello", None))
-            .add_entry(forge_app::domain::MessageEntry::from(
-                ContextMessage::Text(assistant_msg),
-            ))
+            .add_entry(forge_app::domain::MessageEntry::from(ContextMessage::Text(
+                assistant_msg,
+            )))
             .add_message(ContextMessage::user("Continue", None));
 
         let actual = oai::CreateResponse::from_domain(context)?;
@@ -1338,9 +1338,9 @@ mod tests {
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("What is the answer?", None))
-            .add_entry(forge_app::domain::MessageEntry::from(
-                ContextMessage::Text(assistant_msg),
-            ))
+            .add_entry(forge_app::domain::MessageEntry::from(ContextMessage::Text(
+                assistant_msg,
+            )))
             .add_message(ContextMessage::user("Thanks", None));
 
         let actual = oai::CreateResponse::from_domain(context)?;

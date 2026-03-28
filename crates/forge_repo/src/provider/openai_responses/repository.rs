@@ -70,10 +70,7 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
         self.get_headers_for_conversation(None)
     }
 
-    fn get_headers_for_conversation(
-        &self,
-        conversation_id: Option<&str>,
-    ) -> Vec<(String, String)> {
+    fn get_headers_for_conversation(&self, conversation_id: Option<&str>) -> Vec<(String, String)> {
         let mut headers = Vec::new();
         if let Some(api_key) = self
             .provider
@@ -143,7 +140,6 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
 
         headers
     }
-
 }
 
 impl<T: HttpInfra> OpenAIResponsesProvider<T> {

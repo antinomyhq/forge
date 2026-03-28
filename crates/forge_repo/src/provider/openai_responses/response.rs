@@ -239,8 +239,8 @@ struct CodexStreamState {
 /// via delta events. However, `encrypted_content` (type `reasoning.encrypted`)
 /// is only available in the final `ResponseCompleted`/`ResponseIncomplete`
 /// event. This function filters out text/summary reasoning details (which would
-/// be duplicated) and keeps only the encrypted content entries that are required
-/// for stateless multi-turn reasoning replay.
+/// be duplicated) and keeps only the encrypted content entries that are
+/// required for stateless multi-turn reasoning replay.
 fn retain_encrypted_reasoning_details(
     details: Option<Vec<forge_domain::Reasoning>>,
 ) -> Option<Vec<forge_domain::Reasoning>> {
@@ -248,11 +248,18 @@ fn retain_encrypted_reasoning_details(
     let encrypted: Vec<forge_domain::Reasoning> = details
         .into_iter()
         .filter(|r| {
-            r.as_full()
-                .is_some_and(|fulls| fulls.iter().any(|f| f.type_of.as_deref() == Some("reasoning.encrypted")))
+            r.as_full().is_some_and(|fulls| {
+                fulls
+                    .iter()
+                    .any(|f| f.type_of.as_deref() == Some("reasoning.encrypted"))
+            })
         })
         .collect();
-    if encrypted.is_empty() { None } else { Some(encrypted) }
+    if encrypted.is_empty() {
+        None
+    } else {
+        Some(encrypted)
+    }
 }
 
 impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {

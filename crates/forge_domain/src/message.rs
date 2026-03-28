@@ -10,8 +10,8 @@ use crate::reasoning::{Reasoning, ReasoningFull};
 /// Labels an assistant message as intermediate commentary or the final answer.
 ///
 /// For models like `gpt-5.3-codex` and beyond, when sending follow-up requests,
-/// preserve and resend phase on all assistant messages -- dropping it can degrade
-/// performance.
+/// preserve and resend phase on all assistant messages -- dropping it can
+/// degrade performance.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MessagePhase {
@@ -193,7 +193,8 @@ pub struct ChatCompletionMessageFull {
     pub reasoning_details: Option<Vec<ReasoningFull>>,
     pub usage: Usage,
     pub finish_reason: Option<FinishReason>,
-    /// Phase label for the assistant message (e.g. `Commentary` or `FinalAnswer`).
+    /// Phase label for the assistant message (e.g. `Commentary` or
+    /// `FinalAnswer`).
     pub phase: Option<MessagePhase>,
 }
 
