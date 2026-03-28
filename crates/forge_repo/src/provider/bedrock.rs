@@ -1537,7 +1537,9 @@ mod tests {
         let fixture = ContextMessage::Text(
             TextMessage::assistant(
                 "",
-                Some(vec![ReasoningFull::default().text(Some("Thinking...".to_string()))]),
+                Some(vec![
+                    ReasoningFull::default().text(Some("Thinking...".to_string())),
+                ]),
                 None,
             )
             .thought_signature("sig_123"),
