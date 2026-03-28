@@ -171,7 +171,10 @@ mod tests {
     #[test]
     fn test_base_path_respects_env_var() {
         let _guard = EnvGuard::set(&[("FORGE_FOLDER_PATH", "/custom/forge/path")]);
-        assert_eq!(ConfigReader::base_path(), PathBuf::from("/custom/forge/path"));
+        assert_eq!(
+            ConfigReader::base_path(),
+            PathBuf::from("/custom/forge/path")
+        );
     }
 
     #[test]
