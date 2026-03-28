@@ -3,9 +3,9 @@ use merge::Merge;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AgentDefinition, AgentId, Compact, Error, EventContext, MaxTokens, ModelId, ProviderId,
-    ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition, ToolName, TopK,
-    TopP, Workflow,
+    AgentDefinition, AgentId, Compact, Environment, Error, EventContext, MaxTokens, ModelId,
+    ProviderId, ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition,
+    ToolName, TopK, TopP,
 };
 
 /// Runtime agent representation with required model and provider
@@ -116,49 +116,41 @@ impl Agent {
     }
 
     /// Helper to prepare agents with workflow settings
-    pub fn apply_workflow_config(self, workflow: &Workflow) -> Agent {
+    pub fn apply_env(self, env: &Environment) -> Agent {
         let mut agent = self;
-        if let Some(custom_rules) = workflow.custom_rules.clone() {
-            if let Some(existing_rules) = &agent.custom_rules {
-                agent.custom_rules = Some(existing_rules.clone() + "\n\n" + &custom_rules);
-            } else {
-                agent.custom_rules = Some(custom_rules);
-            }
-        }
 
-        if let Some(temperature) = workflow.temperature {
+        if let Some(temperature) = env.temperature {
             agent.temperature = Some(temperature);
         }
 
-        if let Some(top_p) = workflow.top_p {
+        if let Some(top_p) = env.top_p {
             agent.top_p = Some(top_p);
         }
 
-        if let Some(top_k) = workflow.top_k {
+        if let Some(top_k) = env.top_k {
             agent.top_k = Some(top_k);
         }
 
-        if let Some(max_tokens) = workflow.max_tokens {
+        if let Some(max_tokens) = env.max_tokens {
             agent.max_tokens = Some(max_tokens);
         }
 
-        if let Some(tool_supported) = workflow.tool_supported {
-            agent.tool_supported = Some(tool_supported);
-        }
         if agent.max_tool_failure_per_turn.is_none()
-            && let Some(max_tool_failure_per_turn) = workflow.max_tool_failure_per_turn
+            && let Some(max_tool_failure_per_turn) = env.max_tool_failure_per_turn
         {
             agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
         }
 
+        agent.tool_supported = Some(env.tool_supported);
+
         if agent.max_requests_per_turn.is_none()
-            && let Some(max_requests_per_turn) = workflow.max_requests_per_turn
+            && let Some(max_requests_per_turn) = env.max_requests_per_turn
         {
             agent.max_requests_per_turn = Some(max_requests_per_turn);
         }
 
         // Apply workflow compact configuration to agents
-        if let Some(ref workflow_compact) = workflow.compact {
+        if let Some(ref workflow_compact) = env.compact {
             // Merge workflow config into agent config
             // Agent settings take priority over workflow settings
             let mut merged_compact = workflow_compact.clone();

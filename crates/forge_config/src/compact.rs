@@ -52,24 +52,6 @@ where
     Ok(value)
 }
 
-/// Optional tag name used when extracting summarized content during compaction
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema, PartialEq, fake::Dummy)]
-#[serde(transparent)]
-pub struct SummaryTag(String);
-
-impl Default for SummaryTag {
-    fn default() -> Self {
-        SummaryTag("forge_context_summary".to_string())
-    }
-}
-
-impl SummaryTag {
-    /// Returns the inner string slice
-    pub fn as_str(&self) -> &str {
-        self.0.as_str()
-    }
-}
-
 /// Configuration for automatic context compaction for all agents
 #[derive(Debug, Clone, Serialize, Deserialize, Setters, JsonSchema, PartialEq)]
 #[setters(strip_option, into)]
@@ -111,11 +93,6 @@ pub struct Compact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
 
-    /// Optional tag name to extract content from when summarizing (e.g.,
-    /// "summary")
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub summary_tag: Option<SummaryTag>,
-
     /// Whether to trigger compaction when the last message is from a user
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub on_turn_end: Option<bool>,
@@ -135,7 +112,6 @@ impl Compact {
             token_threshold: None,
             turn_threshold: None,
             message_threshold: None,
-            summary_tag: None,
             model: None,
             eviction_window: 0.2,
             retention_window: 0,
@@ -155,7 +131,6 @@ impl Dummy<fake::Faker> for Compact {
             turn_threshold: fake::Faker.fake_with_rng(rng),
             message_threshold: fake::Faker.fake_with_rng(rng),
             model: fake::Faker.fake_with_rng(rng),
-            summary_tag: fake::Faker.fake_with_rng(rng),
             on_turn_end: fake::Faker.fake_with_rng(rng),
         }
     }

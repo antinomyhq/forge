@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use derive_setters::Setters;
 use fake::Dummy;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::reader::ConfigReader;
@@ -10,7 +11,7 @@ use crate::{AutoDumpFormat, Compact, HttpConfig, ModelConfig, RetryConfig, Updat
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
-#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
@@ -65,13 +66,13 @@ pub struct ForgeConfig {
     /// TTL in seconds for the model API list cache
     pub model_cache_ttl_secs: u64,
     /// Default model and provider configuration used when not overridden by
-    /// individual agents.
+    /// individual agents.    
     #[serde(default)]
     pub session: Option<ModelConfig>,
-    /// Provider and model to use for commit message generation
+    /// Provider and model to use for commit message generation    
     #[serde(default)]
     pub commit: Option<ModelConfig>,
-    /// Provider and model to use for shell command suggestion generation
+    /// Provider and model to use for shell command suggestion generation    
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
 
@@ -115,9 +116,12 @@ pub struct ForgeConfig {
     pub compact: Option<Compact>,
 
     /// Whether the application is running in restricted mode.
-    /// When true, tool execution requires explicit permission grants.
-    #[serde(default)]
+    /// When true, tool execution requires explicit permission grants.    
     pub restricted: bool,
+
+    /// Whether tool use is supported in the current environment.
+    /// When false, tool calls are disabled regardless of agent configuration.
+    pub tool_supported: bool,
 }
 
 impl ForgeConfig {
@@ -191,6 +195,7 @@ impl Dummy<fake::Faker> for ForgeConfig {
             max_requests_per_turn: fake::Faker.fake_with_rng(rng),
             compact: fake::Faker.fake_with_rng(rng),
             restricted: fake::Faker.fake_with_rng(rng),
+            tool_supported: fake::Faker.fake_with_rng(rng),
         }
     }
 }

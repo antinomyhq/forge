@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -144,14 +144,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
 
     fn environment(&self) -> Environment {
         self.services.get_environment().clone()
-    }
-
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app().read_workflow(path).await
-    }
-
-    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app().read_workflow_merged(path).await
     }
 
     async fn conversation(

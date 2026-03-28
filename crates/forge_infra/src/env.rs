@@ -5,8 +5,9 @@ use std::sync::Arc;
 use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    AutoDumpFormat, ConfigOperation, Environment, HttpConfig, RetryConfig, SessionConfig,
-    TlsBackend, TlsVersion,
+    AutoDumpFormat, Compact, ConfigOperation, Environment, HttpConfig, MaxTokens, ModelId,
+    RetryConfig, SessionConfig, Temperature, TlsBackend, TlsVersion, TopK, TopP, Update,
+    UpdateFrequency,
 };
 use reqwest::Url;
 use tracing::{debug, error};
@@ -81,6 +82,38 @@ fn to_auto_dump_format(f: forge_config::AutoDumpFormat) -> AutoDumpFormat {
     }
 }
 
+/// Converts a [`forge_config::UpdateFrequency`] into a
+/// [`forge_domain::UpdateFrequency`].
+fn to_update_frequency(f: forge_config::UpdateFrequency) -> UpdateFrequency {
+    match f {
+        forge_config::UpdateFrequency::Daily => UpdateFrequency::Daily,
+        forge_config::UpdateFrequency::Weekly => UpdateFrequency::Weekly,
+        forge_config::UpdateFrequency::Always => UpdateFrequency::Always,
+    }
+}
+
+/// Converts a [`forge_config::Update`] into a [`forge_domain::Update`].
+fn to_update(u: forge_config::Update) -> Update {
+    Update {
+        frequency: u.frequency.map(to_update_frequency),
+        auto_update: u.auto_update,
+    }
+}
+
+/// Converts a [`forge_config::Compact`] into a [`forge_domain::Compact`].
+fn to_compact(c: forge_config::Compact) -> Compact {
+    Compact {
+        retention_window: c.retention_window,
+        eviction_window: c.eviction_window,
+        max_tokens: c.max_tokens,
+        token_threshold: c.token_threshold,
+        turn_threshold: c.turn_threshold,
+        message_threshold: c.message_threshold,
+        model: c.model.map(ModelId::new),
+        on_turn_end: c.on_turn_end,
+    }
+}
+
 /// Builds a [`forge_domain::Environment`] entirely from a [`ForgeConfig`] and
 /// runtime context (`restricted`, `cwd`), mapping every config field to its
 /// corresponding environment field.
@@ -131,6 +164,15 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
+        tool_supported: fc.tool_supported,
+        temperature: fc.temperature.and_then(|v| Temperature::new(v).ok()),
+        top_p: fc.top_p.and_then(|v| TopP::new(v).ok()),
+        top_k: fc.top_k.and_then(|v| TopK::new(v).ok()),
+        max_tokens: fc.max_tokens.and_then(|v| MaxTokens::new(v).ok()),
+        max_tool_failure_per_turn: fc.max_tool_failure_per_turn,
+        max_requests_per_turn: fc.max_requests_per_turn,
+        compact: fc.compact.map(to_compact),
+        updates: fc.updates.map(to_update),
     }
 }
 
@@ -199,6 +241,38 @@ fn from_auto_dump_format(f: &AutoDumpFormat) -> forge_config::AutoDumpFormat {
     }
 }
 
+/// Converts a [`forge_domain::UpdateFrequency`] back into a
+/// [`forge_config::UpdateFrequency`].
+fn from_update_frequency(f: UpdateFrequency) -> forge_config::UpdateFrequency {
+    match f {
+        UpdateFrequency::Daily => forge_config::UpdateFrequency::Daily,
+        UpdateFrequency::Weekly => forge_config::UpdateFrequency::Weekly,
+        UpdateFrequency::Always => forge_config::UpdateFrequency::Always,
+    }
+}
+
+/// Converts a [`forge_domain::Update`] back into a [`forge_config::Update`].
+fn from_update(u: &Update) -> forge_config::Update {
+    forge_config::Update {
+        frequency: u.frequency.clone().map(from_update_frequency),
+        auto_update: u.auto_update,
+    }
+}
+
+/// Converts a [`forge_domain::Compact`] back into a [`forge_config::Compact`].
+fn from_compact(c: &Compact) -> forge_config::Compact {
+    forge_config::Compact {
+        retention_window: c.retention_window,
+        eviction_window: c.eviction_window,
+        max_tokens: c.max_tokens,
+        token_threshold: c.token_threshold,
+        turn_threshold: c.turn_threshold,
+        message_threshold: c.message_threshold,
+        model: c.model.as_ref().map(|m| m.to_string()),
+        on_turn_end: c.on_turn_end,
+    }
+}
+
 /// Converts an [`Environment`] back into a [`ForgeConfig`] suitable for
 /// persisting.
 ///
@@ -247,6 +321,17 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.max_parallel_file_reads = env.parallel_file_reads;
     fc.model_cache_ttl_secs = env.model_cache_ttl;
     fc.restricted = env.is_restricted;
+    fc.tool_supported = env.tool_supported;
+
+    // --- Workflow fields ---
+    fc.temperature = env.temperature.map(|t| t.value());
+    fc.top_p = env.top_p.map(|t| t.value());
+    fc.top_k = env.top_k.map(|t| t.value());
+    fc.max_tokens = env.max_tokens.map(|t| t.value());
+    fc.max_tool_failure_per_turn = env.max_tool_failure_per_turn;
+    fc.max_requests_per_turn = env.max_requests_per_turn;
+    fc.compact = env.compact.as_ref().map(from_compact);
+    fc.updates = env.updates.as_ref().map(from_update);
 
     // --- Session configs ---
     fc.session = env.session.as_ref().map(|sc| ModelConfig {
