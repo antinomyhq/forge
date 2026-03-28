@@ -1892,13 +1892,10 @@
     "id": "minimax",
     "api_key_vars": "MINIMAX_API_KEY",
     "url_param_vars": [
-      {
-        "name": "MINIMAX_DOMAIN",
-        "options": ["api.minimax.io", "api.minimaxi.com"]
-      }
+      { "name": "HOSTNAME", "options": ["api.minimax.io", "api.minimaxi.com"] }
     ],
     "response_type": "Anthropic",
-    "url": "https://{{#if MINIMAX_DOMAIN}}{{MINIMAX_DOMAIN}}{{else}}api.minimax.io{{/if}}/anthropic/v1/messages",
+    "url": "https://{{#if HOSTNAME}}{{HOSTNAME}}{{else}}api.minimax.io{{/if}}/anthropic/v1/messages",
     "models": [
       {
         "id": "MiniMax-M2.7",
