@@ -1235,7 +1235,7 @@
         "input_modalities": ["text", "image"]
       },
       {
-        "id": "anthropic.claude-opus-4-6-v1:0",
+        "id": "anthropic.claude-opus-4-6-v1",
         "name": "Claude 4.6 Opus",
         "description": "Anthropic's Opus 4.6 Opus - enhanced capabilities",
         "context_length": 200000,
