@@ -362,6 +362,7 @@ impl TryFrom<TextMessageRecord> for forge_domain::TextMessage {
                 .reasoning_details
                 .map(|details| details.into_iter().map(Into::into).collect()),
             droppable: record.droppable,
+            phase: None,
         })
     }
 }

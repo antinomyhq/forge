@@ -14,6 +14,7 @@ fn is_false(value: &bool) -> bool {
     !value
 }
 
+use crate::MessagePhase;
 use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
@@ -169,6 +170,7 @@ impl ContextMessage {
             reasoning_details: None,
             model,
             droppable: false,
+            phase: None,
         }
         .into()
     }
@@ -183,6 +185,7 @@ impl ContextMessage {
             model: None,
             reasoning_details: None,
             droppable: false,
+            phase: None,
         }
         .into()
     }
@@ -204,6 +207,7 @@ impl ContextMessage {
             reasoning_details,
             model: None,
             droppable: false,
+            phase: None,
         }
         .into()
     }
@@ -311,6 +315,10 @@ pub struct TextMessage {
     /// Indicates whether this message can be dropped during context compaction
     #[serde(default, skip_serializing_if = "is_false")]
     pub droppable: bool,
+    /// Phase label for assistant messages (`Commentary` or `FinalAnswer`).
+    /// Preserved from OpenAI Responses API and replayed back on subsequent requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<MessagePhase>,
 }
 
 impl TextMessage {
@@ -325,6 +333,7 @@ impl TextMessage {
             model: None,
             reasoning_details: None,
             droppable: false,
+            phase: None,
         }
     }
 
@@ -346,6 +355,7 @@ impl TextMessage {
             reasoning_details,
             model,
             droppable: false,
+            phase: None,
         }
     }
 }
@@ -554,6 +564,7 @@ impl Context {
         reasoning_details: Option<Vec<ReasoningFull>>,
         usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
+        phase: Option<MessagePhase>,
     ) -> Self {
         // Convert flat reasoning string to reasoning_details if present
         let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
@@ -573,7 +584,7 @@ impl Context {
         };
 
         // Adding tool calls
-        let message: MessageEntry = ContextMessage::assistant(
+        let mut message: MessageEntry = ContextMessage::assistant(
             content,
             thought_signature,
             merged_reasoning_details,
@@ -585,6 +596,11 @@ impl Context {
             ),
         )
         .into();
+
+        // Set phase on the assistant TextMessage if provided
+        if let ContextMessage::Text(ref mut text_msg) = message.message {
+            text_msg.phase = phase;
+        }
 
         let tool_results = tool_records
             .iter()

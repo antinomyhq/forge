@@ -67,6 +67,13 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
+        self.get_headers_for_conversation(None)
+    }
+
+    fn get_headers_for_conversation(
+        &self,
+        conversation_id: Option<&str>,
+    ) -> Vec<(String, String)> {
         let mut headers = Vec::new();
         if let Some(api_key) = self
             .provider
@@ -111,9 +118,21 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
             });
 
         // Codex provider requires the ChatGPT-Account-Id header extracted
-        // from the JWT at login
+        // from the JWT at login.
+        //
+        // Mirror codex-rs conversation continuity headers by sending:
+        // - x-client-request-id: conversation id
+        // - session_id: conversation id
         if self.provider.id == forge_domain::ProviderId::CODEX {
-            // Add ChatGPT-Account-Id from credential's stored url_params
+            if let Some(conversation_id) = conversation_id {
+                headers.push((
+                    "x-client-request-id".to_string(),
+                    conversation_id.to_string(),
+                ));
+                headers.push(("session_id".to_string(), conversation_id.to_string()));
+            }
+
+            // Add ChatGPT-Account-Id from credential's stored url_params.
             if let Some(account_id) = self.provider.credential.as_ref().and_then(|c| {
                 let key: forge_domain::URLParam = "chatgpt_account_id".to_string().into();
                 c.url_params.get(&key)
@@ -124,6 +143,7 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
 
         headers
     }
+
 }
 
 impl<T: HttpInfra> OpenAIResponsesProvider<T> {
@@ -132,7 +152,8 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let headers = create_headers(self.get_headers());
+        let conversation_id = context.conversation_id.as_ref().map(ToString::to_string);
+        let headers = create_headers(self.get_headers_for_conversation(conversation_id.as_deref()));
         let mut request = oai::CreateResponse::from_domain(context)?;
         request.model = Some(model.as_str().to_string());
 
@@ -603,6 +624,7 @@ mod tests {
                     call_id: "call_id_1".to_string(),
                     name: "tool1".to_string(),
                     arguments: "args1".to_string(),
+                    namespace: None,
                     status: None,
                 })),
                 oai::InputItem::Item(oai::Item::FunctionCall(oai::FunctionToolCall {
@@ -610,6 +632,7 @@ mod tests {
                     call_id: "call_id_2".to_string(),
                     name: "tool2".to_string(),
                     arguments: "args2".to_string(),
+                    namespace: None,
                     status: None,
                 })),
             ]),
@@ -1126,6 +1149,81 @@ mod tests {
 
         let account_header = actual.iter().find(|(k, _)| k == "ChatGPT-Account-Id");
         assert!(account_header.is_none());
+    }
+
+    #[test]
+    fn test_get_headers_codex_with_conversation_id_includes_conversation_headers() {
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-token"),
+            custom_headers: None,
+            auth_methods: vec![],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+        let fixture = "conversation_test_123";
+
+        let actual = provider_impl.get_headers_for_conversation(Some(fixture));
+
+        let x_client_request_id = actual
+            .iter()
+            .find(|(k, _)| k == "x-client-request-id")
+            .map(|(_, v)| v.as_str());
+        let session_id = actual
+            .iter()
+            .find(|(k, _)| k == "session_id")
+            .map(|(_, v)| v.as_str());
+
+        let expected = Some(fixture);
+        assert_eq!(x_client_request_id, expected);
+        assert_eq!(session_id, expected);
+    }
+
+    #[test]
+    fn test_get_headers_non_codex_with_conversation_id_omits_conversation_headers() {
+        let provider = openai_responses("test-key", "https://api.openai.com/v1");
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+
+        let actual = provider_impl.get_headers_for_conversation(Some("conversation_test_123"));
+
+        let x_client_request_id = actual.iter().find(|(k, _)| k == "x-client-request-id");
+        let session_id = actual.iter().find(|(k, _)| k == "session_id");
+
+        assert!(x_client_request_id.is_none());
+        assert!(session_id.is_none());
+    }
+
+    #[test]
+    fn test_get_headers_codex_without_conversation_id_omits_conversation_headers() {
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-token"),
+            custom_headers: None,
+            auth_methods: vec![],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+
+        let actual = provider_impl.get_headers_for_conversation(None);
+
+        let x_client_request_id = actual.iter().find(|(k, _)| k == "x-client-request-id");
+        let session_id = actual.iter().find(|(k, _)| k == "session_id");
+
+        assert!(x_client_request_id.is_none());
+        assert!(session_id.is_none());
     }
 
     #[test]
