@@ -4,7 +4,11 @@ title: "Generate verification matrix"
 description: "Read-only sub-agent that converts a user task into a compact verification matrix. Use it to identify explicit and implicit checks, edge-case coverage, artifact expectations, and cleanup risks before running verification."
 reasoning:
   enabled: true
-tools: []
+tools: 
+  - sem_search
+  - search
+  - read
+  - fetch
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
