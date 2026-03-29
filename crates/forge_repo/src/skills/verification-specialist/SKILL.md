@@ -20,8 +20,10 @@ Re-read the task prompt. Figure out exactly how the verifier will test your outp
 1. **Check for test scripts**: `ls /app/test* /app/check* /app/verify* /app/grade* 2>/dev/null` — if they exist, READ them.
 2. **Infer from the prompt**: If the task says "write X that passes the tests", "the grader checks Y", or mentions import paths / CLI invocations / HTTP endpoints — reconstruct that exact invocation.
 3. **Run it**: Execute the reconstructed verifier command. If it passes, you're likely done. If it fails, fix the failures.
+4. **Leave evidence in the conversation**: before finishing, the transcript must contain the actual verification command output or smoke-test result, not just a claim that verification happened.
 
 **Do NOT build a requirements matrix.** Just run the verifier. If there is no discoverable verifier, write a 5-line smoke test that exercises the critical output path.
+If the task produces a binary, script, generated file, or service, verify that exact artifact directly (run the binary, invoke the script, inspect the generated file with the expected consumer, or hit the service from a fresh client).
 
 ## Step 2 — Constraint Quick-Check
 
@@ -44,6 +46,7 @@ Before declaring complete, catch common silent failures:
 2. **File outputs**: Check size is non-trivial for the task complexity. A 12-byte output for a compression task is wrong.
 3. **Service outputs**: Hit the endpoint with a fresh client. Don't rely on cached state from your testing.
 4. **Multi-parameter tasks**: Test the FULL parameter range, not just the trivial case. world_size=1 hides all sharding bugs.
+5. **Build artifacts**: If compilation is part of the task, confirm the expected artifact path exists before declaring success. A green compile log without the required output file is not enough.
 
 ## Step 4 — Cleanup & Final Run
 
@@ -56,6 +59,7 @@ Before declaring complete, catch common silent failures:
 
 - Do NOT spend 3+ tool calls building ASCII tables. Run the checks directly.
 - Do NOT write "review code" or "check manually" as a verification step. Every check must be a runnable command.
+- Do NOT treat invoking this skill by itself as verification. The required verifier or smoke-test commands still need to be run.
 - Do NOT test only the trivial case (world_size=1, 2x2 matrix, empty input) and declare success.
 - Do NOT leave test artifacts in the workspace. But also do NOT delete runtime dependencies the deliverable needs.
 - Do NOT accept curve-fit results without sanity-checking the fitted parameters are physically plausible.

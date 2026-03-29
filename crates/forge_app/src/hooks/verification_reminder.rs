@@ -4,7 +4,7 @@ const VERIFICATION_SKILL_NAME: &str = "verification-specialist";
 
 /// The reminder message injected when the verification-specialist skill has
 /// not been called before task completion.
-pub const VERIFICATION_REMINDER: &str = "<system-reminder>\nYou have NOT yet invoked the `verification-specialist` skill. You MUST use the `skill` tool to invoke the `verification-specialist` skill to verify your work before marking the task as completed.\n</system-reminder>";
+pub const VERIFICATION_REMINDER: &str = "<system-reminder>\nYou have NOT yet invoked the `verification-specialist` skill. You MUST use the `skill` tool to invoke the `verification-specialist` skill and then run the actual verifier command or a runnable smoke test before marking the task as completed. Calling the skill alone is not sufficient.\n</system-reminder>";
 
 /// Returns true if the `verification-specialist` skill was called anywhere in
 /// the given context.

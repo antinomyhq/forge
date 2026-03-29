@@ -32,6 +32,10 @@ Important:
 - Do not invoke a skill that is already active/loaded
 - Skills are not CLI commands - use the skill tool to load them
 - After loading a skill, follow its specific instructions to help the user
+- If the task has hidden constraints, exact output formats, anti-shortcut rules, or broad parameter coverage requirements, invoke `constraint-enforcer` before coding.
+- If the task involves machine learning, model weights, tokenizers, embeddings, PyTorch, TensorFlow, HuggingFace, or distributed/pipeline model execution, invoke `ml-model-debugging` at the start.
+- After a basic solution works, invoke `edge-case-tester` for tasks with parameter ranges, numerical corner cases, distributed execution, parsers, compressors, or exhaustive output requirements.
+- Before marking any implementation task complete, invoke `verification-specialist` and follow it by actually running the verifier or a runnable smoke test.
 
 <available_skills>
 {{#each skills}}
