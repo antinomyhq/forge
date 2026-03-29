@@ -9,6 +9,36 @@ use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
 use crate::{AutoDumpFormat, Compact, HttpConfig, ModelConfig, RetryConfig, Update};
 
+/// Serde helpers that serialise `Option<f32>` rounded to two decimal places,
+/// preventing `toml_edit` from emitting noisy f64 approximations such as
+/// `0.10000000149011612` instead of `0.1`.
+mod opt_f32_2dp {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &Option<f32>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(v) => {
+                // Format to 2 dp as a string then parse back to f64 so that
+                // toml_edit emits a clean decimal (e.g. "0.1") instead of the
+                // noisy f64 expansion of the original f32 bit pattern.
+                let formatted: f64 = format!("{:.2}", v).parse().unwrap();
+                serializer.serialize_f64(formatted)
+            }
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<f32>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Option::<f32>::deserialize(deserializer)
+    }
+}
+
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
 #[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
@@ -84,12 +114,22 @@ pub struct ForgeConfig {
 
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "opt_f32_2dp::serialize",
+        deserialize_with = "opt_f32_2dp::deserialize"
+    )]
     pub temperature: Option<f32>,
 
     /// Nucleus sampling threshold for all agents; limits token selection to the
     /// top cumulative probability mass (0.0–1.0).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "opt_f32_2dp::serialize",
+        deserialize_with = "opt_f32_2dp::deserialize"
+    )]
     pub top_p: Option<f32>,
 
     /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
@@ -123,6 +163,61 @@ pub struct ForgeConfig {
     /// Whether tool use is supported in the current environment.
     /// When false, tool calls are disabled regardless of agent configuration.
     pub tool_supported: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::reader::ConfigReader;
+
+    #[test]
+    fn test_f32_temperature_round_trip() {
+        // f32 values like 0.1 suffer precision loss when serialized to TOML via
+        // toml_edit, which promotes f32 to f64 and emits the full f64 decimal
+        // representation (e.g. 0.10000000149011612). When read back, the config
+        // crate parses this as an f64 and then tries to fit it into an f32,
+        // yielding the same bit pattern. However the *TOML string* round-trip is
+        // lossy: the serialized form does not match the original value string.
+        let fixture = ForgeConfig { temperature: Some(0.1_f32), ..Default::default() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        // The serialized TOML must contain the exact decimal "0.1", not an
+        // expanded f64 approximation such as "0.10000000149011612".
+        assert!(
+            toml.contains("temperature = 0.1\n"),
+            "expected `temperature = 0.1` in TOML output, got:\n{toml}"
+        );
+    }
+
+    #[test]
+    fn test_f32_top_p_round_trip() {
+        let fixture = ForgeConfig { top_p: Some(0.9_f32), ..Default::default() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        // Same precision issue: 0.9f32 as f64 is 0.8999999761581421.
+        assert!(
+            toml.contains("top_p = 0.9\n"),
+            "expected `top_p = 0.9` in TOML output, got:\n{toml}"
+        );
+    }
+
+    #[test]
+    fn test_f32_temperature_deserialize_round_trip() {
+        let fixture = ForgeConfig { temperature: Some(0.1_f32), ..Default::default() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        let actual = ConfigReader::default()
+            .read_toml(&toml)
+            .build()
+            .unwrap();
+
+        assert_eq!(actual.temperature, fixture.temperature);
+    }
 }
 
 impl ForgeConfig {
