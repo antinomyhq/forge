@@ -162,10 +162,7 @@ mod tests {
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
-        let actual = ConfigReader::default()
-            .read_toml(&toml)
-            .build()
-            .unwrap();
+        let actual = ConfigReader::default().read_toml(&toml).build().unwrap();
 
         assert_eq!(actual.temperature, fixture.temperature);
     }

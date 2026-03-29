@@ -165,7 +165,9 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
         tool_supported: fc.tool_supported,
-        temperature: fc.temperature.and_then(|v| Temperature::new(v.value() as f32).ok()),
+        temperature: fc
+            .temperature
+            .and_then(|v| Temperature::new(v.value() as f32).ok()),
         top_p: fc.top_p.and_then(|v| TopP::new(v.value() as f32).ok()),
         top_k: fc.top_k.and_then(|v| TopK::new(v).ok()),
         max_tokens: fc.max_tokens.and_then(|v| MaxTokens::new(v).ok()),
@@ -324,7 +326,9 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.tool_supported = env.tool_supported;
 
     // --- Workflow fields ---
-    fc.temperature = env.temperature.map(|t| forge_config::Decimal(t.value() as f64));
+    fc.temperature = env
+        .temperature
+        .map(|t| forge_config::Decimal(t.value() as f64));
     fc.top_p = env.top_p.map(|t| forge_config::Decimal(t.value() as f64));
     fc.top_k = env.top_k.map(|t| t.value());
     fc.max_tokens = env.max_tokens.map(|t| t.value());
