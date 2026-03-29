@@ -178,7 +178,10 @@ mod tests {
     fn test_eviction_window_rejects_out_of_range() {
         let toml = "[compact]\neviction_window = 1.5\n";
 
-        let result = ConfigReader::default().read_defaults().read_toml(toml).build();
+        let result = ConfigReader::default()
+            .read_defaults()
+            .read_toml(toml)
+            .build();
 
         assert!(
             result.is_err(),
