@@ -49,6 +49,7 @@ fn detect_mime_type(path: &Path, content: &[u8]) -> String {
             "png" => "image/png",
             "gif" => "image/gif",
             "webp" => "image/webp",
+            "bmp" => "image/bmp",
             _ => "text/plain", // Default to text
         })
         .unwrap_or("text/plain")
@@ -63,6 +64,30 @@ fn is_visual_content(mime_type: &str) -> bool {
 /// Checks if a MIME type represents an image
 fn is_image_content(mime_type: &str) -> bool {
     mime_type.starts_with("image/")
+}
+
+fn is_supported_image_content(mime_type: &str) -> bool {
+    matches!(
+        mime_type,
+        "image/jpeg" | "image/png" | "image/gif" | "image/webp"
+    )
+}
+
+fn supported_image_formats() -> &'static str {
+    "JPEG, PNG, GIF, WebP"
+}
+
+fn unsupported_image_format_error(path: &Path, mime_type: &str) -> anyhow::Error {
+    let format = path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.to_ascii_uppercase())
+        .unwrap_or_else(|| mime_type.to_string());
+
+    anyhow::anyhow!(
+        "Unsupported image format: {format}. Supported formats: {}. Convert the file to a supported format, then try read again.",
+        supported_image_formats()
+    )
 }
 
 /// Checks if a MIME type represents a document (e.g., PDF)
@@ -139,6 +164,10 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         // Handle visual content (PDFs and images)
         if is_visual_content(&mime_type) {
+            if is_image_content(&mime_type) && !is_supported_image_content(&mime_type) {
+                return Err(unsupported_image_format_error(path, &mime_type));
+            }
+
             // Validate against image-specific size limit (may be different from
             // max_file_size)
             assert_file_size(&*self.0, path, env.max_image_size).await.with_context(|| {
@@ -229,12 +258,16 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use forge_app::FsReadService;
     use pretty_assertions::assert_eq;
     use tempfile::NamedTempFile;
     use tokio::fs;
 
     use super::*;
-    use crate::attachment::tests::MockFileService;
+    use crate::attachment::tests::{MockCompositeService, MockFileService};
 
     // Helper to create a temporary file with specific content size
     async fn create_test_file_with_size(size: usize) -> anyhow::Result<NamedTempFile> {
@@ -384,11 +417,26 @@ mod tests {
     }
 
     #[test]
+    fn test_detect_mime_type_for_bmp_extension() {
+        let path = Path::new("thumbnail.bmp");
+        let content = b"not-a-real-bmp";
+        let actual = detect_mime_type(path, content);
+        assert_eq!(actual, "image/bmp");
+    }
+
+    #[test]
     fn test_is_visual_content_for_images() {
         assert!(is_visual_content("image/png"));
         assert!(is_visual_content("image/jpeg"));
         assert!(is_visual_content("image/gif"));
         assert!(is_visual_content("image/webp"));
+    }
+
+    #[test]
+    fn test_is_supported_image_content() {
+        assert!(is_supported_image_content("image/png"));
+        assert!(is_supported_image_content("image/jpeg"));
+        assert!(!is_supported_image_content("image/bmp"));
     }
 
     #[test]
@@ -401,6 +449,30 @@ mod tests {
         assert!(!is_visual_content("text/plain"));
         assert!(!is_visual_content("application/json"));
         assert!(!is_visual_content("text/html"));
+    }
+
+    #[tokio::test]
+    async fn test_read_rejects_unsupported_image_formats() {
+        let infra = Arc::new(MockCompositeService::new());
+        infra.add_bytes(
+            Path::new("/tmp/thumbnail.bmp").to_path_buf(),
+            b"not-a-real-bmp".to_vec(),
+        );
+
+        let service = ForgeFsRead::new(infra);
+        let error = <ForgeFsRead<MockCompositeService> as FsReadService>::read(
+            &service,
+            "/tmp/thumbnail.bmp".to_string(),
+            None,
+            None,
+        )
+        .await
+        .unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Unsupported image format: BMP. Supported formats: JPEG, PNG, GIF, WebP. Convert the file to a supported format, then try read again."
+        );
     }
 
     #[test]

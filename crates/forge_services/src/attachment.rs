@@ -178,6 +178,7 @@ pub mod tests {
                 .max_read_size(2000)
                 .max_line_length(2000)
                 .max_file_size(256 << 10)
+                .max_image_size(256 << 10)
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
@@ -225,6 +226,11 @@ pub mod tests {
         pub fn add_file(&self, path: PathBuf, content: String) {
             let mut files = self.files.lock().unwrap();
             files.push((path, Bytes::from_owner(content)));
+        }
+
+        pub fn add_bytes(&self, path: PathBuf, content: Vec<u8>) {
+            let mut files = self.files.lock().unwrap();
+            files.push((path, Bytes::from(content)));
         }
 
         pub fn add_dir(&self, path: PathBuf) {
@@ -462,6 +468,10 @@ pub mod tests {
 
         pub fn add_file(&self, path: PathBuf, content: String) {
             self.file_service.add_file(path, content);
+        }
+
+        pub fn add_bytes(&self, path: PathBuf, content: Vec<u8>) {
+            self.file_service.add_bytes(path, content);
         }
     }
 

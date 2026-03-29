@@ -73,11 +73,12 @@ impl Range {
         let mut line_start = 0;
 
         for (newline_idx, _) in source.match_indices('\n') {
-            let line_end = if newline_idx > line_start && source.as_bytes()[newline_idx - 1] == b'\r' {
-                newline_idx - 1
-            } else {
-                newline_idx
-            };
+            let line_end =
+                if newline_idx > line_start && source.as_bytes()[newline_idx - 1] == b'\r' {
+                    newline_idx - 1
+                } else {
+                    newline_idx
+                };
             line_ranges.push((line_start, line_end));
             line_start = newline_idx + 1;
         }

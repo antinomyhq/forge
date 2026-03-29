@@ -755,17 +755,16 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
 
         // Create some todos
-        let todos = [Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+        let todos = [
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
             Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
-            Todo::new("Task 3").id("3").status(TodoStatus::Completed)];
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
+        ];
 
         // Create a tool call for todo_write (convert Todo -> TodoItem)
         let todo_items: Vec<forge_domain::TodoItem> = todos
             .iter()
-            .map(|t| forge_domain::TodoItem {
-                content: t.content.clone(),
-                status: t.status,
-            })
+            .map(|t| forge_domain::TodoItem { content: t.content.clone(), status: t.status })
             .collect();
         let todo_tool_call = ToolCatalog::tool_call_todo_write(todo_items);
 
