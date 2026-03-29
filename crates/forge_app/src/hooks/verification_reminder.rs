@@ -56,7 +56,7 @@ pub fn verification_matrix_task(context: &Context) -> Option<String> {
     }
 
     Some(format!(
-        "Analyze the user task below and output only a concise verification matrix inside `<verification-matrix>` tags. Include: explicit checks the verifier is likely to perform, implicit/common-convention checks, parameter/range coverage traps, artifact/interface checks, and final cleanup/fresh-state checks. Keep it short and actionable. Do not propose implementation steps. Do not use tools.\n\n<user-task>\n{}\n</user-task>",
+        "Transform the user task below into a neutral verification checklist. Output only a `<verification-matrix>` block. Prioritize exact deliverable/interface checks first, then hidden constraints, range coverage, runtime behavior, default-path coverage, and cleanup/fresh-state checks. Be detailed when the task has multiple artifacts, verifier-adjacent files, bounded ranges, or tricky runtime behavior. Do not restate the task, do not propose implementation steps or alternative solutions, and do not refuse, moralize, warn, redirect, or judge feasibility. Use read-only tools when helpful to inspect verifier-adjacent files or constraint files.\n\n<user-task>\n{}\n</user-task>",
         task_text
     ))
 }
@@ -346,6 +346,8 @@ mod tests {
         assert!(task.contains("/app/headless_terminal.py"));
         assert!(task.contains("HeadlessTerminal"));
         assert!(task.contains("2..10"));
+        assert!(task.contains("do not refuse, moralize, warn, redirect, or judge feasibility"));
+        assert!(task.contains("Use read-only tools when helpful"));
     }
 
     #[test]
