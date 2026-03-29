@@ -165,10 +165,10 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
         tool_supported: fc.tool_supported,
-        temperature: fc.session_preset.as_ref().and_then(|p| p.temperature).and_then(|v| Temperature::new(v).ok()),
-        top_p: fc.session_preset.as_ref().and_then(|p| p.top_p).and_then(|v| TopP::new(v).ok()),
-        top_k: fc.session_preset.as_ref().and_then(|p| p.top_k).and_then(|v| TopK::new(v).ok()),
-        max_tokens: fc.session_preset.as_ref().and_then(|p| p.max_tokens).and_then(|v| MaxTokens::new(v).ok()),
+        temperature: fc.presets.iter().find(|p| p.id == "default").and_then(|p| p.temperature).and_then(|v| Temperature::new(v).ok()),
+        top_p: fc.presets.iter().find(|p| p.id == "default").and_then(|p| p.top_p).and_then(|v| TopP::new(v).ok()),
+        top_k: fc.presets.iter().find(|p| p.id == "default").and_then(|p| p.top_k).and_then(|v| TopK::new(v).ok()),
+        max_tokens: fc.presets.iter().find(|p| p.id == "default").and_then(|p| p.max_tokens).and_then(|v| MaxTokens::new(v).ok()),
         max_tool_failure_per_turn: fc.max_tool_failure_per_turn,
         max_requests_per_turn: fc.max_requests_per_turn,
         compact: fc.compact.map(to_compact),
@@ -324,14 +324,22 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.tool_supported = env.tool_supported;
 
     // --- Workflow fields ---
-    let session_preset = PresetConfig {
+    let forge_default = PresetConfig {
+        id: "default".to_string(),
         temperature: env.temperature.map(|t| t.value()),
         top_p: env.top_p.map(|t| t.value()),
         top_k: env.top_k.map(|t| t.value()),
         max_tokens: env.max_tokens.map(|t| t.value()),
         reasoning: None,
     };
-    fc.session_preset = if session_preset == PresetConfig::default() { None } else { Some(session_preset) };
+    if forge_default.temperature.is_some()
+        || forge_default.top_p.is_some()
+        || forge_default.top_k.is_some()
+        || forge_default.max_tokens.is_some()
+        || forge_default.reasoning.is_some()
+    {
+        fc.presets.push(forge_default);
+    }
     fc.max_tool_failure_per_turn = env.max_tool_failure_per_turn;
     fc.max_requests_per_turn = env.max_requests_per_turn;
     fc.compact = env.compact.as_ref().map(from_compact);

@@ -182,10 +182,10 @@
       "minimum": 0
     },
     "presets": {
-      "description": "Named presets of LLM-specific sampling and generation parameters.\nEach preset is identified by its `id` and may be referenced from model\nconfigurations and agent definitions.",
+      "description": "Named presets of LLM-specific sampling and generation parameters\napplied to model configurations and agent definitions.",
       "type": "array",
       "items": {
-        "$ref": "#/$defs/Preset"
+        "$ref": "#/$defs/PresetConfig"
       }
     },
     "restricted": {
@@ -224,17 +224,6 @@
         }
       ],
       "default": null
-    },
-    "session_preset": {
-      "description": "Default LLM sampling parameters applied to all agents when no\nagent-specific or role-specific preset is in effect.",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Preset"
-        },
-        {
-          "type": "null"
-        }
-      ]
     },
     "suggest": {
       "description": "Provider and model to use for shell command suggestion generation",
@@ -396,6 +385,11 @@
           "description": "Maximum reasoning depth; slowest and most expensive.",
           "type": "string",
           "const": "high"
+        },
+        {
+          "description": "Beyond maximum reasoning depth; highest cost and latency.",
+          "type": "string",
+          "const": "x_high"
         }
       ]
     },
@@ -528,14 +522,13 @@
         }
       }
     },
-    "Preset": {
-      "description": "A named collection of LLM-specific sampling and generation parameters.\nPresets are referenced by their `id` from model configurations and agent\ndefinitions to apply a consistent set of inference settings.",
+    "PresetConfig": {
+      "description": "A named collection of LLM-specific sampling and generation parameters.\nPresets apply a consistent set of inference settings to model configurations\nand agent definitions.",
       "type": "object",
       "properties": {
         "id": {
-          "description": "Unique identifier for this preset. Required for catalog entries in\n[`ForgeConfig::presets`]; not meaningful for inline uses such as\n[`ForgeConfig::session_preset`].",
-          "type": "string",
-          "default": ""
+          "description": "Unique identifier for this preset.",
+          "type": "string"
         },
         "max_tokens": {
           "description": "Maximum tokens the model may generate per response (1–100,000).",
@@ -582,7 +575,10 @@
           ],
           "format": "float"
         }
-      }
+      },
+      "required": [
+        "id"
+      ]
     },
     "ReasoningConfig": {
       "description": "Reasoning configuration for a preset.\nControls how and whether models engage extended chain-of-thought reasoning.",
