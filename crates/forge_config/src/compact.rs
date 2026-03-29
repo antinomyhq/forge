@@ -5,7 +5,7 @@ use fake::Dummy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::F64;
+use crate::Decimal;
 
 /// Frequency at which forge checks for updates
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
@@ -56,7 +56,7 @@ pub struct Compact {
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[serde(default)]
-    pub eviction_window: F64,
+    pub eviction_window: Decimal,
 
     /// Maximum number of tokens to keep after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -100,7 +100,7 @@ impl Compact {
             turn_threshold: None,
             message_threshold: None,
             model: None,
-            eviction_window: F64(0.2),
+            eviction_window: Decimal(0.2),
             retention_window: 0,
             on_turn_end: None,
         }
@@ -112,7 +112,7 @@ impl Dummy<fake::Faker> for Compact {
         use fake::Fake;
         Self {
             retention_window: fake::Faker.fake_with_rng(rng),
-            eviction_window: F64((0.0f64..=1.0f64).fake_with_rng(rng)),
+            eviction_window: Decimal((0.0f64..=1.0f64).fake_with_rng(rng)),
             max_tokens: fake::Faker.fake_with_rng(rng),
             token_threshold: fake::Faker.fake_with_rng(rng),
             turn_threshold: fake::Faker.fake_with_rng(rng),
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_round_trip() {
-        let fixture = Compact { eviction_window: F64(0.2), ..Compact::new() };
+        let fixture = Compact { eviction_window: Decimal(0.2), ..Compact::new() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_deserialize_round_trip() {
-        let fixture = Compact { eviction_window: F64(0.2), ..Compact::new() };
+        let fixture = Compact { eviction_window: Decimal(0.2), ..Compact::new() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 

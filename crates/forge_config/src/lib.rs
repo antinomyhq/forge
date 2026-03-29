@@ -1,8 +1,8 @@
 mod auto_dump;
 mod compact;
 mod config;
+mod decimal;
 mod error;
-mod float;
 mod http;
 mod legacy;
 mod model;
@@ -13,7 +13,7 @@ mod writer;
 pub use auto_dump::*;
 pub use compact::*;
 pub use config::*;
-pub use float::*;
+pub use decimal::*;
 pub use error::Error;
 pub use http::*;
 pub use model::*;

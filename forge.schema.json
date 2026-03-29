@@ -243,7 +243,7 @@
       "description": "Output randomness for all agents; lower values are deterministic, higher\nvalues are creative (0.0–2.0).",
       "anyOf": [
         {
-          "$ref": "#/$defs/F32"
+          "$ref": "#/$defs/double"
         },
         {
           "type": "null"
@@ -273,7 +273,7 @@
       "description": "Nucleus sampling threshold for all agents; limits token selection to the\ntop cumulative probability mass (0.0–1.0).",
       "anyOf": [
         {
-          "$ref": "#/$defs/F32"
+          "$ref": "#/$defs/double"
         },
         {
           "type": "null"
@@ -338,7 +338,7 @@
       "properties": {
         "eviction_window": {
           "description": "Maximum percentage of the context that can be summarized during\ncompaction. Valid values are between 0.0 and 1.0, where 0.0 means no\ncompaction and 1.0 allows summarizing all messages. Works alongside\nretention_window - the more conservative limit (fewer messages to\ncompact) takes precedence.",
-          "$ref": "#/$defs/F64",
+          "$ref": "#/$defs/double",
           "default": 0.0
         },
         "max_tokens": {
@@ -399,16 +399,6 @@
           "minimum": 0
         }
       }
-    },
-    "F32": {
-      "description": "A wrapper around `f32` that serializes to two decimal places, preventing\n`toml_edit` from emitting noisy f64 bit-pattern approximations such as\n`0.10000000149011612` instead of `0.1`.",
-      "type": "number",
-      "format": "float"
-    },
-    "F64": {
-      "description": "A wrapper around `f64` that serializes to two decimal places, preventing\n`toml_edit` from emitting noisy approximations such as\n`0.20000000000000001` instead of `0.2`.",
-      "type": "number",
-      "format": "double"
     },
     "HttpConfig": {
       "description": "HTTP client configuration.",
@@ -650,6 +640,10 @@
         "weekly",
         "always"
       ]
+    },
+    "double": {
+      "type": "number",
+      "format": "double"
     }
   }
 }

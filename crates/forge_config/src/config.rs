@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
-use crate::{AutoDumpFormat, Compact, F32, HttpConfig, ModelConfig, RetryConfig, Update};
+use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, RetryConfig, Update};
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
@@ -85,12 +85,12 @@ pub struct ForgeConfig {
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<F32>,
+    pub temperature: Option<Decimal>,
 
     /// Nucleus sampling threshold for all agents; limits token selection to the
     /// top cumulative probability mass (0.0–1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<F32>,
+    pub top_p: Option<Decimal>,
 
     /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
     /// highest-probability tokens (1–1000).
@@ -134,7 +134,7 @@ mod tests {
 
     #[test]
     fn test_f32_temperature_round_trip() {
-        let fixture = ForgeConfig { temperature: Some(F32(0.1)), ..Default::default() };
+        let fixture = ForgeConfig { temperature: Some(Decimal(0.1)), ..Default::default() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn test_f32_top_p_round_trip() {
-        let fixture = ForgeConfig { top_p: Some(F32(0.9)), ..Default::default() };
+        let fixture = ForgeConfig { top_p: Some(Decimal(0.9)), ..Default::default() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     fn test_f32_temperature_deserialize_round_trip() {
-        let fixture = ForgeConfig { temperature: Some(F32(0.1)), ..Default::default() };
+        let fixture = ForgeConfig { temperature: Some(Decimal(0.1)), ..Default::default() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 

@@ -104,7 +104,7 @@ fn to_update(u: forge_config::Update) -> Update {
 fn to_compact(c: forge_config::Compact) -> Compact {
     Compact {
         retention_window: c.retention_window,
-        eviction_window: c.eviction_window,
+        eviction_window: c.eviction_window.value(),
         max_tokens: c.max_tokens,
         token_threshold: c.token_threshold,
         turn_threshold: c.turn_threshold,
@@ -165,8 +165,8 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
         tool_supported: fc.tool_supported,
-        temperature: fc.temperature.and_then(|v| Temperature::new(v).ok()),
-        top_p: fc.top_p.and_then(|v| TopP::new(v).ok()),
+        temperature: fc.temperature.and_then(|v| Temperature::new(v.value() as f32).ok()),
+        top_p: fc.top_p.and_then(|v| TopP::new(v.value() as f32).ok()),
         top_k: fc.top_k.and_then(|v| TopK::new(v).ok()),
         max_tokens: fc.max_tokens.and_then(|v| MaxTokens::new(v).ok()),
         max_tool_failure_per_turn: fc.max_tool_failure_per_turn,
@@ -263,7 +263,7 @@ fn from_update(u: &Update) -> forge_config::Update {
 fn from_compact(c: &Compact) -> forge_config::Compact {
     forge_config::Compact {
         retention_window: c.retention_window,
-        eviction_window: c.eviction_window,
+        eviction_window: forge_config::Decimal(c.eviction_window),
         max_tokens: c.max_tokens,
         token_threshold: c.token_threshold,
         turn_threshold: c.turn_threshold,
@@ -324,8 +324,8 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.tool_supported = env.tool_supported;
 
     // --- Workflow fields ---
-    fc.temperature = env.temperature.map(|t| t.value());
-    fc.top_p = env.top_p.map(|t| t.value());
+    fc.temperature = env.temperature.map(|t| forge_config::Decimal(t.value() as f64));
+    fc.top_p = env.top_p.map(|t| forge_config::Decimal(t.value() as f64));
     fc.top_k = env.top_k.map(|t| t.value());
     fc.max_tokens = env.max_tokens.map(|t| t.value());
     fc.max_tool_failure_per_turn = env.max_tool_failure_per_turn;
