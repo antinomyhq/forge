@@ -33,6 +33,12 @@ impl PartialEq for Decimal {
     }
 }
 
+impl PartialOrd for Decimal {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
 impl Default for Decimal {
     fn default() -> Self {
         Self(0.0)

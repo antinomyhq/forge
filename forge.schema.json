@@ -338,7 +338,7 @@
       "properties": {
         "eviction_window": {
           "description": "Maximum percentage of the context that can be summarized during\ncompaction. Valid values are between 0.0 and 1.0, where 0.0 means no\ncompaction and 1.0 allows summarizing all messages. Works alongside\nretention_window - the more conservative limit (fewer messages to\ncompact) takes precedence.",
-          "$ref": "#/$defs/Percentage",
+          "$ref": "#/$defs/double",
           "default": 0.0
         },
         "max_tokens": {
@@ -528,11 +528,6 @@
           ]
         }
       }
-    },
-    "Percentage": {
-      "description": "A percentage value constrained to `[0.0, 1.0]` that serializes to two\ndecimal places, preventing floating-point noise in TOML output.\n\nValidation is enforced at deserialization time, so any config file with an\nout-of-range value is rejected with a descriptive error.",
-      "type": "number",
-      "format": "double"
     },
     "RetryConfig": {
       "description": "Configuration for retry mechanism.",

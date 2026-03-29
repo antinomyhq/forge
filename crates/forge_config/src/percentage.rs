@@ -1,10 +1,11 @@
-/// A percentage value constrained to `[0.0, 1.0]` that serializes to two
-/// decimal places, preventing floating-point noise in TOML output.
+use crate::Decimal;
+
+/// A percentage value constrained to `[0.0, 1.0]`, built on top of [`Decimal`]
+/// to inherit its two-decimal-place serialization and clean TOML output.
 ///
 /// Validation is enforced at deserialization time, so any config file with an
 /// out-of-range value is rejected with a descriptive error.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, schemars::JsonSchema)]
-pub struct Percentage(f64);
+pub struct Percentage(Decimal);
 
 impl Percentage {
     const MIN: f64 = 0.0;
@@ -17,7 +18,7 @@ impl Percentage {
     /// Returns `Err` if `value` is outside `[0.0, 1.0]`.
     pub fn new(value: f64) -> Result<Self, String> {
         if value >= Self::MIN && value <= Self::MAX {
-            Ok(Self(value))
+            Ok(Self(Decimal(value)))
         } else {
             Err(format!(
                 "value must be between {} and {}, got {value}",
@@ -29,46 +30,81 @@ impl Percentage {
 
     /// Returns the inner `f64` value.
     pub fn value(&self) -> f64 {
-        self.0
+        self.0.value()
+    }
+}
+
+impl std::fmt::Debug for Percentage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Clone for Percentage {
+    fn clone(&self) -> Self {
+        Self(self.0)
+    }
+}
+
+impl Copy for Percentage {}
+
+impl PartialEq for Percentage {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl PartialOrd for Percentage {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
     }
 }
 
 impl Default for Percentage {
     fn default() -> Self {
-        Self(0.0)
+        Self(Decimal::default())
     }
 }
 
 impl From<f64> for Percentage {
     fn from(v: f64) -> Self {
-        Self(v)
+        Self(Decimal::from(v))
     }
 }
 
 impl From<Percentage> for f64 {
     fn from(p: Percentage) -> Self {
-        p.0
+        p.0.into()
+    }
+}
+
+impl schemars::JsonSchema for Percentage {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        Decimal::schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
+        Decimal::json_schema(r#gen)
     }
 }
 
 impl fake::Dummy<fake::Faker> for Percentage {
     fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
         use fake::Fake;
-        Self((0.0f64..=1.0f64).fake_with_rng::<f64, R>(rng))
+        Self(Decimal((0.0f64..=1.0f64).fake_with_rng::<f64, R>(rng)))
     }
 }
 
 impl serde::Serialize for Percentage {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let formatted: f64 = format!("{:.2}", self.0).parse().unwrap();
-        serializer.serialize_f64(formatted)
+        self.0.serialize(serializer)
     }
 }
 
 impl<'de> serde::Deserialize<'de> for Percentage {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let value = f64::deserialize(deserializer)?;
-        Self::new(value).map_err(serde::de::Error::custom)
+        let decimal = Decimal::deserialize(deserializer)?;
+        Self::new(decimal.value()).map_err(serde::de::Error::custom)
     }
 }
 
