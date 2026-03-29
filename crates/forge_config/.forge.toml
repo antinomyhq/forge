@@ -15,7 +15,6 @@ max_sem_search_results = 100
 max_stdout_line_chars = 500
 max_stdout_prefix_lines = 100
 max_stdout_suffix_lines = 100
-max_tokens = 20480
 max_tool_failure_per_turn = 3
 model_cache_ttl_secs = 604800
 restricted = false
@@ -23,6 +22,9 @@ sem_search_top_k = 10
 services_url = "https://api.forgecode.dev/"
 tool_supported = true
 tool_timeout_secs = 300
+
+[session_preset]
+max_tokens = 20480
 top_k = 30
 top_p = 0.8
 

@@ -82,9 +82,8 @@ pub struct ForgeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
-    /// Named presets of LLM-specific sampling and generation parameters.
-    /// Each preset is identified by its `id` and may be referenced from model
-    /// configurations and agent definitions.
+    /// Named presets of LLM-specific sampling and generation parameters
+    /// applied to model configurations and agent definitions.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub presets: Vec<PresetConfig>,
 

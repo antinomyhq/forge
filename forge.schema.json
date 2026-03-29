@@ -166,15 +166,6 @@
       "format": "uint",
       "minimum": 0
     },
-    "max_tokens": {
-      "description": "Maximum tokens the model may generate per response for all agents\n(1–100,000).",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint32",
-      "minimum": 0
-    },
     "max_tool_failure_per_turn": {
       "description": "Maximum tool failures per turn before the orchestrator forces\ncompletion.",
       "type": [
@@ -189,6 +180,13 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0
+    },
+    "presets": {
+      "description": "Named presets of LLM-specific sampling and generation parameters.\nEach preset is identified by its `id` and may be referenced from model\nconfigurations and agent definitions.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Preset"
+      }
     },
     "restricted": {
       "description": "Whether the application is running in restricted mode.\nWhen true, tool execution requires explicit permission grants.",
@@ -227,6 +225,17 @@
       ],
       "default": null
     },
+    "session_preset": {
+      "description": "Default LLM sampling parameters applied to all agents when no\nagent-specific or role-specific preset is in effect.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Preset"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "suggest": {
       "description": "Provider and model to use for shell command suggestion generation",
       "anyOf": [
@@ -239,14 +248,6 @@
       ],
       "default": null
     },
-    "temperature": {
-      "description": "Output randomness for all agents; lower values are deterministic, higher\nvalues are creative (0.0–2.0).",
-      "type": [
-        "number",
-        "null"
-      ],
-      "format": "float"
-    },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment.\nWhen false, tool calls are disabled regardless of agent configuration.",
       "type": "boolean"
@@ -256,23 +257,6 @@
       "type": "integer",
       "format": "uint64",
       "minimum": 0
-    },
-    "top_k": {
-      "description": "Top-k vocabulary cutoff for all agents; restricts sampling to the k\nhighest-probability tokens (1–1000).",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint32",
-      "minimum": 0
-    },
-    "top_p": {
-      "description": "Nucleus sampling threshold for all agents; limits token selection to the\ntop cumulative probability mass (0.0–1.0).",
-      "type": [
-        "number",
-        "null"
-      ],
-      "format": "float"
     },
     "updates": {
       "description": "Configuration for automatic forge updates",
@@ -394,6 +378,26 @@
           "minimum": 0
         }
       }
+    },
+    "Effort": {
+      "description": "Effort level for reasoning; controls the depth of model thinking.",
+      "oneOf": [
+        {
+          "description": "Minimal reasoning; fastest and cheapest.",
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "description": "Balanced reasoning effort.",
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "description": "Maximum reasoning depth; slowest and most expensive.",
+          "type": "string",
+          "const": "high"
+        }
+      ]
     },
     "HttpConfig": {
       "description": "HTTP client configuration.",
@@ -521,6 +525,102 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "Preset": {
+      "description": "A named collection of LLM-specific sampling and generation parameters.\nPresets are referenced by their `id` from model configurations and agent\ndefinitions to apply a consistent set of inference settings.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Unique identifier for this preset. Required for catalog entries in\n[`ForgeConfig::presets`]; not meaningful for inline uses such as\n[`ForgeConfig::session_preset`].",
+          "type": "string",
+          "default": ""
+        },
+        "max_tokens": {
+          "description": "Maximum tokens the model may generate per response (1–100,000).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "reasoning": {
+          "description": "Reasoning configuration; controls extended chain-of-thought thinking.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReasoningConfig"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "temperature": {
+          "description": "Output randomness; lower values are deterministic, higher values are\ncreative (0.0–2.0).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "top_k": {
+          "description": "Top-k vocabulary cutoff; restricts sampling to the k\nhighest-probability tokens (1–1000).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "top_p": {
+          "description": "Nucleus sampling threshold; limits token selection to the top\ncumulative probability mass (0.0–1.0).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        }
+      }
+    },
+    "ReasoningConfig": {
+      "description": "Reasoning configuration for a preset.\nControls how and whether models engage extended chain-of-thought reasoning.",
+      "type": "object",
+      "properties": {
+        "effort": {
+          "description": "Effort level for reasoning; controls the depth of model thinking.\nSupported by OpenRouter and the Forge provider.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "description": "Enables reasoning at the \"medium\" effort level with no exclusions.\nSupported by OpenRouter, Anthropic, and the Forge provider.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "exclude": {
+          "description": "When true, the model reasons internally but reasoning output is hidden.\nSupported by OpenRouter and the Forge provider.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_tokens": {
+          "description": "Maximum number of tokens the model may spend on reasoning.\nSupported by OpenRouter, Anthropic, and the Forge provider.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
         }
       }
     },

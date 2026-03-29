@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_app::EnvironmentInfra;
-use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
+use forge_config::{ConfigReader, ForgeConfig, ModelConfig, PresetConfig};
 use forge_domain::{
     AutoDumpFormat, Compact, ConfigOperation, Environment, HttpConfig, MaxTokens, ModelId,
     RetryConfig, SessionConfig, Temperature, TlsBackend, TlsVersion, TopK, TopP, Update,
@@ -165,10 +165,10 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted,
         tool_supported: fc.tool_supported,
-        temperature: fc.temperature.and_then(|v| Temperature::new(v).ok()),
-        top_p: fc.top_p.and_then(|v| TopP::new(v).ok()),
-        top_k: fc.top_k.and_then(|v| TopK::new(v).ok()),
-        max_tokens: fc.max_tokens.and_then(|v| MaxTokens::new(v).ok()),
+        temperature: fc.session_preset.as_ref().and_then(|p| p.temperature).and_then(|v| Temperature::new(v).ok()),
+        top_p: fc.session_preset.as_ref().and_then(|p| p.top_p).and_then(|v| TopP::new(v).ok()),
+        top_k: fc.session_preset.as_ref().and_then(|p| p.top_k).and_then(|v| TopK::new(v).ok()),
+        max_tokens: fc.session_preset.as_ref().and_then(|p| p.max_tokens).and_then(|v| MaxTokens::new(v).ok()),
         max_tool_failure_per_turn: fc.max_tool_failure_per_turn,
         max_requests_per_turn: fc.max_requests_per_turn,
         compact: fc.compact.map(to_compact),
@@ -324,10 +324,14 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.tool_supported = env.tool_supported;
 
     // --- Workflow fields ---
-    fc.temperature = env.temperature.map(|t| t.value());
-    fc.top_p = env.top_p.map(|t| t.value());
-    fc.top_k = env.top_k.map(|t| t.value());
-    fc.max_tokens = env.max_tokens.map(|t| t.value());
+    let session_preset = PresetConfig {
+        temperature: env.temperature.map(|t| t.value()),
+        top_p: env.top_p.map(|t| t.value()),
+        top_k: env.top_k.map(|t| t.value()),
+        max_tokens: env.max_tokens.map(|t| t.value()),
+        reasoning: None,
+    };
+    fc.session_preset = if session_preset == PresetConfig::default() { None } else { Some(session_preset) };
     fc.max_tool_failure_per_turn = env.max_tool_failure_per_turn;
     fc.max_requests_per_turn = env.max_requests_per_turn;
     fc.compact = env.compact.as_ref().map(from_compact);

@@ -45,17 +45,12 @@ pub struct ReasoningConfig {
 }
 
 /// A named collection of LLM-specific sampling and generation parameters.
-/// Presets are referenced by their `id` from model configurations and agent
-/// definitions to apply a consistent set of inference settings.
-#[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+/// Presets apply a consistent set of inference settings to model configurations
+/// and agent definitions.
+#[derive(Debug, Default, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option, into)]
 pub struct PresetConfig {
-    /// Unique identifier for this preset. Required for catalog entries in
-    /// [`ForgeConfig::presets`]; not meaningful for inline uses such as
-    /// [`ForgeConfig::session_preset`].
-    pub id: String,
-
     /// Output randomness; lower values are deterministic, higher values are
     /// creative (0.0–2.0).
     #[serde(skip_serializing_if = "Option::is_none")]
