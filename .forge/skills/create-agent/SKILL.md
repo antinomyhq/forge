@@ -1,6 +1,6 @@
 ---
 name: create-agent
-description: Create new agents for the code-forge application. Agents are stored as .md files in the <cwd>/.forge/agents directory with YAML frontmatter (id, title, description, reasoning, tools, user_prompt) and markdown body containing agent instructions. Use when users need to add new agents, modify existing agents, or understand the agent file structure.
+description: Create new agents for the code-forge application. Agents are stored as .md files in the <cwd>/.agents directory with YAML frontmatter (id, title, description, reasoning, tools, user_prompt) and markdown body containing agent instructions. Use when users need to add new agents, modify existing agents, or understand the agent file structure.
 ---
 {{{{raw}}}}
 # Create Agents
@@ -9,11 +9,11 @@ Create and manage agents for the code-forge application. Agents are specialized 
 
 ## File Location
 
-**CRITICAL**: All agent files must be created in the `<cwd>/.forge/agents` directory, where `<cwd>` is the current working directory of your code-forge project.
+**CRITICAL**: All agent files must be created in the `<cwd>/.agents` directory, where `<cwd>` is the current working directory of your code-forge project.
 
-- **Directory**: `<cwd>/.forge/agents`
+- **Directory**: `<cwd>/.agents`
 - **File format**: `{agent-id}.md`
-- **Example**: If your project is at `/home/user/my-project`, agents go in `/home/user/my-project/.forge/agents/`
+- **Example**: If your project is at `/home/user/my-project`, agents go in `/home/user/my-project/.agents/`
 
 This is the only location where forge will discover and load custom agents.
 
@@ -155,9 +155,9 @@ Use descriptive IDs and titles:
 
 ### Step 3: Write the Agent File
 
-Create the file in the `<cwd>/.forge/agents` directory with the format: `{agent-id}.md`
+Create the file in the `<cwd>/.agents` directory with the format: `{agent-id}.md`
 
-**IMPORTANT**: The file MUST be in `<cwd>/.forge/agents` where `<cwd>` is your current working directory. Agents placed anywhere else will not be discovered by forge.
+**IMPORTANT**: The file MUST be in `<cwd>/.agents` where `<cwd>` is your current working directory. Agents placed anywhere else will not be discovered by forge.
 
 #### Frontmatter
 
@@ -771,7 +771,7 @@ Organize agent responses with clear sections:
 Use this checklist to verify your agent is complete and correct:
 
 ### File Structure
-- [ ] File is in the `<cwd>/.forge/agents` directory (CRITICAL)
+- [ ] File is in the `<cwd>/.agents` directory (CRITICAL)
 - [ ] Filename matches agent ID (e.g., `forge.md` for `id: "forge"`)
 - [ ] File has `.md` extension
 - [ ] YAML frontmatter uses `---` delimiters
@@ -1012,7 +1012,7 @@ Good: **Correct**:
 ## Quick Reference
 
 ### File Location
-- **Directory**: `<cwd>/.forge/agents` (where `<cwd>` is current working directory)
+- **Directory**: `<cwd>/.agents` (where `<cwd>` is current working directory)
 - **Format**: `{agent-id}.md`
 - **CRITICAL**: Agents MUST be in this exact location to be discovered by forge
 
@@ -1087,7 +1087,7 @@ After creating an agent, test it by:
 ## Verification
 
 After creating an agent:
-1. **Verify the file location**: Ensure the file is in `<cwd>/.forge/agents` directory (CRITICAL - agents anywhere else will not be found)
+1. **Verify the file location**: Ensure the file is in `<cwd>/.agents` directory (CRITICAL - agents anywhere else will not be found)
 2. Check YAML frontmatter is valid (use `---` delimiters)
 3. Ensure the agent ID matches the filename (without .md)
 4. Verify all required fields are present (id, title, description, reasoning, tools, user_prompt)
