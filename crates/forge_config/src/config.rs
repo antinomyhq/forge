@@ -11,7 +11,7 @@ use crate::{AutoDumpFormat, Compact, HttpConfig, ModelConfig, RetryConfig, Updat
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
-#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
@@ -56,6 +56,7 @@ pub struct ForgeConfig {
     /// Top-k parameter for relevance filtering during semantic search
     pub sem_search_top_k: usize,
     /// URL for the indexing server
+    #[dummy(expr = "\"https://example.com/api\".to_string()")]
     pub services_url: String,
     /// Maximum number of file extensions to include in the system prompt
     pub max_extensions: usize,
@@ -150,52 +151,5 @@ impl ForgeConfig {
     pub fn write(&self) -> crate::Result<()> {
         let path = ConfigReader::config_path();
         ConfigWriter::new(self.clone()).write(&path)
-    }
-}
-
-impl Dummy<fake::Faker> for ForgeConfig {
-    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
-        use fake::Fake;
-        Self {
-            retry: fake::Faker.fake_with_rng(rng),
-            max_search_lines: fake::Faker.fake_with_rng(rng),
-            max_search_result_bytes: fake::Faker.fake_with_rng(rng),
-            max_fetch_chars: fake::Faker.fake_with_rng(rng),
-            max_stdout_prefix_lines: fake::Faker.fake_with_rng(rng),
-            max_stdout_suffix_lines: fake::Faker.fake_with_rng(rng),
-            max_stdout_line_chars: fake::Faker.fake_with_rng(rng),
-            max_line_chars: fake::Faker.fake_with_rng(rng),
-            max_read_lines: fake::Faker.fake_with_rng(rng),
-            max_file_read_batch_size: fake::Faker.fake_with_rng(rng),
-            http: fake::Faker.fake_with_rng(rng),
-            max_file_size_bytes: fake::Faker.fake_with_rng(rng),
-            max_image_size_bytes: fake::Faker.fake_with_rng(rng),
-            tool_timeout_secs: fake::Faker.fake_with_rng(rng),
-            auto_open_dump: fake::Faker.fake_with_rng(rng),
-            debug_requests: fake::Faker.fake_with_rng(rng),
-            custom_history_path: fake::Faker.fake_with_rng(rng),
-            max_conversations: fake::Faker.fake_with_rng(rng),
-            max_sem_search_results: fake::Faker.fake_with_rng(rng),
-            sem_search_top_k: fake::Faker.fake_with_rng(rng),
-            // Must be a valid URL for the round-trip through `Url::parse`
-            services_url: "https://example.com/api".to_string(),
-            max_extensions: fake::Faker.fake_with_rng(rng),
-            auto_dump: fake::Faker.fake_with_rng(rng),
-            max_parallel_file_reads: fake::Faker.fake_with_rng(rng),
-            model_cache_ttl_secs: fake::Faker.fake_with_rng(rng),
-            session: fake::Faker.fake_with_rng(rng),
-            commit: fake::Faker.fake_with_rng(rng),
-            suggest: fake::Faker.fake_with_rng(rng),
-            updates: fake::Faker.fake_with_rng(rng),
-            temperature: fake::Faker.fake_with_rng(rng),
-            top_p: fake::Faker.fake_with_rng(rng),
-            top_k: fake::Faker.fake_with_rng(rng),
-            max_tokens: fake::Faker.fake_with_rng(rng),
-            max_tool_failure_per_turn: fake::Faker.fake_with_rng(rng),
-            max_requests_per_turn: fake::Faker.fake_with_rng(rng),
-            compact: fake::Faker.fake_with_rng(rng),
-            restricted: fake::Faker.fake_with_rng(rng),
-            tool_supported: fake::Faker.fake_with_rng(rng),
-        }
     }
 }
