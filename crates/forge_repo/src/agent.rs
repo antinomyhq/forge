@@ -23,8 +23,7 @@ use gray_matter::engine::YAML;
 /// ## Directory Resolution
 /// - **Built-in agents**: Embedded in application binary
 /// - **Global agents**: `{HOME}/.forge/agents/*.md`
-/// - **CWD agents**: `./.agents/*.md` (relative to current working
-///   directory)
+/// - **CWD agents**: `./.agents/*.md` (relative to current working directory)
 ///
 /// Missing directories are handled gracefully and don't prevent loading from
 /// other sources.
