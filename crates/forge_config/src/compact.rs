@@ -37,6 +37,16 @@ pub struct Update {
     pub auto_update: Option<bool>,
 }
 
+fn serialize_percentage<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    // Format to 2 dp then parse back to f64 to avoid toml_edit emitting noisy
+    // f64 bit-pattern approximations (e.g. 0.20000000000000001 instead of 0.2).
+    let formatted: f64 = format!("{:.2}", value).parse().unwrap();
+    serializer.serialize_f64(formatted)
+}
+
 fn deserialize_percentage<'de, D>(deserializer: D) -> Result<f64, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -68,7 +78,7 @@ pub struct Compact {
     /// compaction and 1.0 allows summarizing all messages. Works alongside
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
-    #[serde(default, deserialize_with = "deserialize_percentage")]
+    #[serde(default, serialize_with = "serialize_percentage", deserialize_with = "deserialize_percentage")]
     pub eviction_window: f64,
 
     /// Maximum number of tokens to keep after compaction
@@ -133,5 +143,44 @@ impl Dummy<fake::Faker> for Compact {
             model: fake::Faker.fake_with_rng(rng),
             on_turn_end: fake::Faker.fake_with_rng(rng),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::reader::ConfigReader;
+
+    #[test]
+    fn test_f64_eviction_window_round_trip() {
+        let fixture = Compact { eviction_window: 0.2, ..Compact::new() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        // Without serialize_percentage, toml_edit would emit the noisy f64
+        // bit-pattern expansion (e.g. 0.20000000000000001).
+        assert!(
+            toml.contains("eviction_window = 0.2\n"),
+            "expected `eviction_window = 0.2` in TOML output, got:\n{toml}"
+        );
+    }
+
+    #[test]
+    fn test_f64_eviction_window_deserialize_round_trip() {
+        let fixture = Compact { eviction_window: 0.2, ..Compact::new() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        let actual = ConfigReader::default()
+            .read_defaults()
+            .read_toml(&toml)
+            .build()
+            .unwrap()
+            .compact
+            .unwrap_or_default();
+
+        assert_eq!(actual.eviction_window, fixture.eviction_window);
     }
 }
