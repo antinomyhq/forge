@@ -5,6 +5,7 @@ use crate::Decimal;
 ///
 /// Validation is enforced at deserialization time, so any config file with an
 /// out-of-range value is rejected with a descriptive error.
+#[derive(Default)]
 pub struct Percentage(Decimal);
 
 impl Percentage {
@@ -17,7 +18,7 @@ impl Percentage {
     ///
     /// Returns `Err` if `value` is outside `[0.0, 1.0]`.
     pub fn new(value: f64) -> Result<Self, String> {
-        if value >= Self::MIN && value <= Self::MAX {
+        if (Self::MIN..=Self::MAX).contains(&value) {
             Ok(Self(Decimal(value)))
         } else {
             Err(format!(
@@ -60,11 +61,6 @@ impl PartialOrd for Percentage {
     }
 }
 
-impl Default for Percentage {
-    fn default() -> Self {
-        Self(Decimal::default())
-    }
-}
 
 impl From<f64> for Percentage {
     fn from(v: f64) -> Self {

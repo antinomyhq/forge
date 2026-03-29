@@ -132,7 +132,10 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_round_trip() {
-        let fixture = Compact { eviction_window: Percentage::new(0.2).unwrap(), ..Compact::new() };
+        let fixture = Compact {
+            eviction_window: Percentage::new(0.2).unwrap(),
+            ..Compact::new()
+        };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
@@ -144,7 +147,10 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_deserialize_round_trip() {
-        let fixture = Compact { eviction_window: Percentage::new(0.2).unwrap(), ..Compact::new() };
+        let fixture = Compact {
+            eviction_window: Percentage::new(0.2).unwrap(),
+            ..Compact::new()
+        };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
