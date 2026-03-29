@@ -757,13 +757,13 @@ class ForgeAgent(BaseInstalledAgent):
         await environment.exec(f"mkdir -p {self.FORGE_CONTAINER_CONFIG_DIR}")
 
         # Upload forge config files (credentials and config)
-        config_file = self.FORGE_HOST_CONFIG_DIR / ".config.json"
+        config_file = self.FORGE_HOST_CONFIG_DIR / ".forge.toml"
         credentials_file = self.FORGE_HOST_CONFIG_DIR / ".credentials.json"
 
         if config_file.exists():
             await environment.upload_file(
                 source_path=config_file,
-                target_path=f"{self.FORGE_CONTAINER_CONFIG_DIR}/.config.json",
+                target_path=f"{self.FORGE_CONTAINER_CONFIG_DIR}/.forge.toml",
             )
         if credentials_file.exists():
             await environment.upload_file(
