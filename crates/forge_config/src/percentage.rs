@@ -61,7 +61,6 @@ impl PartialOrd for Percentage {
     }
 }
 
-
 impl From<f64> for Percentage {
     fn from(v: f64) -> Self {
         Self(Decimal::from(v))
