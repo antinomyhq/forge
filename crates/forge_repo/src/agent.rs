@@ -10,7 +10,7 @@ use gray_matter::engine::YAML;
 /// sources:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
-/// 3. Project-local agents (from .forge/agents/ directory in current working
+/// 3. Project-local agents (from .agents/ directory in current working
 ///    directory)
 ///
 /// ## Agent Precedence
@@ -23,7 +23,7 @@ use gray_matter::engine::YAML;
 /// ## Directory Resolution
 /// - **Built-in agents**: Embedded in application binary
 /// - **Global agents**: `{HOME}/.forge/agents/*.md`
-/// - **CWD agents**: `./.forge/agents/*.md` (relative to current working
+/// - **CWD agents**: `./.agents/*.md` (relative to current working
 ///   directory)
 ///
 /// Missing directories are handled gracefully and don't prevent loading from

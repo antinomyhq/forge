@@ -363,7 +363,7 @@ pub trait StrategyFactory: Send + Sync {
 /// This trait provides access to agent definitions from:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
-/// 3. Project-local agents (from .forge/agents/ directory in current working
+/// 3. Project-local agents (from .agents/ directory in current working
 ///    directory)
 ///
 /// ## Agent Precedence

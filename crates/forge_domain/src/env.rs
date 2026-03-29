@@ -280,7 +280,7 @@ impl Environment {
         self.base_path.join("agents")
     }
     pub fn agent_cwd_path(&self) -> PathBuf {
-        self.cwd.join(".forge/agents")
+        self.cwd.join(".agents")
     }
 
     pub fn permissions_path(&self) -> PathBuf {
@@ -313,9 +313,9 @@ impl Environment {
         self.base_path.join("skills")
     }
 
-    /// Returns the project-local skills directory path (.forge/skills)
+    /// Returns the project-local skills directory path (.agents/skills)
     pub fn local_skills_path(&self) -> PathBuf {
-        self.cwd.join(".forge/skills")
+        self.cwd.join(".agents/skills")
     }
 
     /// Returns the global commands directory path (base_path/commands)
@@ -323,9 +323,9 @@ impl Environment {
         self.base_path.join("commands")
     }
 
-    /// Returns the project-local commands directory path (.forge/commands)
+    /// Returns the project-local commands directory path (.agents/commands)
     pub fn command_path_local(&self) -> PathBuf {
-        self.cwd.join(".forge/commands")
+        self.cwd.join(".agents/commands")
     }
 
     /// Returns the global AGENTS.md path (base_path/AGENTS.md)
@@ -483,7 +483,7 @@ mod tests {
         let fixture = fixture.cwd(PathBuf::from("/current/working/dir"));
 
         let actual = fixture.agent_cwd_path();
-        let expected = PathBuf::from("/current/working/dir/.forge/agents");
+        let expected = PathBuf::from("/current/working/dir/.agents");
 
         assert_eq!(actual, expected);
     }
@@ -498,7 +498,7 @@ mod tests {
         let agent_path = fixture.agent_path();
         let agent_cwd_path = fixture.agent_cwd_path();
         let expected_agent_path = PathBuf::from("/completely/different/base/agents");
-        let expected_agent_cwd_path = PathBuf::from("/different/current/dir/.forge/agents");
+        let expected_agent_cwd_path = PathBuf::from("/different/current/dir/.agents");
 
         // Verify that agent_path uses base_path
         assert_eq!(agent_path, expected_agent_path);
@@ -527,7 +527,7 @@ mod tests {
         let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
 
         let actual = fixture.local_skills_path();
-        let expected = PathBuf::from("/projects/my-app/.forge/skills");
+        let expected = PathBuf::from("/projects/my-app/.agents/skills");
 
         assert_eq!(actual, expected);
     }
@@ -543,7 +543,7 @@ mod tests {
         let local_path = fixture.local_skills_path();
 
         let expected_global = PathBuf::from("/home/user/.forge/skills");
-        let expected_local = PathBuf::from("/projects/my-app/.forge/skills");
+        let expected_local = PathBuf::from("/projects/my-app/.agents/skills");
 
         // Verify global path uses base_path
         assert_eq!(global_path, expected_global);
@@ -572,7 +572,7 @@ mod tests {
         let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
 
         let actual = fixture.command_path_local();
-        let expected = PathBuf::from("/projects/my-app/.forge/commands");
+        let expected = PathBuf::from("/projects/my-app/.agents/commands");
 
         assert_eq!(actual, expected);
     }
@@ -588,7 +588,7 @@ mod tests {
         let local_path = fixture.command_path_local();
 
         let expected_global = PathBuf::from("/home/user/.forge/commands");
-        let expected_local = PathBuf::from("/projects/my-app/.forge/commands");
+        let expected_local = PathBuf::from("/projects/my-app/.agents/commands");
 
         assert_eq!(global_path, expected_global);
         assert_eq!(local_path, expected_local);
