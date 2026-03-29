@@ -87,11 +87,6 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub presets: Vec<PresetConfig>,
 
-    /// Default LLM sampling parameters applied to all agents when no
-    /// agent-specific or role-specific preset is in effect.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub session_preset: Option<PresetConfig>,
-
     /// Maximum tool failures per turn before the orchestrator forces
     /// completion.
     #[serde(default, skip_serializing_if = "Option::is_none")]

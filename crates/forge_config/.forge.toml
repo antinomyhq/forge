@@ -23,7 +23,8 @@ services_url = "https://api.forgecode.dev/"
 tool_supported = true
 tool_timeout_secs = 300
 
-[session_preset]
+[[presets]]
+id = "default"
 max_tokens = 20480
 top_k = 30
 top_p = 0.8

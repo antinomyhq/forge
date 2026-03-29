@@ -47,10 +47,13 @@ pub struct ReasoningConfig {
 /// A named collection of LLM-specific sampling and generation parameters.
 /// Presets apply a consistent set of inference settings to model configurations
 /// and agent definitions.
-#[derive(Debug, Default, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option, into)]
 pub struct PresetConfig {
+    /// Unique identifier for this preset.
+    pub id: String,
+
     /// Output randomness; lower values are deterministic, higher values are
     /// creative (0.0–2.0).
     #[serde(skip_serializing_if = "Option::is_none")]
