@@ -265,7 +265,7 @@ fn from_update(u: &Update) -> forge_config::Update {
 fn from_compact(c: &Compact) -> forge_config::Compact {
     forge_config::Compact {
         retention_window: c.retention_window,
-        eviction_window: forge_config::Decimal(c.eviction_window),
+        eviction_window: forge_config::Percentage::from(c.eviction_window),
         max_tokens: c.max_tokens,
         token_threshold: c.token_threshold,
         turn_threshold: c.turn_threshold,

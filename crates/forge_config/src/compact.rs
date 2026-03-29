@@ -5,22 +5,7 @@ use fake::Dummy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::Decimal;
-
-fn deserialize_eviction_window<'de, D>(deserializer: D) -> Result<Decimal, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::Error;
-
-    let value = f64::deserialize(deserializer)?;
-    if !(0.0..=1.0).contains(&value) {
-        return Err(Error::custom(format!(
-            "eviction_window must be between 0.0 and 1.0, got {value}"
-        )));
-    }
-    Ok(Decimal(value))
-}
+use crate::Percentage;
 
 /// Frequency at which forge checks for updates
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
@@ -70,8 +55,8 @@ pub struct Compact {
     /// compaction and 1.0 allows summarizing all messages. Works alongside
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
-    #[serde(default, deserialize_with = "deserialize_eviction_window")]
-    pub eviction_window: Decimal,
+    #[serde(default)]
+    pub eviction_window: Percentage,
 
     /// Maximum number of tokens to keep after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -115,7 +100,7 @@ impl Compact {
             turn_threshold: None,
             message_threshold: None,
             model: None,
-            eviction_window: Decimal(0.2),
+            eviction_window: Percentage::new(0.2).unwrap(),
             retention_window: 0,
             on_turn_end: None,
         }
@@ -127,7 +112,7 @@ impl Dummy<fake::Faker> for Compact {
         use fake::Fake;
         Self {
             retention_window: fake::Faker.fake_with_rng(rng),
-            eviction_window: Decimal((0.0f64..=1.0f64).fake_with_rng(rng)),
+            eviction_window: Percentage::from((0.0f64..=1.0f64).fake_with_rng::<f64, R>(rng)),
             max_tokens: fake::Faker.fake_with_rng(rng),
             token_threshold: fake::Faker.fake_with_rng(rng),
             turn_threshold: fake::Faker.fake_with_rng(rng),
@@ -147,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_round_trip() {
-        let fixture = Compact { eviction_window: Decimal(0.2), ..Compact::new() };
+        let fixture = Compact { eviction_window: Percentage::new(0.2).unwrap(), ..Compact::new() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
@@ -159,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_deserialize_round_trip() {
-        let fixture = Compact { eviction_window: Decimal(0.2), ..Compact::new() };
+        let fixture = Compact { eviction_window: Percentage::new(0.2).unwrap(), ..Compact::new() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
