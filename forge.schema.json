@@ -241,11 +241,14 @@
     },
     "temperature": {
       "description": "Output randomness for all agents; lower values are deterministic, higher\nvalues are creative (0.0–2.0).",
-      "type": [
-        "number",
-        "null"
-      ],
-      "format": "float"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/F32"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment.\nWhen false, tool calls are disabled regardless of agent configuration.",
@@ -268,11 +271,14 @@
     },
     "top_p": {
       "description": "Nucleus sampling threshold for all agents; limits token selection to the\ntop cumulative probability mass (0.0–1.0).",
-      "type": [
-        "number",
-        "null"
-      ],
-      "format": "float"
+      "anyOf": [
+        {
+          "$ref": "#/$defs/F32"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "updates": {
       "description": "Configuration for automatic forge updates",
@@ -332,8 +338,7 @@
       "properties": {
         "eviction_window": {
           "description": "Maximum percentage of the context that can be summarized during\ncompaction. Valid values are between 0.0 and 1.0, where 0.0 means no\ncompaction and 1.0 allows summarizing all messages. Works alongside\nretention_window - the more conservative limit (fewer messages to\ncompact) takes precedence.",
-          "type": "number",
-          "format": "double",
+          "$ref": "#/$defs/F64",
           "default": 0.0
         },
         "max_tokens": {
@@ -394,6 +399,16 @@
           "minimum": 0
         }
       }
+    },
+    "F32": {
+      "description": "A wrapper around `f32` that serializes to two decimal places, preventing\n`toml_edit` from emitting noisy f64 bit-pattern approximations such as\n`0.10000000149011612` instead of `0.1`.",
+      "type": "number",
+      "format": "float"
+    },
+    "F64": {
+      "description": "A wrapper around `f64` that serializes to two decimal places, preventing\n`toml_edit` from emitting noisy approximations such as\n`0.20000000000000001` instead of `0.2`.",
+      "type": "number",
+      "format": "double"
     },
     "HttpConfig": {
       "description": "HTTP client configuration.",

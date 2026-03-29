@@ -5,6 +5,8 @@ use fake::Dummy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::F64;
+
 /// Frequency at which forge checks for updates
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
@@ -37,31 +39,6 @@ pub struct Update {
     pub auto_update: Option<bool>,
 }
 
-fn serialize_percentage<S>(value: &f64, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: serde::Serializer,
-{
-    // Format to 2 dp then parse back to f64 to avoid toml_edit emitting noisy
-    // f64 bit-pattern approximations (e.g. 0.20000000000000001 instead of 0.2).
-    let formatted: f64 = format!("{:.2}", value).parse().unwrap();
-    serializer.serialize_f64(formatted)
-}
-
-fn deserialize_percentage<'de, D>(deserializer: D) -> Result<f64, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::de::Error;
-
-    let value = f64::deserialize(deserializer)?;
-    if !(0.0..=1.0).contains(&value) {
-        return Err(Error::custom(format!(
-            "percentage must be between 0.0 and 1.0, got {value}"
-        )));
-    }
-    Ok(value)
-}
-
 /// Configuration for automatic context compaction for all agents
 #[derive(Debug, Clone, Serialize, Deserialize, Setters, JsonSchema, PartialEq)]
 #[setters(strip_option, into)]
@@ -78,8 +55,8 @@ pub struct Compact {
     /// compaction and 1.0 allows summarizing all messages. Works alongside
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
-    #[serde(default, serialize_with = "serialize_percentage", deserialize_with = "deserialize_percentage")]
-    pub eviction_window: f64,
+    #[serde(default)]
+    pub eviction_window: F64,
 
     /// Maximum number of tokens to keep after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -123,7 +100,7 @@ impl Compact {
             turn_threshold: None,
             message_threshold: None,
             model: None,
-            eviction_window: 0.2,
+            eviction_window: F64(0.2),
             retention_window: 0,
             on_turn_end: None,
         }
@@ -135,7 +112,7 @@ impl Dummy<fake::Faker> for Compact {
         use fake::Fake;
         Self {
             retention_window: fake::Faker.fake_with_rng(rng),
-            eviction_window: (0.0f64..=1.0f64).fake_with_rng(rng),
+            eviction_window: F64((0.0f64..=1.0f64).fake_with_rng(rng)),
             max_tokens: fake::Faker.fake_with_rng(rng),
             token_threshold: fake::Faker.fake_with_rng(rng),
             turn_threshold: fake::Faker.fake_with_rng(rng),
@@ -155,12 +132,10 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_round_trip() {
-        let fixture = Compact { eviction_window: 0.2, ..Compact::new() };
+        let fixture = Compact { eviction_window: F64(0.2), ..Compact::new() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
-        // Without serialize_percentage, toml_edit would emit the noisy f64
-        // bit-pattern expansion (e.g. 0.20000000000000001).
         assert!(
             toml.contains("eviction_window = 0.2\n"),
             "expected `eviction_window = 0.2` in TOML output, got:\n{toml}"
@@ -169,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_f64_eviction_window_deserialize_round_trip() {
-        let fixture = Compact { eviction_window: 0.2, ..Compact::new() };
+        let fixture = Compact { eviction_window: F64(0.2), ..Compact::new() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
 
