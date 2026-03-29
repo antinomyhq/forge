@@ -3,7 +3,7 @@ Reads a file from the local filesystem. You can access any file directly by usin
 Usage:
 - The file_path parameter must be an absolute path, not a relative path
 - By default, it reads up to {{env.maxReadSize}} lines starting from the beginning of the file
-- You can optionally specify a line start_line and end_line (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
+- You can optionally specify a line start_line and end_line (especially handy for long files). Start with the default chunk, then use targeted follow-up ranges when you need more context from a specific part of the file
 - Any lines longer than {{env.maxLineLength}} characters will be truncated
 - Results are returned using rg "" -n format, with line numbers starting at 1
 {{#if (contains model.input_modalities "image")}}

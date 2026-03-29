@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
-    FinishReason, Hook, ProviderId, ToolCallArguments, ToolCallFull, ToolErrorTracker, ToolResult,
+    FinishReason, Hook, ProviderId, ToolCallArguments, ToolCallFull, ToolCallId, ToolErrorTracker,
+    ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use include_dir::{Dir, include_dir};
@@ -12,7 +13,7 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::hooks::DoomLoopDetector;
-use crate::hooks::verification_reminder::VERIFICATION_REMINDER;
+use crate::hooks::verification_reminder::{VERIFICATION_COMMAND_REMINDER, VERIFICATION_REMINDER};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -152,9 +153,10 @@ impl AgentService for Runner {
     ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut responses = self.test_completions.lock().await;
 
-        // If the last message is the verification reminder and no mock response is
-        // queued, automatically synthesize a response that invokes the skill and
-        // completes — this keeps existing tests from needing to be updated.
+        // If the last message is a verification reminder and no mock response is
+        // queued, automatically synthesize a response that performs the required
+        // verification flow and completes — this keeps existing tests from needing
+        // to be updated.
         let last_content = context
             .messages
             .last()
@@ -165,12 +167,27 @@ impl AgentService for Runner {
             let skill_call = ToolCallFull::new("skill").arguments(ToolCallArguments::from(
                 serde_json::json!({"name": "verification-specialist"}),
             ));
-            let turn1 = ChatCompletionMessage::assistant("Invoking verification skill")
-                .tool_calls(vec![skill_call.into()]);
+            let shell_call = ToolCallFull::new("shell").arguments(ToolCallArguments::from(
+                serde_json::json!({"command": "pytest", "description": "Run verification smoke test"}),
+            ));
+            let turn1 = ChatCompletionMessage::assistant("Running verification flow")
+                .tool_calls(vec![skill_call.into(), shell_call.into()]);
             let turn2 = ChatCompletionMessage::assistant("Verification complete")
                 .finish_reason(FinishReason::Stop);
             drop(responses);
-            // Queue turn2 for the next call; return turn1 now
+            self.test_completions.lock().await.push_back(turn2);
+            return Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(turn1)))));
+        }
+
+        if last_content == VERIFICATION_COMMAND_REMINDER && responses.is_empty() {
+            let shell_call = ToolCallFull::new("shell").arguments(ToolCallArguments::from(
+                serde_json::json!({"command": "pytest", "description": "Run verification smoke test"}),
+            ));
+            let turn1 = ChatCompletionMessage::assistant("Running verification command")
+                .tool_calls(vec![shell_call.into()]);
+            let turn2 = ChatCompletionMessage::assistant("Verification complete")
+                .finish_reason(FinishReason::Stop);
+            drop(responses);
             self.test_completions.lock().await.push_back(turn2);
             return Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(turn1)))));
         }
@@ -194,11 +211,16 @@ impl AgentService for Runner {
     ) -> forge_domain::ToolResult {
         let name = test_call.name.clone();
 
-        // Auto-handle skill tool calls (used by the verification reminder
-        // auto-response) without requiring explicit mock setup.
-        if name.as_str() == "skill" {
-            return forge_domain::ToolResult::new("skill")
-                .output(Ok(forge_domain::ToolOutput::text("skill executed")));
+        // Auto-handle verification reminder tool calls without requiring
+        // explicit mock setup.
+        if name.as_str() == "skill" || name.as_str() == "shell" {
+            return forge_domain::ToolResult::new(name)
+                .call_id(
+                    test_call
+                        .call_id
+                        .unwrap_or_else(|| ToolCallId::new("auto_call")),
+                )
+                .output(Ok(forge_domain::ToolOutput::text("verification executed")));
         }
 
         let mut guard = self.test_tool_calls.lock().await;

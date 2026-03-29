@@ -30,7 +30,7 @@ If the task produces a binary, script, generated file, or service, verify that e
 Extract constraints from the task prompt and verify each with ONE command:
 
 - **SIZE**: `wc -c output_file` or `stat --format=%s`
-- **PERFORMANCE**: Run benchmark at ALL specified sizes (not just the easiest)
+- **PERFORMANCE**: Run benchmark at ALL specified sizes (not just the easiest); if the domain is small and bounded (e.g. sizes 2..10), cover every value in the range
 - **FORMAT**: Parse output with the expected consumer (`python3 -c "import json; json.load(open(...))"`)
 - **METHOD**: Verify no calls to reference binaries: `grep -r "/app/orig\|subprocess.*reference" your_code`
 - **COVERAGE**: Loop over ALL parameter values: `for ws in 1 2 4; do test $ws; done`
@@ -45,7 +45,7 @@ Before declaring complete, catch common silent failures:
 1. **Numerical outputs**: Print the key values. Are they physically plausible? (Peak width shouldn't be 10x the fitting window. Speedup shouldn't be 0.5x. Eigenvalue shouldn't be NaN.)
 2. **File outputs**: Check size is non-trivial for the task complexity. A 12-byte output for a compression task is wrong.
 3. **Service outputs**: Hit the endpoint with a fresh client. Don't rely on cached state from your testing.
-4. **Multi-parameter tasks**: Test the FULL parameter range, not just the trivial case. world_size=1 hides all sharding bugs.
+4. **Multi-parameter tasks**: Test the FULL parameter range, not just the trivial case. world_size=1 hides all sharding bugs. If a helper script only samples part of a bounded domain, add your own loop to cover the missing values before concluding.
 5. **Build artifacts**: If compilation is part of the task, confirm the expected artifact path exists before declaring success. A green compile log without the required output file is not enough.
 
 ## Step 4 — Cleanup & Final Run
@@ -53,7 +53,7 @@ Before declaring complete, catch common silent failures:
 1. Remove your test scripts, temp files, compilation artifacts.
 2. **Do NOT remove**: deployed content (webroot files, database records, git repos, config files, .so files the deliverable imports).
 3. `ls` every output directory — only requested deliverables should remain.
-4. **Run the verifier one final time** against the cleaned workspace. This is the state the real verifier sees.
+4. **Run the verifier one final time** against the cleaned workspace. If that final run creates temporary binaries, build products, or scratch files, clean them again before finishing. The final visible workspace state must still match what the task expects.
 
 ## What NOT To Do
 
@@ -61,5 +61,7 @@ Before declaring complete, catch common silent failures:
 - Do NOT write "review code" or "check manually" as a verification step. Every check must be a runnable command.
 - Do NOT treat invoking this skill by itself as verification. The required verifier or smoke-test commands still need to be run.
 - Do NOT test only the trivial case (world_size=1, 2x2 matrix, empty input) and declare success.
+- Do NOT assume a helper benchmark or smoke test covers the full domain; if the prompt gives a small bounded range, explicitly enumerate it yourself.
 - Do NOT leave test artifacts in the workspace. But also do NOT delete runtime dependencies the deliverable needs.
+- Do NOT run your final verification in a way that leaves extra binaries or scratch outputs in the deliverable directory; either place them elsewhere or clean them before finishing.
 - Do NOT accept curve-fit results without sanity-checking the fitted parameters are physically plausible.

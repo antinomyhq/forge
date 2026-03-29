@@ -5,6 +5,7 @@ use forge_domain::{
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
+use crate::hooks::verification_reminder::VERIFICATION_COMMAND_REMINDER;
 use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
@@ -557,6 +558,57 @@ async fn test_is_complete_when_stop_with_no_tool_calls() {
     assert!(
         has_task_complete,
         "Should have TaskComplete when finish_reason is Stop with no tool calls"
+    );
+}
+
+#[tokio::test]
+async fn test_requires_shell_verification_after_skill_before_completion() {
+    let skill_call =
+        ToolCallFull::new("skill").arguments(json!({"name": "verification-specialist"}));
+    let shell_call = ToolCallFull::new("shell").arguments(json!({
+        "command": "pytest",
+        "description": "Run verification smoke test"
+    }));
+    let shell_result = ToolResult::new("shell").output(Ok(ToolOutput::text("verification ok")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![(shell_call.clone(), shell_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Task is done").finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Invoking verification skill")
+                .tool_calls(vec![skill_call.into()]),
+            ChatCompletionMessage::assistant("Verification skill completed")
+                .finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Running verification command")
+                .tool_calls(vec![shell_call.into()]),
+            ChatCompletionMessage::assistant("Verification command completed")
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Complete this task").await.unwrap();
+
+    let context = ctx
+        .output
+        .conversation_history
+        .last()
+        .unwrap()
+        .context
+        .clone()
+        .unwrap();
+    assert!(context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(VERIFICATION_COMMAND_REMINDER))
+    }));
+
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+    assert!(
+        has_task_complete,
+        "Should complete after running shell verification command"
     );
 }
 

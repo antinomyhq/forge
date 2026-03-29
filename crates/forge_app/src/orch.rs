@@ -11,7 +11,10 @@ use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
-use crate::hooks::verification_reminder::{VERIFICATION_REMINDER, verification_skill_was_called};
+use crate::hooks::verification_reminder::{
+    VERIFICATION_COMMAND_REMINDER, VERIFICATION_REMINDER, verification_command_was_run_after_skill,
+    verification_skill_was_called,
+};
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -330,13 +333,31 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            let reminder_already_sent = context.messages.iter().any(|msg| {
+            let verification_reminder_already_sent = context.messages.iter().any(|msg| {
                 msg.content()
                     .is_some_and(|c| c.contains(VERIFICATION_REMINDER))
             });
+            let verification_command_reminder_already_sent = context.messages.iter().any(|msg| {
+                msg.content()
+                    .is_some_and(|c| c.contains(VERIFICATION_COMMAND_REMINDER))
+            });
 
-            if is_complete && !reminder_already_sent && !verification_skill_was_called(&context) {
+            if is_complete
+                && !verification_reminder_already_sent
+                && !verification_skill_was_called(&context)
+            {
                 context = context.add_message(ContextMessage::user(VERIFICATION_REMINDER, None));
+                should_yield = false;
+                is_complete = false;
+            }
+
+            if is_complete
+                && verification_skill_was_called(&context)
+                && !verification_command_reminder_already_sent
+                && !verification_command_was_run_after_skill(&context)
+            {
+                context =
+                    context.add_message(ContextMessage::user(VERIFICATION_COMMAND_REMINDER, None));
                 should_yield = false;
                 is_complete = false;
             }
