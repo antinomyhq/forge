@@ -6,13 +6,17 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
+use serde_json::json;
 use tokio::sync::Notify;
 use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::hooks::verification_reminder::{
-    VERIFICATION_COMMAND_REMINDER, VERIFICATION_REMINDER, verification_command_was_run_after_skill,
+    VERIFICATION_MATRIX_AGENT_NAME, extract_verification_matrix_message,
+    verification_command_reminder, verification_command_reminder_was_sent,
+    verification_command_was_run_after_skill, verification_gate_applies, verification_matrix_task,
+    verification_matrix_was_sent, verification_reminder, verification_reminder_was_sent,
     verification_skill_was_called,
 };
 
@@ -38,19 +42,37 @@ impl<S: AgentService> Orchestrator<S> {
         agent: Agent,
     ) -> Self {
         Self {
+            services,
+            sender: Default::default(),
             conversation,
             environment,
-            services,
-            agent,
-            sender: Default::default(),
             tool_definitions: Default::default(),
             models: Default::default(),
+            agent,
             error_tracker: Default::default(),
-            hook: Arc::new(Hook::default()),
+            hook: Arc::new(crate::hooks::default()),
         }
     }
 
-    /// Get a reference to the internal conversation
+    async fn generate_verification_matrix(
+        &self,
+        tool_context: &ToolCallContext,
+        context: &Context,
+    ) -> Option<String> {
+        let task = verification_matrix_task(context)?;
+        let gate_agent = self
+            .agent
+            .clone()
+            .tools(vec![ToolName::new(VERIFICATION_MATRIX_AGENT_NAME)]);
+        let call = ToolCallFull::new(VERIFICATION_MATRIX_AGENT_NAME)
+            .arguments(ToolCallArguments::from(json!({ "tasks": [task] })));
+        let result = self.services.call(&gate_agent, tool_context, call).await;
+        if result.is_error() {
+            return None;
+        }
+        extract_verification_matrix_message(result.output.as_str()?)
+    }
+
     pub fn get_conversation(&self) -> &Conversation {
         &self.conversation
     }
@@ -333,31 +355,47 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            let verification_reminder_already_sent = context.messages.iter().any(|msg| {
-                msg.content()
-                    .is_some_and(|c| c.contains(VERIFICATION_REMINDER))
-            });
-            let verification_command_reminder_already_sent = context.messages.iter().any(|msg| {
-                msg.content()
-                    .is_some_and(|c| c.contains(VERIFICATION_COMMAND_REMINDER))
-            });
+            let verification_gate_enabled = verification_gate_applies(&self.agent);
+            let verification_reminder_already_sent = verification_reminder_was_sent(&context);
+            let verification_command_reminder_already_sent =
+                verification_command_reminder_was_sent(&context);
+            let verification_matrix_already_sent = verification_matrix_was_sent(&context);
 
-            if is_complete
+            if verification_gate_enabled
+                && is_complete
                 && !verification_reminder_already_sent
                 && !verification_skill_was_called(&context)
             {
-                context = context.add_message(ContextMessage::user(VERIFICATION_REMINDER, None));
+                let matrix = if !verification_matrix_already_sent {
+                    self.generate_verification_matrix(&tool_context, &context)
+                        .await
+                } else {
+                    None
+                };
+                context = context.add_message(ContextMessage::user(
+                    verification_reminder(matrix.as_deref()),
+                    None,
+                ));
                 should_yield = false;
                 is_complete = false;
             }
 
-            if is_complete
+            if verification_gate_enabled
+                && is_complete
                 && verification_skill_was_called(&context)
                 && !verification_command_reminder_already_sent
                 && !verification_command_was_run_after_skill(&context)
             {
-                context =
-                    context.add_message(ContextMessage::user(VERIFICATION_COMMAND_REMINDER, None));
+                let matrix = if !verification_matrix_already_sent {
+                    self.generate_verification_matrix(&tool_context, &context)
+                        .await
+                } else {
+                    None
+                };
+                context = context.add_message(ContextMessage::user(
+                    verification_command_reminder(matrix.as_deref()),
+                    None,
+                ));
                 should_yield = false;
                 is_complete = false;
             }

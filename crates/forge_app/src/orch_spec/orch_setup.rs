@@ -117,7 +117,12 @@ impl Default for TestContext {
             )
             .system_prompt(Template::new("You are Forge"))
             .user_prompt(Template::new(USER_PROMPT))
-            .tools(vec![("fs_read").into(), ("fs_write").into()]),
+            .tools(vec![
+                ("fs_read").into(),
+                ("fs_write").into(),
+                ("skill").into(),
+                ("shell").into(),
+            ]),
             tools: vec![
                 ToolDefinition::new("fs_read"),
                 ToolDefinition::new("fs_write"),

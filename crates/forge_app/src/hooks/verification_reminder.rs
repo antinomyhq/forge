@@ -1,12 +1,122 @@
-use forge_domain::{Context, ContextMessage, ToolCatalog};
+use forge_domain::{Agent, Context, ContextMessage, Role, ToolCatalog};
 
+const VERIFICATION_MATRIX_END_TAG: &str = "</verification-matrix>";
+const OUTPUT_START_TAG: &str = "<output>";
+const OUTPUT_END_TAG: &str = "</output>";
+
+pub const VERIFICATION_MATRIX_AGENT_NAME: &str = "verification-matrix";
 const VERIFICATION_SKILL_NAME: &str = "verification-specialist";
 const VERIFICATION_COMMAND_TOOL_NAME: &str = "shell";
+pub const VERIFICATION_MATRIX_TAG: &str = "<verification-matrix>";
 
 /// The reminder message injected when the verification-specialist skill has
 /// not been called before task completion.
-pub const VERIFICATION_REMINDER: &str = "<system-reminder>\nYou have NOT yet invoked the `verification-specialist` skill. You MUST use the `skill` tool to invoke the `verification-specialist` skill and then run the actual verifier command or a runnable smoke test before marking the task as completed. Calling the skill alone is not sufficient.\n</system-reminder>";
-pub const VERIFICATION_COMMAND_REMINDER: &str = "<system-reminder>\nYou have invoked the `verification-specialist` skill, but there is still no successful `shell` verification command after that skill call in the transcript. You MUST run the actual verifier command or a runnable smoke test and leave its output in the conversation before marking the task as completed.\n</system-reminder>";
+pub const VERIFICATION_REMINDER_BODY: &str = "You have NOT yet invoked the `verification-specialist` skill. You MUST use the `skill` tool to invoke the `verification-specialist` skill and then run the actual verifier command or a runnable smoke test before marking the task as completed. Calling the skill alone is not sufficient.";
+pub const VERIFICATION_COMMAND_REMINDER_BODY: &str = "You have invoked the `verification-specialist` skill, but there is still no successful `shell` verification command after that skill call in the transcript. You MUST run the actual verifier command or a runnable smoke test and leave its output in the conversation before marking the task as completed.";
+fn build_system_reminder(body: &str, matrix: Option<&str>) -> String {
+    let mut parts = Vec::new();
+    if let Some(matrix) = matrix {
+        parts.push(matrix.trim().to_string());
+    }
+    parts.push(body.to_string());
+    format!(
+        "<system-reminder>\n{}\n</system-reminder>",
+        parts.join("\n\n")
+    )
+}
+
+pub fn verification_reminder(matrix: Option<&str>) -> String {
+    build_system_reminder(VERIFICATION_REMINDER_BODY, matrix)
+}
+
+pub fn verification_command_reminder(matrix: Option<&str>) -> String {
+    build_system_reminder(VERIFICATION_COMMAND_REMINDER_BODY, matrix)
+}
+
+fn collect_user_task_text(context: &Context) -> String {
+    context
+        .messages
+        .iter()
+        .filter_map(|msg| match &**msg {
+            ContextMessage::Text(text)
+                if text.role == Role::User && !text.content.contains("<system-reminder>") =>
+            {
+                Some(text.content.as_str())
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn verification_matrix_task(context: &Context) -> Option<String> {
+    let task_text = collect_user_task_text(context);
+    if task_text.trim().is_empty() {
+        return None;
+    }
+
+    Some(format!(
+        "Analyze the user task below and output only a concise verification matrix inside `<verification-matrix>` tags. Include: explicit checks the verifier is likely to perform, implicit/common-convention checks, parameter/range coverage traps, artifact/interface checks, and final cleanup/fresh-state checks. Keep it short and actionable. Do not propose implementation steps. Do not use tools.\n\n<user-task>\n{}\n</user-task>",
+        task_text
+    ))
+}
+
+fn decode_xml_entities(value: &str) -> String {
+    value
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&quot;", "\"")
+        .replace("&#39;", "'")
+        .replace("&amp;", "&")
+}
+
+pub fn extract_verification_matrix_message(raw_output: &str) -> Option<String> {
+    let decoded = decode_xml_entities(raw_output.trim());
+    let content = if let Some(start) = decoded.find(OUTPUT_START_TAG) {
+        let start = start + OUTPUT_START_TAG.len();
+        let end = decoded[start..].find(OUTPUT_END_TAG)? + start;
+        &decoded[start..end]
+    } else {
+        decoded.as_str()
+    };
+
+    let start = content.find(VERIFICATION_MATRIX_TAG)?;
+    let end = content[start..].find(VERIFICATION_MATRIX_END_TAG)?
+        + start
+        + VERIFICATION_MATRIX_END_TAG.len();
+    Some(content[start..end].trim().to_string())
+}
+
+pub fn verification_gate_applies(agent: &Agent) -> bool {
+    agent.tools.as_ref().is_some_and(|tools| {
+        let has_skill = tools.iter().any(|tool| tool.as_str() == "skill");
+        let has_shell = tools
+            .iter()
+            .any(|tool| tool.as_str() == VERIFICATION_COMMAND_TOOL_NAME);
+        has_skill && has_shell
+    })
+}
+
+pub fn verification_matrix_was_sent(context: &Context) -> bool {
+    context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(VERIFICATION_MATRIX_TAG))
+    })
+}
+
+pub fn verification_reminder_was_sent(context: &Context) -> bool {
+    context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(VERIFICATION_REMINDER_BODY))
+    })
+}
+
+pub fn verification_command_reminder_was_sent(context: &Context) -> bool {
+    context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(VERIFICATION_COMMAND_REMINDER_BODY))
+    })
+}
 
 /// Returns true if the `verification-specialist` skill was called anywhere in
 /// the given context.
@@ -222,5 +332,58 @@ mod tests {
                     .tool_calls(vec![skill_tool_call(VERIFICATION_SKILL_NAME)]),
             ));
         assert!(!verification_command_was_run_after_skill(&context));
+    }
+
+    #[test]
+    fn test_builds_verification_matrix_task_from_user_messages() {
+        let context = Context::default().add_message(ContextMessage::user(
+            "Implement `HeadlessTerminal` in `/app/headless_terminal.py`. Support interactive keystrokes, vim, and world sizes 2..10.",
+            None,
+        ));
+
+        let task = verification_matrix_task(&context).expect("task should be generated");
+        assert!(task.contains("<user-task>"));
+        assert!(task.contains("/app/headless_terminal.py"));
+        assert!(task.contains("HeadlessTerminal"));
+        assert!(task.contains("2..10"));
+    }
+
+    #[test]
+    fn test_no_verification_matrix_task_for_empty_non_task_context() {
+        let context = Context::default().add_message(ContextMessage::user(
+            "<system-reminder>internal only</system-reminder>",
+            None,
+        ));
+
+        assert!(verification_matrix_task(&context).is_none());
+    }
+
+    #[test]
+    fn test_extracts_verification_matrix_from_agent_output() {
+        let raw = "<task_completed task=\"matrix\"><output>&lt;verification-matrix&gt;\n- verify `/app/bin` exists\n&lt;/verification-matrix&gt;</output></task_completed>";
+        let matrix = extract_verification_matrix_message(raw).expect("matrix should parse");
+        assert!(matrix.contains("<verification-matrix>"));
+        assert!(matrix.contains("/app/bin"));
+        assert!(!matrix.contains("<system-reminder>"));
+    }
+
+    #[test]
+    fn test_verification_reminder_includes_matrix_in_single_system_reminder() {
+        let reminder = verification_reminder(Some(
+            "<verification-matrix>\n- verify `/app/bin` exists\n</verification-matrix>",
+        ));
+        assert_eq!(reminder.matches("<system-reminder>").count(), 1);
+        assert!(reminder.contains("<verification-matrix>"));
+        assert!(reminder.contains("verification-specialist"));
+    }
+
+    #[test]
+    fn test_detects_when_verification_matrix_was_sent() {
+        let context = Context::default().add_message(ContextMessage::user(
+            "<system-reminder>\n<verification-matrix>\n- row\n</verification-matrix>\n</system-reminder>",
+            None,
+        ));
+
+        assert!(verification_matrix_was_sent(&context));
     }
 }

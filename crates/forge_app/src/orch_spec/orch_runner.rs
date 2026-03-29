@@ -13,7 +13,9 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::hooks::DoomLoopDetector;
-use crate::hooks::verification_reminder::{VERIFICATION_COMMAND_REMINDER, VERIFICATION_REMINDER};
+use crate::hooks::verification_reminder::{
+    VERIFICATION_COMMAND_REMINDER_BODY, VERIFICATION_REMINDER_BODY,
+};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -163,7 +165,7 @@ impl AgentService for Runner {
             .and_then(|m| m.content())
             .unwrap_or_default();
 
-        if last_content == VERIFICATION_REMINDER && responses.is_empty() {
+        if last_content.contains(VERIFICATION_REMINDER_BODY) && responses.is_empty() {
             let skill_call = ToolCallFull::new("skill").arguments(ToolCallArguments::from(
                 serde_json::json!({"name": "verification-specialist"}),
             ));
@@ -179,7 +181,7 @@ impl AgentService for Runner {
             return Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(turn1)))));
         }
 
-        if last_content == VERIFICATION_COMMAND_REMINDER && responses.is_empty() {
+        if last_content.contains(VERIFICATION_COMMAND_REMINDER_BODY) && responses.is_empty() {
             let shell_call = ToolCallFull::new("shell").arguments(ToolCallArguments::from(
                 serde_json::json!({"command": "pytest", "description": "Run verification smoke test"}),
             ));
@@ -213,6 +215,18 @@ impl AgentService for Runner {
 
         // Auto-handle verification reminder tool calls without requiring
         // explicit mock setup.
+        if name.as_str() == "verification-matrix" {
+            return forge_domain::ToolResult::new(name)
+                .call_id(
+                    test_call
+                        .call_id
+                        .unwrap_or_else(|| ToolCallId::new("auto_call")),
+                )
+                .output(Ok(forge_domain::ToolOutput::text(
+                    "<verification-matrix>\n- verify the exact deliverable path/interface\n- run the real verifier or smoke test\n</verification-matrix>",
+                )));
+        }
+
         if name.as_str() == "skill" || name.as_str() == "shell" {
             return forge_domain::ToolResult::new(name)
                 .call_id(

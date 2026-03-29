@@ -5,7 +5,7 @@ use forge_domain::{
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-use crate::hooks::verification_reminder::VERIFICATION_COMMAND_REMINDER;
+use crate::hooks::verification_reminder::VERIFICATION_COMMAND_REMINDER_BODY;
 use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
@@ -28,16 +28,21 @@ async fn test_simple_conversation_no_errors() {
 
     let messages = ctx.output.context_messages();
 
-    // The orchestrator injects a verification-specialist reminder as a User message
-    // before the agent completes, so there will be 2 user messages in total:
-    // 1 for the original task, 1 for the verification reminder.
+    // The orchestrator injects a single verification reminder message,
+    // optionally including the verification matrix, before completion.
     let user_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::User))
         .count();
     assert_eq!(
         user_message_count, 2,
-        "Should have 2 user messages: original task + verification reminder"
+        "Should have 2 user messages: original task + merged verification reminder"
+    );
+    assert!(
+        messages
+            .iter()
+            .filter_map(|message| message.content())
+            .any(|content| { content.contains("<verification-matrix>") })
     );
 
     let error_count = messages
@@ -597,7 +602,7 @@ async fn test_requires_shell_verification_after_skill_before_completion() {
         .unwrap();
     assert!(context.messages.iter().any(|msg| {
         msg.content()
-            .is_some_and(|content| content.contains(VERIFICATION_COMMAND_REMINDER))
+            .is_some_and(|content| content.contains(VERIFICATION_COMMAND_REMINDER_BODY))
     }));
 
     let has_task_complete = ctx
