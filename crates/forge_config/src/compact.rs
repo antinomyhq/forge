@@ -7,6 +7,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::Decimal;
 
+fn deserialize_eviction_window<'de, D>(deserializer: D) -> Result<Decimal, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error;
+
+    let value = f64::deserialize(deserializer)?;
+    if !(0.0..=1.0).contains(&value) {
+        return Err(Error::custom(format!(
+            "eviction_window must be between 0.0 and 1.0, got {value}"
+        )));
+    }
+    Ok(Decimal(value))
+}
+
 /// Frequency at which forge checks for updates
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
 #[serde(rename_all = "snake_case")]
@@ -55,7 +70,7 @@ pub struct Compact {
     /// compaction and 1.0 allows summarizing all messages. Works alongside
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_eviction_window")]
     pub eviction_window: Decimal,
 
     /// Maximum number of tokens to keep after compaction
@@ -157,5 +172,18 @@ mod tests {
             .unwrap_or_default();
 
         assert_eq!(actual.eviction_window, fixture.eviction_window);
+    }
+
+    #[test]
+    fn test_eviction_window_rejects_out_of_range() {
+        let toml = "[compact]\neviction_window = 1.5\n";
+
+        let result = ConfigReader::default().read_defaults().read_toml(toml).build();
+
+        assert!(
+            result.is_err(),
+            "expected error for eviction_window = 1.5, got: {:?}",
+            result.ok()
+        );
     }
 }
