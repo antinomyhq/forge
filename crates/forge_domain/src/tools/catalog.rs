@@ -1180,7 +1180,6 @@ impl ToolCatalog {
         ToolCallFull::from(ToolCatalog::TodoRead(TodoRead::default()))
     }
 
-
     /// Identifies the kind of the built-in Tools
     pub fn kind(&self) -> ToolKind {
         self.clone().into()

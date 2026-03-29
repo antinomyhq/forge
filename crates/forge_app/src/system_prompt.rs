@@ -235,16 +235,16 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use std::sync::Arc;
 
     use fake::Fake;
     use forge_domain::{Agent, Environment, Template};
+    use pretty_assertions::assert_eq;
 
     use super::*;
 
     const MAX_EXTENSIONS: usize = 15;
-    
+
     struct MockSkillFetchService;
 
     #[async_trait::async_trait]
@@ -557,9 +557,9 @@ mod tests {
             "Never produce a zero-tool-call response for a task that has concrete deliverables",
             "Prototype-first development",
             "one check per requirement category, no duplicates",
-            "rerun verification against the exact final workspace state that the verifier will inspect",
+            "exact workspace state the verifier will inspect",
             "Do not delete runtime artifacts that the final deliverable needs in order to import, execute, or serve requests.",
-            "reconstruct that verifier invocation from the task prompt and use it as a behavioral check before completion.",
+            "reconstruct that verifier invocation and run it as a behavioral check before completion.",
             "For tasks that must produce ALL valid outputs",
             "randomized and adversarial inputs spanning the full task space",
             "When elapsed time exceeds 85% of your estimated budget",

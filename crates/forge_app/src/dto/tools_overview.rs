@@ -32,7 +32,7 @@ impl ToolsOverview {
         server_names.sort();
 
         for server_name in server_names {
-            if let Some(server_tools) = self.mcp.get_servers().get(&server_name) {
+            if let Some(server_tools) = self.mcp.get_servers().get(server_name) {
                 tools.extend(server_tools);
             }
         }

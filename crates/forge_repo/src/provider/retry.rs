@@ -378,7 +378,11 @@ mod tests {
         }
 
         // Non-retryable string codes are NOT retried
-        for code in ["invalid_api_key", "model_not_found", "invalid_request_error"] {
+        for code in [
+            "invalid_api_key",
+            "model_not_found",
+            "invalid_request_error",
+        ] {
             let error = anyhow::Error::from(Error::Response(
                 ErrorResponse::default()
                     .code(ErrorCode::String(code.to_string()))

@@ -9,11 +9,11 @@ use forge_app::{
     KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
-    ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
-    Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
-    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
-    Snapshot, SnapshotRepository, Todo,
+    AnyProvider, AuthCredential, ChatCompletionMessage, ChatRepository, CommandOutput, Context,
+    Conversation, ConversationId, ConversationRepository, Environment, FileInfo,
+    FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
+    ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository, Snapshot,
+    SnapshotRepository, Todo,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -23,7 +23,6 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::agent::ForgeAgentRepository;
-use crate::app_config::AppConfigRepositoryImpl;
 use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -42,7 +41,6 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
-    app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     chat_repository: Arc<ForgeChatRepository<F>>,
@@ -54,11 +52,7 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
-    pub fn new(
-        infra: Arc<F>,
-        override_model: Option<forge_domain::ModelId>,
-        override_provider: Option<forge_domain::ProviderId>,
-    ) -> Self {
+    pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -67,12 +61,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             db_pool.clone(),
             env.workspace_hash(),
         ));
-
-        let app_config_repository = Arc::new(
-            AppConfigRepositoryImpl::new(infra.clone())
-                .override_model(override_model)
-                .override_provider(override_provider),
-        );
 
         let mcp_cache_repository = Arc::new(CacacheStorage::new(
             env.cache_dir().join("mcp_cache"),
@@ -91,7 +79,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             infra,
             file_snapshot_service,
             conversation_repository,
-            app_config_repository,
             mcp_cache_repository,
             provider_repository,
             chat_repository,
@@ -202,15 +189,24 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppConfigRepository
-    for ForgeRepo<F>
-{
-    async fn get_app_config(&self) -> anyhow::Result<AppConfig> {
-        self.app_config_repository.get_app_config().await
+impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
+    fn get_environment(&self) -> Environment {
+        self.infra.get_environment()
     }
 
-    async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_repository.set_app_config(config).await
+    fn update_environment(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+        self.infra.update_environment(ops)
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.infra.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        self.infra.get_env_vars()
     }
 }
 
@@ -263,24 +259,6 @@ impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
         body: Bytes,
     ) -> anyhow::Result<EventSource> {
         self.infra.http_eventsource(url, headers, body).await
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
-    fn get_environment(&self) -> Environment {
-        self.infra.get_environment()
-    }
-    fn get_env_var(&self, key: &str) -> Option<String> {
-        self.infra.get_env_var(key)
-    }
-
-    fn get_env_vars(&self) -> BTreeMap<String, String> {
-        self.infra.get_env_vars()
-    }
-
-    fn is_restricted(&self) -> bool {
-        self.infra.is_restricted()
     }
 }
 
@@ -502,7 +480,7 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
         &self,
         provider_id: ProviderId,
         auth_method: forge_domain::AuthMethod,
-        required_params: Vec<forge_domain::URLParam>,
+        required_params: Vec<forge_domain::URLParamSpec>,
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)

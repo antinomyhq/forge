@@ -21,10 +21,7 @@ fn format_todos_for_context(todos: &[forge_domain::TodoItem]) -> String {
             TodoStatus::Cancelled => "[-]",
         };
 
-        result.push_str(&format!(
-            "{} {}\n",
-            checkbox, todo.content
-        ));
+        result.push_str(&format!("{} {}\n", checkbox, todo.content));
     }
 
     result.trim_end().to_string()
@@ -228,6 +225,7 @@ impl Compactor {
                 model: None,
                 droppable: true, // Allow future compactions to remove this
                 thought_signature: None,
+                phase: None,
             };
 
             // Insert after the summary but before other messages
@@ -757,16 +755,17 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
 
         // Create some todos
-        let todos = vec![
-            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+        let todos = [Todo::new("Task 1").id("1").status(TodoStatus::Pending),
             Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
-            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
-        ];
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed)];
 
         // Create a tool call for todo_write (convert Todo -> TodoItem)
         let todo_items: Vec<forge_domain::TodoItem> = todos
             .iter()
-            .map(|t| forge_domain::TodoItem { content: t.content.clone(), status: t.status.clone() })
+            .map(|t| forge_domain::TodoItem {
+                content: t.content.clone(),
+                status: t.status,
+            })
             .collect();
         let todo_tool_call = ToolCatalog::tool_call_todo_write(todo_items);
 

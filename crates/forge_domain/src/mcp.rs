@@ -33,13 +33,19 @@ impl McpServerConfig {
             command: command.into(),
             args,
             env: env.unwrap_or_default(),
+            timeout: None,
             disable: false,
         })
     }
 
     /// Create a new HTTP-based MCP server (auto-detects transport type)
     pub fn new_http(url: impl Into<String>) -> Self {
-        Self::Http(McpHttpServer { url: url.into(), headers: BTreeMap::new(), disable: false })
+        Self::Http(McpHttpServer {
+            url: url.into(),
+            headers: BTreeMap::new(),
+            timeout: None,
+            disable: false,
+        })
     }
 
     /// Create a new HTTP-based MCP server with headers
@@ -47,7 +53,7 @@ impl McpServerConfig {
         url: impl Into<String>,
         headers: BTreeMap<String, String>,
     ) -> Self {
-        Self::Http(McpHttpServer { url: url.into(), headers, disable: false })
+        Self::Http(McpHttpServer { url: url.into(), headers, timeout: None, disable: false })
     }
 
     pub fn is_disabled(&self) -> bool {
@@ -81,6 +87,11 @@ pub struct McpStdioServer {
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
 
+    /// Timeout in seconds for tool calls to this MCP server
+    /// If not specified, uses the default FORGE_MCP_TIMEOUT or 300 seconds
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<u64>,
+
     /// Disable it temporarily without having to
     /// remove it from the config.
     #[serde(default)]
@@ -97,6 +108,11 @@ pub struct McpHttpServer {
     /// Supports mustache templates for environment variables: {{.env.VAR_NAME}}
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub headers: BTreeMap<String, String>,
+
+    /// Timeout in seconds for HTTP requests to this MCP server
+    /// If not specified, uses the default FORGE_MCP_TIMEOUT or 300 seconds
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timeout: Option<u64>,
 
     /// Disable it temporarily without having to
     /// remove it from the config.
@@ -136,8 +152,9 @@ impl From<BTreeMap<ServerName, McpServerConfig>> for McpConfig {
 impl McpConfig {
     /// Returns the builtin MCP server configurations that are always available.
     ///
-    /// These serve as the lowest-priority defaults. User-level and local configs
-    /// can override or disable them by defining servers with the same names.
+    /// These serve as the lowest-priority defaults. User-level and local
+    /// configs can override or disable them by defining servers with the
+    /// same names.
     pub fn builtin() -> Self {
         Self {
             mcp_servers: BTreeMap::from([
@@ -371,6 +388,53 @@ mod tests {
     }
 
     #[test]
+    fn test_http_server_with_timeout() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "slow-server": {
+                    "url": "https://api.example.com/mcp/",
+                    "timeout": 600
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual.mcp_servers.get(&"slow-server".to_string().into()) {
+            Some(McpServerConfig::Http(server)) => {
+                assert_eq!(server.url, "https://api.example.com/mcp/");
+                assert_eq!(server.timeout, Some(600));
+            }
+            _ => panic!("Expected Http variant"),
+        }
+    }
+
+    #[test]
+    fn test_http_server_without_timeout() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "fast-server": {
+                    "url": "https://api.example.com/mcp/"
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual.mcp_servers.get(&"fast-server".to_string().into()) {
+            Some(McpServerConfig::Http(server)) => {
+                assert_eq!(server.url, "https://api.example.com/mcp/");
+                assert_eq!(server.timeout, None);
+            }
+            _ => panic!("Expected Http variant"),
+        }
+    }
+
+    #[test]
     fn test_server_type() {
         use fake::{Fake, Faker};
         use pretty_assertions::assert_eq;
@@ -386,6 +450,62 @@ mod tests {
         let actual = http_server.server_type();
         let expected = "HTTP";
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_stdio_server_with_timeout() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "slow-stdio-server": {
+                    "command": "node",
+                    "args": ["server.js"],
+                    "timeout": 600
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual
+            .mcp_servers
+            .get(&"slow-stdio-server".to_string().into())
+        {
+            Some(McpServerConfig::Stdio(server)) => {
+                assert_eq!(server.command, "node");
+                assert_eq!(server.args, vec!["server.js"]);
+                assert_eq!(server.timeout, Some(600));
+            }
+            _ => panic!("Expected Stdio variant"),
+        }
+    }
+
+    #[test]
+    fn test_stdio_server_without_timeout() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "fast-stdio-server": {
+                    "command": "node",
+                    "args": ["server.js"]
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual
+            .mcp_servers
+            .get(&"fast-stdio-server".to_string().into())
+        {
+            Some(McpServerConfig::Stdio(server)) => {
+                assert_eq!(server.command, "node");
+                assert_eq!(server.timeout, None);
+            }
+            _ => panic!("Expected Stdio variant"),
+        }
     }
 
     #[test]
@@ -471,6 +591,7 @@ mod tests {
                 McpServerConfig::Http(McpHttpServer {
                     url: "https://mcp.deepwiki.com/mcp".to_string(),
                     headers: BTreeMap::new(),
+                    timeout: None,
                     disable: true,
                 }),
             )]),

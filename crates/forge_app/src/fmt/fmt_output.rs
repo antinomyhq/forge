@@ -60,7 +60,6 @@ impl FormatContent for ToolOperation {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -547,5 +546,4 @@ mod tests {
             panic!("Expected Title content");
         }
     }
-
 }

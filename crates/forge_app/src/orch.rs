@@ -159,7 +159,10 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             .pipe(DocumentHandling::new())
-            .pipe(DropReasoningDetails.when(|_| !reasoning_supported));
+            .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
+            // Strip all reasoning from messages when the model has changed (signatures are
+            // model-specific and invalid across models). No-op when model is unchanged.
+            .pipe(ReasoningNormalizer::new(model_id.clone()));
         let response = self
             .services
             .chat_agent(
@@ -308,6 +311,7 @@ impl<S: AgentService> Orchestrator<S> {
                 message.reasoning_details.clone(),
                 message.usage,
                 tool_call_records,
+                message.phase,
             );
 
             if is_complete {

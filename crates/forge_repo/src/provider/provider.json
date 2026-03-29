@@ -738,6 +738,26 @@
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
     "models": [
       {
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "glm-5-turbo",
+        "name": "GLM-5 Turbo",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
         "id": "glm-5",
         "name": "GLM-5",
         "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
@@ -857,6 +877,26 @@
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     "models": [
+      {
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "glm-5-turbo",
+        "name": "GLM-5 Turbo",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
       {
         "id": "glm-5",
         "name": "GLM-5",
@@ -1245,7 +1285,7 @@
         "input_modalities": ["text", "image", "file"]
       },
       {
-        "id": "anthropic.claude-opus-4-6-v1:0",
+        "id": "anthropic.claude-opus-4-6-v1",
         "name": "Claude 4.6 Opus",
         "description": "Anthropic's Opus 4.6 Opus - enhanced capabilities",
         "context_length": 200000,
@@ -1861,9 +1901,11 @@
   {
     "id": "minimax",
     "api_key_vars": "MINIMAX_API_KEY",
-    "url_param_vars": [],
+    "url_param_vars": [
+      { "name": "HOSTNAME", "options": ["api.minimax.io", "api.minimaxi.com"] }
+    ],
     "response_type": "Anthropic",
-    "url": "https://api.minimax.io/anthropic/v1/messages",
+    "url": "https://{{#if HOSTNAME}}{{HOSTNAME}}{{else}}api.minimax.io{{/if}}/anthropic/v1/messages",
     "models": [
       {
         "id": "MiniMax-M2.7",
@@ -2417,6 +2459,145 @@
         "supports_parallel_tool_calls": true,
         "supports_reasoning": true,
         "input_modalities": ["text", "image"]
+      }
+    ],
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "alibaba_coding",
+    "provider_type": "llm",
+    "api_key_vars": "ALIBABA_CODING_API_KEY",
+    "url_param_vars": ["ANTHROPIC_COMPACT_URL"],
+    "response_type": "Anthropic",
+    "url": "{{ANTHROPIC_COMPACT_URL}}/messages",
+    "models": [
+      {
+        "id": "qwen3.5-plus",
+        "name": "Qwen 3.5 plus",
+        "description": "Alibaba's Qwen3.5 Plus is an enhanced general-purpose model in the Qwen3.5 API tier, supporting both text and image input. Offers hybrid thinking modes (step-by-step reasoning and fast direct responses), strong multilingual coverage across 119+ languages, and improved agentic and tool-use capabilities over Qwen3.",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "kimi-k2.5",
+        "name": "Kimi K2.5",
+        "description": "Kimi K2.5 is an updated iteration of Moonshot AI's Kimi K2 — a 1-trillion-parameter Mixture-of-Experts model (32B active parameters) trained with the MuonClip optimizer on 15.5T tokens. Delivers frontier performance in agentic tasks, tool use, coding (SWE-bench 65.8%), math, and reasoning. Supports multimodal input (text and image).",
+        "context_length": 262000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "glm-5",
+        "name": "GLM 5",
+        "description": "GLM-5 is the 5th-generation model in Zhipu AI's GLM (General Language Model) series. Builds on GLM-4 with improved reasoning, instruction following, tool use, and code generation capabilities. Designed for complex question answering, agent workflows, and multi-turn conversations.",
+        "context_length": 202000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "MiniMax-M2.5",
+        "name": "MiniMax M2.5",
+        "description": "MiniMax M2.5 is a 230B-parameter Mixture-of-Experts model with 10B active parameters per inference, designed for high-throughput, low-latency production environments. Delivers SOTA performance in coding (Multi-SWE-Bench), agentic task decomposition, office scenarios (Excel, Word, PPT), and search-augmented reasoning. Available at competitive pricing (~$0.3/M input tokens).",
+        "context_length": 196000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen3-max-2026-01-23",
+        "name": "Qwen 3 Max",
+        "description": "Qwen3 Max (snapshot 2026-01-23) is Alibaba's flagship Qwen3 API model. Features hybrid thinking modes — extended chain-of-thought reasoning and instant non-thinking responses — with strong benchmark results in coding, math, and general tasks comparable to DeepSeek-R1, o1, and Gemini 2.5 Pro. Pre-trained on ~36T tokens across 119 languages.",
+        "context_length": 262000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen3-coder-next",
+        "name": "Qwen 3 Coder Next",
+        "description": "Qwen3-Coder Next is Alibaba's next-generation agentic coding model, successor to Qwen3-Coder Plus. Built on a 480B-parameter MoE architecture (35B active parameters), trained on 7.5T tokens with 70% code ratio. Natively supports 256K context (extendable to 1M via YaRN). Achieves SOTA on SWE-Bench Verified among open models, with strong performance on agentic coding, browser-use, and tool-use tasks.",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen3-coder-plus",
+        "name": "Qwen 3 Coder Plus",
+        "description": "Qwen3-Coder Plus is Alibaba's dedicated agentic coding model, based on the Qwen3-Coder-480B-A35B architecture (480B total, 35B active parameters). Pre-trained on 7.5T tokens with 70% code ratio and fine-tuned with long-horizon reinforcement learning on 20,000 parallel environments. Natively supports 256K context (extendable to 1M via YaRN). Comparable to Claude Sonnet 4 on agentic coding benchmarks.",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "glm-4.7",
+        "name": "GLM 4.7",
+        "description": "GLM-4.7 is a version in Zhipu AI's GLM-4 API model family. Offers strong performance in Chinese and English for instruction following, reasoning, tool use, and multi-turn dialogue. Part of the same generation as GLM-4-Plus, with improvements in long-context handling and structured output.",
+        "context_length": 202000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      }
+    ],
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "novita",
+    "api_key_vars": "NOVITA_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.novita.ai/openai/v1/chat/completions",
+    "models": [
+      {
+        "id": "moonshotai/kimi-k2.5",
+        "name": "Kimi K2.5",
+        "description": "Moonshot AI's flagship MoE model with 262K context, function calling, structured output, reasoning, and vision capabilities",
+        "context_length": 262144,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "zai-org/glm-5",
+        "name": "GLM-5",
+        "description": "Zhipu AI's flagship MoE model with 202K context, function calling, structured output, and reasoning capabilities",
+        "context_length": 202800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "minimax/minimax-m2.5",
+        "name": "MiniMax M2.5",
+        "description": "MiniMax's MoE model with 204K context, function calling, structured output, and reasoning capabilities",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "qwen/qwen3-embedding-0.6b",
+        "name": "Qwen3 Embedding 0.6B",
+        "description": "Qwen3 embedding model with 1024 dimensions and 8K max input",
+        "context_length": 8192,
+        "tools_supported": false,
+        "input_modalities": ["text"]
       }
     ],
     "auth_methods": ["api_key"]

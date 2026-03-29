@@ -14,7 +14,6 @@ use crate::console::StdConsoleWriter;
 /// Service for executing shell commands
 #[derive(Clone, Debug)]
 pub struct ForgeCommandExecutorService {
-    restricted: bool,
     env: Environment,
     output_printer: Arc<StdConsoleWriter>,
 
@@ -23,13 +22,8 @@ pub struct ForgeCommandExecutorService {
 }
 
 impl ForgeCommandExecutorService {
-    pub fn new(restricted: bool, env: Environment, output_printer: Arc<StdConsoleWriter>) -> Self {
-        Self {
-            restricted,
-            env,
-            output_printer,
-            ready: Arc::new(Mutex::new(())),
-        }
+    pub fn new(env: Environment, output_printer: Arc<StdConsoleWriter>) -> Self {
+        Self { env, output_printer, ready: Arc::new(Mutex::new(())) }
     }
 
     fn prepare_command(
@@ -40,11 +34,7 @@ impl ForgeCommandExecutorService {
     ) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
-        let shell = if self.restricted && !is_windows {
-            "rbash"
-        } else {
-            self.env.shell.as_str()
-        };
+        let shell = self.env.shell.as_str();
         let mut command = Command::new(shell);
 
         // Core color settings for general commands
@@ -271,7 +261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_executor() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let cmd = "echo 'hello world'";
         let dir = ".";
 
@@ -304,7 +294,7 @@ mod tests {
             std::env::set_var("ANOTHER_TEST_VAR", "another_value");
         }
 
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let cmd = if cfg!(target_os = "windows") {
             "echo %TEST_ENV_VAR%"
         } else {
@@ -337,7 +327,7 @@ mod tests {
             std::env::remove_var("MISSING_ENV_VAR");
         }
 
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let cmd = if cfg!(target_os = "windows") {
             "echo %MISSING_ENV_VAR%"
         } else {
@@ -360,7 +350,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_executor_with_empty_env_list() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let cmd = "echo 'no env vars'";
 
         let actual = fixture
@@ -384,7 +374,7 @@ mod tests {
             std::env::set_var("SECOND_VAR", "second");
         }
 
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let cmd = if cfg!(target_os = "windows") {
             "echo %FIRST_VAR% %SECOND_VAR%"
         } else {
@@ -414,7 +404,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_executor_silent() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let cmd = "echo 'silent test'";
         let dir = ".";
 
@@ -447,7 +437,7 @@ mod tests {
         // background: true. This verifies the shell command template
         // that starts a process in the background, waits briefly, and
         // checks it is still alive.
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let log_file = "/tmp/forge_bg_test_integration.log";
 
         // Use sleep as a simple background process that stays alive
@@ -487,7 +477,7 @@ mod tests {
     async fn test_background_command_detects_early_exit() {
         // Verify that the wrapper detects when the background process
         // exits immediately (e.g., bad command).
-        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
         let log_file = "/tmp/forge_bg_test_earlyexit.log";
 
         let cmd = format!(

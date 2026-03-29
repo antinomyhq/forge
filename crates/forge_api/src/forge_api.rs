@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,11 +7,10 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
-    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
-    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
-    WorkspaceService,
+    FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
 };
-use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
+use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -41,18 +40,9 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
-    pub fn init(
-        restricted: bool,
-        cwd: PathBuf,
-        override_model: Option<forge_domain::ModelId>,
-        override_provider: Option<forge_domain::ProviderId>,
-    ) -> Self {
-        let infra = Arc::new(ForgeInfra::new(restricted, cwd));
-        let repo = Arc::new(ForgeRepo::new(
-            infra.clone(),
-            override_model,
-            override_provider,
-        ));
+    pub fn init(cwd: PathBuf) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd));
+        let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
     }
@@ -64,10 +54,8 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<
-    A: Services,
-    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
-> API for ForgeAPI<A, F>
+impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
+    for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -158,14 +146,6 @@ impl<
         self.services.get_environment().clone()
     }
 
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app().read_workflow(path).await
-    }
-
-    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.app().read_workflow_merged(path).await
-    }
-
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
@@ -218,18 +198,6 @@ impl<
     ) -> anyhow::Result<std::process::ExitStatus> {
         let cwd = self.environment().cwd;
         self.infra.execute_command_raw(command, cwd, None).await
-    }
-
-    async fn init_login(&self) -> Result<InitAuth> {
-        self.app().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> Result<()> {
-        self.app().login(auth).await
-    }
-
-    async fn logout(&self) -> Result<()> {
-        self.app().logout().await
     }
 
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
@@ -309,10 +277,6 @@ impl<
         self.services.set_suggest_config(config).await
     }
 
-    async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
-        self.services.auth_service().get_auth_token().await
-    }
-
     async fn reload_mcp(&self) -> Result<()> {
         self.services.mcp_service().reload_mcp().await
     }
@@ -360,9 +324,8 @@ impl<
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>> {
-        self.services.sync_workspace(path, batch_size).await
+        self.services.sync_workspace(path).await
     }
 
     async fn query_workspace(

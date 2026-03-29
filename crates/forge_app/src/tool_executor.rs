@@ -8,7 +8,7 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::{Services, ShellService};
 use crate::{
-    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
+    AgentRegistry, ConversationService, EnvironmentInfra, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
     ImageReadService, LspService, NetFetchService, PlanCreateService, ProviderService,
     SkillFetchService, TodoService, WorkspaceService,
@@ -31,7 +31,7 @@ impl<
         + ShellService
         + FollowUpService
         + ConversationService
-        + EnvironmentService
+        + EnvironmentInfra
         + PlanCreateService
         + SkillFetchService
         + TodoService
@@ -107,7 +107,8 @@ impl<
 
                 if output_truncated {
                     files = files.search(
-                        self.create_temp_file("forge_fs_search_", ".txt", &output).await?,
+                        self.create_temp_file("forge_fs_search_", ".txt", &output)
+                            .await?,
                     );
                 }
 

@@ -4,12 +4,6 @@ expression: system_messages
 ---
 You are Forge
 
-<additional_rules>
-
-- **CRITICAL TESTING REQUIREMENT**: Produce a working artifact at the final output path first. Then add one targeted executable check per requirement category — no duplicates. For isolated logic bugs where the failing case is obvious, write a minimal failing test first.
-</additional_rules>
-
-
 <system_information>
 <operating_system>MacOS</operating_system>
 <current_working_directory>/Users/tushar</current_working_directory>

@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Skill;
-use forge_app::{
-    EnvironmentInfra, FileInfoInfra, FileReaderInfra, TemplateEngine, Walker, WalkerInfra,
-};
+use forge_app::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, Walker, WalkerInfra};
 use forge_domain::SkillRepository;
 use futures::future::join_all;
 use gray_matter::Matter;
@@ -118,7 +116,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> SkillR
         let rendered_skills = skills
             .into_iter()
             .map(|skill| self.render_skill(skill, &env))
-            .collect::<anyhow::Result<Vec<_>>>()?;
+            .collect::<Vec<_>>();
 
         Ok(rendered_skills)
     }
@@ -239,20 +237,17 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
     ///
     /// # Arguments
     /// * `skill` - The skill to render
-    /// * `env` - The environment containing path information
-    ///
-    /// # Errors
-    /// Returns an error if template rendering fails
-    fn render_skill(&self, skill: Skill, env: &forge_domain::Environment) -> anyhow::Result<Skill> {
-        let skill_context = serde_json::json!({
-            "global_skills_path": env.global_skills_path().display().to_string(),
-            "local_skills_path": env.local_skills_path().display().to_string(),
-        });
+    /// * `env` - The environment containing path informations
+    fn render_skill(&self, skill: Skill, env: &forge_domain::Environment) -> Skill {
+        let global = env.global_skills_path().display().to_string();
+        let local = env.local_skills_path().display().to_string();
 
-        let rendered_command = TemplateEngine::default()
-            .render_template(forge_domain::Template::new(&skill.command), &skill_context)?;
+        let rendered = skill
+            .command
+            .replace("{{global_skills_path}}", &global)
+            .replace("{{local_skills_path}}", &local);
 
-        Ok(skill.command(rendered_command))
+        skill.command(rendered)
     }
 }
 
@@ -321,7 +316,7 @@ mod tests {
     fn fixture_skill_repo() -> (ForgeSkillRepository<ForgeInfra>, std::path::PathBuf) {
         let skill_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src/fixtures/skills_with_resources");
-        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let infra = Arc::new(ForgeInfra::new(std::env::current_dir().unwrap()));
         let repo = ForgeSkillRepository::new(infra);
         (repo, skill_dir)
     }
@@ -430,10 +425,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             constraint.path,
-            Some(
-                std::path::Path::new("forge://skills/constraint-enforcer/SKILL.md")
-                    .to_path_buf()
-            )
+            Some(std::path::Path::new("forge://skills/constraint-enforcer/SKILL.md").to_path_buf())
         );
         assert!(
             constraint
@@ -448,21 +440,14 @@ mod tests {
             .unwrap();
         assert_eq!(
             edge_case.path,
-            Some(
-                std::path::Path::new("forge://skills/edge-case-tester/SKILL.md")
-                    .to_path_buf()
-            )
+            Some(std::path::Path::new("forge://skills/edge-case-tester/SKILL.md").to_path_buf())
         );
         assert!(
             edge_case
                 .description
                 .contains("Adversarial and boundary-condition")
         );
-        assert!(
-            edge_case
-                .command
-                .contains("MOST COMMON FAILURE SOURCE")
-        );
+        assert!(edge_case.command.contains("MOST COMMON FAILURE SOURCE"));
 
         // Check reverse-engineering-helper
         let rev_eng = actual
@@ -489,10 +474,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             ml_debug.path,
-            Some(
-                std::path::Path::new("forge://skills/ml-model-debugging/SKILL.md")
-                    .to_path_buf()
-            )
+            Some(std::path::Path::new("forge://skills/ml-model-debugging/SKILL.md").to_path_buf())
         );
         assert!(
             ml_debug

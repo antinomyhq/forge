@@ -152,7 +152,8 @@ fn is_binary_content_type(content_type: &str) -> bool {
     {
         return false;
     }
-    // Everything else (application/gzip, application/octet-stream, image/*, audio/*, video/*, etc.)
+    // Everything else (application/gzip, application/octet-stream, image/*,
+    // audio/*, video/*, etc.)
     true
 }
 

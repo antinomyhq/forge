@@ -21,8 +21,8 @@ use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
-    AgentRegistry, EnvironmentService, McpService, PolicyService, ProviderService, Services,
-    ToolResolver, WorkspaceService,
+    AgentRegistry, McpService, PolicyService, ProviderService, Services, ToolResolver,
+    WorkspaceService,
 };
 
 pub struct ToolRegistry<S> {
@@ -135,9 +135,7 @@ impl<S: Services> ToolRegistry<S> {
 
             // Check permissions before executing the tool (only in restricted mode)
             // This is done BEFORE the timeout to ensure permissions are never timed out
-            if self.services.is_restricted()
-                && self.check_tool_permission(&tool_input, context).await?
-            {
+            if env.is_restricted && self.check_tool_permission(&tool_input, context).await? {
                 // Send formatted output message for policy denial
                 context
                     .send(forge_domain::TitleFormat::error("Permission Denied"))
@@ -698,8 +696,7 @@ mod tests {
     fn test_sem_search_included_when_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual =
-            ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents());
+        let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents());
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
@@ -707,8 +704,7 @@ mod tests {
     fn test_sem_search_filtered_when_not_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual =
-            ToolRegistry::<()>::get_system_tools(false, &env, None, create_test_agents());
+        let actual = ToolRegistry::<()>::get_system_tools(false, &env, None, create_test_agents());
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
 }
@@ -809,12 +805,8 @@ fn test_dynamic_tool_description_with_vision_model() {
     env.max_image_size = 5000; // Set fixed value for deterministic test
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
 
-    let tools_with_vision = ToolRegistry::<()>::get_system_tools(
-        true,
-        &env,
-        Some(vision_model),
-        create_test_agents(),
-    );
+    let tools_with_vision =
+        ToolRegistry::<()>::get_system_tools(true, &env, Some(vision_model), create_test_agents());
     let read_tool = tools_with_vision
         .iter()
         .find(|t| t.name.as_str() == "read")

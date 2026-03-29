@@ -69,50 +69,33 @@ impl Range {
             return Self::new(0, 0);
         }
 
-        // Collect (byte_offset, line_content) for each line by scanning
-        // through the source. This gives us exact byte positions regardless
-        // of line ending style per line.
-        let mut line_starts: Vec<usize> = Vec::new();
-        let mut line_ends: Vec<usize> = Vec::new();
-        let mut pos = 0;
-        for line in source.lines() {
-            line_starts.push(pos);
-            let line_end = pos + line.len();
-            line_ends.push(line_end);
-            // Advance past the line content
-            pos = line_end;
-            // Advance past the line ending (could be \r\n or \n or nothing at EOF)
-            if pos < source.len() {
-                if source.as_bytes()[pos] == b'\r'
-                    && pos + 1 < source.len()
-                    && source.as_bytes()[pos + 1] == b'\n'
-                {
-                    pos += 2;
-                } else if source.as_bytes()[pos] == b'\n' {
-                    pos += 1;
-                }
-            }
+        let mut line_ranges = Vec::new();
+        let mut line_start = 0;
+
+        for (newline_idx, _) in source.match_indices('\n') {
+            let line_end = if newline_idx > line_start && source.as_bytes()[newline_idx - 1] == b'\r' {
+                newline_idx - 1
+            } else {
+                newline_idx
+            };
+            line_ranges.push((line_start, line_end));
+            line_start = newline_idx + 1;
         }
 
-        let num_lines = line_starts.len();
-        if num_lines == 0 {
-            return Self::new(0, 0);
+        line_ranges.push((line_start, source.len()));
+
+        let start_idx = search_match.start_line as usize;
+        let end_idx = search_match.end_line as usize;
+
+        if start_idx >= line_ranges.len() || end_idx < start_idx {
+            return Self::new(source.len(), 0);
         }
 
-        // Clamp indices to valid range
-        let start_idx = (search_match.start_line as usize).min(num_lines.saturating_sub(1));
-        let end_idx = (search_match.end_line as usize).min(num_lines.saturating_sub(1));
+        let clamped_end_idx = end_idx.min(line_ranges.len() - 1);
+        let start_pos = line_ranges[start_idx].0;
+        let end_pos = line_ranges[clamped_end_idx].1;
 
-        // Compute byte range: from start of start_line to end of end_line
-        let start_pos = line_starts[start_idx];
-        let end_pos = line_ends[end_idx];
-
-        // Safety: clamp to source length
-        let start_pos = start_pos.min(source.len());
-        let end_pos = end_pos.min(source.len());
-        let length = end_pos.saturating_sub(start_pos);
-
-        Self::new(start_pos, length)
+        Self::new(start_pos, end_pos.saturating_sub(start_pos))
     }
 
     // Fuzzy matching removed - we only use exact matching

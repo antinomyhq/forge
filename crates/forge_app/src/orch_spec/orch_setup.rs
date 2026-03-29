@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
     Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
-    ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    ToolCallFull, ToolDefinition, ToolResult,
 };
 use url::Url;
 
@@ -25,7 +25,6 @@ pub struct TestContext {
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub mock_shell_outputs: Vec<ShellOutput>,
-    pub workflow: Workflow,
     pub templates: HashMap<String, String>,
     pub files: Vec<File>,
     pub env: Environment,
@@ -49,7 +48,6 @@ impl Default for TestContext {
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
             mock_shell_outputs: Default::default(),
-            workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
             attachments: Default::default(),
@@ -60,7 +58,8 @@ impl Default for TestContext {
                 home: Some(PathBuf::from("/Users/tushar")),
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/Users/tushar/projects"),
-                forge_api_url: Url::parse("http://localhost:8000").unwrap(),
+                service_url: Url::parse("http://localhost:8000").unwrap(),
+                tool_supported: true,
 
                 // No retry policy by default
                 retry_config: RetryConfig {
@@ -92,12 +91,23 @@ impl Default for TestContext {
                 sem_search_limit: 100,
                 sem_search_top_k: 10,
                 max_image_size: 1048576,
-                workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 max_extensions: 15,
                 parallel_file_reads: 64,
                 model_cache_ttl: 604_800,
                 background: false,
                 task_timeout_secs: None,
+                session: None,
+                commit: None,
+                suggest: None,
+                is_restricted: false,
+                temperature: None,
+                top_p: None,
+                top_k: None,
+                max_tokens: None,
+                max_tool_failure_per_turn: None,
+                max_requests_per_turn: None,
+                compact: None,
+                updates: None,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

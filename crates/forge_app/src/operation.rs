@@ -388,13 +388,13 @@ impl ToolOperation {
                             let shown = truncated_output.data.len();
                             let total = truncated_output.total;
                             let limit_desc = match truncated_output.strategy {
-                                TruncationMode::Byte => format!("{} bytes size limit", env.max_search_result_bytes),
+                                TruncationMode::Byte => {
+                                    format!("{} bytes size limit", env.max_search_result_bytes)
+                                }
                                 TruncationMode::Line => format!("{max_lines} lines limit"),
                                 _ => unreachable!(),
                             };
-                            let count_info = format!(
-                                "Showing {shown} of {total} total matches."
-                            );
+                            let count_info = format!("Showing {shown} of {total} total matches.");
                             let reason = if let Some(path) = &content_files.search {
                                 format!(
                                     "WARNING: Search results are INCOMPLETE — output exceeded the {limit_desc} and was truncated. \
@@ -629,8 +629,7 @@ impl ToolOperation {
                 }
 
                 if let Some(wall_time) = output.output.wall_time_secs {
-                    parent_elem =
-                        parent_elem.attr("wall_time_secs", format!("{:.2}", wall_time));
+                    parent_elem = parent_elem.attr("wall_time_secs", format!("{:.2}", wall_time));
                 }
 
                 let truncated_output = truncate_shell_output(
@@ -773,8 +772,10 @@ impl ToolOperation {
 
         // Append session elapsed time to the tool output if tracking has started
         if let Some(elapsed) = metrics.duration(chrono::Utc::now()) {
-            let session_info = Element::new("session_info")
-                .attr("session_elapsed_secs", format!("{:.1}", elapsed.as_secs_f64()));
+            let session_info = Element::new("session_info").attr(
+                "session_elapsed_secs",
+                format!("{:.1}", elapsed.as_secs_f64()),
+            );
 
             result
                 .values

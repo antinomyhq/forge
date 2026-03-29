@@ -17,7 +17,7 @@ pub fn create_draft_release_job(build_job_id: &str) -> Job {
         )
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
-            Step::new("Draft Release").uses("release-drafter", "release-drafter", "v6")
+            Step::new("Draft Release").uses("release-drafter", "release-drafter", "v7")
                 .id("create_release")
                 .env(("GITHUB_TOKEN", "${{ secrets.GITHUB_TOKEN }}"))
                 .with(("config-name", "release-drafter.yml")),

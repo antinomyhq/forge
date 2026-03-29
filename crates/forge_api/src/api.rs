@@ -1,9 +1,9 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, InitAuth, ModelId, ProviderModels};
+use forge_domain::{AgentId, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -53,19 +53,6 @@ pub trait API: Sync + Send {
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
 
-    /// Initializes a workflow configuration from the given path
-    /// The workflow at the specified path is merged with the default
-    /// configuration If no path is provided, it will try to find forge.yaml
-    /// in the current directory or its parent directories
-    async fn read_workflow(&self, path: Option<&Path>) -> Result<Workflow>;
-
-    /// Reads the workflow from the given path and merges it with a default
-    /// workflow. This provides a convenient way to get a complete workflow
-    /// configuration without having to manually handle the merge logic.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories
-    async fn read_merged(&self, path: Option<&Path>) -> Result<Workflow>;
-
     /// Returns the conversation with the given ID
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
 
@@ -114,18 +101,6 @@ pub trait API: Sync + Send {
     /// user's home directory Local configuration is stored in the current
     /// project directory
     async fn write_mcp_config(&self, scope: &Scope, config: &McpConfig) -> Result<()>;
-
-    /// Initiates the login flow and returns authentication initialization data
-    async fn init_login(&self) -> Result<InitAuth>;
-
-    /// Retrieves the current login information if the user is authenticated
-    async fn get_login_info(&self) -> Result<Option<LoginInfo>>;
-
-    /// Completes the login process using the provided authentication data
-    async fn login(&self, auth: &InitAuth) -> Result<()>;
-
-    /// Logs out the current user and clears authentication data
-    async fn logout(&self) -> anyhow::Result<()>;
 
     /// Retrieves the provider configuration for the specified agent
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>>;
@@ -207,7 +182,6 @@ pub trait API: Sync + Send {
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>>;
 
     /// Query the indexed workspace
