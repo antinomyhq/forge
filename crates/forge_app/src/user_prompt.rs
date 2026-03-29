@@ -76,6 +76,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 reasoning_details: None,
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Droppable so it can be removed during context compression
+                phase: None,
             };
             context = context.add_message(ContextMessage::Text(todo_message));
         }
@@ -121,6 +122,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 reasoning_details: None,
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Piped input is droppable
+                phase: None,
             };
             context = context.add_message(ContextMessage::Text(piped_message));
         }
@@ -197,6 +199,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 reasoning_details: None,
                 model: Some(self.agent.model.clone()),
                 droppable: false,
+                phase: None,
             };
             context = context.add_message(ContextMessage::Text(message));
         }

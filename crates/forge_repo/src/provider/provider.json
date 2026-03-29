@@ -728,6 +728,26 @@
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
     "models": [
       {
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "glm-5-turbo",
+        "name": "GLM-5 Turbo",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
         "id": "glm-5",
         "name": "GLM-5",
         "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
@@ -847,6 +867,26 @@
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     "models": [
+      {
+        "id": "glm-5.1",
+        "name": "GLM-5.1",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "glm-5-turbo",
+        "name": "GLM-5 Turbo",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
       {
         "id": "glm-5",
         "name": "GLM-5",
@@ -1235,7 +1275,7 @@
         "input_modalities": ["text", "image"]
       },
       {
-        "id": "anthropic.claude-opus-4-6-v1:0",
+        "id": "anthropic.claude-opus-4-6-v1",
         "name": "Claude 4.6 Opus",
         "description": "Anthropic's Opus 4.6 Opus - enhanced capabilities",
         "context_length": 200000,
@@ -1851,9 +1891,11 @@
   {
     "id": "minimax",
     "api_key_vars": "MINIMAX_API_KEY",
-    "url_param_vars": [{"name": "MINIMAX_DOMAIN", "options": ["api.minimax.io", "api.minimaxi.com"]}],
+    "url_param_vars": [
+      { "name": "HOSTNAME", "options": ["api.minimax.io", "api.minimaxi.com"] }
+    ],
     "response_type": "Anthropic",
-    "url": "https://{{#if MINIMAX_DOMAIN}}{{MINIMAX_DOMAIN}}{{else}}api.minimax.io{{/if}}/anthropic/v1/messages",
+    "url": "https://{{#if HOSTNAME}}{{HOSTNAME}}{{else}}api.minimax.io{{/if}}/anthropic/v1/messages",
     "models": [
       {
         "id": "MiniMax-M2.7",
