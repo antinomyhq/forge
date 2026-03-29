@@ -18,4 +18,6 @@ pub struct ModelConfig {
     pub provider_id: Option<String>,
     /// The model to use for this operation.
     pub model_id: Option<String>,
+    /// The preset ID to apply preset parameters to this configuration.
+    pub preset_id: Option<String>,
 }

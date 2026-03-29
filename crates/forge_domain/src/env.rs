@@ -23,6 +23,8 @@ pub struct SessionConfig {
     pub provider_id: Option<String>,
     /// The model ID to use with this provider.
     pub model_id: Option<String>,
+    /// The preset ID to apply preset parameters to this configuration.
+    pub preset_id: Option<String>,
 }
 
 /// All discrete mutations that can be applied to the application configuration.

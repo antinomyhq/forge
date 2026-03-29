@@ -186,6 +186,7 @@ mod tests {
         let expected = Some(ModelConfig {
             provider_id: Some("fake-provider".to_string()),
             model_id: Some("fake-model".to_string()),
+            preset_id: None,
         });
         assert_eq!(actual.session, expected);
     }

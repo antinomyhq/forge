@@ -513,6 +513,13 @@
             "null"
           ]
         },
+        "preset_id": {
+          "description": "The preset ID to apply preset parameters to this configuration.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "provider_id": {
           "description": "The provider to use for this operation.",
           "type": [

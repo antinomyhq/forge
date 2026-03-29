@@ -17,6 +17,7 @@ fn to_session_config(mc: &ModelConfig) -> SessionConfig {
     SessionConfig {
         provider_id: mc.provider_id.clone(),
         model_id: mc.model_id.clone(),
+        preset_id: mc.preset_id.clone(),
     }
 }
 
@@ -349,14 +350,17 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.session = env.session.as_ref().map(|sc| ModelConfig {
         provider_id: sc.provider_id.clone(),
         model_id: sc.model_id.clone(),
+        preset_id: sc.preset_id.clone(),
     });
     fc.commit = env.commit.as_ref().map(|sc| ModelConfig {
         provider_id: sc.provider_id.clone(),
         model_id: sc.model_id.clone(),
+        preset_id: sc.preset_id.clone(),
     });
     fc.suggest = env.suggest.as_ref().map(|sc| ModelConfig {
         provider_id: sc.provider_id.clone(),
         model_id: sc.model_id.clone(),
+        preset_id: sc.preset_id.clone(),
     });
     fc
 }
