@@ -13,7 +13,9 @@ use tracing::warn;
 use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::hooks::verification_reminder::{
-    VERIFICATION_MATRIX_AGENT_NAME, extract_verification_matrix_message,
+    VERIFICATION_MATRIX_AGENT_NAME, background_refusal_reminder,
+    background_refusal_reminder_was_sent, extract_verification_matrix_message,
+    fallback_verification_matrix, has_any_tool_call, looks_like_refusal,
     verification_command_reminder, verification_command_reminder_was_sent,
     verification_command_was_run_after_skill, verification_gate_applies, verification_matrix_task,
     verification_matrix_was_sent, verification_reminder, verification_reminder_was_sent,
@@ -68,9 +70,18 @@ impl<S: AgentService> Orchestrator<S> {
             .arguments(ToolCallArguments::from(json!({ "tasks": [task] })));
         let result = self.services.call(&gate_agent, tool_context, call).await;
         if result.is_error() {
-            return None;
+            return fallback_verification_matrix(context);
         }
-        extract_verification_matrix_message(result.output.as_str()?)
+
+        let Some(raw_output) = result.output.as_str() else {
+            return fallback_verification_matrix(context);
+        };
+        if looks_like_refusal(raw_output) {
+            return fallback_verification_matrix(context);
+        }
+
+        extract_verification_matrix_message(raw_output)
+            .or_else(|| fallback_verification_matrix(context))
     }
 
     pub fn get_conversation(&self) -> &Conversation {
@@ -329,6 +340,14 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
+            let looks_like_refusal_message = looks_like_refusal(&message.content);
+            let refusal_recovery_needed = self.environment.background
+                && is_complete
+                && message.tool_calls.is_empty()
+                && !background_refusal_reminder_was_sent(&context)
+                && !has_any_tool_call(&context)
+                && looks_like_refusal_message;
+
             context = context.append_message(
                 message.content.clone(),
                 message.thought_signature.clone(),
@@ -353,6 +372,13 @@ impl<S: AgentService> Orchestrator<S> {
                     should_yield = false;
                     is_complete = false;
                 }
+            }
+
+            if refusal_recovery_needed {
+                context =
+                    context.add_message(ContextMessage::user(background_refusal_reminder(), None));
+                should_yield = false;
+                is_complete = false;
             }
 
             let verification_gate_enabled = verification_gate_applies(&self.agent);

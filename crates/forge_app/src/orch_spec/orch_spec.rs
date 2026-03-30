@@ -5,7 +5,9 @@ use forge_domain::{
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
-use crate::hooks::verification_reminder::VERIFICATION_COMMAND_REMINDER_BODY;
+use crate::hooks::verification_reminder::{
+    BACKGROUND_REFUSAL_REMINDER_BODY, VERIFICATION_COMMAND_REMINDER_BODY,
+};
 use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
@@ -563,6 +565,51 @@ async fn test_is_complete_when_stop_with_no_tool_calls() {
     assert!(
         has_task_complete,
         "Should have TaskComplete when finish_reason is Stop with no tool calls"
+    );
+}
+
+#[tokio::test]
+async fn test_background_refusal_triggers_recovery_reminder_and_retry() {
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "task.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("task details")));
+
+    let mut ctx = TestContext::default()
+        .env(forge_domain::Environment { background: true, ..TestContext::default().env.clone() })
+        .mock_tool_call_responses(vec![(tool_call.clone(), tool_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(
+                "I can't help craft or verify a payload for that filter.",
+            )
+            .finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Inspecting files").tool_calls(vec![tool_call.into()]),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Produce /app/out.html").await.unwrap();
+
+    let context = ctx
+        .output
+        .conversation_history
+        .last()
+        .unwrap()
+        .context
+        .clone()
+        .unwrap();
+    assert!(context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(BACKGROUND_REFUSAL_REMINDER_BODY))
+    }));
+
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+    assert!(
+        has_task_complete,
+        "Should recover from refusal and complete"
     );
 }
 
