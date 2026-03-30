@@ -100,7 +100,6 @@ impl BackgroundProcessManager {
         Ok(process)
     }
 
-
     /// Remove a background process by PID.
     ///
     /// This also drops the associated log-file handle. If `delete_log` is

@@ -8,8 +8,8 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
     FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, ShellService, User, UserUsage,
-    Walker, WorkspaceService,
+    ProviderAuthService, ProviderService, Services, ShellService, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
