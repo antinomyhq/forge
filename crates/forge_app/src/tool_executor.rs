@@ -8,7 +8,7 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::{Services, ShellOutputKind, ShellService};
 use crate::{
-    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
+    AgentRegistry, ConversationService, EnvironmentInfra, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
     ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
     WorkspaceService,
@@ -31,7 +31,7 @@ impl<
         + ShellService
         + FollowUpService
         + ConversationService
-        + EnvironmentService
+        + EnvironmentInfra
         + PlanCreateService
         + SkillFetchService
         + AgentRegistry

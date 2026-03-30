@@ -703,6 +703,7 @@ mod tests {
                     thought_signature: None,
                     reasoning_details: None,
                     droppable: false,
+                    phase: None,
                 }),
                 usage: Some(Usage {
                     prompt_tokens: forge_domain::TokenCount::Actual(100),

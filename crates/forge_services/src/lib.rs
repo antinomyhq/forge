@@ -7,7 +7,6 @@ mod command;
 mod context_engine;
 mod conversation;
 mod discovery;
-mod env;
 mod error;
 mod fd;
 mod fd_git;
@@ -23,7 +22,6 @@ mod range;
 mod template;
 mod tool_services;
 mod utils;
-mod workflow;
 
 pub use app_config::*;
 pub use clipper::*;

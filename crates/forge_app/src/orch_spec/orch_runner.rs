@@ -92,9 +92,7 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
-        let agent = agent
-            .apply_workflow_config(&setup.workflow)
-            .model(setup.model.clone());
+        let agent = agent.apply_env(&setup.env).model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())

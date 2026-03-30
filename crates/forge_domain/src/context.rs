@@ -18,8 +18,8 @@ use crate::temperature::Temperature;
 use crate::top_k::TopK;
 use crate::top_p::TopP;
 use crate::{
-    Attachment, AttachmentContent, ConversationId, EventValue, Image, ModelId, ReasoningFull,
-    ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
+    Attachment, AttachmentContent, ConversationId, EventValue, Image, MessagePhase, ModelId,
+    ReasoningFull, ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
 /// Response format for structured output
@@ -169,6 +169,7 @@ impl ContextMessage {
             reasoning_details: None,
             model,
             droppable: false,
+            phase: None,
         }
         .into()
     }
@@ -183,6 +184,7 @@ impl ContextMessage {
             model: None,
             reasoning_details: None,
             droppable: false,
+            phase: None,
         }
         .into()
     }
@@ -204,6 +206,7 @@ impl ContextMessage {
             reasoning_details,
             model: None,
             droppable: false,
+            phase: None,
         }
         .into()
     }
@@ -311,6 +314,11 @@ pub struct TextMessage {
     /// Indicates whether this message can be dropped during context compaction
     #[serde(default, skip_serializing_if = "is_false")]
     pub droppable: bool,
+    /// Phase label for assistant messages (`Commentary` or `FinalAnswer`).
+    /// Preserved from OpenAI Responses API and replayed back on subsequent
+    /// requests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub phase: Option<MessagePhase>,
 }
 
 impl TextMessage {
@@ -325,6 +333,7 @@ impl TextMessage {
             model: None,
             reasoning_details: None,
             droppable: false,
+            phase: None,
         }
     }
 
@@ -346,6 +355,7 @@ impl TextMessage {
             reasoning_details,
             model,
             droppable: false,
+            phase: None,
         }
     }
 }
@@ -554,11 +564,15 @@ impl Context {
         reasoning_details: Option<Vec<ReasoningFull>>,
         usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
+        phase: Option<MessagePhase>,
     ) -> Self {
         // Convert flat reasoning string to reasoning_details if present
         let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
-            let reasoning_entry =
-                ReasoningFull { text: Some(reasoning_text), ..Default::default() };
+            let reasoning_entry = ReasoningFull {
+                text: Some(reasoning_text),
+                type_of: Some("reasoning.text".to_string()),
+                ..Default::default()
+            };
             if let Some(mut existing_details) = reasoning_details {
                 existing_details.push(reasoning_entry);
                 Some(existing_details)
@@ -570,7 +584,7 @@ impl Context {
         };
 
         // Adding tool calls
-        let message: MessageEntry = ContextMessage::assistant(
+        let mut message: MessageEntry = ContextMessage::assistant(
             content,
             thought_signature,
             merged_reasoning_details,
@@ -582,6 +596,11 @@ impl Context {
             ),
         )
         .into();
+
+        // Set phase on the assistant TextMessage if provided
+        if let ContextMessage::Text(ref mut text_msg) = message.message {
+            text_msg.phase = phase;
+        }
 
         let tool_results = tool_records
             .iter()
@@ -687,6 +706,33 @@ impl Context {
                 }
             })
             .sum()
+    }
+
+    /// Checks if the model has changed from the previous assistant message.
+    /// Returns true if the previous assistant message has a different model
+    /// than the provided current_model, or if there is no previous
+    /// assistant message with a model.
+    ///
+    /// This is used to determine whether to apply reasoning normalization - we
+    /// only want to strip reasoning when switching models, not when
+    /// continuing with the same model.
+    pub fn has_model_changed(&self, current_model: &ModelId) -> bool {
+        // Find the last assistant message with a model field
+        let last_assistant_model = self.messages.iter().rev().find_map(|msg| {
+            if let ContextMessage::Text(text_msg) = &**msg
+                && text_msg.has_role(Role::Assistant)
+            {
+                return text_msg.model.as_ref();
+            }
+            None
+        });
+
+        // If there's no previous assistant model, consider it as changed
+        // If there is a previous model, check if it differs from current
+        match last_assistant_model {
+            None => true,
+            Some(prev_model) => prev_model != current_model,
+        }
     }
 }
 
@@ -1492,6 +1538,114 @@ mod tests {
         let actual = fixture.token_count_approx();
         // "Hello 世界 🌍 émojis" has 18 Unicode characters
         let expected = 5; // 18 chars / 4 = 5 tokens (rounded up)
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_returns_true_when_no_previous_messages() {
+        let fixture = Context::default();
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = true;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_returns_true_when_model_differs() {
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "Hello").model(ModelId::new("gpt-3.5")));
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = true;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_returns_false_when_model_same() {
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "Hello").model(ModelId::new("gpt-4")));
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = false;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_returns_true_when_previous_has_no_model() {
+        let fixture = Context::default().add_message(TextMessage::new(Role::Assistant, "Hello")); // No model set
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = true;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_checks_last_assistant_message_with_model() {
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "First").model(ModelId::new("gpt-3.5")))
+            .add_message(TextMessage::new(Role::User, "Question"))
+            .add_message(TextMessage::new(Role::Assistant, "Second").model(ModelId::new("gpt-4")));
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = false; // Last assistant message with model is "gpt-4", same as current
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_with_multiple_messages_model_changed() {
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "First").model(ModelId::new("gpt-3.5")))
+            .add_message(TextMessage::new(Role::User, "Question"))
+            .add_message(
+                TextMessage::new(Role::Assistant, "Second").model(ModelId::new("claude-3")),
+            );
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = true; // Last assistant message with model is "claude-3", different from "gpt-4"
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_ignores_user_messages() {
+        // User messages have model tracking too, but we should only check assistant
+        // messages
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "Response").model(ModelId::new("gpt-4")))
+            .add_message(TextMessage::new(Role::User, "Question").model(ModelId::new("claude-3")));
+        let current_model = ModelId::new("gpt-4");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = false; // Last ASSISTANT message is "gpt-4", user message should be ignored
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_has_model_changed_continuing_same_model() {
+        // Scenario: model1 -> model2 -> model2 (the second model2 should not drop
+        // reasoning)
+        let fixture = Context::default()
+            .add_message(TextMessage::new(Role::Assistant, "First").model(ModelId::new("model1")))
+            .add_message(TextMessage::new(Role::User, "Question"))
+            .add_message(TextMessage::new(Role::Assistant, "Second").model(ModelId::new("model2")))
+            .add_message(TextMessage::new(Role::User, "Another question"));
+        let current_model = ModelId::new("model2");
+
+        let actual = fixture.has_model_changed(&current_model);
+        let expected = false; // Last assistant used "model2", same as current
+
         assert_eq!(actual, expected);
     }
 }
