@@ -24,6 +24,13 @@ impl FormatContent for ToolOperation {
                     .diff()
                     .to_string(),
             )),
+            ToolOperation::FsMultiPatch { input: _, output } => {
+                Some(ChatResponseContent::ToolOutput(
+                    DiffFormat::format(&output.before, &output.after)
+                        .diff()
+                        .to_string(),
+                ))
+            }
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
@@ -37,6 +44,9 @@ impl FormatContent for ToolOperation {
             ToolOperation::TodoRead { output } => {
                 Some(ChatResponseContent::ToolOutput(format_todos(output)))
             }
+            ToolOperation::Lsp { output } => output.as_str().map(|text| {
+                ChatResponseContent::Markdown { text: text.to_string(), partial: false }
+            }),
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
@@ -426,6 +436,7 @@ mod tests {
                     stdout: "file1.txt\nfile2.txt".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: None,
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -448,6 +459,7 @@ mod tests {
                     stdout: "output line".to_string(),
                     stderr: "warning line".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: None,
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -470,6 +482,7 @@ mod tests {
                     stdout: "".to_string(),
                     stderr: "Error: command not found".to_string(),
                     exit_code: Some(127),
+                    wall_time_secs: None,
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,

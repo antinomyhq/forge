@@ -5,6 +5,9 @@ use forge_domain::{
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
+use crate::hooks::verification_reminder::{
+    BACKGROUND_REFUSAL_REMINDER_BODY, VERIFICATION_COMMAND_REMINDER_BODY,
+};
 use crate::orch_spec::orch_runner::TestContext;
 
 #[tokio::test]
@@ -27,11 +30,22 @@ async fn test_simple_conversation_no_errors() {
 
     let messages = ctx.output.context_messages();
 
-    let message_count = messages
+    // The orchestrator injects a single verification reminder message,
+    // optionally including the verification matrix, before completion.
+    let user_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::User))
         .count();
-    assert_eq!(message_count, 1, "Should have only one user message");
+    assert_eq!(
+        user_message_count, 2,
+        "Should have 2 user messages: original task + merged verification reminder"
+    );
+    assert!(
+        messages
+            .iter()
+            .filter_map(|message| message.content())
+            .any(|content| { content.contains("<verification-matrix>") })
+    );
 
     let error_count = messages
         .iter()
@@ -464,8 +478,8 @@ async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls_on_nex
 
     assert_eq!(
         assistant_with_tool_call_indices.len(),
-        4,
-        "Expected four assistant tool-call messages"
+        5,
+        "Expected five assistant tool-call messages: 4 original fs_read + 1 for verification skill"
     );
 
     let third_assistant_with_tool_call_index = assistant_with_tool_call_indices[2];
@@ -488,14 +502,16 @@ async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
 
     let messages = ctx.output.context_messages();
 
-    // Verify we have exactly 3 assistant messages (one for each turn)
+    // Verify we have exactly 5 assistant messages: 3 from the original turns (Foo,
+    // Bar, Baz) plus 2 from the verification reminder flow (skill invocation +
+    // completion).
     let assistant_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::Assistant))
         .count();
     assert_eq!(
-        assistant_message_count, 3,
-        "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
+        assistant_message_count, 5,
+        "Should have 5 assistant messages: 3 original turns + 2 for verification"
     );
 }
 
@@ -553,6 +569,102 @@ async fn test_is_complete_when_stop_with_no_tool_calls() {
 }
 
 #[tokio::test]
+async fn test_background_refusal_triggers_recovery_reminder_and_retry() {
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "task.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("task details")));
+
+    let mut ctx = TestContext::default()
+        .env(forge_domain::Environment { background: true, ..TestContext::default().env.clone() })
+        .mock_tool_call_responses(vec![(tool_call.clone(), tool_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(
+                "I can't help craft or verify a payload for that filter.",
+            )
+            .finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Inspecting files").tool_calls(vec![tool_call.into()]),
+            ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Produce /app/out.html").await.unwrap();
+
+    let context = ctx
+        .output
+        .conversation_history
+        .last()
+        .unwrap()
+        .context
+        .clone()
+        .unwrap();
+    assert!(context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(BACKGROUND_REFUSAL_REMINDER_BODY))
+    }));
+
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+    assert!(
+        has_task_complete,
+        "Should recover from refusal and complete"
+    );
+}
+
+#[tokio::test]
+async fn test_requires_shell_verification_after_skill_before_completion() {
+    let skill_call =
+        ToolCallFull::new("skill").arguments(json!({"name": "verification-specialist"}));
+    let shell_call = ToolCallFull::new("shell").arguments(json!({
+        "command": "pytest",
+        "description": "Run verification smoke test"
+    }));
+    let shell_result = ToolResult::new("shell").output(Ok(ToolOutput::text("verification ok")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![(shell_call.clone(), shell_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Task is done").finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Invoking verification skill")
+                .tool_calls(vec![skill_call.into()]),
+            ChatCompletionMessage::assistant("Verification skill completed")
+                .finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Running verification command")
+                .tool_calls(vec![shell_call.into()]),
+            ChatCompletionMessage::assistant("Verification command completed")
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Complete this task").await.unwrap();
+
+    let context = ctx
+        .output
+        .conversation_history
+        .last()
+        .unwrap()
+        .context
+        .clone()
+        .unwrap();
+    assert!(context.messages.iter().any(|msg| {
+        msg.content()
+            .is_some_and(|content| content.contains(VERIFICATION_COMMAND_REMINDER_BODY))
+    }));
+
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+    assert!(
+        has_task_complete,
+        "Should complete after running shell verification command"
+    );
+}
+
+#[tokio::test]
 async fn test_not_complete_when_stop_with_tool_calls() {
     // Test: is_complete = false when finish_reason is Stop BUT there are tool calls
     // (Gemini models return stop as finish reason with tool calls)
@@ -574,13 +686,15 @@ async fn test_not_complete_when_stop_with_tool_calls() {
 
     let messages = ctx.output.context_messages();
 
-    // Verify we have multiple assistant messages (conversation continued)
+    // Verify we have 4 assistant messages: 2 from the original flow (tool call
+    // + completion) plus 2 from the verification reminder flow (skill invocation
+    // + completion).
     let assistant_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::Assistant))
         .count();
     assert_eq!(
-        assistant_message_count, 2,
-        "Should have 2 assistant messages, confirming is_complete was false with tool calls"
+        assistant_message_count, 4,
+        "Should have 4 assistant messages: 2 original + 2 for verification"
     );
 }

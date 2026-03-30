@@ -107,6 +107,7 @@ impl<S: Services> ForgeApp<S> {
             agent.clone(),
             chat.event.clone(),
             current_time,
+            environment.clone(),
         )
         .add_user_prompt(conversation)
         .await?;

@@ -195,6 +195,16 @@ pub struct Environment {
     #[dummy(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
+    /// Whether the application is running in background (non-interactive) mode.
+    /// When true, the agent must not ask follow-up questions and should make
+    /// autonomous decisions. Controlled by FORGE_BACKGROUND environment
+    /// variable or --background CLI flag.
+    pub background: bool,
+    /// Optional task-level timeout in seconds, set by the benchmark harness
+    /// via FORGE_TASK_TIMEOUT_SECS. When present, the agent should budget
+    /// its time to finish before this hard kill deadline.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub task_timeout_secs: Option<u64>,
 }
 
 /// The output format used when auto-dumping a conversation on task completion.

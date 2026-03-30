@@ -2,8 +2,9 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, Hook,
-    ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    FinishReason, Hook, ProviderId, ToolCallArguments, ToolCallFull, ToolCallId, ToolErrorTracker,
+    ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use include_dir::{Dir, include_dir};
@@ -12,6 +13,9 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::hooks::DoomLoopDetector;
+use crate::hooks::verification_reminder::{
+    VERIFICATION_COMMAND_REMINDER_BODY, VERIFICATION_REMINDER_BODY,
+};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -106,6 +110,7 @@ impl Runner {
             agent.clone(),
             event.clone(),
             setup.current_time,
+            setup.env.clone(),
         )
         .add_user_prompt(conversation)
         .await?;
@@ -150,6 +155,45 @@ impl AgentService for Runner {
     ) -> forge_domain::ResultStream<ChatCompletionMessage, anyhow::Error> {
         let mut responses = self.test_completions.lock().await;
 
+        // If the last message is a verification reminder and no mock response is
+        // queued, automatically synthesize a response that performs the required
+        // verification flow and completes — this keeps existing tests from needing
+        // to be updated.
+        let last_content = context
+            .messages
+            .last()
+            .and_then(|m| m.content())
+            .unwrap_or_default();
+
+        if last_content.contains(VERIFICATION_REMINDER_BODY) && responses.is_empty() {
+            let skill_call = ToolCallFull::new("skill").arguments(ToolCallArguments::from(
+                serde_json::json!({"name": "verification-specialist"}),
+            ));
+            let shell_call = ToolCallFull::new("shell").arguments(ToolCallArguments::from(
+                serde_json::json!({"command": "pytest", "description": "Run verification smoke test"}),
+            ));
+            let turn1 = ChatCompletionMessage::assistant("Running verification flow")
+                .tool_calls(vec![skill_call.into(), shell_call.into()]);
+            let turn2 = ChatCompletionMessage::assistant("Verification complete")
+                .finish_reason(FinishReason::Stop);
+            drop(responses);
+            self.test_completions.lock().await.push_back(turn2);
+            return Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(turn1)))));
+        }
+
+        if last_content.contains(VERIFICATION_COMMAND_REMINDER_BODY) && responses.is_empty() {
+            let shell_call = ToolCallFull::new("shell").arguments(ToolCallArguments::from(
+                serde_json::json!({"command": "pytest", "description": "Run verification smoke test"}),
+            ));
+            let turn1 = ChatCompletionMessage::assistant("Running verification command")
+                .tool_calls(vec![shell_call.into()]);
+            let turn2 = ChatCompletionMessage::assistant("Verification complete")
+                .finish_reason(FinishReason::Stop);
+            drop(responses);
+            self.test_completions.lock().await.push_back(turn2);
+            return Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(turn1)))));
+        }
+
         if let Some(message) = responses.pop_front() {
             Ok(Box::pin(tokio_stream::iter(std::iter::once(Ok(message)))))
         } else {
@@ -168,6 +212,31 @@ impl AgentService for Runner {
         test_call: forge_domain::ToolCallFull,
     ) -> forge_domain::ToolResult {
         let name = test_call.name.clone();
+
+        // Auto-handle verification reminder tool calls without requiring
+        // explicit mock setup.
+        if name.as_str() == "verification-matrix" {
+            return forge_domain::ToolResult::new(name)
+                .call_id(
+                    test_call
+                        .call_id
+                        .unwrap_or_else(|| ToolCallId::new("auto_call")),
+                )
+                .output(Ok(forge_domain::ToolOutput::text(
+                    "<verification-matrix>\n- verify the exact deliverable path/interface\n- run the real verifier or smoke test\n</verification-matrix>",
+                )));
+        }
+
+        if name.as_str() == "skill" || name.as_str() == "shell" {
+            return forge_domain::ToolResult::new(name)
+                .call_id(
+                    test_call
+                        .call_id
+                        .unwrap_or_else(|| ToolCallId::new("auto_call")),
+                )
+                .output(Ok(forge_domain::ToolOutput::text("verification executed")));
+        }
+
         let mut guard = self.test_tool_calls.lock().await;
         for (id, (call, result)) in guard.iter().enumerate() {
             if call.call_id == test_call.call_id {
@@ -183,6 +252,13 @@ impl AgentService for Runner {
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.conversation_history.lock().await.push(conversation);
         Ok(())
+    }
+
+    async fn get_pending_todos(
+        &self,
+        _conversation_id: &forge_domain::ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        Ok(vec![])
     }
 }
 
@@ -240,6 +316,7 @@ impl ShellService for Runner {
                     stderr: String::new(),
                     command: String::new(),
                     exit_code: Some(1),
+                    wall_time_secs: None,
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,

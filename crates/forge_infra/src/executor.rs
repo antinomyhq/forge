@@ -1,6 +1,7 @@
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
 use forge_app::CommandInfra;
 use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
@@ -101,6 +102,8 @@ impl ForgeCommandExecutorService {
 
         let mut prepared_command = self.prepare_command(&command, working_dir, env_vars);
 
+        let start_time = Instant::now();
+
         // Spawn the command
         let mut child = prepared_command.spawn()?;
 
@@ -129,11 +132,14 @@ impl ForgeCommandExecutorService {
         drop(stderr_pipe);
         drop(ready);
 
+        let wall_time_secs = start_time.elapsed().as_secs_f64();
+
         Ok(CommandOutput {
             stdout: String::from_utf8_lossy(&stdout_buffer).into_owned(),
             stderr: String::from_utf8_lossy(&stderr_buffer).into_owned(),
             exit_code: status.code(),
             command,
+            wall_time_secs: Some(wall_time_secs),
         })
     }
 }
@@ -269,6 +275,7 @@ mod tests {
             stderr: "".to_string(),
             command: "echo \"hello world\"".into(),
             exit_code: Some(0),
+            wall_time_secs: None,
         };
 
         if cfg!(target_os = "windows") {
@@ -411,6 +418,7 @@ mod tests {
             stderr: "".to_string(),
             command: "echo \"silent test\"".into(),
             exit_code: Some(0),
+            wall_time_secs: None,
         };
 
         if cfg!(target_os = "windows") {
@@ -421,5 +429,80 @@ mod tests {
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
         assert_eq!(actual.stderr, expected.stderr);
         assert_eq!(actual.success(), expected.success());
+    }
+
+    #[tokio::test]
+    async fn test_background_command_wrapper_pattern() {
+        // Test the nohup wrapper pattern that tool_executor uses for
+        // background: true. This verifies the shell command template
+        // that starts a process in the background, waits briefly, and
+        // checks it is still alive.
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
+        let log_file = "/tmp/forge_bg_test_integration.log";
+
+        // Use sleep as a simple background process that stays alive
+        let cmd = format!(
+            "nohup sh -c 'sleep 30' > {log_file} 2>&1 & \
+             BG_PID=$!; \
+             sleep 1; \
+             if kill -0 $BG_PID 2>/dev/null; then \
+               echo \"Process $BG_PID started in background (log: {log_file})\"; \
+               kill $BG_PID 2>/dev/null; \
+             else \
+               echo \"ERROR: Process $BG_PID exited early. Log output:\"; \
+               cat {log_file}; \
+               exit 1; \
+             fi"
+        );
+
+        let actual = fixture
+            .execute_command(cmd, PathBuf::from("."), false, None)
+            .await
+            .unwrap();
+
+        assert!(
+            actual.stdout.contains("started in background"),
+            "Expected 'started in background' in stdout, got: {}",
+            actual.stdout
+        );
+        assert!(
+            actual.stdout.contains("log:"),
+            "Expected log file path in stdout, got: {}",
+            actual.stdout
+        );
+        assert_eq!(actual.exit_code, Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_background_command_detects_early_exit() {
+        // Verify that the wrapper detects when the background process
+        // exits immediately (e.g., bad command).
+        let fixture = ForgeCommandExecutorService::new(test_env(), test_printer());
+        let log_file = "/tmp/forge_bg_test_earlyexit.log";
+
+        let cmd = format!(
+            "nohup sh -c 'exit 1' > {log_file} 2>&1 & \
+             BG_PID=$!; \
+             sleep 1; \
+             if kill -0 $BG_PID 2>/dev/null; then \
+               echo \"Process $BG_PID started in background (log: {log_file})\"; \
+             else \
+               echo \"ERROR: Process $BG_PID exited early. Log output:\"; \
+               cat {log_file}; \
+               exit 1; \
+             fi"
+        );
+
+        let actual = fixture
+            .execute_command(cmd, PathBuf::from("."), false, None)
+            .await
+            .unwrap();
+
+        assert!(
+            actual.stdout.contains("ERROR") || actual.stdout.contains("exited early"),
+            "Expected error message for early exit, got: {}",
+            actual.stdout
+        );
+        assert_eq!(actual.exit_code, Some(1));
     }
 }

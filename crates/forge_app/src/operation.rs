@@ -6,8 +6,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
+    CodebaseSearchResults, Environment, FSMultiPatch, FSPatch, FSRead, FSRemove, FSSearch, FSUndo,
+    FSWrite, FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -26,6 +26,7 @@ use crate::{
 pub struct TempContentFiles {
     stdout: Option<PathBuf>,
     stderr: Option<PathBuf>,
+    search: Option<PathBuf>,
 }
 
 #[derive(Debug, derive_more::From)]
@@ -51,6 +52,10 @@ pub enum ToolOperation {
     },
     FsPatch {
         input: FSPatch,
+        output: PatchOutput,
+    },
+    FsMultiPatch {
+        input: FSMultiPatch,
         output: PatchOutput,
     },
     FsUndo {
@@ -80,6 +85,9 @@ pub enum ToolOperation {
     },
     TodoRead {
         output: Vec<forge_domain::Todo>,
+    },
+    Lsp {
+        output: forge_domain::ToolOutput,
     },
 }
 
@@ -225,7 +233,7 @@ impl ToolOperation {
         metrics: &mut Metrics,
     ) -> forge_domain::ToolOutput {
         let tool_name = tool_kind.name();
-        match self {
+        let mut result = match self {
             ToolOperation::FsRead { input, output } => {
                 // Check if content is an image (visual content)
                 if let Some(image) = output.content.as_image() {
@@ -233,7 +241,7 @@ impl ToolOperation {
                     tracing::info!(
                         path = %input.file_path,
                         tool = %tool_name,
-                        "Visual content read (image/PDF)"
+                        "Visual content read (image)"
                     );
                     *metrics = metrics.clone().insert(
                         input.file_path.clone(),
@@ -242,6 +250,22 @@ impl ToolOperation {
                     );
 
                     return forge_domain::ToolOutput::image(image.clone());
+                }
+
+                // Check if content is a document (PDF)
+                if let Some(document) = output.content.as_document() {
+                    tracing::info!(
+                        path = %input.file_path,
+                        tool = %tool_name,
+                        "Document content read (PDF)"
+                    );
+                    *metrics = metrics.clone().insert(
+                        input.file_path.clone(),
+                        FileOperation::new(tool_kind)
+                            .content_hash(Some(output.info.content_hash.clone())),
+                    );
+
+                    return forge_domain::ToolOutput::document(document.clone());
                 }
 
                 // Handle text content
@@ -259,7 +283,7 @@ impl ToolOperation {
                         "display_lines",
                         format!("{}-{}", output.info.start_line, output.info.end_line),
                     )
-                    .attr("total_lines", content.lines().count())
+                    .attr("total_lines", output.info.total_lines)
                     .cdata(content);
 
                 // Track read operations
@@ -360,21 +384,41 @@ impl ToolOperation {
                     elm = elm.attr_if_some("file_type", input.file_type.as_ref());
 
                     match truncated_output.strategy {
-                        TruncationMode::Byte => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
-                                env.max_search_result_bytes
-                            );
-                            elm = elm.attr("reason", reason);
-                        }
-                        TruncationMode::Line => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
-                            );
+                        TruncationMode::Byte | TruncationMode::Line => {
+                            let shown = truncated_output.data.len();
+                            let total = truncated_output.total;
+                            let limit_desc = match truncated_output.strategy {
+                                TruncationMode::Byte => {
+                                    format!("{} bytes size limit", env.max_search_result_bytes)
+                                }
+                                TruncationMode::Line => format!("{max_lines} lines limit"),
+                                _ => unreachable!(),
+                            };
+                            let count_info = format!("Showing {shown} of {total} total matches.");
+                            let reason = if let Some(path) = &content_files.search {
+                                format!(
+                                    "WARNING: Search results are INCOMPLETE — output exceeded the {limit_desc} and was truncated. \
+                                    {count_info} The displayed results do NOT represent all matches. \
+                                    The complete untruncated output has been written to: {}. \
+                                    You MUST read this file or use a more specific search pattern to ensure full coverage.",
+                                    path.display()
+                                )
+                            } else {
+                                format!(
+                                    "WARNING: Search results are INCOMPLETE — output exceeded the {limit_desc} and was truncated. \
+                                    {count_info} The displayed results do NOT represent all matches. \
+                                    Please use a more specific search pattern to ensure full coverage.",
+                                )
+                            };
                             elm = elm.attr("reason", reason);
                         }
                         TruncationMode::Full => {}
                     };
+
+                    if let Some(path) = &content_files.search {
+                        elm = elm.attr("full_output", path.display());
+                    }
+
                     elm = elm.cdata(truncated_output.data.join("\n"));
 
                     forge_domain::ToolOutput::text(elm)
@@ -443,6 +487,29 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(root)
             }
             ToolOperation::FsPatch { input, output } => {
+                let diff_result = DiffFormat::format(&output.before, &output.after);
+                let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+
+                let mut elm = Element::new("file_diff")
+                    .attr("path", &input.file_path)
+                    .attr("total_lines", output.after.lines().count())
+                    .cdata(diff);
+
+                if !output.errors.is_empty() {
+                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
+                }
+
+                *metrics = metrics.clone().insert(
+                    input.file_path.clone(),
+                    FileOperation::new(tool_kind)
+                        .lines_added(diff_result.lines_added())
+                        .lines_removed(diff_result.lines_removed())
+                        .content_hash(Some(output.content_hash.clone())),
+                );
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::FsMultiPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
 
@@ -559,6 +626,10 @@ impl ToolOperation {
 
                 if let Some(exit_code) = output.output.exit_code {
                     parent_elem = parent_elem.attr("exit_code", exit_code);
+                }
+
+                if let Some(wall_time) = output.output.wall_time_secs {
+                    parent_elem = parent_elem.attr("wall_time_secs", format!("{:.2}", wall_time));
                 }
 
                 let truncated_output = truncate_shell_output(
@@ -696,7 +767,22 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
+            ToolOperation::Lsp { output } => output,
+        };
+
+        // Append session elapsed time to the tool output if tracking has started
+        if let Some(elapsed) = metrics.duration(chrono::Utc::now()) {
+            let session_info = Element::new("session_info").attr(
+                "session_elapsed_secs",
+                format!("{:.1}", elapsed.as_secs_f64()),
+            );
+
+            result
+                .values
+                .push(forge_domain::ToolValue::Text(session_info.to_string()));
         }
+
+        result
     }
 }
 
@@ -735,6 +821,9 @@ mod tests {
             }
             ToolValue::Image(image) => {
                 writeln!(result, "Image with mime type: {}", image.mime_type()).unwrap();
+            }
+            ToolValue::Document(doc) => {
+                writeln!(result, "Document with mime type: {}", doc.mime_type()).unwrap();
             }
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();
@@ -995,6 +1084,7 @@ mod tests {
                     stdout: "hello\nworld".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(1.23),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1028,6 +1118,7 @@ mod tests {
                     stdout,
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(2.50),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1063,6 +1154,7 @@ mod tests {
                     stdout: "".to_string(),
                     stderr,
                     exit_code: Some(1),
+                    wall_time_secs: Some(0.45),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1104,6 +1196,7 @@ mod tests {
                     stdout,
                     stderr,
                     exit_code: Some(0),
+                    wall_time_secs: Some(3.10),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1140,6 +1233,7 @@ mod tests {
                     stdout,
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(0.80),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1166,6 +1260,7 @@ mod tests {
                     stdout: "single stdout line".to_string(),
                     stderr: "single stderr line".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(0.10),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1192,6 +1287,7 @@ mod tests {
                     stdout: "".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(0.05),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -1231,6 +1327,7 @@ mod tests {
                     stdout,
                     stderr,
                     exit_code: Some(0),
+                    wall_time_secs: Some(1.75),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -2257,6 +2354,7 @@ mod tests {
                     stdout: "total 8\ndrwxr-xr-x  2 user user 4096 Jan  1 12:00 .\ndrwxr-xr-x 10 user user 4096 Jan  1 12:00 ..".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(0.02),
                 },
                 shell: "/bin/bash".to_string(),
                 description: None,
@@ -2284,6 +2382,7 @@ mod tests {
                     stdout: "On branch main\nnothing to commit, working tree clean".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
+                    wall_time_secs: Some(0.15),
                 },
                 shell: "/bin/bash".to_string(),
                 description: Some("Shows working tree status".to_string()),

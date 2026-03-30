@@ -58,60 +58,45 @@ impl Range {
         }
     }
 
-    /// Create a range from a fuzzy search match
+    /// Create a range from a fuzzy search match.
+    ///
+    /// Uses actual byte positions from the source string rather than
+    /// assuming uniform line ending lengths, which avoids incorrect byte
+    /// offsets with mixed line endings (e.g. some `\r\n` and some `\n`).
     fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
-        let lines: Vec<&str> = source.lines().collect();
-
         // Handle empty source
-        if lines.is_empty() {
+        if source.is_empty() {
             return Self::new(0, 0);
         }
 
-        // SearchMatch uses 0-based inclusive line numbers
-        // Convert to 0-based array indices
-        let start_idx = (search_match.start_line as usize).min(lines.len());
-        // end_line is 0-based inclusive, convert to 0-based exclusive for slicing
-        // Add 1 to make it exclusive: line 0 to line 0 means [0..1], one line
-        let end_idx = ((search_match.end_line as usize) + 1).min(lines.len());
+        let mut line_ranges = Vec::new();
+        let mut line_start = 0;
 
-        // Find the byte position of the start line.
-        // Split on '\n' so each segment retains its '\r' (if any), giving the
-        // correct per-line byte length regardless of mixed line endings.
-        let start_pos = source
-            .split('\n')
-            .take(start_idx)
-            .map(|l| l.len() + 1)
-            .sum::<usize>()
-            .min(source.len());
+        for (newline_idx, _) in source.match_indices('\n') {
+            let line_end =
+                if newline_idx > line_start && source.as_bytes()[newline_idx - 1] == b'\r' {
+                    newline_idx - 1
+                } else {
+                    newline_idx
+                };
+            line_ranges.push((line_start, line_end));
+            line_start = newline_idx + 1;
+        }
 
-        // Calculate the length
-        let length = if start_idx == end_idx {
-            // Single line match: just the line content, no trailing newline
-            if start_idx >= lines.len() {
-                0 // Out of bounds match
-            } else {
-                lines[start_idx].len()
-            }
-        } else {
-            // Multi-line match: include newlines between lines but NOT after the last line
-            // Sum lengths of lines from start_idx to end_idx (exclusive)
-            let content_len: usize = if start_idx >= lines.len() || end_idx > lines.len() {
-                0 // Out of bounds match
-            } else {
-                lines[start_idx..end_idx].iter().map(|l| l.len()).sum()
-            };
-            let newlines_between = end_idx - start_idx - 1;
-            // Count actual newline bytes (\r\n = 2, \n = 1) to handle mixed endings
-            let newline_bytes: usize = source
-                .split('\n')
-                .skip(start_idx)
-                .take(newlines_between)
-                .map(|l| if l.ends_with('\r') { 2 } else { 1 })
-                .sum();
-            content_len + newline_bytes
-        };
+        line_ranges.push((line_start, source.len()));
 
-        Self::new(start_pos, length)
+        let start_idx = search_match.start_line as usize;
+        let end_idx = search_match.end_line as usize;
+
+        if start_idx >= line_ranges.len() || end_idx < start_idx {
+            return Self::new(source.len(), 0);
+        }
+
+        let clamped_end_idx = end_idx.min(line_ranges.len() - 1);
+        let start_pos = line_ranges[start_idx].0;
+        let end_pos = line_ranges[clamped_end_idx].1;
+
+        Self::new(start_pos, end_pos.saturating_sub(start_pos))
     }
 
     // Fuzzy matching removed - we only use exact matching
@@ -385,6 +370,86 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearc
 
         // Apply the replacement
         current_content = apply_replacement(current_content, range, &operation, &content)?;
+
+        // SNAPSHOT COORDINATION: Always capture snapshot before modifying
+        self.infra.insert_snapshot(path).await?;
+
+        // Write final content to file after all patches are applied
+        self.infra
+            .write(path, Bytes::from(current_content.clone()))
+            .await?;
+
+        // Compute hash of the final file content
+        let content_hash = compute_hash(&current_content);
+
+        // Validate file syntax using remote validation API (graceful failure)
+        let errors = self
+            .infra
+            .validate_file(path, &current_content)
+            .await
+            .unwrap_or_default();
+
+        Ok(PatchOutput {
+            errors,
+            before: old_content,
+            after: current_content,
+            content_hash,
+        })
+    }
+
+    async fn multi_patch(
+        &self,
+        input_path: String,
+        edits: Vec<forge_domain::PatchEdit>,
+    ) -> anyhow::Result<PatchOutput> {
+        let path = Path::new(&input_path);
+        assert_absolute_path(path)?;
+
+        // Read the original content once
+        let mut current_content = fs::read_to_string(path)
+            .await
+            .map_err(Error::FileOperation)?;
+        // Save the old content before modification for diff generation
+        let old_content = current_content.clone();
+
+        // Apply each edit sequentially
+        for edit in &edits {
+            // Convert replace_all boolean to PatchOperation
+            let operation = if edit.replace_all {
+                PatchOperation::ReplaceAll
+            } else {
+                PatchOperation::Replace
+            };
+
+            // Compute range from search if provided
+            let range = match compute_range(&current_content, Some(&edit.old_string), &operation) {
+                Ok(r) => r,
+                Err(Error::NoMatch(search_text))
+                    if matches!(
+                        operation,
+                        PatchOperation::Replace | PatchOperation::ReplaceAll | PatchOperation::Swap
+                    ) =>
+                {
+                    // Try fuzzy search as fallback
+                    match self
+                        .infra
+                        .fuzzy_search(&search_text, &current_content, false)
+                        .await
+                    {
+                        Ok(matches) if !matches.is_empty() => {
+                            // Use the first fuzzy match
+                            Some(Range::from_search_match(&current_content, &matches[0]))
+                        }
+                        _ => return Err(Error::NoMatch(search_text).into()),
+                    }
+                }
+                Err(e) => return Err(e.into()),
+            };
+
+            // Apply the replacement
+            current_content =
+                apply_replacement(current_content, range, &operation, &edit.new_string)?;
+        }
 
         // SNAPSHOT COORDINATION: Always capture snapshot before modifying
         self.infra.insert_snapshot(path).await?;

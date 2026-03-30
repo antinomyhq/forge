@@ -2,6 +2,7 @@ use forge_domain::{DefaultTransformation, Provider, ProviderId, Transformer};
 use url::Url;
 
 use super::drop_tool_call::DropToolCalls;
+use super::gemini_openrouter_provider::SetGeminiOpenRouterProvider;
 use super::github_copilot_reasoning::GitHubCopilotReasoning;
 use super::kimi_k2_reasoning::KimiK2Reasoning;
 use super::make_cerebras_compat::MakeCerebrasCompat;
@@ -43,7 +44,8 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(SetMinimaxParams.when(when_model("minimax")))
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
-            .pipe(SetCache.when(when_model("gemini|anthropic|minimax")))
+            .pipe(SetGeminiOpenRouterProvider.when(when_model("gemini")))
+            .pipe(SetCache.when(when_model("gemini|anthropic|minimax|minimax")))
             .when(move |_| supports_open_router_params(provider));
 
         // Strip thought signatures for all models except gemini-3

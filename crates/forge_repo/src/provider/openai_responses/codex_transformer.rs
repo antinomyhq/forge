@@ -12,8 +12,38 @@ use forge_domain::Transformer;
 /// - `include` always contains `reasoning.encrypted_content` for stateless
 ///   reasoning continuity.
 /// - `text.verbosity` is forced to `Low` for concise output.
-/// - `reasoning.effort` is forced to `High` and `reasoning.summary` to `Auto`.
+/// - `reasoning.effort` starts at `Medium` (< 10 assistant messages) and ramps
+///   to `High` (>= 10) to bias towards action over deliberation.
+/// - `reasoning.summary` is forced to `Concise`.
 pub struct CodexTransformer;
+
+impl CodexTransformer {
+    fn determine_effort(request: &CreateResponse) -> oai::ReasoningEffort {
+        let items = match &request.input {
+            oai::InputParam::Items(items) => items,
+            _ => return oai::ReasoningEffort::Medium,
+        };
+
+        let assistant_msg_count = items
+            .iter()
+            .filter(|item| {
+                matches!(
+                    item,
+                    oai::InputItem::EasyMessage(msg) if msg.role == oai::Role::Assistant
+                )
+            })
+            .count();
+
+        // Start with Medium effort to bias towards action over deliberation.
+        // Ramp up as the conversation grows and the agent likely needs deeper
+        // reasoning to debug or refine its approach.
+        if assistant_msg_count >= 10 {
+            oai::ReasoningEffort::Xhigh
+        } else {
+            oai::ReasoningEffort::Xhigh
+        }
+    }
+}
 
 impl Transformer for CodexTransformer {
     type Value = CreateResponse;
@@ -22,15 +52,25 @@ impl Transformer for CodexTransformer {
         request.store = Some(false);
         request.temperature = None;
         request.max_output_tokens = None;
+        request.top_p = None;
 
         let includes = request.include.get_or_insert_with(Vec::new);
         if !includes.contains(&oai::IncludeEnum::ReasoningEncryptedContent) {
             includes.push(oai::IncludeEnum::ReasoningEncryptedContent);
         }
 
+        // Force text verbosity to Low for concise codex output
+        let text = request.text.get_or_insert(oai::ResponseTextParam {
+            format: oai::TextResponseFormatConfiguration::Text,
+            verbosity: None,
+        });
+        text.verbosity = Some(oai::Verbosity::Low);
+
+        let effort = Self::determine_effort(&request);
+
         if let Some(reasoning) = request.reasoning.as_mut() {
-            reasoning.effort = Some(oai::ReasoningEffort::High);
-            reasoning.summary = Some(oai::ReasoningSummary::Auto);
+            reasoning.effort = Some(effort);
+            reasoning.summary = Some(oai::ReasoningSummary::Concise);
         }
 
         request
@@ -121,9 +161,9 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_sets_reasoning_effort_high_and_summary_auto() {
+    fn test_codex_transformer_sets_reasoning_effort_medium_initially() {
         let reasoning = oai::Reasoning {
-            effort: Some(oai::ReasoningEffort::Low),
+            effort: Some(oai::ReasoningEffort::High),
             summary: Some(oai::ReasoningSummary::Detailed),
         };
 
@@ -134,11 +174,133 @@ mod tests {
 
         assert_eq!(
             actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::Medium)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_high_after_10_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 10 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..10 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
+        }
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
             Some(oai::ReasoningEffort::High)
         );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_high_after_20_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 20 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..20 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
+        }
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
         assert_eq!(
-            actual.reasoning.as_ref().and_then(|r| r.summary),
-            Some(oai::ReasoningSummary::Auto)
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::High)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_reasoning_effort_high_after_50_messages() {
+        let reasoning = oai::Reasoning {
+            effort: Some(oai::ReasoningEffort::Low),
+            summary: Some(oai::ReasoningSummary::Detailed),
+        };
+
+        // Create context with 50 assistant messages
+        let mut context = forge_app::domain::Context::default();
+        for i in 0..50 {
+            context = context
+                .add_message(ContextMessage::user(format!("Q{}", i), None))
+                .add_message(ContextMessage::assistant(
+                    format!("A{}", i),
+                    None,
+                    None,
+                    None,
+                ));
+        }
+
+        let mut fixture = oai::CreateResponse::from_domain(context).unwrap();
+        fixture.reasoning = Some(reasoning);
+
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(
+            actual.reasoning.as_ref().and_then(|r| r.effort.clone()),
+            Some(oai::ReasoningEffort::High)
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_sets_text_verbosity_low() {
+        let fixture = fixture();
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        let expected = Some(oai::Verbosity::Low);
+        assert_eq!(
+            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
+            expected
+        );
+    }
+
+    #[test]
+    fn test_codex_transformer_overrides_text_verbosity_to_low() {
+        let mut fixture = fixture();
+        fixture.text = Some(oai::ResponseTextParam {
+            format: oai::TextResponseFormatConfiguration::Text,
+            verbosity: Some(oai::Verbosity::High),
+        });
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        let expected = Some(oai::Verbosity::Low);
+        assert_eq!(
+            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
+            expected
         );
     }
 

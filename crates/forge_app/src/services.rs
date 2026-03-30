@@ -5,8 +5,8 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
-    FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Document, File,
+    FileInfo, FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
     ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
     ToolOutput, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
@@ -44,6 +44,7 @@ pub struct ReadOutput {
 pub enum Content {
     File(String),
     Image(Image),
+    Document(Document),
 }
 
 impl Content {
@@ -55,16 +56,28 @@ impl Content {
         Self::Image(image)
     }
 
+    pub fn document(document: Document) -> Self {
+        Self::Document(document)
+    }
+
     pub fn file_content(&self) -> &str {
         match self {
             Self::File(content) => content,
             Self::Image(_) => "",
+            Self::Document(_) => "",
         }
     }
 
     pub fn as_image(&self) -> Option<&Image> {
         match self {
             Self::Image(img) => Some(img),
+            _ => None,
+        }
+    }
+
+    pub fn as_document(&self) -> Option<&Document> {
+        match self {
+            Self::Document(doc) => Some(doc),
             _ => None,
         }
     }
@@ -377,6 +390,13 @@ pub trait FsPatchService: Send + Sync {
         content: String,
         replace_all: bool,
     ) -> anyhow::Result<PatchOutput>;
+
+    /// Applies multiple patches to a single file in sequence
+    async fn multi_patch(
+        &self,
+        path: String,
+        edits: Vec<forge_domain::PatchEdit>,
+    ) -> anyhow::Result<PatchOutput>;
 }
 
 #[async_trait::async_trait]
@@ -542,6 +562,45 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
+/// Todo management service for task tracking
+#[async_trait::async_trait]
+pub trait LspService: Send + Sync {
+    async fn execute_lsp(&self, tool: forge_domain::LspTool) -> anyhow::Result<ToolOutput>;
+}
+
+#[async_trait::async_trait]
+pub trait TodoService: Send + Sync {
+    /// Updates or creates todos for a conversation
+    ///
+    /// # Arguments
+    ///
+    /// * `conversation_id` - The conversation these todos belong to
+    /// * `todos` - List of todos to create or update
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if todos cannot be persisted or validation fails
+    async fn update_todos(
+        &self,
+        conversation_id: &ConversationId,
+        todos: Vec<forge_domain::Todo>,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>>;
+
+    /// Gets all todos for a conversation
+    ///
+    /// # Arguments
+    ///
+    /// * `conversation_id` - The conversation to get todos for
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if todos cannot be retrieved
+    async fn get_todos(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>>;
+}
+
 pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
@@ -570,6 +629,8 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderAuthService: ProviderAuthService;
     type WorkspaceService: WorkspaceService;
     type SkillFetchService: SkillFetchService;
+    type TodoService: TodoService;
+    type LspService: LspService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -598,6 +659,8 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
     fn workspace_service(&self) -> &Self::WorkspaceService;
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
+    fn todo_service(&self) -> &Self::TodoService;
+    fn lsp_service(&self) -> &Self::LspService;
 }
 
 #[async_trait::async_trait]
@@ -783,6 +846,14 @@ impl<I: Services> FsPatchService for I {
         self.fs_patch_service()
             .patch(path, search, content, replace_all)
             .await
+    }
+
+    async fn multi_patch(
+        &self,
+        path: String,
+        edits: Vec<forge_domain::PatchEdit>,
+    ) -> anyhow::Result<PatchOutput> {
+        self.fs_patch_service().multi_patch(path, edits).await
     }
 }
 
@@ -1083,5 +1154,32 @@ impl<I: Services> WorkspaceService for I {
 
     async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId> {
         self.workspace_service().init_workspace(path).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> TodoService for I {
+    async fn update_todos(
+        &self,
+        conversation_id: &ConversationId,
+        todos: Vec<forge_domain::Todo>,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        self.todo_service()
+            .update_todos(conversation_id, todos)
+            .await
+    }
+
+    async fn get_todos(
+        &self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        self.todo_service().get_todos(conversation_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> LspService for I {
+    async fn execute_lsp(&self, tool: forge_domain::LspTool) -> anyhow::Result<ToolOutput> {
+        self.lsp_service().execute_lsp(tool).await
     }
 }

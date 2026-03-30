@@ -77,6 +77,9 @@ impl Transformer for StripWorkingDir {
                         SummaryTool::Undo { path } => {
                             *path = self.strip_prefix(path);
                         }
+                        SummaryTool::Lsp { path, .. } => {
+                            *path = self.strip_prefix(path);
+                        }
                         SummaryTool::Shell { .. }
                         | SummaryTool::Search { .. }
                         | SummaryTool::SemSearch { .. }
@@ -84,9 +87,10 @@ impl Transformer for StripWorkingDir {
                         | SummaryTool::Followup { .. }
                         | SummaryTool::Plan { .. }
                         | SummaryTool::Skill { .. }
+                        | SummaryTool::Task { .. }
                         | SummaryTool::Mcp { .. }
-                        | SummaryTool::TodoWrite { .. }
-                        | SummaryTool::TodoRead => {
+                        | SummaryTool::TodoRead
+                        | SummaryTool::TodoWrite { .. } => {
                             // These tools don't have paths to strip
                         }
                     }

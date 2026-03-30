@@ -45,3 +45,10 @@ Bad example:
   cd /foo/bar && pytest tests
 
 Returns complete output including stdout, stderr, and exit code for diagnostic purposes.
+
+Background mode (background=true):
+  - Use for starting long-running services (web servers, databases, VMs) that must keep running after the tool call returns.
+  - The command is launched via `nohup` in the background. The tool returns immediately with the process PID and a log file path.
+  - After a brief delay the tool verifies the process is still running. If it exited early, the log output is returned for diagnosis.
+  - You can later inspect the background process log with the `read` tool, or check if the process is alive with `kill -0 <PID>`.
+  - Example: background=true with command: python3 -m http.server 8080 --directory /var/www/html

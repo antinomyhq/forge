@@ -6,11 +6,21 @@ use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
+use serde_json::json;
 use tokio::sync::Notify;
 use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
+use crate::hooks::verification_reminder::{
+    VERIFICATION_MATRIX_AGENT_NAME, background_refusal_reminder,
+    background_refusal_reminder_was_sent, extract_verification_matrix_message,
+    fallback_verification_matrix, has_any_tool_call, looks_like_refusal,
+    verification_command_reminder, verification_command_reminder_was_sent,
+    verification_command_was_run_after_skill, verification_gate_applies, verification_matrix_task,
+    verification_matrix_was_sent, verification_reminder, verification_reminder_was_sent,
+    verification_skill_was_called,
+};
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -34,19 +44,46 @@ impl<S: AgentService> Orchestrator<S> {
         agent: Agent,
     ) -> Self {
         Self {
+            services,
+            sender: Default::default(),
             conversation,
             environment,
-            services,
-            agent,
-            sender: Default::default(),
             tool_definitions: Default::default(),
             models: Default::default(),
+            agent,
             error_tracker: Default::default(),
-            hook: Arc::new(Hook::default()),
+            hook: Arc::new(crate::hooks::default()),
         }
     }
 
-    /// Get a reference to the internal conversation
+    async fn generate_verification_matrix(
+        &self,
+        tool_context: &ToolCallContext,
+        context: &Context,
+    ) -> Option<String> {
+        let task = verification_matrix_task(context)?;
+        let gate_agent = self
+            .agent
+            .clone()
+            .tools(vec![ToolName::new(VERIFICATION_MATRIX_AGENT_NAME)]);
+        let call = ToolCallFull::new(VERIFICATION_MATRIX_AGENT_NAME)
+            .arguments(ToolCallArguments::from(json!({ "tasks": [task] })));
+        let result = self.services.call(&gate_agent, tool_context, call).await;
+        if result.is_error() {
+            return fallback_verification_matrix(context);
+        }
+
+        let Some(raw_output) = result.output.as_str() else {
+            return fallback_verification_matrix(context);
+        };
+        if looks_like_refusal(raw_output) {
+            return fallback_verification_matrix(context);
+        }
+
+        extract_verification_matrix_message(raw_output)
+            .or_else(|| fallback_verification_matrix(context))
+    }
+
     pub fn get_conversation(&self) -> &Conversation {
         &self.conversation
     }
@@ -58,7 +95,6 @@ impl<S: AgentService> Orchestrator<S> {
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
-        // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         let system_tools = self
@@ -67,8 +103,8 @@ impl<S: AgentService> Orchestrator<S> {
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
 
+        // Send all start notifications and fire start lifecycle events
         for tool_call in tool_calls {
-            // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 let notifier = Arc::new(Notify::new());
@@ -83,7 +119,6 @@ impl<S: AgentService> Orchestrator<S> {
                 notifier.notified().await;
             }
 
-            // Fire the ToolcallStart lifecycle event
             let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
@@ -109,13 +144,12 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&toolcall_end_event, &mut self.conversation)
                 .await?;
 
-            // Send the end notification for system tools and not agent as a tool
+            let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
                     .await?;
             }
-            // Ensure all tool calls and results are recorded
-            // Adding task completion records is critical for compaction to work correctly
+
             tool_call_records.push((tool_call.clone(), tool_result));
         }
 
@@ -160,7 +194,7 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
-            // Drop ALL reasoning (including config) when reasoning is not supported by the model
+            .pipe(DocumentHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
             // Strip all reasoning from messages when the model has changed (signatures are
             // model-specific and invalid across models). No-op when model is unchanged.
@@ -206,8 +240,10 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.agent.max_requests_per_turn;
-        let tool_context =
-            ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
+
+        let tool_context = ToolCallContext::new(self.conversation.metrics.clone())
+            .sender(self.sender.clone())
+            .conversation_id(self.conversation.id);
 
         while !should_yield {
             // Set context for the current loop iteration
@@ -304,6 +340,14 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
+            let looks_like_refusal_message = looks_like_refusal(&message.content);
+            let refusal_recovery_needed = self.environment.background
+                && is_complete
+                && message.tool_calls.is_empty()
+                && !background_refusal_reminder_was_sent(&context)
+                && !has_any_tool_call(&context)
+                && looks_like_refusal_message;
+
             context = context.append_message(
                 message.content.clone(),
                 message.thought_signature.clone(),
@@ -313,6 +357,74 @@ impl<S: AgentService> Orchestrator<S> {
                 tool_call_records,
                 message.phase,
             );
+
+            if is_complete {
+                let pending_todos = self
+                    .services
+                    .get_pending_todos(&self.conversation.id)
+                    .await?;
+                if !pending_todos.is_empty() {
+                    let reminder = format!(
+                        "You have {} pending todo items. Please complete them before finishing the task.",
+                        pending_todos.len()
+                    );
+                    context = context.add_message(ContextMessage::user(reminder, None));
+                    should_yield = false;
+                    is_complete = false;
+                }
+            }
+
+            if refusal_recovery_needed {
+                context =
+                    context.add_message(ContextMessage::user(background_refusal_reminder(), None));
+                should_yield = false;
+                is_complete = false;
+            }
+
+            let verification_gate_enabled = verification_gate_applies(&self.agent);
+            let verification_reminder_already_sent = verification_reminder_was_sent(&context);
+            let verification_command_reminder_already_sent =
+                verification_command_reminder_was_sent(&context);
+            let verification_matrix_already_sent = verification_matrix_was_sent(&context);
+
+            if verification_gate_enabled
+                && is_complete
+                && !verification_reminder_already_sent
+                && !verification_skill_was_called(&context)
+            {
+                let matrix = if !verification_matrix_already_sent {
+                    self.generate_verification_matrix(&tool_context, &context)
+                        .await
+                } else {
+                    None
+                };
+                context = context.add_message(ContextMessage::user(
+                    verification_reminder(matrix.as_deref()),
+                    None,
+                ));
+                should_yield = false;
+                is_complete = false;
+            }
+
+            if verification_gate_enabled
+                && is_complete
+                && verification_skill_was_called(&context)
+                && !verification_command_reminder_already_sent
+                && !verification_command_was_run_after_skill(&context)
+            {
+                let matrix = if !verification_matrix_already_sent {
+                    self.generate_verification_matrix(&tool_context, &context)
+                        .await
+                } else {
+                    None
+                };
+                context = context.add_message(ContextMessage::user(
+                    verification_command_reminder(matrix.as_deref()),
+                    None,
+                ));
+                should_yield = false;
+                is_complete = false;
+            }
 
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {

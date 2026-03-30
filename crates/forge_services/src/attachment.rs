@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::domain::{
-    Attachment, AttachmentContent, DirectoryEntry, FileTag, Image, LineNumbers,
+    Attachment, AttachmentContent, DirectoryEntry, Document, FileTag, Image, LineNumbers,
 };
 use forge_app::utils::format_display_path;
 use forge_app::{
@@ -68,20 +68,35 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
             });
         }
 
-        // Determine file type (text or image with format)
+        // Determine file type (text, image, or document)
         let mime_type = extension.and_then(|ext| match ext.as_str() {
-            "jpeg" | "jpg" => Some("image/jpeg".to_string()),
-            "png" => Some("image/png".to_string()),
-            "webp" => Some("image/webp".to_string()),
+            "jpeg" | "jpg" => Some(("image", "image/jpeg".to_string())),
+            "png" => Some(("image", "image/png".to_string())),
+            "webp" => Some(("image", "image/webp".to_string())),
+            "pdf" => Some(("document", "application/pdf".to_string())),
             _ => None,
         });
 
         //NOTE: Apply the same slicing as file reads for text content
         let content = match mime_type {
-            Some(mime_type) => {
+            Some(("image", mime_type)) => {
                 AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
             }
-            None => {
+            Some(("document", mime_type)) => {
+                let raw_bytes = self.infra.read(&path).await?;
+                let filename = path
+                    .file_name()
+                    .and_then(|f| f.to_str())
+                    .map(|f| f.to_string());
+                let doc = Document::new_bytes(raw_bytes, mime_type);
+                let doc = if let Some(name) = filename {
+                    doc.with_filename(name)
+                } else {
+                    doc
+                };
+                AttachmentContent::Document(doc)
+            }
+            _ => {
                 let env = self.infra.get_environment();
 
                 let start = tag.loc.as_ref().and_then(|loc| loc.start);
@@ -163,6 +178,7 @@ pub mod tests {
                 .max_read_size(2000)
                 .max_line_length(2000)
                 .max_file_size(256 << 10)
+                .max_image_size(256 << 10)
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
@@ -210,6 +226,11 @@ pub mod tests {
         pub fn add_file(&self, path: PathBuf, content: String) {
             let mut files = self.files.lock().unwrap();
             files.push((path, Bytes::from_owner(content)));
+        }
+
+        pub fn add_bytes(&self, path: PathBuf, content: Vec<u8>) {
+            let mut files = self.files.lock().unwrap();
+            files.push((path, Bytes::from(content)));
         }
 
         pub fn add_dir(&self, path: PathBuf) {
@@ -447,6 +468,10 @@ pub mod tests {
 
         pub fn add_file(&self, path: PathBuf, content: String) {
             self.file_service.add_file(path, content);
+        }
+
+        pub fn add_bytes(&self, path: PathBuf, content: Vec<u8>) {
+            self.file_service.add_bytes(path, content);
         }
     }
 

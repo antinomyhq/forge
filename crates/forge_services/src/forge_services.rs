@@ -7,7 +7,8 @@ use forge_app::{
 };
 use forge_domain::{
     ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
-    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
+    SkillRepository, SnapshotRepository, TodoRepository, ValidationRepository,
+    WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -24,9 +25,11 @@ use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
 use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
+use crate::todo_service::ForgeTodoService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
-    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgeLspService, ForgePlanCreate, ForgeShell,
+    ForgeSkillFetch,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
@@ -54,7 +57,8 @@ pub struct ForgeServices<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
-        + ValidationRepository,
+        + ValidationRepository
+        + TodoRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -84,6 +88,8 @@ pub struct ForgeServices<
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
     infra: Arc<F>,
+    todo_service: Arc<ForgeTodoService<F>>,
+    lsp_service: Arc<ForgeLspService<F>>,
 }
 
 impl<
@@ -106,7 +112,8 @@ impl<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
-        + ValidationRepository,
+        + ValidationRepository
+        + TodoRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -142,6 +149,8 @@ impl<
             discovery,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
+        let todo_service = Arc::new(ForgeTodoService::new(infra.clone()));
+        let lsp_service = Arc::new(ForgeLspService::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -172,6 +181,8 @@ impl<
             skill_service,
             chat_service,
             infra,
+            todo_service,
+            lsp_service,
         }
     }
 }
@@ -202,6 +213,7 @@ impl<
         + WorkspaceIndexRepository
         + ValidationRepository
         + FuzzySearchRepository
+        + TodoRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -237,6 +249,8 @@ impl<
     type ProviderService = ForgeProviderService<F>;
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>;
     type SkillFetchService = ForgeSkillFetch<F>;
+    type TodoService = ForgeTodoService<F>;
+    type LspService = ForgeLspService<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -340,6 +354,13 @@ impl<
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
     }
+    fn todo_service(&self) -> &Self::TodoService {
+        &self.todo_service
+    }
+
+    fn lsp_service(&self) -> &Self::LspService {
+        &self.lsp_service
+    }
 }
 
 impl<
@@ -356,6 +377,7 @@ impl<
         + AgentRepository
         + SkillRepository
         + ValidationRepository
+        + TodoRepository
         + Send
         + Sync,
 > forge_app::EnvironmentInfra for ForgeServices<F>

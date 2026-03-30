@@ -154,7 +154,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
         request.model = Some(model.as_str().to_string());
 
         // Apply Codex-specific request adjustments via the transformer pipeline.
-        if self.provider.id == forge_domain::ProviderId::CODEX {
+        if self.provider.id == forge_domain::ProviderId::CODEX || model.as_str().contains("gpt-5") {
             use forge_domain::Transformer;
             request = super::codex_transformer::CodexTransformer.transform(request);
         }
@@ -202,8 +202,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                     Ok(Event::Message(msg)) => {
                         let result = serde_json::from_str::<super::response::ResponsesStreamEvent>(
                             &msg.data,
-                        )
-                        .with_context(|| format!("Failed to parse SSE event: {}", msg.data));
+                        );
 
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
@@ -221,7 +220,13 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
                                 Some(Ok(super::response::StreamItem::Event(inner)))
                             }
-                            Err(e) => Some(Err(e)),
+                            Err(_) => {
+                                // Skip events that can't be deserialized (e.g.
+                                // server-executed tool events like web_search_call
+                                // or code_interpreter_call with partial data).
+                                tracing::debug!(data = %msg.data, "Skipping unrecognized SSE event");
+                                None
+                            }
                         }
                     }
                     Err(reqwest_eventsource::Error::StreamEnded) => None,
@@ -272,8 +277,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                     Ok(event) => {
                         let result = serde_json::from_str::<super::response::ResponsesStreamEvent>(
                             &event.data,
-                        )
-                        .with_context(|| format!("Failed to parse SSE event: {}", event.data));
+                        );
                         match result {
                             Ok(super::response::ResponsesStreamEvent::Keepalive { .. }) => None,
                             Ok(super::response::ResponsesStreamEvent::Ping { cost }) => {
@@ -290,7 +294,12 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                             Ok(super::response::ResponsesStreamEvent::Response(inner)) => {
                                 Some(Ok(super::response::StreamItem::Event(inner)))
                             }
-                            Err(e) => Some(Err(e)),
+                            Err(_) => {
+                                // Skip events that can't be deserialized (e.g.
+                                // server-executed tool events with partial data).
+                                tracing::debug!(data = %event.data, "Skipping unrecognized SSE event");
+                                None
+                            }
                         }
                     }
                     Err(e) => Some(Err(into_sse_parse_error(e))),
@@ -1229,7 +1238,7 @@ mod tests {
 
         assert_eq!(
             repo.retry_config.retry_status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
+            vec![429, 500, 502, 503, 504, 408, 522, 520, 529, 499]
         );
     }
 

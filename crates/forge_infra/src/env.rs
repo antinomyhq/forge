@@ -173,6 +173,8 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         max_requests_per_turn: fc.max_requests_per_turn,
         compact: fc.compact.map(to_compact),
         updates: fc.updates.map(to_update),
+        background: false,
+        task_timeout_secs: None,
     }
 }
 

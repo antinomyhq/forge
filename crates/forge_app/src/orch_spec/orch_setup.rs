@@ -90,10 +90,12 @@ impl Default for TestContext {
                 max_conversations: 100,
                 sem_search_limit: 100,
                 sem_search_top_k: 10,
-                max_image_size: 262144,
+                max_image_size: 1048576,
                 max_extensions: 15,
                 parallel_file_reads: 64,
                 model_cache_ttl: 604_800,
+                background: false,
+                task_timeout_secs: None,
                 session: None,
                 commit: None,
                 suggest: None,
@@ -115,7 +117,12 @@ impl Default for TestContext {
             )
             .system_prompt(Template::new("You are Forge"))
             .user_prompt(Template::new(USER_PROMPT))
-            .tools(vec![("fs_read").into(), ("fs_write").into()]),
+            .tools(vec![
+                ("fs_read").into(),
+                ("fs_write").into(),
+                ("skill").into(),
+                ("shell").into(),
+            ]),
             tools: vec![
                 ToolDefinition::new("fs_read"),
                 ToolDefinition::new("fs_write"),

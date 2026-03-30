@@ -19,6 +19,11 @@ pub struct ImageUrl {
     pub detail: Option<String>,
 }
 
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct VideoUrl {
+    pub url: String,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Message {
     pub role: Role,
@@ -107,6 +112,38 @@ pub enum ContentPart {
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
+    VideoUrl {
+        video_url: VideoUrl,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    File {
+        file: FileData,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    InputVideo {
+        video_url: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    InputFile {
+        file_data: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        filename: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+}
+
+/// Inline file data for OpenAI file content parts.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct FileData {
+    /// The base64-encoded file data with data URI prefix.
+    pub file_data: String,
+    /// The MIME type of the file (e.g., "application/pdf").
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub filename: Option<String>,
 }
 
 impl ContentPart {
@@ -116,6 +153,18 @@ impl ContentPart {
                 *cache_control = None;
             }
             ContentPart::ImageUrl { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::VideoUrl { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::File { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::InputVideo { cache_control, .. } => {
+                *cache_control = None;
+            }
+            ContentPart::InputFile { cache_control, .. } => {
                 *cache_control = None;
             }
         }
@@ -129,6 +178,18 @@ impl ContentPart {
                 *cache_control = src_cache_control;
             }
             ContentPart::ImageUrl { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::VideoUrl { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::File { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::InputVideo { cache_control, .. } => {
+                *cache_control = src_cache_control;
+            }
+            ContentPart::InputFile { cache_control, .. } => {
                 *cache_control = src_cache_control;
             }
         }
@@ -180,9 +241,15 @@ pub struct Prediction {
     pub content: String,
 }
 
+/// OpenRouter provider routing preferences.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
 pub struct ProviderPreferences {
-    // Define fields as necessary
+    /// Ordered list of provider backends to prioritize.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub order: Option<Vec<String>>,
+    /// Provider backends to exclude from routing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ignore: Option<Vec<String>>,
 }
 
 /// Z.ai-specific thinking type
@@ -484,6 +551,35 @@ impl From<ContextMessage> for Message {
                     extra_content: None,
                 }
             }
+            ContextMessage::Document(doc) => {
+                let data_uri = format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
+                let content = vec![
+                    ContentPart::File {
+                        file: FileData {
+                            file_data: data_uri.clone(),
+                            filename: doc.filename().clone(),
+                        },
+                        cache_control: None,
+                    },
+                    ContentPart::InputFile {
+                        file_data: data_uri,
+                        filename: doc.filename().clone(),
+                        cache_control: None,
+                    },
+                ];
+                Message {
+                    role: Role::User,
+                    content: Some(MessageContent::Parts(content)),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: None,
+                    reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    reasoning_content: None,
+                    extra_content: None,
+                }
+            }
         }
     }
 }
@@ -513,6 +609,21 @@ impl From<ToolResult> for MessageContent {
                 }
                 ToolValue::AI { value, .. } => {
                     parts.push(ContentPart::Text { text: value, cache_control: None })
+                }
+                ToolValue::Document(doc) => {
+                    let data_uri = format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
+                    parts.push(ContentPart::File {
+                        file: FileData {
+                            file_data: data_uri.clone(),
+                            filename: doc.filename().clone(),
+                        },
+                        cache_control: None,
+                    });
+                    parts.push(ContentPart::InputFile {
+                        file_data: data_uri,
+                        filename: doc.filename().clone(),
+                        cache_control: None,
+                    });
                 }
             }
         }

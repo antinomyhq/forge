@@ -54,6 +54,26 @@ impl<I> ForgeSkillRepository<I> {
                 "forge://skills/github-pr-description/SKILL.md",
                 include_str!("skills/github-pr-description/SKILL.md"),
             ),
+            (
+                "forge://skills/verification-specialist/SKILL.md",
+                include_str!("skills/verification-specialist/SKILL.md"),
+            ),
+            (
+                "forge://skills/constraint-enforcer/SKILL.md",
+                include_str!("skills/constraint-enforcer/SKILL.md"),
+            ),
+            (
+                "forge://skills/edge-case-tester/SKILL.md",
+                include_str!("skills/edge-case-tester/SKILL.md"),
+            ),
+            (
+                "forge://skills/reverse-engineering-helper/SKILL.md",
+                include_str!("skills/reverse-engineering-helper/SKILL.md"),
+            ),
+            (
+                "forge://skills/ml-model-debugging/SKILL.md",
+                include_str!("skills/ml-model-debugging/SKILL.md"),
+            ),
         ];
 
         builtin_skills
@@ -333,7 +353,7 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 3);
+        assert_eq!(actual.len(), 8);
 
         // Check create-skill
         let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
@@ -374,6 +394,93 @@ mod tests {
         );
         assert!(!pr_description.description.is_empty());
         assert!(pr_description.command.contains("Create PR Description"));
+
+        // Check verification-specialist
+        let verification_specialist = actual
+            .iter()
+            .find(|s| s.name == "verification-specialist")
+            .unwrap();
+        assert_eq!(
+            verification_specialist.path,
+            Some(
+                std::path::Path::new("forge://skills/verification-specialist/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            verification_specialist
+                .command
+                .contains("Reconstruct the Verifier")
+        );
+        assert!(
+            verification_specialist
+                .command
+                .contains("Sanity-Check Outputs")
+        );
+
+        // Check constraint-enforcer
+        let constraint = actual
+            .iter()
+            .find(|s| s.name == "constraint-enforcer")
+            .unwrap();
+        assert_eq!(
+            constraint.path,
+            Some(std::path::Path::new("forge://skills/constraint-enforcer/SKILL.md").to_path_buf())
+        );
+        assert!(
+            constraint
+                .description
+                .contains("Extract hidden constraints")
+        );
+
+        // Check edge-case-tester
+        let edge_case = actual
+            .iter()
+            .find(|s| s.name == "edge-case-tester")
+            .unwrap();
+        assert_eq!(
+            edge_case.path,
+            Some(std::path::Path::new("forge://skills/edge-case-tester/SKILL.md").to_path_buf())
+        );
+        assert!(
+            edge_case
+                .description
+                .contains("Adversarial and boundary-condition")
+        );
+        assert!(edge_case.command.contains("MOST COMMON FAILURE SOURCE"));
+
+        // Check reverse-engineering-helper
+        let rev_eng = actual
+            .iter()
+            .find(|s| s.name == "reverse-engineering-helper")
+            .unwrap();
+        assert_eq!(
+            rev_eng.path,
+            Some(
+                std::path::Path::new("forge://skills/reverse-engineering-helper/SKILL.md")
+                    .to_path_buf()
+            )
+        );
+        assert!(
+            rev_eng
+                .description
+                .contains("Systematic reverse-engineering")
+        );
+
+        // Check ml-model-debugging
+        let ml_debug = actual
+            .iter()
+            .find(|s| s.name == "ml-model-debugging")
+            .unwrap();
+        assert_eq!(
+            ml_debug.path,
+            Some(std::path::Path::new("forge://skills/ml-model-debugging/SKILL.md").to_path_buf())
+        );
+        assert!(
+            ml_debug
+                .description
+                .contains("MUST invoke on ANY task involving machine learning")
+        );
     }
 
     #[tokio::test]

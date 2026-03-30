@@ -10,8 +10,8 @@ use crate::services::{Services, ShellService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentInfra, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
-    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    WorkspaceService,
+    ImageReadService, LspService, NetFetchService, PlanCreateService, ProviderService,
+    SkillFetchService, TodoService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -34,6 +34,8 @@ impl<
         + EnvironmentInfra
         + PlanCreateService
         + SkillFetchService
+        + TodoService
+        + LspService
         + AgentRegistry
         + ProviderService
         + Services,
@@ -76,6 +78,36 @@ impl<
                 if is_truncated {
                     files = files.stdout(
                         self.create_temp_file("forge_fetch_", ".txt", &output.content)
+                            .await?,
+                    );
+                }
+
+                Ok(files)
+            }
+            ToolOperation::FsSearch { output, .. } => {
+                let env = self.services.get_environment();
+                let search_dir = env.cwd.clone();
+                let output = output
+                    .as_ref()
+                    .map(|result| {
+                        result
+                            .matches
+                            .iter()
+                            .map(|matched| crate::utils::format_match(matched, &search_dir))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .unwrap_or_default();
+
+                let output_lines = output.lines().count();
+                let output_truncated = output_lines > env.max_search_lines
+                    || output.len() > env.max_search_result_bytes;
+
+                let mut files = TempContentFiles::default();
+
+                if output_truncated {
+                    files = files.search(
+                        self.create_temp_file("forge_fs_search_", ".txt", &output)
                             .await?,
                     );
                 }
@@ -173,6 +205,12 @@ impl<
                     .services
                     .write(normalized_path, input.content.clone(), input.overwrite)
                     .await?;
+
+                // Enforce read-before-write check if file was overwritten
+                if input.overwrite && output.before.is_some() {
+                    self.require_prior_read(context, &input.file_path, "overwrite it")?;
+                }
+
                 (input, output).into()
             }
             ToolCatalog::FsSearch(input) => {
@@ -243,6 +281,14 @@ impl<
                     .await?;
                 (input, output).into()
             }
+            ToolCatalog::MultiPatch(input) => {
+                let normalized_path = self.normalize_path(input.file_path.clone());
+                let output = self
+                    .services
+                    .multi_patch(normalized_path, input.edits.clone())
+                    .await?;
+                (input, output).into()
+            }
             ToolCatalog::Undo(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self.services.undo(normalized_path).await?;
@@ -254,10 +300,40 @@ impl<
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
                 let normalized_cwd = self.normalize_path(cwd);
+
+                let command = if input.background {
+                    // Wrap the command to run in the background via nohup.
+                    // Stdout/stderr are redirected to a log file so the agent
+                    // can inspect them later.  The wrapper script sleeps
+                    // briefly, then checks whether the process is still alive.
+                    let log_file = format!(
+                        "/tmp/forge_bg_{}.log",
+                        std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .unwrap_or_default()
+                            .as_millis()
+                    );
+                    let escaped_cmd = input.command.replace('\'', "'\\''");
+                    format!(
+                        "nohup sh -c '{escaped_cmd}' > {log_file} 2>&1 & \
+                         BG_PID=$!; \
+                         sleep 2; \
+                         if kill -0 $BG_PID 2>/dev/null; then \
+                           echo \"Process $BG_PID started in background (log: {log_file})\"; \
+                         else \
+                           echo \"ERROR: Process $BG_PID exited early. Log output:\"; \
+                           cat {log_file}; \
+                           exit 1; \
+                         fi"
+                    )
+                } else {
+                    input.command.clone()
+                };
+
                 let output = self
                     .services
                     .execute(
-                        input.command.clone(),
+                        command,
                         PathBuf::from(normalized_cwd),
                         input.keep_ansi,
                         false,
@@ -305,6 +381,15 @@ impl<
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
                 ToolOperation::Skill { output: skill }
             }
+            ToolCatalog::Lsp(mut input) => {
+                input.file_path = self.normalize_path(input.file_path);
+                let output = self.services.execute_lsp(input).await?;
+                ToolOperation::Lsp { output }
+            }
+            ToolCatalog::Task(_) => {
+                // Task tools are handled in ToolRegistry before reaching here
+                unreachable!("Task tool should be handled in ToolRegistry")
+            }
             ToolCatalog::TodoWrite(input) => {
                 let before = context.get_todos()?;
                 context.update_todos(input.todos.clone())?;
@@ -326,16 +411,15 @@ impl<
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
 
-        // Enforce read-before-edit for patch
-        if let ToolCatalog::Patch(input) = &tool_input {
-            self.require_prior_read(context, &input.file_path, "edit it")?;
-        }
+        // Enforce read-before-edit for patch operations
+        let file_path = match &tool_input {
+            ToolCatalog::Patch(input) => Some(&input.file_path),
+            ToolCatalog::MultiPatch(input) => Some(&input.file_path),
+            _ => None,
+        };
 
-        // Enforce read-before-edit for overwrite writes
-        if let ToolCatalog::Write(input) = &tool_input
-            && input.overwrite
-        {
-            self.require_prior_read(context, &input.file_path, "overwrite it")?;
+        if let Some(path) = file_path {
+            self.require_prior_read(context, path, "edit it")?;
         }
 
         let execution_result = self.call_internal(tool_input.clone(), context).await;

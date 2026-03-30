@@ -58,14 +58,15 @@ where
                 }
             }
             None => {
-                // Read and merge all configurations (original behavior)
+                // Start with builtin defaults (lowest priority), then merge
+                // user and local configs on top. Later configs override earlier
+                // ones for servers with the same name.
                 let env = self.infra.get_environment();
                 let paths = vec![
-                    // Configs at lower levels take precedence, so we read them in reverse order.
                     env.mcp_user_config().as_path().to_path_buf(),
                     env.mcp_local_config().as_path().to_path_buf(),
                 ];
-                let mut config = McpConfig::default();
+                let mut config = McpConfig::builtin();
                 for path in paths {
                     if self.infra.is_file(&path).await.unwrap_or_default() {
                         let new_config = self.read_config(&path).await.context(format!(
