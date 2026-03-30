@@ -23,9 +23,7 @@ impl<F: EnvironmentInfra + FileReaderInfra> ForgeTemplateService<F> {
     /// creating the instance on the first call.
     async fn get_hb(&self) -> &RwLock<Handlebars<'static>> {
         self.hb
-            .get_or_init(|| async {
-                RwLock::new(forge_app::TemplateEngine::handlebar_instance())
-            })
+            .get_or_init(|| async { RwLock::new(forge_app::TemplateEngine::handlebar_instance()) })
             .await
     }
 

@@ -58,10 +58,7 @@ impl MarkdownFormat {
         // Render with termimad, then restore highlighted code
         let rendered = self.skin.term_text(processed.markdown()).to_string();
         let highlighter = self.highlighter.get_or_init(SyntaxHighlighter::default);
-        processed
-            .restore(highlighter, rendered)
-            .trim()
-            .to_string()
+        processed.restore(highlighter, rendered).trim().to_string()
     }
 
     fn strip_excessive_newlines(&self, content: &str) -> String {
