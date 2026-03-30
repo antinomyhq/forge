@@ -39,13 +39,40 @@ pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenRespo
     }
 }
 
-/// Build HTTP client with custom headers
+/// Build HTTP client with custom headers, respecting proxy environment variables.
+///
+/// `reqwest` automatically reads `HTTPS_PROXY`/`https_proxy`/`ALL_PROXY` for
+/// HTTPS traffic, but does **not** fall back to `HTTP_PROXY` for HTTPS requests.
+/// In corporate environments where only `HTTP_PROXY` is set, HTTPS requests would
+/// bypass the proxy entirely and fail when direct outbound connections are blocked.
+/// This function detects that situation and explicitly routes HTTPS traffic through
+/// `HTTP_PROXY` as well.
 pub(crate) fn build_http_client(
     custom_headers: Option<&HashMap<String, String>>,
 ) -> anyhow::Result<reqwest::Client> {
     let mut builder = reqwest::Client::builder()
         // Disable redirects to prevent SSRF vulnerabilities
         .redirect(reqwest::redirect::Policy::none());
+
+    // When no HTTPS-specific proxy is configured but HTTP_PROXY is set, explicitly
+    // proxy all traffic through it. reqwest only applies HTTP_PROXY to plaintext
+    // HTTP requests; without this, HTTPS auth requests silently bypass the proxy.
+    let has_https_proxy = std::env::var("HTTPS_PROXY")
+        .or_else(|_| std::env::var("https_proxy"))
+        .or_else(|_| std::env::var("ALL_PROXY"))
+        .or_else(|_| std::env::var("all_proxy"))
+        .is_ok();
+
+    if !has_https_proxy {
+        if let Ok(proxy_url) = std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy"))
+        {
+            builder = builder.proxy(
+                reqwest::Proxy::all(&proxy_url).map_err(|e| {
+                    anyhow::anyhow!("Invalid HTTP_PROXY URL '{proxy_url}': {e}")
+                })?,
+            );
+        }
+    }
 
     if let Some(headers) = custom_headers {
         let mut header_map = reqwest::header::HeaderMap::new();
