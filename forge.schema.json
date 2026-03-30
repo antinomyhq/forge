@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "auto_dump": {
-      "description": "Format used when automatically creating a session dump after task completion; disabled when absent.",
+      "description": "Format used when automatically creating a session dump after task\ncompletion; disabled when absent.",
       "anyOf": [
         {
           "$ref": "#/$defs/AutoDumpFormat"
@@ -16,7 +16,7 @@
       ]
     },
     "auto_open_dump": {
-      "description": "Whether to automatically open HTML dump files in the browser after creation.",
+      "description": "Whether to automatically open HTML dump files in the browser after\ncreation.",
       "type": "boolean"
     },
     "commit": {
@@ -43,7 +43,7 @@
       ]
     },
     "custom_history_path": {
-      "description": "Path to the conversation history file; defaults to the global history location when absent.",
+      "description": "Path to the conversation history file; defaults to the global history\nlocation when absent.",
       "type": [
         "string",
         "null"
@@ -143,7 +143,7 @@
       "minimum": 0
     },
     "max_sem_search_results": {
-      "description": "Maximum number of candidate results returned from the initial semantic search vector query.",
+      "description": "Maximum number of candidate results returned from the initial semantic\nsearch vector query.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
@@ -155,13 +155,13 @@
       "minimum": 0
     },
     "max_stdout_prefix_lines": {
-      "description": "Maximum number of lines captured from the leading portion of shell command output.",
+      "description": "Maximum number of lines captured from the leading portion of shell\ncommand output.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_suffix_lines": {
-      "description": "Maximum number of lines captured from the trailing portion of shell command output.",
+      "description": "Maximum number of lines captured from the trailing portion of shell\ncommand output.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
@@ -191,7 +191,7 @@
       "minimum": 0
     },
     "restricted": {
-      "description": "Whether restricted mode is active; when enabled, tool execution requires explicit permission grants.",
+      "description": "Whether restricted mode is active; when enabled, tool execution requires\nexplicit permission grants.",
       "type": "boolean"
     },
     "retry": {
@@ -212,11 +212,11 @@
       "minimum": 0
     },
     "services_url": {
-      "description": "Base URL of the Forge services API used for semantic search and indexing.",
+      "description": "Base URL of the Forge services API used for semantic search and\nindexing.",
       "type": "string"
     },
     "session": {
-      "description": "Default model and provider configuration used when not overridden by individual agents.",
+      "description": "Default model and provider configuration used when not overridden by\nindividual agents.",
       "anyOf": [
         {
           "$ref": "#/$defs/ModelConfig"
@@ -228,7 +228,7 @@
       "default": null
     },
     "suggest": {
-      "description": "Model and provider configuration used for shell command suggestion generation.",
+      "description": "Model and provider configuration used for shell command suggestion\ngeneration.",
       "anyOf": [
         {
           "$ref": "#/$defs/ModelConfig"
@@ -251,11 +251,11 @@
       ]
     },
     "tool_supported": {
-      "description": "Whether tool use is supported in the current environment; when false, all tool calls are disabled.",
+      "description": "Whether tool use is supported in the current environment; when false,\nall tool calls are disabled.",
       "type": "boolean"
     },
     "tool_timeout_secs": {
-      "description": "Maximum time in seconds a single tool call may run before being cancelled.",
+      "description": "Maximum time in seconds a single tool call may run before being\ncancelled.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
