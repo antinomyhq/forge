@@ -53,7 +53,7 @@ ignore = "0.4.23"
 is_ci = "1.2.0"
 indexmap = "2.13.0"
 infer = "0.19.0"
-insta = { version = "1.46.3", features = ["json", "yaml"] }
+insta = { version = "1.47.1", features = ["json", "yaml"] }
 lazy_static = "1.4.0"
 machineid-rs = "1.2.4"
 mockito = "1.7.2"
@@ -111,7 +111,7 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter", "json"] }
 url = { version = "2.5.8", features = ["serde"] }
 backon = "1.5.2"
 eserde = "0.1.7"
-uuid = { version = "1.22.0", features = [
+uuid = { version = "1.23.0", features = [
     "v4",
     "fast-rng",
     "serde",
@@ -132,7 +132,7 @@ num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
 async-openai = { version = "0.34.0", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
-google-cloud-auth = "1.7.0" # Google Cloud authentication with automatic token refresh
+google-cloud-auth = "1.8.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
 forge_embed = { path = "crates/forge_embed" }
