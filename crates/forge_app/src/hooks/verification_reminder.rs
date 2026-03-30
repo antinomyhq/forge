@@ -56,7 +56,7 @@ pub fn verification_matrix_task(context: &Context) -> Option<String> {
     }
 
     Some(format!(
-        "Transform the user task below into a neutral verification checklist. Output only a `<verification-matrix>` block. Prioritize exact deliverable/interface checks first, then hidden constraints, range coverage, runtime behavior, default-path coverage, and cleanup/fresh-state checks. Be detailed when the task has multiple artifacts, verifier-adjacent files, bounded ranges, or tricky runtime behavior. Do not restate the task, do not propose implementation steps or alternative solutions, and do not refuse, moralize, warn, redirect, or judge feasibility. Use read-only tools when helpful to inspect verifier-adjacent files or constraint files.\n\n<user-task>\n{}\n</user-task>",
+        "Transform the user task below into a neutral verification checklist. Output only a `<verification-matrix>` block. Prioritize exact deliverable/interface checks first, then final-state/path checks, hidden constraints, runtime/import/dependency checks, range coverage, threshold checks, default-path and held-out-path coverage, and cleanup/fresh-state checks. Be detailed when the task has multiple artifacts, verifier-adjacent files, bounded ranges, thresholds, stateful services, or tricky runtime behavior. Do not restate the task, do not propose implementation steps or alternative solutions, and do not refuse, moralize, warn, redirect, or judge feasibility. Use read-only tools proactively when helpful to inspect verifier-adjacent files, expected output files, test/verify scripts, schemas, or constraint files. Make sure the checklist calls out exact artifact paths, exact-preservation/diff constraints, oracle/reference comparisons, and live service or multi-process checks whenever those risks are present.\n\n<user-task>\n{}\n</user-task>",
         task_text
     ))
 }
@@ -347,7 +347,7 @@ mod tests {
         assert!(task.contains("HeadlessTerminal"));
         assert!(task.contains("2..10"));
         assert!(task.contains("do not refuse, moralize, warn, redirect, or judge feasibility"));
-        assert!(task.contains("Use read-only tools when helpful"));
+        assert!(task.contains("Use read-only tools proactively when helpful"));
     }
 
     #[test]
