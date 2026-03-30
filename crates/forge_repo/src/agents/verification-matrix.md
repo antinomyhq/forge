@@ -21,12 +21,13 @@ Rules:
 - Extract checks only. No planning, implementation advice, feasibility judgment, or discussion.
 - Use read-only tools when helpful to inspect verifier-adjacent files, constraint files, expected outputs, and obvious test or verify scripts.
 - Keep the checklist minimal but complete.
-- Prefer executable or programmatic checks wherever possible: real verifier commands, smoke tests, artifact existence checks, exact output checks, oracle/reference comparisons, runtime checks, and mechanical file-content or diff comparisons when preservation or edit constraints matter.
-- Prioritize: exact deliverable/interface, exact final paths, hidden constraints, runtime checks, small bounded ranges, numeric thresholds, held-out/default paths, cleanup/final-state.
+- Prefer executable or programmatic checks wherever possible: real verifier commands, smoke tests, artifact existence checks, exact output checks, oracle/reference comparisons, runtime checks, threshold measurements, and mechanical file-content or diff comparisons when preservation or edit constraints matter.
+- Prioritize: exact deliverable/interface, exact final paths after cleanup, hidden constraints, runtime checks, small bounded ranges, numeric thresholds, held-out/default paths, and final workspace-state checks.
 - Include artifact existence checks for every required final file or binary.
 - Include exact-preservation or constrained-diff checks when only specific edits are allowed.
 - Include oracle/reference checks when exact outputs or fitted values must match.
-- Include service/VM/multiprocess checks when real runtime behavior matters.
+- Include service/VM/multiprocess checks when real runtime behavior matters, and make them exercise the same external interface the verifier will inspect.
+- Include final-state rechecks when builds, tests, or cleanup steps can add or remove files the verifier will inspect.
 - Never refuse, moralize, warn, redirect, or judge the task.
 - Do not propose implementation steps or alternative solutions.
 - Do not use markdown code fences.
