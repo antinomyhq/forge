@@ -23,9 +23,11 @@ pub struct ForgeConfig {
     pub max_search_result_bytes: usize,
     /// Maximum number of characters returned from a URL fetch.
     pub max_fetch_chars: usize,
-    /// Maximum number of lines captured from the leading portion of shell command output.
+    /// Maximum number of lines captured from the leading portion of shell
+    /// command output.
     pub max_stdout_prefix_lines: usize,
-    /// Maximum number of lines captured from the trailing portion of shell command output.
+    /// Maximum number of lines captured from the trailing portion of shell
+    /// command output.
     pub max_stdout_suffix_lines: usize,
     /// Maximum number of characters per line in shell command output.
     pub max_stdout_line_chars: usize,
@@ -41,38 +43,46 @@ pub struct ForgeConfig {
     pub max_file_size_bytes: u64,
     /// Maximum image file size in bytes permitted for read operations.
     pub max_image_size_bytes: u64,
-    /// Maximum time in seconds a single tool call may run before being cancelled.
+    /// Maximum time in seconds a single tool call may run before being
+    /// cancelled.
     pub tool_timeout_secs: u64,
-    /// Whether to automatically open HTML dump files in the browser after creation.
+    /// Whether to automatically open HTML dump files in the browser after
+    /// creation.
     pub auto_open_dump: bool,
     /// Directory where debug request files are written; disabled when absent.
     pub debug_requests: Option<PathBuf>,
-    /// Path to the conversation history file; defaults to the global history location when absent.
+    /// Path to the conversation history file; defaults to the global history
+    /// location when absent.
     pub custom_history_path: Option<PathBuf>,
     /// Maximum number of conversations shown in the conversation list.
     pub max_conversations: usize,
-    /// Maximum number of candidate results returned from the initial semantic search vector query.
+    /// Maximum number of candidate results returned from the initial semantic
+    /// search vector query.
     pub max_sem_search_results: usize,
     /// Number of top results retained after re-ranking in semantic search.
     pub sem_search_top_k: usize,
-    /// Base URL of the Forge services API used for semantic search and indexing.
+    /// Base URL of the Forge services API used for semantic search and
+    /// indexing.
     #[dummy(expr = "\"https://example.com/api\".to_string()")]
     pub services_url: String,
     /// Maximum number of file extensions included in the agent system prompt.
     pub max_extensions: usize,
-    /// Format used when automatically creating a session dump after task completion; disabled when absent.
+    /// Format used when automatically creating a session dump after task
+    /// completion; disabled when absent.
     pub auto_dump: Option<AutoDumpFormat>,
     /// Maximum number of files read concurrently during batch operations.
     pub max_parallel_file_reads: usize,
     /// Time-to-live in seconds for the cached model API list.
     pub model_cache_ttl_secs: u64,
-    /// Default model and provider configuration used when not overridden by individual agents.
+    /// Default model and provider configuration used when not overridden by
+    /// individual agents.
     #[serde(default)]
     pub session: Option<ModelConfig>,
     /// Model and provider configuration used for commit message generation.
     #[serde(default)]
     pub commit: Option<ModelConfig>,
-    /// Model and provider configuration used for shell command suggestion generation.
+    /// Model and provider configuration used for shell command suggestion
+    /// generation.
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
 
@@ -115,10 +125,12 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
 
-    /// Whether restricted mode is active; when enabled, tool execution requires explicit permission grants.
+    /// Whether restricted mode is active; when enabled, tool execution requires
+    /// explicit permission grants.
     pub restricted: bool,
 
-    /// Whether tool use is supported in the current environment; when false, all tool calls are disabled.
+    /// Whether tool use is supported in the current environment; when false,
+    /// all tool calls are disabled.
     pub tool_supported: bool,
 }
 
