@@ -2564,5 +2564,25 @@
       }
     ],
     "auth_methods": ["api_key"]
+  },
+  {
+    "id": "fireworks",
+    "api_key_vars": "FIREWORKS_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+    "models": [
+      {
+        "id": "accounts/fireworks/routers/kimi-k2p5-turbo",
+        "name": "Kimi K2.5 Turbo (FirePass)",
+        "description": "Fireworks FirePass router for Kimi K2.5 Turbo — intelligent routing for optimal cost-performance. Free tier via FirePass.",
+        "context_length": 131072,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      }
+    ],
+    "auth_methods": ["api_key"]
   }
 ]

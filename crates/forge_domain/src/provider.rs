@@ -71,6 +71,7 @@ impl ProviderId {
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
     pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
     pub const NOVITA: ProviderId = ProviderId(Cow::Borrowed("novita"));
+    pub const FIREWORKS: ProviderId = ProviderId(Cow::Borrowed("fireworks"));
 
     /// Returns all built-in provider IDs
     ///
@@ -102,6 +103,7 @@ impl ProviderId {
             ProviderId::CODEX,
             ProviderId::OPENCODE_ZEN,
             ProviderId::NOVITA,
+            ProviderId::FIREWORKS,
         ]
     }
 
@@ -126,6 +128,7 @@ impl ProviderId {
             "minimax" => "MiniMax".to_string(),
             "codex" => "Codex".to_string(),
             "novita" => "Novita".to_string(),
+            "fireworks" => "Fireworks".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -169,6 +172,7 @@ impl std::str::FromStr for ProviderId {
             "minimax" => ProviderId::MINIMAX,
             "codex" => ProviderId::CODEX,
             "novita" => ProviderId::NOVITA,
+            "fireworks" => ProviderId::FIREWORKS,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
