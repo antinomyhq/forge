@@ -2898,10 +2898,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Validate provider is configured before loading agents
         // If provider is set in config but not configured (no credentials), prompt user
         // to login
-        if self.api.get_default_provider().await.is_err()
-            && !self.on_provider_selection().await? {
-                return Ok(());
-            }
+        if self.api.get_default_provider().await.is_err() && !self.on_provider_selection().await? {
+            return Ok(());
+        }
 
         let mut operating_model = self.get_agent_model(active_agent.clone()).await;
         if operating_model.is_none() {
