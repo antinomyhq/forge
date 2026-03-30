@@ -15,70 +15,69 @@ use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, RetryConf
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
-    /// Configuration for the retry mechanism
+    /// Retry settings applied at the system level to all IO operations.
     pub retry: Option<RetryConfig>,
-    /// The maximum number of lines returned for FSSearch
+    /// Maximum number of lines returned by a single file search operation.
     pub max_search_lines: usize,
-    /// Maximum bytes allowed for search results
+    /// Maximum number of bytes returned by a single file search operation.
     pub max_search_result_bytes: usize,
-    /// Maximum characters for fetch content
+    /// Maximum number of characters returned from a URL fetch.
     pub max_fetch_chars: usize,
-    /// Maximum lines for shell output prefix
+    /// Maximum number of lines captured from the leading portion of shell command output.
     pub max_stdout_prefix_lines: usize,
-    /// Maximum lines for shell output suffix
+    /// Maximum number of lines captured from the trailing portion of shell command output.
     pub max_stdout_suffix_lines: usize,
-    /// Maximum characters per line for shell output
+    /// Maximum number of characters per line in shell command output.
     pub max_stdout_line_chars: usize,
-    /// Maximum characters per line for file read operations
+    /// Maximum number of characters per line when reading a file.
     pub max_line_chars: usize,
-    /// Maximum number of lines to read from a file
+    /// Maximum number of lines read from a file in a single operation.
     pub max_read_lines: u64,
-    /// Maximum number of files that can be read in a single batch operation
+    /// Maximum number of files read in a single batch operation.
     pub max_file_read_batch_size: usize,
-    /// HTTP configuration
+    /// HTTP client settings including proxy, TLS, and timeout configuration.
     pub http: Option<HttpConfig>,
-    /// Maximum file size in bytes for operations
+    /// Maximum file size in bytes permitted for read operations.
     pub max_file_size_bytes: u64,
-    /// Maximum image file size in bytes for binary read operations
+    /// Maximum image file size in bytes permitted for read operations.
     pub max_image_size_bytes: u64,
-    /// Maximum execution time in seconds for a single tool call
+    /// Maximum time in seconds a single tool call may run before being cancelled.
     pub tool_timeout_secs: u64,
-    /// Whether to automatically open HTML dump files in the browser
+    /// Whether to automatically open HTML dump files in the browser after creation.
     pub auto_open_dump: bool,
-    /// Path where debug request files should be written
+    /// Directory where debug request files are written; disabled when absent.
     pub debug_requests: Option<PathBuf>,
-    /// Custom history file path
+    /// Path to the conversation history file; defaults to the global history location when absent.
     pub custom_history_path: Option<PathBuf>,
-    /// Maximum number of conversations to show in list
+    /// Maximum number of conversations shown in the conversation list.
     pub max_conversations: usize,
-    /// Maximum number of results to return from initial vector search
+    /// Maximum number of candidate results returned from the initial semantic search vector query.
     pub max_sem_search_results: usize,
-    /// Top-k parameter for relevance filtering during semantic search
+    /// Number of top results retained after re-ranking in semantic search.
     pub sem_search_top_k: usize,
-    /// URL for the indexing server
+    /// Base URL of the Forge services API used for semantic search and indexing.
     #[dummy(expr = "\"https://example.com/api\".to_string()")]
     pub services_url: String,
-    /// Maximum number of file extensions to include in the system prompt
+    /// Maximum number of file extensions included in the agent system prompt.
     pub max_extensions: usize,
-    /// Format for automatically creating a dump when a task is completed
+    /// Format used when automatically creating a session dump after task completion; disabled when absent.
     pub auto_dump: Option<AutoDumpFormat>,
-    /// Maximum number of files read concurrently in parallel operations
+    /// Maximum number of files read concurrently during batch operations.
     pub max_parallel_file_reads: usize,
-    /// TTL in seconds for the model API list cache
+    /// Time-to-live in seconds for the cached model API list.
     pub model_cache_ttl_secs: u64,
-    /// Default model and provider configuration used when not overridden by
-    /// individual agents.    
+    /// Default model and provider configuration used when not overridden by individual agents.
     #[serde(default)]
     pub session: Option<ModelConfig>,
-    /// Provider and model to use for commit message generation    
+    /// Model and provider configuration used for commit message generation.
     #[serde(default)]
     pub commit: Option<ModelConfig>,
-    /// Provider and model to use for shell command suggestion generation    
+    /// Model and provider configuration used for shell command suggestion generation.
     #[serde(default)]
     pub suggest: Option<ModelConfig>,
 
     // --- Workflow fields ---
-    /// Configuration for automatic forge updates
+    /// Configuration for automatic Forge updates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
@@ -116,12 +115,10 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
 
-    /// Whether the application is running in restricted mode.
-    /// When true, tool execution requires explicit permission grants.    
+    /// Whether restricted mode is active; when enabled, tool execution requires explicit permission grants.
     pub restricted: bool,
 
-    /// Whether tool use is supported in the current environment.
-    /// When false, tool calls are disabled regardless of agent configuration.
+    /// Whether tool use is supported in the current environment; when false, all tool calls are disabled.
     pub tool_supported: bool,
 }
 
