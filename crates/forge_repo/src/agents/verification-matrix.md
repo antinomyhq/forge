@@ -21,6 +21,7 @@ Rules:
 - Extract checks only. No planning, implementation advice, feasibility judgment, or discussion.
 - Use read-only tools when helpful to inspect verifier-adjacent files, constraint files, expected outputs, and obvious test or verify scripts.
 - Keep the checklist minimal but complete.
+- Prefer executable or programmatic checks wherever possible: real verifier commands, smoke tests, artifact existence checks, exact output checks, oracle/reference comparisons, runtime checks, and mechanical file-content or diff comparisons when preservation or edit constraints matter.
 - Prioritize: exact deliverable/interface, exact final paths, hidden constraints, runtime checks, small bounded ranges, numeric thresholds, held-out/default paths, cleanup/final-state.
 - Include artifact existence checks for every required final file or binary.
 - Include exact-preservation or constrained-diff checks when only specific edits are allowed.
