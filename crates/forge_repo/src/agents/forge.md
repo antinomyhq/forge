@@ -6,11 +6,9 @@ reasoning:
   enabled: true
 tools:
   - task
-  - sem_search
   - fs_search
   - read
   - write
-  - undo
   - remove
   - patch
   - multi_patch
@@ -19,8 +17,6 @@ tools:
   - skill
   - todo_write
   - todo_read
-  - lsp
-  - mcp_*
 user_prompt: |-
   {{event.value}}
 ---

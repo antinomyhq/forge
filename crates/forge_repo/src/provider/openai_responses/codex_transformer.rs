@@ -38,9 +38,9 @@ impl CodexTransformer {
         // Ramp up as the conversation grows and the agent likely needs deeper
         // reasoning to debug or refine its approach.
         if assistant_msg_count >= 10 {
-            oai::ReasoningEffort::High
+            oai::ReasoningEffort::Xhigh
         } else {
-            oai::ReasoningEffort::Medium
+            oai::ReasoningEffort::Xhigh
         }
     }
 }
