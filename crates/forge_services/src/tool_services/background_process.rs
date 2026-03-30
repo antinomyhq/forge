@@ -83,6 +83,7 @@ impl BackgroundProcessManager {
     /// # Errors
     ///
     /// Returns an error if the internal lock is poisoned or disk I/O fails.
+
     pub async fn register(
         &self,
         pid: u32,
@@ -92,12 +93,13 @@ impl BackgroundProcessManager {
         log_handle: tempfile::NamedTempFile,
     ) -> Result<BackgroundProcess> {
         let process = BackgroundProcess { pid, command, cwd, log_file, started_at: Utc::now() };
+        self.metadata.save_process(&process).await?;
         self.lock_processes()?.push(process.clone());
         self.lock_log_handles()?
             .push(OwnedLogFile { _handle: log_handle, pid });
-        self.metadata.save_process(&process).await?;
         Ok(process)
     }
+
 
     /// Remove a background process by PID.
     ///
