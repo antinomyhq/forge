@@ -66,6 +66,7 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
         config: &OAuthConfig,
         code: &str,
         verifier: Option<&str>,
+        http_config: &forge_domain::HttpConfig,
     ) -> anyhow::Result<OAuthTokenResponse> {
         // Anthropic-specific token exchange
         let (code, state) = if code.contains('#') {
@@ -87,7 +88,7 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
             code_verifier: verifier.to_string(),
         };
 
-        let client = self.build_http_client(config)?;
+        let client = self.build_http_client(config, http_config)?;
         let response = client
             .post(config.token_url.as_str())
             .header("Content-Type", "application/json")
@@ -105,8 +106,12 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
     }
 
     /// Create HTTP client with provider-specific headers/behavior
-    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
-        build_http_client(config.custom_headers.as_ref())
+    fn build_http_client(
+        &self,
+        config: &OAuthConfig,
+        http_config: &forge_domain::HttpConfig,
+    ) -> anyhow::Result<reqwest::Client> {
+        build_http_client(config.custom_headers.as_ref(), http_config)
     }
 }
 

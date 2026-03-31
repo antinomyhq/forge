@@ -62,11 +62,17 @@ pub struct OAuthCodeStrategy<T> {
     provider_id: ProviderId,
     config: OAuthConfig,
     adapter: T,
+    http_config: forge_domain::HttpConfig,
 }
 
 impl<T> OAuthCodeStrategy<T> {
-    pub fn new(adapter: T, provider_id: ProviderId, config: OAuthConfig) -> Self {
-        Self { config, provider_id, adapter }
+    pub fn new(
+        adapter: T,
+        provider_id: ProviderId,
+        config: OAuthConfig,
+        http_config: forge_domain::HttpConfig,
+    ) -> Self {
+        Self { config, provider_id, adapter, http_config }
     }
 }
 
@@ -99,6 +105,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                         &self.config,
                         ctx.response.code.as_str(),
                         ctx.request.pkce_verifier.as_ref().map(|v| v.as_str()),
+                        &self.http_config,
                     )
                     .await
                     .map_err(|e| {
@@ -124,6 +131,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
             &self.config,
             chrono::Duration::hours(1),
             false, // No API key exchange
+            &self.http_config,
         )
         .await
     }
@@ -133,11 +141,16 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
 pub struct OAuthDeviceStrategy {
     provider_id: ProviderId,
     config: OAuthConfig,
+    http_config: forge_domain::HttpConfig,
 }
 
 impl OAuthDeviceStrategy {
-    pub fn new(provider_id: ProviderId, config: OAuthConfig) -> Self {
-        Self { provider_id, config }
+    pub fn new(
+        provider_id: ProviderId,
+        config: OAuthConfig,
+        http_config: forge_domain::HttpConfig,
+    ) -> Self {
+        Self { provider_id, config, http_config }
     }
 }
 
@@ -162,9 +175,10 @@ impl AuthStrategy for OAuthDeviceStrategy {
         }
 
         // Build HTTP client with custom headers
-        let http_client = build_http_client(self.config.custom_headers.as_ref()).map_err(|e| {
-            AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
-        })?;
+        let http_client =
+            build_http_client(self.config.custom_headers.as_ref(), &self.http_config).map_err(
+                |e| AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}")),
+            )?;
 
         let http_fn = |req| github_compliant_http_request(http_client.clone(), req);
 
@@ -202,6 +216,7 @@ impl AuthStrategy for OAuthDeviceStrategy {
                     &self.config,
                     Duration::from_secs(600),
                     false,
+                    &self.http_config,
                 )
                 .await?;
 
@@ -222,6 +237,7 @@ impl AuthStrategy for OAuthDeviceStrategy {
             &self.config,
             chrono::Duration::days(30),
             false, // No API key exchange
+            &self.http_config,
         )
         .await
     }
@@ -232,16 +248,21 @@ pub struct OAuthWithApiKeyStrategy {
     provider_id: ProviderId,
     oauth_config: OAuthConfig,
     api_key_exchange_url: Url,
+    http_config: forge_domain::HttpConfig,
 }
 
 impl OAuthWithApiKeyStrategy {
-    pub fn new(provider_id: ProviderId, oauth_config: OAuthConfig) -> anyhow::Result<Self> {
+    pub fn new(
+        provider_id: ProviderId,
+        oauth_config: OAuthConfig,
+        http_config: forge_domain::HttpConfig,
+    ) -> anyhow::Result<Self> {
         let api_key_exchange_url = oauth_config
             .token_refresh_url
             .clone()
             .ok_or_else(|| AuthError::InitiationFailed("Missing token_refresh_url".to_string()))?;
 
-        Ok(Self { provider_id, oauth_config, api_key_exchange_url })
+        Ok(Self { provider_id, oauth_config, api_key_exchange_url, http_config })
     }
 }
 
@@ -265,9 +286,10 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
         }
 
         let http_client =
-            build_http_client(self.oauth_config.custom_headers.as_ref()).map_err(|e| {
-                AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
-            })?;
+            build_http_client(self.oauth_config.custom_headers.as_ref(), &self.http_config)
+                .map_err(|e| {
+                    AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
+                })?;
 
         let http_fn = |req| github_compliant_http_request(http_client.clone(), req);
 
@@ -305,6 +327,7 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
                     &self.oauth_config,
                     Duration::from_secs(600),
                     true,
+                    &self.http_config,
                 )
                 .await?;
 
@@ -313,6 +336,7 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
                     &token_response.access_token,
                     &self.api_key_exchange_url,
                     &self.oauth_config,
+                    &self.http_config,
                 )
                 .await?;
 
@@ -339,6 +363,7 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
             &self.oauth_config,
             chrono::Duration::hours(1), // Unused for API key flow
             true,                       // WITH API key exchange
+            &self.http_config,
         )
         .await
     }
@@ -456,11 +481,16 @@ impl AuthStrategy for GoogleAdcStrategy {
 pub struct CodexDeviceStrategy {
     provider_id: ProviderId,
     config: OAuthConfig,
+    http_config: forge_domain::HttpConfig,
 }
 
 impl CodexDeviceStrategy {
-    pub fn new(provider_id: ProviderId, config: OAuthConfig) -> Self {
-        Self { provider_id, config }
+    pub fn new(
+        provider_id: ProviderId,
+        config: OAuthConfig,
+        http_config: forge_domain::HttpConfig,
+    ) -> Self {
+        Self { provider_id, config, http_config }
     }
 }
 
@@ -517,9 +547,10 @@ fn extract_chatgpt_account_id(token: &str) -> Option<String> {
 #[async_trait::async_trait]
 impl AuthStrategy for CodexDeviceStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
-        let http_client = build_http_client(self.config.custom_headers.as_ref()).map_err(|e| {
-            AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
-        })?;
+        let http_client =
+            build_http_client(self.config.custom_headers.as_ref(), &self.http_config).map_err(
+                |e| AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}")),
+            )?;
 
         // Step 1: Request device authorization from OpenAI's custom endpoint
         let response = http_client
@@ -568,7 +599,8 @@ impl AuthStrategy for CodexDeviceStrategy {
         match context_response {
             AuthContextResponse::DeviceCode(ctx) => {
                 // Poll for authorization code using the custom OpenAI endpoint
-                let token_response = codex_poll_for_tokens(&ctx.request, &self.config).await?;
+                let token_response =
+                    codex_poll_for_tokens(&ctx.request, &self.config, &self.http_config).await?;
 
                 // Extract ChatGPT account ID from the access token JWT.
                 // This is used for the optional `ChatGPT-Account-Id` request
@@ -597,7 +629,14 @@ impl AuthStrategy for CodexDeviceStrategy {
     }
 
     async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
-        refresh_oauth_credential(credential, &self.config, chrono::Duration::hours(1), false).await
+        refresh_oauth_credential(
+            credential,
+            &self.config,
+            chrono::Duration::hours(1),
+            false,
+            &self.http_config,
+        )
+        .await
     }
 }
 
@@ -607,6 +646,7 @@ async fn refresh_oauth_credential(
     config: &OAuthConfig,
     expiry_duration: chrono::Duration,
     with_api_key_exchange: bool,
+    http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<AuthCredential> {
     // Extract tokens (works for OAuth and OAuthWithApiKey)
     let tokens = extract_oauth_tokens(credential)?;
@@ -616,7 +656,8 @@ async fn refresh_oauth_credential(
         if let Some(refresh_token) = &tokens.refresh_token {
             // If we have a refresh token, refresh the OAuth access token first
             tracing::debug!("Refreshing OAuth access token using refresh token");
-            let token_response = refresh_access_token(config, refresh_token.as_str()).await?;
+            let token_response =
+                refresh_access_token(config, refresh_token.as_str(), http_config).await?;
             (
                 token_response.access_token.clone(),
                 token_response.refresh_token,
@@ -636,7 +677,8 @@ async fn refresh_oauth_credential(
         let url = config.token_refresh_url.as_ref().ok_or_else(|| {
             AuthError::RefreshFailed("Missing token_refresh_url for API key exchange".to_string())
         })?;
-        let (key, expiry) = exchange_oauth_for_api_key(&oauth_access_token, url, config).await?;
+        let (key, expiry) =
+            exchange_oauth_for_api_key(&oauth_access_token, url, config, http_config).await?;
         (Some(key), expiry)
     } else {
         let expiry = calculate_token_expiry(None, expiry_duration);
@@ -667,8 +709,9 @@ async fn poll_for_tokens(
     config: &OAuthConfig,
     timeout: Duration,
     github_compatible: bool,
+    http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<OAuthTokenResponse> {
-    let http_client = build_http_client(config.custom_headers.as_ref())
+    let http_client = build_http_client(config.custom_headers.as_ref(), http_config)
         .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {e}")))?;
 
     let start_time = tokio::time::Instant::now();
@@ -792,8 +835,9 @@ async fn poll_for_tokens(
 async fn codex_poll_for_tokens(
     request: &DeviceCodeRequest,
     config: &OAuthConfig,
+    http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<OAuthTokenResponse> {
-    let http_client = build_http_client(config.custom_headers.as_ref())
+    let http_client = build_http_client(config.custom_headers.as_ref(), http_config)
         .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {e}")))?;
 
     let timeout = Duration::from_secs(request.expires_in);
@@ -836,11 +880,10 @@ async fn codex_poll_for_tokens(
             })?;
 
             // Exchange the authorization code for OAuth tokens via standard
-            // endpoint. Use a clean HTTP client without custom headers since the
-            // standard OAuth token endpoint rejects unknown headers.
-            let clean_client = reqwest::Client::builder()
-                .redirect(reqwest::redirect::Policy::none())
-                .build()
+            // endpoint. Use a client without custom headers (the standard OAuth
+            // token endpoint rejects unknown headers) but still respect the
+            // caller's TLS/proxy configuration.
+            let clean_client = build_http_client(None, http_config)
                 .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {e}")))?;
 
             let token_response = clean_client
@@ -905,6 +948,7 @@ async fn exchange_oauth_for_api_key(
     oauth_token: &str,
     api_key_exchange_url: &Url,
     config: &OAuthConfig,
+    http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<(ApiKey, chrono::DateTime<chrono::Utc>)> {
     // Build request headers
     let mut headers = reqwest::header::HeaderMap::new();
@@ -918,7 +962,7 @@ async fn exchange_oauth_for_api_key(
     // Add custom headers from config
     inject_custom_headers(&mut headers, &config.custom_headers);
 
-    let response = build_http_client(config.custom_headers.as_ref())
+    let response = build_http_client(config.custom_headers.as_ref(), http_config)
         .map_err(|e| AuthError::CompletionFailed(format!("Failed to build HTTP client: {e}")))?
         .get(api_key_exchange_url.as_str())
         .headers(headers)
@@ -1015,17 +1059,19 @@ impl AuthStrategy for AnyAuthStrategy {
 }
 
 /// Factory for creating authentication strategies
-pub struct ForgeAuthStrategyFactory {}
+pub struct ForgeAuthStrategyFactory {
+    http_config: forge_domain::HttpConfig,
+}
 
 impl Default for ForgeAuthStrategyFactory {
     fn default() -> Self {
-        Self::new()
+        Self::new(forge_domain::HttpConfig::default())
     }
 }
 
 impl ForgeAuthStrategyFactory {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(http_config: forge_domain::HttpConfig) -> Self {
+        Self { http_config }
     }
 }
 
@@ -1049,6 +1095,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                         AnthropicHttpProvider,
                         provider_id,
                         config,
+                        self.http_config.clone(),
                     )));
                 }
 
@@ -1057,6 +1104,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                         GithubHttpProvider,
                         provider_id,
                         config,
+                        self.http_config.clone(),
                     )));
                 }
 
@@ -1064,18 +1112,24 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     StandardHttpProvider,
                     provider_id,
                     config,
+                    self.http_config.clone(),
                 )))
             }
             forge_domain::AuthMethod::OAuthDevice(config) => {
                 // Check if this is OAuth-with-API-Key flow (GitHub Copilot pattern)
                 if config.token_refresh_url.is_some() {
                     Ok(AnyAuthStrategy::OAuthWithApiKey(
-                        OAuthWithApiKeyStrategy::new(provider_id, config)?,
+                        OAuthWithApiKeyStrategy::new(
+                            provider_id,
+                            config,
+                            self.http_config.clone(),
+                        )?,
                     ))
                 } else {
                     Ok(AnyAuthStrategy::OAuthDevice(OAuthDeviceStrategy::new(
                         provider_id,
                         config,
+                        self.http_config.clone(),
                     )))
                 }
             }
@@ -1083,7 +1137,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                 GoogleAdcStrategy::new(provider_id, required_params),
             )),
             forge_domain::AuthMethod::CodexDevice(config) => Ok(AnyAuthStrategy::CodexDevice(
-                CodexDeviceStrategy::new(provider_id, config),
+                CodexDeviceStrategy::new(provider_id, config, self.http_config.clone()),
             )),
         }
     }
@@ -1100,7 +1154,7 @@ mod tests {
 
     #[test]
     fn test_create_auth_strategy_api_key() {
-        let factory = ForgeAuthStrategyFactory::new();
+        let factory = ForgeAuthStrategyFactory::default();
         let strategy = factory.create_auth_strategy(
             ProviderId::OPENAI,
             forge_domain::AuthMethod::ApiKey,
@@ -1123,7 +1177,7 @@ mod tests {
             custom_headers: None,
         };
 
-        let factory = ForgeAuthStrategyFactory::new();
+        let factory = ForgeAuthStrategyFactory::default();
         let strategy = factory.create_auth_strategy(
             ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthCode(config),
@@ -1146,7 +1200,7 @@ mod tests {
             custom_headers: None,
         };
 
-        let factory = ForgeAuthStrategyFactory::new();
+        let factory = ForgeAuthStrategyFactory::default();
         let strategy = factory.create_auth_strategy(
             ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthDevice(config),
@@ -1169,7 +1223,7 @@ mod tests {
             custom_headers: None,
         };
 
-        let factory = ForgeAuthStrategyFactory::new();
+        let factory = ForgeAuthStrategyFactory::default();
         let strategy = factory.create_auth_strategy(
             ProviderId::GITHUB_COPILOT,
             forge_domain::AuthMethod::OAuthDevice(config),
@@ -1193,7 +1247,7 @@ mod tests {
             custom_headers: None,
         };
 
-        let factory = ForgeAuthStrategyFactory::new();
+        let factory = ForgeAuthStrategyFactory::default();
         let actual = factory.create_auth_strategy(
             ProviderId::CODEX,
             forge_domain::AuthMethod::CodexDevice(config),
@@ -1320,6 +1374,7 @@ mod tests {
             &fixture_config,
             chrono::Duration::hours(1),
             false,
+            &forge_domain::HttpConfig::default(),
         )
         .await
         .unwrap();

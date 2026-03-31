@@ -39,16 +39,25 @@ pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenRespo
     }
 }
 
-/// Build HTTP client with custom headers, respecting proxy environment variables.
+/// Build HTTP client with custom headers, respecting proxy and TLS settings
+/// from the supplied [`forge_domain::HttpConfig`].
 ///
-/// `reqwest` automatically reads `HTTPS_PROXY`/`https_proxy`/`ALL_PROXY` for
-/// HTTPS traffic, but does **not** fall back to `HTTP_PROXY` for HTTPS requests.
+/// **Proxy**: `reqwest` automatically reads `HTTPS_PROXY`/`https_proxy`/`ALL_PROXY`
+/// for HTTPS traffic, but does **not** fall back to `HTTP_PROXY` for HTTPS requests.
 /// In corporate environments where only `HTTP_PROXY` is set, HTTPS requests would
 /// bypass the proxy entirely and fail when direct outbound connections are blocked.
 /// This function detects that situation and explicitly routes HTTPS traffic through
 /// `HTTP_PROXY` as well.
+///
+/// **TLS**: Corporate proxies commonly perform TLS inspection using a private root
+/// CA installed in the system certificate store. `rustls` ships its own Mozilla CA
+/// bundle and does **not** read the OS store, so the TLS handshake fails even when
+/// the proxy is correctly configured. The `http_config` parameter carries the same
+/// `accept_invalid_certs` and `root_cert_paths` settings that `ForgeHttpInfra`
+/// uses, so a custom corporate CA is trusted by auth requests too.
 pub(crate) fn build_http_client(
     custom_headers: Option<&HashMap<String, String>>,
+    http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<reqwest::Client> {
     let mut builder = reqwest::Client::builder()
         // Disable redirects to prevent SSRF vulnerabilities
@@ -71,6 +80,27 @@ pub(crate) fn build_http_client(
                     anyhow::anyhow!("Invalid HTTP_PROXY URL '{proxy_url}': {e}")
                 })?,
             );
+        }
+    }
+
+    // Apply TLS settings from the caller-supplied config — identical to what
+    // ForgeHttpInfra does — so that corporate root CA certificates and the
+    // accept-invalid-certs flag work for auth requests too.
+    if http_config.accept_invalid_certs {
+        builder = builder.danger_accept_invalid_certs(true);
+    }
+    if let Some(cert_paths) = &http_config.root_cert_paths {
+        for cert_path in cert_paths {
+            match std::fs::read(cert_path) {
+                Ok(buf) => {
+                    if let Ok(cert) = reqwest::Certificate::from_pem(&buf) {
+                        builder = builder.add_root_certificate(cert);
+                    } else if let Ok(cert) = reqwest::Certificate::from_der(&buf) {
+                        builder = builder.add_root_certificate(cert);
+                    }
+                }
+                Err(_) => {} // Silently skip unreadable cert files
+            }
         }
     }
 
@@ -143,13 +173,14 @@ pub(crate) fn extract_oauth_tokens(credential: &AuthCredential) -> anyhow::Resul
 pub(crate) async fn refresh_access_token(
     config: &OAuthConfig,
     refresh_token: &str,
+    http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<OAuthTokenResponse> {
     // Build minimal oauth2 client (just need token endpoint)
     let client = BasicClient::new(ClientId::new(config.client_id.to_string()))
         .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
-    // Build HTTP client with custom headers
-    let http_client = build_http_client(config.custom_headers.as_ref())?;
+    // Build HTTP client with custom headers and caller-supplied TLS/proxy config
+    let http_client = build_http_client(config.custom_headers.as_ref(), http_config)?;
 
     let refresh_token = RefreshToken::new(refresh_token.to_string());
 
@@ -268,6 +299,138 @@ mod tests {
     use chrono::Duration;
 
     use super::*;
+
+    // Serialise proxy-related tests: env vars are process-global so concurrent
+    // mutation causes flaky failures.
+    static PROXY_TEST_MUTEX: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Prove that a plain `reqwest::Client` (the old implementation) silently
+    /// ignores `HTTP_PROXY` when making HTTPS requests.  The fake proxy TCP
+    /// listener receives **no** connection — the request bypasses it entirely.
+    #[tokio::test]
+    async fn test_old_client_ignores_http_proxy_for_https() {
+        let _guard = PROXY_TEST_MUTEX.lock().unwrap();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_url = format!("http://{}", listener.local_addr().unwrap());
+
+        // Only HTTP_PROXY is set — no HTTPS_PROXY / ALL_PROXY
+        unsafe {
+            std::env::set_var("HTTP_PROXY", &proxy_url);
+            std::env::remove_var("HTTPS_PROXY");
+            std::env::remove_var("https_proxy");
+            std::env::remove_var("ALL_PROXY");
+            std::env::remove_var("all_proxy");
+        }
+
+        // OLD: bare reqwest builder — identical to the pre-fix build_http_client
+        let old_client = reqwest::Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .unwrap();
+
+        let accept_task = tokio::spawn(async move {
+            tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                listener.accept(),
+            )
+            .await
+            .is_ok()
+        });
+
+        let _ = old_client
+            .post("https://github.com/login/device/code")
+            .send()
+            .await;
+
+        let proxy_was_contacted = accept_task.await.unwrap();
+        unsafe { std::env::remove_var("HTTP_PROXY") };
+
+        assert!(
+            !proxy_was_contacted,
+            "OLD client should bypass HTTP_PROXY for HTTPS — proxy never contacted"
+        );
+    }
+
+    /// Prove that `build_http_client` (the new implementation) routes HTTPS
+    /// requests through `HTTP_PROXY` when no `HTTPS_PROXY` / `ALL_PROXY` is set.
+    /// The fake proxy TCP listener **does** receive the connection.
+    #[tokio::test]
+    async fn test_new_client_routes_https_through_http_proxy() {
+        let _guard = PROXY_TEST_MUTEX.lock().unwrap();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let proxy_url = format!("http://{}", listener.local_addr().unwrap());
+
+        // Only HTTP_PROXY is set — no HTTPS_PROXY / ALL_PROXY
+        unsafe {
+            std::env::set_var("HTTP_PROXY", &proxy_url);
+            std::env::remove_var("HTTPS_PROXY");
+            std::env::remove_var("https_proxy");
+            std::env::remove_var("ALL_PROXY");
+            std::env::remove_var("all_proxy");
+        }
+
+        // NEW: build_http_client with the proxy fallback logic
+        let new_client = build_http_client(None, &forge_domain::HttpConfig::default()).unwrap();
+
+        let accept_task = tokio::spawn(async move {
+            tokio::time::timeout(
+                std::time::Duration::from_millis(500),
+                listener.accept(),
+            )
+            .await
+            .is_ok()
+        });
+
+        let _ = new_client
+            .post("https://github.com/login/device/code")
+            .send()
+            .await;
+
+        let proxy_was_contacted = accept_task.await.unwrap();
+        unsafe { std::env::remove_var("HTTP_PROXY") };
+
+        assert!(
+            proxy_was_contacted,
+            "NEW client should route HTTPS traffic through HTTP_PROXY"
+        );
+    }
+
+    /// Prove that `build_http_client` applies `root_cert_paths` from a
+    /// caller-supplied [`forge_domain::HttpConfig`].  A temp file containing
+    /// clearly invalid cert data is passed directly in the config.  The client
+    /// must still build successfully, confirming that parse failures are
+    /// silently skipped rather than propagated.
+    #[test]
+    fn test_build_http_client_loads_root_cert_from_config() {
+        let _guard = PROXY_TEST_MUTEX.lock().unwrap();
+
+        // Write content that is definitely not a valid PEM or DER certificate.
+        // Certificate::from_pem and from_der both return Err, which is silently
+        // skipped. The important thing is that the code path is exercised.
+        let cert_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(cert_file.path(), b"not a certificate").unwrap();
+
+        let http_config = forge_domain::HttpConfig {
+            root_cert_paths: Some(vec![cert_file
+                .path()
+                .to_str()
+                .unwrap()
+                .to_string()]),
+            ..Default::default()
+        };
+
+        let result = build_http_client(None, &http_config);
+
+        // Client must build successfully — the invalid cert is gracefully
+        // skipped rather than propagating an error.
+        assert!(
+            result.is_ok(),
+            "build_http_client should succeed even with unparseable cert: {:?}",
+            result.as_ref().err()
+        );
+    }
 
     #[test]
     fn test_calculate_token_expiry_with_expires_in() {

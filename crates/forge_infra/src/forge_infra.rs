@@ -83,7 +83,7 @@ impl ForgeInfra {
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
             walker_service: Arc::new(ForgeWalkerService::new()),
-            strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
+            strategy_factory: Arc::new(ForgeAuthStrategyFactory::new(env.http.clone())),
             http_service,
             grpc_client,
             output_printer,
