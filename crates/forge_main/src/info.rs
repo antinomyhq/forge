@@ -545,7 +545,7 @@ pub(crate) fn format_path_for_display(env: &Environment, path: &Path) -> String 
         && let Ok(rel_path) = path.strip_prefix(home)
     {
         // Format based on OS
-        return if env.os == "windows" {
+        return if cfg!(target_os = "windows") {
             // Use actual home path with proper quoting for Windows to work in both cmd and
             // PowerShell
             let home_path = home.display().to_string();
@@ -568,7 +568,7 @@ pub(crate) fn format_path_for_display(env: &Environment, path: &Path) -> String 
     // Fall back to absolute path if not under home directory
     // Quote paths on Windows if they contain spaces
     let path_str = path.display().to_string();
-    if env.os == "windows" && path_str.contains(' ') {
+    if cfg!(target_os = "windows") && path_str.contains(' ') {
         format!("\"{path_str}\"")
     } else {
         path_str
@@ -757,19 +757,19 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     // Helper to create minimal test environment
-    fn create_env(os: &str, home: Option<&str>) -> Environment {
+    fn create_env(home: Option<&str>) -> Environment {
         use fake::{Fake, Faker};
         let mut fixture: Environment = Faker.fake();
-        fixture = fixture.os(os.to_string());
         if let Some(home_path) = home {
             fixture = fixture.home(PathBuf::from(home_path));
         }
         fixture
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_format_path_for_display_unix_home() {
-        let fixture = create_env("linux", Some("/home/user"));
+        let fixture = create_env(Some("/home/user"));
         let path = PathBuf::from("/home/user/project");
 
         let actual = super::format_path_for_display(&fixture, &path);
@@ -777,9 +777,10 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
     fn test_format_path_for_display_windows_home() {
-        let fixture = create_env("windows", Some("C:\\Users\\User"));
+        let fixture = create_env(Some("C:\\Users\\User"));
         let path = PathBuf::from("C:\\Users\\User\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
@@ -787,9 +788,10 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
     fn test_format_path_for_display_windows_home_with_spaces() {
-        let fixture = create_env("windows", Some("C:\\Users\\User Name"));
+        let fixture = create_env(Some("C:\\Users\\User Name"));
         let path = PathBuf::from("C:\\Users\\User Name\\project");
 
         let actual = super::format_path_for_display(&fixture, &path);
@@ -797,9 +799,10 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_format_path_for_display_absolute() {
-        let fixture = create_env("linux", Some("/home/user"));
+        let fixture = create_env(Some("/home/user"));
         let path = PathBuf::from("/var/log/app");
 
         let actual = super::format_path_for_display(&fixture, &path);
@@ -807,9 +810,10 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    #[cfg(target_os = "windows")]
     #[test]
     fn test_format_path_for_display_absolute_windows_with_spaces() {
-        let fixture = create_env("windows", Some("C:/Users/User"));
+        let fixture = create_env(Some("C:/Users/User"));
         let path = PathBuf::from("C:/Program Files/App");
 
         let actual = super::format_path_for_display(&fixture, &path);
@@ -845,9 +849,10 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    #[cfg(not(target_os = "windows"))]
     #[test]
     fn test_format_path_for_display_no_home() {
-        let fixture = create_env("linux", None);
+        let fixture = create_env(None);
         let path = PathBuf::from("/home/user/project");
 
         let actual = super::format_path_for_display(&fixture, &path);
