@@ -158,12 +158,13 @@ impl UserHookHandler {
 
             // Exit code 0 = check stdout for JSON decisions
             if let Some(output) = result.parse_output()
-                && output.is_blocking() {
-                    let reason = output
-                        .reason
-                        .unwrap_or_else(|| "Hook blocked execution".to_string());
-                    return Some(reason);
-                }
+                && output.is_blocking()
+            {
+                let reason = output
+                    .reason
+                    .unwrap_or_else(|| "Hook blocked execution".to_string());
+                return Some(reason);
+            }
 
             // Non-blocking errors (exit code 1, etc.) are logged but don't block
             if result.is_non_blocking_error() {
@@ -270,12 +271,13 @@ impl EventHandle<EventData<StartPayload>> for UserHookHandler {
         // SessionStart hooks can provide additional context but not block
         for result in &results {
             if let Some(output) = result.parse_output()
-                && let Some(context) = &output.additional_context {
-                    debug!(
-                        context_len = context.len(),
-                        "SessionStart hook provided additional context"
-                    );
-                }
+                && let Some(context) = &output.additional_context
+            {
+                debug!(
+                    context_len = context.len(),
+                    "SessionStart hook provided additional context"
+                );
+            }
         }
 
         Ok(())
