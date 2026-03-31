@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "auto_dump": {
-      "description": "Format for automatically creating a dump when a task is completed",
+      "description": "Format used when automatically creating a session dump after task\ncompletion; disabled when absent.",
       "anyOf": [
         {
           "$ref": "#/$defs/AutoDumpFormat"
@@ -16,11 +16,11 @@
       ]
     },
     "auto_open_dump": {
-      "description": "Whether to automatically open HTML dump files in the browser",
+      "description": "Whether to automatically open HTML dump files in the browser after\ncreation.",
       "type": "boolean"
     },
     "commit": {
-      "description": "Provider and model to use for commit message generation",
+      "description": "Model and provider configuration used for commit message generation.",
       "anyOf": [
         {
           "$ref": "#/$defs/ModelConfig"
@@ -43,21 +43,21 @@
       ]
     },
     "custom_history_path": {
-      "description": "Custom history file path",
+      "description": "Path to the conversation history file; defaults to the global history\nlocation when absent.",
       "type": [
         "string",
         "null"
       ]
     },
     "debug_requests": {
-      "description": "Path where debug request files should be written",
+      "description": "Directory where debug request files are written; disabled when absent.",
       "type": [
         "string",
         "null"
       ]
     },
     "http": {
-      "description": "HTTP configuration",
+      "description": "HTTP client settings including proxy, TLS, and timeout configuration.",
       "anyOf": [
         {
           "$ref": "#/$defs/HttpConfig"
@@ -68,55 +68,55 @@
       ]
     },
     "max_conversations": {
-      "description": "Maximum number of conversations to show in list",
+      "description": "Maximum number of conversations shown in the conversation list.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_extensions": {
-      "description": "Maximum number of file extensions to include in the system prompt",
+      "description": "Maximum number of file extensions included in the agent system prompt.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_fetch_chars": {
-      "description": "Maximum characters for fetch content",
+      "description": "Maximum number of characters returned from a URL fetch.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_file_read_batch_size": {
-      "description": "Maximum number of files that can be read in a single batch operation",
+      "description": "Maximum number of files read in a single batch operation.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_file_size_bytes": {
-      "description": "Maximum file size in bytes for operations",
+      "description": "Maximum file size in bytes permitted for read operations.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
     },
     "max_image_size_bytes": {
-      "description": "Maximum image file size in bytes for binary read operations",
+      "description": "Maximum image file size in bytes permitted for read operations.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
     },
     "max_line_chars": {
-      "description": "Maximum characters per line for file read operations",
+      "description": "Maximum number of characters per line when reading a file.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_parallel_file_reads": {
-      "description": "Maximum number of files read concurrently in parallel operations",
+      "description": "Maximum number of files read concurrently during batch operations.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_read_lines": {
-      "description": "Maximum number of lines to read from a file",
+      "description": "Maximum number of lines read from a file in a single operation.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
@@ -131,37 +131,37 @@
       "minimum": 0
     },
     "max_search_lines": {
-      "description": "The maximum number of lines returned for FSSearch",
+      "description": "Maximum number of lines returned by a single file search operation.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_search_result_bytes": {
-      "description": "Maximum bytes allowed for search results",
+      "description": "Maximum number of bytes returned by a single file search operation.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_sem_search_results": {
-      "description": "Maximum number of results to return from initial vector search",
+      "description": "Maximum number of candidate results returned from the initial semantic\nsearch vector query.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_line_chars": {
-      "description": "Maximum characters per line for shell output",
+      "description": "Maximum number of characters per line in shell command output.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_prefix_lines": {
-      "description": "Maximum lines for shell output prefix",
+      "description": "Maximum number of lines captured from the leading portion of shell\ncommand output.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_suffix_lines": {
-      "description": "Maximum lines for shell output suffix",
+      "description": "Maximum number of lines captured from the trailing portion of shell\ncommand output.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
@@ -185,17 +185,17 @@
       "minimum": 0
     },
     "model_cache_ttl_secs": {
-      "description": "TTL in seconds for the model API list cache",
+      "description": "Time-to-live in seconds for the cached model API list.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
     },
     "restricted": {
-      "description": "Whether the application is running in restricted mode.\nWhen true, tool execution requires explicit permission grants.",
+      "description": "Whether restricted mode is active; when enabled, tool execution requires\nexplicit permission grants.",
       "type": "boolean"
     },
     "retry": {
-      "description": "Configuration for the retry mechanism",
+      "description": "Retry settings applied at the system level to all IO operations.",
       "anyOf": [
         {
           "$ref": "#/$defs/RetryConfig"
@@ -206,13 +206,13 @@
       ]
     },
     "sem_search_top_k": {
-      "description": "Top-k parameter for relevance filtering during semantic search",
+      "description": "Number of top results retained after re-ranking in semantic search.",
       "type": "integer",
       "format": "uint",
       "minimum": 0
     },
     "services_url": {
-      "description": "URL for the indexing server",
+      "description": "Base URL of the Forge services API used for semantic search and\nindexing.",
       "type": "string"
     },
     "session": {
@@ -228,7 +228,7 @@
       "default": null
     },
     "suggest": {
-      "description": "Provider and model to use for shell command suggestion generation",
+      "description": "Model and provider configuration used for shell command suggestion\ngeneration.",
       "anyOf": [
         {
           "$ref": "#/$defs/ModelConfig"
@@ -251,11 +251,11 @@
       ]
     },
     "tool_supported": {
-      "description": "Whether tool use is supported in the current environment.\nWhen false, tool calls are disabled regardless of agent configuration.",
+      "description": "Whether tool use is supported in the current environment; when false,\nall tool calls are disabled.",
       "type": "boolean"
     },
     "tool_timeout_secs": {
-      "description": "Maximum execution time in seconds for a single tool call",
+      "description": "Maximum time in seconds a single tool call may run before being\ncancelled.",
       "type": "integer",
       "format": "uint64",
       "minimum": 0
@@ -281,7 +281,7 @@
       ]
     },
     "updates": {
-      "description": "Configuration for automatic forge updates",
+      "description": "Configuration for automatic Forge updates.",
       "anyOf": [
         {
           "$ref": "#/$defs/Update"
