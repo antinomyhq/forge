@@ -47,7 +47,7 @@ impl<S: FsReadService + EnvironmentInfra> ChangedFiles<S> {
         }
         conversation.metrics = updated_metrics;
 
-        let cwd = self.services.get_environment().cwd.clone();
+        let cwd = self.services.get_environment().light.cwd.clone();
         let file_elements: Vec<Element> = changes
             .iter()
             .map(|change| {
@@ -123,10 +123,10 @@ mod tests {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
             if let Some(cwd) = &self.cwd {
-                env.cwd = cwd.clone();
+                env.light.cwd = cwd.clone();
             } else {
                 // Use a deterministic cwd that won't match any test paths
-                env.cwd = PathBuf::from("/deterministic/test/cwd");
+                env.light.cwd = PathBuf::from("/deterministic/test/cwd");
             }
             env
         }

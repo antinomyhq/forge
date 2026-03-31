@@ -60,7 +60,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
             output.stderr = strip_ansi(output.stderr);
         }
 
-        Ok(ShellOutput { output, shell: self.env.shell.clone(), description })
+        Ok(ShellOutput { output, shell: self.env.light.shell.clone(), description })
     }
 }
 #[cfg(test)]

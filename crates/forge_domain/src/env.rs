@@ -253,34 +253,34 @@ impl Environment {
     }
 
     pub fn log_path(&self) -> PathBuf {
-        self.base_path.join("logs")
+        self.light.base_path.join("logs")
     }
 
     pub fn history_path(&self) -> PathBuf {
         self.custom_history_path
             .clone()
-            .unwrap_or(self.base_path.join(".forge_history"))
+            .unwrap_or(self.light.base_path.join(".forge_history"))
     }
     pub fn snapshot_path(&self) -> PathBuf {
-        self.base_path.join("snapshots")
+        self.light.base_path.join("snapshots")
     }
     pub fn mcp_user_config(&self) -> PathBuf {
-        self.base_path.join(".mcp.json")
+        self.light.base_path.join(".mcp.json")
     }
 
     pub fn agent_path(&self) -> PathBuf {
-        self.base_path.join("agents")
+        self.light.base_path.join("agents")
     }
     pub fn agent_cwd_path(&self) -> PathBuf {
-        self.cwd.join(".forge/agents")
+        self.light.cwd.join(".forge/agents")
     }
 
     pub fn permissions_path(&self) -> PathBuf {
-        self.base_path.join("permissions.yaml")
+        self.light.base_path.join("permissions.yaml")
     }
 
     pub fn mcp_local_config(&self) -> PathBuf {
-        self.cwd.join(".mcp.json")
+        self.light.cwd.join(".mcp.json")
     }
 
     pub fn version(&self) -> String {
@@ -288,69 +288,69 @@ impl Environment {
     }
 
     pub fn app_config(&self) -> PathBuf {
-        self.base_path.join(".config.json")
+        self.light.base_path.join(".config.json")
     }
 
     pub fn database_path(&self) -> PathBuf {
-        self.base_path.join(".forge.db")
+        self.light.base_path.join(".forge.db")
     }
 
     /// Returns the path to the cache directory
     pub fn cache_dir(&self) -> PathBuf {
-        self.base_path.join("cache")
+        self.light.base_path.join("cache")
     }
 
     /// Returns the global skills directory path (~/forge/skills)
     pub fn global_skills_path(&self) -> PathBuf {
-        self.base_path.join("skills")
+        self.light.base_path.join("skills")
     }
 
     /// Returns the project-local skills directory path (.forge/skills)
     pub fn local_skills_path(&self) -> PathBuf {
-        self.cwd.join(".forge/skills")
+        self.light.cwd.join(".forge/skills")
     }
 
     /// Returns the global commands directory path (base_path/commands)
     pub fn command_path(&self) -> PathBuf {
-        self.base_path.join("commands")
+        self.light.base_path.join("commands")
     }
 
     /// Returns the project-local commands directory path (.forge/commands)
     pub fn command_path_local(&self) -> PathBuf {
-        self.cwd.join(".forge/commands")
+        self.light.cwd.join(".forge/commands")
     }
 
     /// Returns the global AGENTS.md path (base_path/AGENTS.md)
     pub fn global_agentsmd_path(&self) -> PathBuf {
-        self.base_path.join("AGENTS.md")
+        self.light.base_path.join("AGENTS.md")
     }
 
     /// Returns the project-local AGENTS.md path (cwd/AGENTS.md)
     pub fn local_agentsmd_path(&self) -> PathBuf {
-        self.cwd.join("AGENTS.md")
+        self.light.cwd.join("AGENTS.md")
     }
 
     /// Returns the plans directory path relative to the current working
     /// directory (cwd/plans)
     pub fn plans_path(&self) -> PathBuf {
-        self.cwd.join("plans")
+        self.light.cwd.join("plans")
     }
 
     /// Returns the path to the custom provider configuration file
     /// (base_path/provider.json)
     pub fn provider_config_path(&self) -> PathBuf {
-        self.base_path.join("provider.json")
+        self.light.base_path.join("provider.json")
     }
 
     /// Returns the path to the credentials file where provider API keys are
     /// stored
     pub fn credentials_path(&self) -> PathBuf {
-        self.base_path.join(".credentials.json")
+        self.light.base_path.join(".credentials.json")
     }
 
     pub fn workspace_hash(&self) -> WorkspaceHash {
         let mut hasher = DefaultHasher::default();
-        self.cwd.hash(&mut hasher);
+        self.light.cwd.hash(&mut hasher);
 
         WorkspaceHash(hasher.finish())
     }

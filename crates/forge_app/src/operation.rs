@@ -318,7 +318,8 @@ impl ToolOperation {
                         .content_hash(content_hash),
                 );
 
-                let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
+                let display_path =
+                    format_display_path(Path::new(&input.path), env.light.cwd.as_path());
                 let elem = Element::new("file_removed")
                     .attr("path", display_path)
                     .attr("status", "completed");

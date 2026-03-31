@@ -720,7 +720,7 @@ mod env_tests {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
-            env.base_path = self.base_path.clone();
+            env.light.base_path = self.base_path.clone();
             env
         }
 
@@ -1210,7 +1210,7 @@ mod env_tests {
             fn get_environment(&self) -> Environment {
                 use fake::{Fake, Faker};
                 let mut env: Environment = Faker.fake();
-                env.base_path = self.base_path.clone();
+                env.light.base_path = self.base_path.clone();
                 env
             }
 

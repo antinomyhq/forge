@@ -1275,7 +1275,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("name", skill.name);
 
             if let Some(path) = skill.path {
-                info = info.add_key_value("path", format_display_path(&path, &env.cwd));
+                info = info.add_key_value("path", format_display_path(&path, &env.light.cwd));
             }
 
             info = info.add_key_value("description", skill.description);

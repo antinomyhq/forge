@@ -34,7 +34,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
         let extension = path.extension().map(|v| v.to_string_lossy().to_string());
 
         if !path.is_absolute() {
-            path = self.infra.get_environment().cwd.join(path);
+            path = self.infra.get_environment().light.cwd.join(path);
         }
 
         // Check if path is a directory (exists but is not a file)

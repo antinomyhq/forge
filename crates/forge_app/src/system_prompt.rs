@@ -42,7 +42,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             .services
             .execute(
                 "git ls-files".into(),
-                self.environment.cwd.clone(),
+                self.environment.light.cwd.clone(),
                 false,
                 true,
                 None,

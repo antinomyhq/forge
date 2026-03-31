@@ -36,7 +36,7 @@ impl<F: EnvironmentInfra + WalkerInfra + DirectoryReaderInfra + Send + Sync> Fil
 
     async fn list_current_directory(&self) -> Result<Vec<File>> {
         let env = self.service.get_environment();
-        let entries = self.service.list_directory_entries(&env.cwd).await?;
+        let entries = self.service.list_directory_entries(&env.light.cwd).await?;
 
         let mut files: Vec<File> = entries
             .into_iter()
@@ -91,7 +91,7 @@ mod tests {
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
-            env.cwd = self.cwd.clone();
+            env.light.cwd = self.cwd.clone();
             env
         }
 

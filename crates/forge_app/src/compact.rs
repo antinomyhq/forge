@@ -32,7 +32,7 @@ impl Compactor {
     ///
     /// * `context_summary` - The context summary to transform
     fn transform(&self, context_summary: ContextSummary) -> ContextSummary {
-        SummaryTransformer::new(&self.environment.cwd).transform(context_summary)
+        SummaryTransformer::new(&self.environment.light.cwd).transform(context_summary)
     }
 }
 

@@ -67,7 +67,7 @@ impl<S: Services> ToolRegistry<S> {
         tool_input: &ToolCatalog,
         context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
-        let cwd = self.services.get_environment().cwd.clone();
+        let cwd = self.services.get_environment().light.cwd.clone();
         let operation = tool_input.to_policy_operation(cwd.clone());
         if let Some(operation) = operation {
             let decision = self.services.check_operation_permission(&operation).await?;
@@ -212,7 +212,7 @@ impl<S: Services> ToolRegistry<S> {
 
         // Check if current working directory is indexed
         let environment = self.services.get_environment();
-        let cwd = environment.cwd.clone();
+        let cwd = environment.light.cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
         let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
 
@@ -881,7 +881,7 @@ fn test_all_rendered_tool_descriptions() {
     use fake::{Fake, Faker};
 
     let mut env: Environment = Faker.fake();
-    env.cwd = "/home/user/project".into();
+    env.light.cwd = "/home/user/project".into();
     env.max_read_size = 2000;
     env.max_line_length = 2000;
     env.max_image_size = 5000;

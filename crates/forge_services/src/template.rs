@@ -78,7 +78,7 @@ fn compile_template(name: &str, content: &str) -> anyhow::Result<handlebars::tem
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + FileReaderInfra> TemplateService for ForgeTemplateService<F> {
     async fn register_template(&self, path: PathBuf) -> anyhow::Result<()> {
-        let cwd = &self.infra.get_environment().cwd;
+        let cwd = &self.infra.get_environment().light.cwd;
 
         // Discover and filter unregistered templates in one pass
         let guard = self.get_hb().await.read().await;

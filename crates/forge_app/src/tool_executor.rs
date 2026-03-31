@@ -121,7 +121,10 @@ impl<
         if path_buf.is_absolute() {
             path
         } else {
-            PathBuf::from(&env.cwd).join(path_buf).display().to_string()
+            PathBuf::from(&env.light.cwd)
+                .join(path_buf)
+                .display()
+                .to_string()
         }
     }
 
@@ -187,7 +190,7 @@ impl<
             ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
                 let services = self.services.clone();
-                let cwd = env.cwd.clone();
+                let cwd = env.light.cwd.clone();
                 let limit = env.sem_search_limit;
                 let top_k = env.sem_search_top_k as u32;
                 let params: Vec<_> = input
@@ -252,7 +255,14 @@ impl<
                 let cwd = input
                     .cwd
                     .map(|p| p.display().to_string())
-                    .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
+                    .unwrap_or_else(|| {
+                        self.services
+                            .get_environment()
+                            .light
+                            .cwd
+                            .display()
+                            .to_string()
+                    });
                 let normalized_cwd = self.normalize_path(cwd);
                 let output = self
                     .services

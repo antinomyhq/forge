@@ -123,10 +123,10 @@ mod tests {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
             // Override only the fields that appear in templates
-            env.os = "macos".to_string();
-            env.cwd = "/test/dir".into();
-            env.shell = "/bin/bash".to_string();
-            env.home = Some("/home/test".into());
+            env.light.os = "macos".to_string();
+            env.light.cwd = "/test/dir".into();
+            env.light.shell = "/bin/bash".to_string();
+            env.light.home = Some("/home/test".into());
 
             Arc::new(Self {
                 files: files.into_iter().map(|(p, d)| (p.to_string(), d)).collect(),

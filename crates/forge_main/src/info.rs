@@ -280,8 +280,11 @@ impl From<&Environment> for Info {
         let mut info = Info::new()
             .add_title("ENVIRONMENT")
             .add_key_value("Version", VERSION)
-            .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
-            .add_key_value("Shell", env.shell.as_str())
+            .add_key_value(
+                "Working Directory",
+                format_path_for_display(env, &env.light.cwd),
+            )
+            .add_key_value("Shell", env.light.shell.as_str())
             .add_key_value("Git Branch", branch_info)
             .add_title("PATHS");
 
@@ -541,7 +544,7 @@ impl fmt::Display for Info {
 /// notation on Unix, with proper quoting for paths containing spaces
 pub(crate) fn format_path_for_display(env: &Environment, path: &Path) -> String {
     // Check if path is under home directory first
-    if let Some(home) = &env.home
+    if let Some(home) = &env.light.home
         && let Ok(rel_path) = path.strip_prefix(home)
     {
         // Format based on OS

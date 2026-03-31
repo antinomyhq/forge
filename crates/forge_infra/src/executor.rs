@@ -33,7 +33,7 @@ impl ForgeCommandExecutorService {
     ) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
-        let shell = self.env.shell.as_str();
+        let shell = self.env.light.shell.as_str();
         let mut command = Command::new(shell);
 
         // Core color settings for general commands

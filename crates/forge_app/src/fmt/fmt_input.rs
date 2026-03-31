@@ -7,7 +7,8 @@ use crate::utils::format_display_path;
 
 impl FormatContent for ToolCatalog {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
-        let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
+        let display_path_for =
+            |path: &str| format_display_path(Path::new(path), env.light.cwd.as_path());
 
         match self {
             ToolCatalog::Read(input) => {

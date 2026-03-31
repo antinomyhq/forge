@@ -14,6 +14,9 @@ pub struct UIState {
 
 impl UIState {
     pub fn new(env: Environment) -> Self {
-        Self { cwd: env.cwd.clone(), conversation_id: Default::default() }
+        Self {
+            cwd: env.light.cwd.clone(),
+            conversation_id: Default::default(),
+        }
     }
 }

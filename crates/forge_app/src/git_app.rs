@@ -149,7 +149,7 @@ where
     ///
     /// Returns an error if git commit fails
     pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
-        let cwd = self.services.get_environment().cwd.clone();
+        let cwd = self.services.get_environment().light.cwd.clone();
         let flags = if has_staged_files { "" } else { " -a" };
 
         // Set ForgeCode as the committer while keeping the user as the author
@@ -194,7 +194,7 @@ where
         additional_context: Option<String>,
     ) -> Result<CommitMessageDetails> {
         // Get current working directory
-        let cwd = self.services.get_environment().cwd.clone();
+        let cwd = self.services.get_environment().light.cwd.clone();
 
         // Fetch git context (always needed for commit message generation)
         let (recent_commits, branch_name) = self.fetch_git_context(&cwd).await?;
