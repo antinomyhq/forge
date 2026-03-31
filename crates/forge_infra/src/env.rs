@@ -57,9 +57,14 @@ impl ForgeEnvironmentInfra {
             pid: std::process::id(),
             cwd,
             shell: self.get_shell_path(),
-            base_path: dirs::home_dir()
-                .map(|a| a.join("forge"))
-                .unwrap_or(PathBuf::from(".").join("forge")),
+            // Resolve base_path: FORGE_FOLDER_PATH env var takes priority, then default to ~/forge
+            base_path: parse_env::<String>("FORGE_FOLDER_PATH")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| {
+                    dirs::home_dir()
+                        .map(|a| a.join("forge"))
+                        .unwrap_or_else(|| PathBuf::from(".").join("forge"))
+                }),
             home: dirs::home_dir(),
             retry_config,
             max_search_lines: 200,
@@ -297,7 +302,7 @@ mod tests {
 
     use forge_domain::{TlsBackend, TlsVersion};
     use serial_test::serial;
-    use tempfile::{TempDir, tempdir};
+    use tempfile::{tempdir, TempDir};
 
     use super::*;
 
