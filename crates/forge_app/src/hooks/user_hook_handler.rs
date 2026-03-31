@@ -49,10 +49,7 @@ impl UserHookHandler {
             project_dir.to_string_lossy().to_string(),
         );
         env_vars.insert("FORGE_SESSION_ID".to_string(), session_id);
-        env_vars.insert(
-            "FORGE_CWD".to_string(),
-            cwd.to_string_lossy().to_string(),
-        );
+        env_vars.insert("FORGE_CWD".to_string(), cwd.to_string_lossy().to_string());
 
         Self {
             config,
@@ -77,19 +74,17 @@ impl UserHookHandler {
 
         for group in groups {
             let matches = match (&group.matcher, subject) {
-                (Some(pattern), Some(subj)) => {
-                    match Regex::new(pattern) {
-                        Ok(re) => re.is_match(subj),
-                        Err(e) => {
-                            warn!(
-                                pattern = pattern,
-                                error = %e,
-                                "Invalid regex in hook matcher, skipping"
-                            );
-                            false
-                        }
+                (Some(pattern), Some(subj)) => match Regex::new(pattern) {
+                    Ok(re) => re.is_match(subj),
+                    Err(e) => {
+                        warn!(
+                            pattern = pattern,
+                            error = %e,
+                            "Invalid regex in hook matcher, skipping"
+                        );
+                        false
                     }
-                }
+                },
                 (Some(_), None) => {
                     // Matcher specified but no subject to match against; skip
                     false
@@ -132,7 +127,7 @@ impl UserHookHandler {
                     &self.cwd,
                     &self.env_vars,
                 )
-                .await
+                    .await
                 {
                     Ok(result) => results.push(result),
                     Err(e) => {
@@ -318,7 +313,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
     async fn handle(
         &self,
         event: &EventData<ToolcallStartPayload>,
-        conversation: &mut Conversation,
+        _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if !self.has_hooks(&UserHookEventName::PreToolUse) {
             return Ok(());
@@ -339,10 +334,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
             hook_event_name: "PreToolUse".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::PreToolUse {
-                tool_name: tool_name.to_string(),
-                tool_input,
-            },
+            event_data: HookEventInput::PreToolUse { tool_name: tool_name.to_string(), tool_input },
         };
 
         let results = self.execute_hooks(&hooks, &input).await;
@@ -366,17 +358,9 @@ impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
                     reason = reason.as_str(),
                     "PreToolUse hook blocked tool call"
                 );
-                // Inject a user message with the block reason so the agent sees it
-                if let Some(context) = conversation.context.as_mut() {
-                    let block_msg = format!(
-                        "<hook_feedback>\n<event>PreToolUse</event>\n<tool>{}</tool>\n<status>blocked</status>\n<reason>{}</reason>\n</hook_feedback>",
-                        tool_name, reason
-                    );
-                    context.messages.push(
-                        forge_domain::ContextMessage::user(block_msg, None).into(),
-                    );
-                }
-                // Return an error to signal the orchestrator to skip this tool call
+                // Return an error to signal the orchestrator to skip this tool call.
+                // The orchestrator converts this into an error ToolResult visible to
+                // the model.
                 Err(anyhow::anyhow!(
                     "Tool call '{}' blocked by PreToolUse hook: {}",
                     tool_name,
@@ -444,9 +428,9 @@ impl EventHandle<EventData<ToolcallEndPayload>> for UserHookHandler {
                     "<hook_feedback>\n<event>{}</event>\n<tool>{}</tool>\n<status>blocked</status>\n<reason>{}</reason>\n</hook_feedback>",
                     event_name, tool_name, reason
                 );
-                context.messages.push(
-                    forge_domain::ContextMessage::user(feedback_msg, None).into(),
-                );
+                context
+                    .messages
+                    .push(forge_domain::ContextMessage::user(feedback_msg, None).into());
             }
         }
 
@@ -527,5 +511,207 @@ impl EventHandle<EventData<EndPayload>> for UserHookHandler {
         self.stop_hook_active.store(false, Ordering::SeqCst);
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{
+        HookExecutionResult, UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType,
+    };
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    fn make_entry(command: &str) -> UserHookEntry {
+        UserHookEntry {
+            hook_type: UserHookType::Command,
+            command: Some(command.to_string()),
+            timeout: None,
+        }
+    }
+
+    fn make_group(matcher: Option<&str>, commands: &[&str]) -> UserHookMatcherGroup {
+        UserHookMatcherGroup {
+            matcher: matcher.map(|s| s.to_string()),
+            hooks: commands.iter().map(|c| make_entry(c)).collect(),
+        }
+    }
+
+    #[test]
+    fn test_find_matching_hooks_no_matcher_fires_unconditionally() {
+        let groups = vec![make_group(None, &["echo hi"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].command, Some("echo hi".to_string()));
+    }
+
+    #[test]
+    fn test_find_matching_hooks_no_matcher_fires_without_subject() {
+        let groups = vec![make_group(None, &["echo hi"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, None);
+        assert_eq!(actual.len(), 1);
+    }
+
+    #[test]
+    fn test_find_matching_hooks_regex_match() {
+        let groups = vec![make_group(Some("Bash"), &["block.sh"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        assert_eq!(actual.len(), 1);
+    }
+
+    #[test]
+    fn test_find_matching_hooks_regex_no_match() {
+        let groups = vec![make_group(Some("Bash"), &["block.sh"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Write"));
+        assert!(actual.is_empty());
+    }
+
+    #[test]
+    fn test_find_matching_hooks_regex_partial_match() {
+        let groups = vec![make_group(Some("Bash|Write"), &["check.sh"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        assert_eq!(actual.len(), 1);
+    }
+
+    #[test]
+    fn test_find_matching_hooks_matcher_but_no_subject() {
+        let groups = vec![make_group(Some("Bash"), &["block.sh"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, None);
+        assert!(actual.is_empty());
+    }
+
+    #[test]
+    fn test_find_matching_hooks_invalid_regex_skipped() {
+        let groups = vec![make_group(Some("[invalid"), &["block.sh"])];
+        let actual = UserHookHandler::find_matching_hooks(&groups, Some("anything"));
+        assert!(actual.is_empty());
+    }
+
+    #[test]
+    fn test_find_matching_hooks_multiple_groups() {
+        let groups = vec![
+            make_group(Some("Bash"), &["bash-hook.sh"]),
+            make_group(Some("Write"), &["write-hook.sh"]),
+            make_group(None, &["always.sh"]),
+        ];
+        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        assert_eq!(actual.len(), 2); // Bash match + unconditional
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_allow_on_success() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: String::new(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Allow));
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_block_on_exit_2() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(2),
+            stdout: String::new(),
+            stderr: "Blocked: dangerous command".to_string(),
+        }];
+        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        assert!(
+            matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("dangerous command"))
+        );
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_block_on_deny() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"permissionDecision": "deny", "reason": "Not allowed"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Not allowed"));
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_block_on_decision() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"decision": "block", "reason": "Blocked by policy"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Blocked by policy"));
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_non_blocking_error_allows() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(1),
+            stdout: String::new(),
+            stderr: "some error".to_string(),
+        }];
+        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Allow));
+    }
+
+    #[test]
+    fn test_process_results_no_blocking() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: String::new(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::process_results(&results);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_process_results_blocking_exit_code() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(2),
+            stdout: String::new(),
+            stderr: "stop reason".to_string(),
+        }];
+        let actual = UserHookHandler::process_results(&results);
+        assert_eq!(actual, Some("stop reason".to_string()));
+    }
+
+    #[test]
+    fn test_process_results_blocking_json_decision() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"decision": "block", "reason": "keep going"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::process_results(&results);
+        assert_eq!(actual, Some("keep going".to_string()));
+    }
+
+    #[test]
+    fn test_has_hooks_returns_false_for_empty_config() {
+        let config = UserHookConfig::new();
+        let handler = UserHookHandler::new(
+            config,
+            PathBuf::from("/tmp"),
+            PathBuf::from("/tmp"),
+            "sess-1".to_string(),
+        );
+        assert!(!handler.has_hooks(&UserHookEventName::PreToolUse));
+    }
+
+    #[test]
+    fn test_has_hooks_returns_true_when_configured() {
+        let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        let handler = UserHookHandler::new(
+            config,
+            PathBuf::from("/tmp"),
+            PathBuf::from("/tmp"),
+            "sess-1".to_string(),
+        );
+        assert!(handler.has_hooks(&UserHookEventName::PreToolUse));
+        assert!(!handler.has_hooks(&UserHookEventName::Stop));
     }
 }

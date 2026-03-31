@@ -2,8 +2,13 @@ mod compaction;
 mod doom_loop;
 mod title_generation;
 mod tracing;
+mod user_hook_config_loader;
+mod user_hook_executor;
+mod user_hook_handler;
 
 pub use compaction::CompactionHandler;
 pub use doom_loop::DoomLoopDetector;
 pub use title_generation::TitleGenerationHandler;
 pub use tracing::TracingHandler;
+pub use user_hook_config_loader::UserHookConfigLoader;
+pub use user_hook_handler::UserHookHandler;

@@ -83,21 +83,29 @@ impl<S: AgentService> Orchestrator<S> {
                 notifier.notified().await;
             }
 
-            // Fire the ToolcallStart lifecycle event
+            // Fire the ToolcallStart lifecycle event.
+            // If a hook returns an error (e.g., PreToolUse hook blocked the
+            // call), skip execution and record an error result instead.
             let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
                 ToolcallStartPayload::new(tool_call.clone()),
             ));
-            self.hook
+            let hook_result = self
+                .hook
                 .handle(&toolcall_start_event, &mut self.conversation)
-                .await?;
-
-            // Execute the tool
-            let tool_result = self
-                .services
-                .call(&self.agent, tool_context, tool_call.clone())
                 .await;
+
+            let tool_result = if let Err(hook_err) = hook_result {
+                // Hook blocked this tool call — produce an error ToolResult
+                // so the model sees feedback without aborting the session.
+                ToolResult::from(tool_call.clone()).failure(hook_err)
+            } else {
+                // Execute the tool normally
+                self.services
+                    .call(&self.agent, tool_context, tool_call.clone())
+                    .await
+            };
 
             // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
             let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
