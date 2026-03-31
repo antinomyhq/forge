@@ -201,7 +201,10 @@ mod tests {
         use forge_domain::{ModelId, ProviderId};
 
         let mut fixture = ForgeConfig {
-            session: Some(ModelConfig { provider_id: Some("anthropic".to_string()), model_id: None }),
+            session: Some(ModelConfig {
+                provider_id: Some("anthropic".to_string()),
+                model_id: None,
+            }),
             ..Default::default()
         };
 

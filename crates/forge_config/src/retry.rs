@@ -3,7 +3,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for retry mechanism.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, Setters)]
+#[derive(
+    Default, Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, Setters,
+)]
 #[serde(rename_all = "snake_case")]
 #[setters(into)]
 pub struct RetryConfig {

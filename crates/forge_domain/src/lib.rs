@@ -1,5 +1,4 @@
 mod agent;
-mod agent_definition;
 mod attachment;
 mod auth;
 mod chat_request;
@@ -24,7 +23,7 @@ mod image;
 mod max_tokens;
 mod mcp;
 mod mcp_servers;
-pub mod merge;
+mod merge;
 mod message;
 mod message_pattern;
 mod migration;
@@ -57,7 +56,6 @@ mod workspace;
 mod xml;
 
 pub use agent::*;
-pub use agent_definition::*;
 pub use attachment::*;
 pub use chat_request::*;
 pub use chat_response::*;

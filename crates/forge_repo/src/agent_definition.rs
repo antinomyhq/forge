@@ -3,7 +3,6 @@ use forge_domain::{
     Agent, AgentId, Compact, EventContext, MaxTokens, ModelId, ProviderId, ReasoningConfig,
     SystemContext, Temperature, Template, ToolName, TopK, TopP,
 };
-use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -130,16 +129,6 @@ pub(crate) struct AgentDefinition {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
-}
-
-fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
-    if let Some(other) = other {
-        if let Some(base) = base {
-            base.extend(other);
-        } else {
-            *base = Some(other);
-        }
-    }
 }
 
 impl AgentDefinition {
