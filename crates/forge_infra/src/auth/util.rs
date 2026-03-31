@@ -8,6 +8,7 @@ use oauth2::basic::BasicClient;
 use oauth2::{ClientId, RefreshToken, TokenUrl};
 
 use crate::auth::error::Error;
+use crate::http_client::ClientBuilderExt;
 
 /// Calculate token expiry with fallback duration
 pub(crate) fn calculate_token_expiry(
@@ -59,67 +60,13 @@ pub(crate) fn build_http_client(
     custom_headers: Option<&HashMap<String, String>>,
     http_config: &forge_domain::HttpConfig,
 ) -> anyhow::Result<reqwest::Client> {
-    let mut builder = reqwest::Client::builder()
+    Ok(reqwest::Client::builder()
         // Disable redirects to prevent SSRF vulnerabilities
-        .redirect(reqwest::redirect::Policy::none());
-
-    // When no HTTPS-specific proxy is configured but HTTP_PROXY is set, explicitly
-    // proxy all traffic through it. reqwest only applies HTTP_PROXY to plaintext
-    // HTTP requests; without this, HTTPS auth requests silently bypass the proxy.
-    let has_https_proxy = std::env::var("HTTPS_PROXY")
-        .or_else(|_| std::env::var("https_proxy"))
-        .or_else(|_| std::env::var("ALL_PROXY"))
-        .or_else(|_| std::env::var("all_proxy"))
-        .is_ok();
-
-    if !has_https_proxy {
-        if let Ok(proxy_url) = std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy"))
-        {
-            builder = builder.proxy(
-                reqwest::Proxy::all(&proxy_url).map_err(|e| {
-                    anyhow::anyhow!("Invalid HTTP_PROXY URL '{proxy_url}': {e}")
-                })?,
-            );
-        }
-    }
-
-    // Apply TLS settings from the caller-supplied config — identical to what
-    // ForgeHttpInfra does — so that corporate root CA certificates and the
-    // accept-invalid-certs flag work for auth requests too.
-    if http_config.accept_invalid_certs {
-        builder = builder.danger_accept_invalid_certs(true);
-    }
-    if let Some(cert_paths) = &http_config.root_cert_paths {
-        for cert_path in cert_paths {
-            match std::fs::read(cert_path) {
-                Ok(buf) => {
-                    if let Ok(cert) = reqwest::Certificate::from_pem(&buf) {
-                        builder = builder.add_root_certificate(cert);
-                    } else if let Ok(cert) = reqwest::Certificate::from_der(&buf) {
-                        builder = builder.add_root_certificate(cert);
-                    }
-                }
-                Err(_) => {} // Silently skip unreadable cert files
-            }
-        }
-    }
-
-    if let Some(headers) = custom_headers {
-        let mut header_map = reqwest::header::HeaderMap::new();
-
-        for (key, value) in headers {
-            let header_name = reqwest::header::HeaderName::try_from(key.as_str())
-                .map_err(|e| anyhow::anyhow!("Invalid header name '{key}': {e}"))?;
-            let header_value = value
-                .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid header value for '{key}': {e}"))?;
-            header_map.insert(header_name, header_value);
-        }
-
-        builder = builder.default_headers(header_map);
-    }
-
-    Ok(builder.build()?)
+        .redirect(reqwest::redirect::Policy::none())
+        .with_proxy_fallback()?
+        .with_tls_config(http_config)
+        .with_custom_headers(custom_headers.into_iter().flat_map(|m| m.iter()))?
+        .build()?)
 }
 
 /// Build OAuth credential with consistent expiry handling

@@ -1,13 +1,11 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::future::Future;
-use std::str::FromStr;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_app::McpClientInfra;
 use forge_domain::{Image, McpHttpServer, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
-use http::{HeaderName, HeaderValue, header};
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::RunningService;
 use rmcp::transport::sse_client::SseClientConfig;
@@ -20,6 +18,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::error::Error;
+use crate::http_client::ClientBuilderExt;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -152,13 +151,10 @@ impl ForgeMcpClient {
     }
 
     fn reqwest_client(&self, config: &McpHttpServer) -> anyhow::Result<reqwest::Client> {
-        let mut headers = header::HeaderMap::new();
-        for (key, value) in config.headers.iter() {
-            headers.insert(HeaderName::from_str(key)?, HeaderValue::from_str(value)?);
-        }
-
-        let client = reqwest::Client::builder().default_headers(headers);
-        Ok(client.build()?)
+        Ok(reqwest::Client::builder()
+            .with_proxy_fallback()?
+            .with_custom_headers(config.headers.iter())?
+            .build()?)
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

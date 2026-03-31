@@ -1,16 +1,15 @@
-use std::fs;
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::HttpInfra;
-use forge_domain::{Environment, TlsBackend, TlsVersion};
+use forge_domain::Environment;
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use reqwest::redirect::Policy;
-use reqwest::{Certificate, Client, Response, StatusCode, Url};
+use reqwest::{Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
-use tracing::{debug, warn};
+use tracing::debug;
+
+use crate::http_client::ClientBuilderExt;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
@@ -23,83 +22,13 @@ pub struct ForgeHttpInfra<F> {
     file: Arc<F>,
 }
 
-fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
-    use reqwest::tls::Version;
-    match tls {
-        TlsVersion::V1_0 => Version::TLS_1_0,
-        TlsVersion::V1_1 => Version::TLS_1_1,
-        TlsVersion::V1_2 => Version::TLS_1_2,
-        TlsVersion::V1_3 => Version::TLS_1_3,
-    }
-}
-
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     pub fn new(env: Environment, file_writer: Arc<F>) -> Self {
-        let env = env.clone();
-        let env_http = env.clone();
-        let mut client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(
-                env_http.http.connect_timeout,
-            ))
-            .read_timeout(std::time::Duration::from_secs(env_http.http.read_timeout))
-            .pool_idle_timeout(std::time::Duration::from_secs(
-                env_http.http.pool_idle_timeout,
-            ))
-            .pool_max_idle_per_host(env_http.http.pool_max_idle_per_host)
-            .redirect(Policy::limited(env_http.http.max_redirects))
-            .hickory_dns(env_http.http.hickory)
-            // HTTP/2 configuration from config
-            .http2_adaptive_window(env_http.http.adaptive_window)
-            .http2_keep_alive_interval(env_http.http.keep_alive_interval.map(Duration::from_secs))
-            .http2_keep_alive_timeout(Duration::from_secs(env_http.http.keep_alive_timeout))
-            .http2_keep_alive_while_idle(env_http.http.keep_alive_while_idle);
-
-        // Add root certificates from config
-        if let Some(ref cert_paths) = env_http.http.root_cert_paths {
-            for cert_path in cert_paths {
-                match fs::read(cert_path) {
-                    Ok(buf) => {
-                        if let Ok(cert) = Certificate::from_pem(&buf) {
-                            client = client.add_root_certificate(cert);
-                        } else if let Ok(cert) = Certificate::from_der(&buf) {
-                            client = client.add_root_certificate(cert);
-                        } else {
-                            warn!(
-                                "Failed to parse certificate as PEM or DER format, cert = {}",
-                                cert_path
-                            );
-                        }
-                    }
-                    Err(error) => {
-                        warn!(
-                            "Failed to read certificate file, path = {}, error = {}",
-                            cert_path, error
-                        );
-                    }
-                }
-            }
-        }
-
-        if env_http.http.accept_invalid_certs {
-            client = client.danger_accept_invalid_certs(true);
-        }
-
-        if let Some(version) = env_http.http.min_tls_version {
-            client = client.min_tls_version(to_reqwest_tls(version));
-        }
-
-        if let Some(version) = env_http.http.max_tls_version {
-            client = client.max_tls_version(to_reqwest_tls(version));
-        }
-
-        match env_http.http.tls_backend {
-            TlsBackend::Rustls => {
-                client = client.use_rustls_tls();
-            }
-            TlsBackend::Default => {}
-        }
-
-        Self { env, client: client.build().unwrap(), file: file_writer }
+        let client = reqwest::Client::builder()
+            .with_http_config(&env.http)
+            .build()
+            .unwrap();
+        Self { env, client, file: file_writer }
     }
 
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {

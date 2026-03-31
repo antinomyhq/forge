@@ -13,6 +13,7 @@ mod fs_remove;
 mod fs_write;
 mod grpc;
 mod http;
+mod http_client;
 mod inquire;
 mod kv_storage;
 mod mcp_client;
