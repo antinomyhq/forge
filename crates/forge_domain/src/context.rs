@@ -556,6 +556,7 @@ impl Context {
     /// are supported and uses the appropriate format. For models that don't
     /// support tools, use the TransformToolCalls transformer to convert the
     /// context afterward.
+    #[allow(clippy::too_many_arguments)]
     pub fn append_message(
         self,
         content: impl ToString,

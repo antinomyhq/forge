@@ -1,4 +1,5 @@
-use forge_app::domain::{Error as DomainError, RetryConfig};
+use forge_app::domain::Error as DomainError;
+use forge_config::RetryConfig;
 use forge_app::dto::anthropic::Error as AnthropicError;
 use forge_app::dto::openai::{Error, ErrorResponse};
 

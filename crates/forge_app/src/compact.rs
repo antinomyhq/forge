@@ -114,7 +114,7 @@ impl Compactor {
 impl Compactor {
     /// Apply compaction to the context if requested.
     pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
-        let eviction = CompactionStrategy::evict(self.compact.eviction_window.value());
+        let eviction = CompactionStrategy::evict(self.compact.eviction_window);
         let retention = CompactionStrategy::retain(self.compact.retention_window);
 
         let strategy = if max {

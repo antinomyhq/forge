@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_config::ForgeConfig;
 use forge_domain::{
-    Agent, ChatCompletionMessage, Context, Conversation, MaxTokens, ModelId, ProviderId,
+    Agent, ChatCompletionMessage, Compact, Context, Conversation, MaxTokens, ModelId, ProviderId,
     ResultStream, Temperature, ToolCallContext, ToolCallFull, ToolResult, TopK, TopP,
 };
 use merge::Merge;
@@ -126,9 +126,18 @@ impl AgentExt for Agent {
 
         // Apply workflow compact configuration to agents
         if let Some(ref workflow_compact) = config.compact {
-            // Merge workflow config into agent config
-            // Agent settings take priority over workflow settings
-            let mut merged_compact = workflow_compact.clone();
+            // Convert forge_config::Compact to forge_domain::Compact, then merge.
+            // Agent settings take priority over workflow settings.
+            let mut merged_compact = Compact {
+                retention_window: workflow_compact.retention_window,
+                eviction_window: workflow_compact.eviction_window.value(),
+                max_tokens: workflow_compact.max_tokens,
+                token_threshold: workflow_compact.token_threshold,
+                turn_threshold: workflow_compact.turn_threshold,
+                message_threshold: workflow_compact.message_threshold,
+                model: workflow_compact.model.as_deref().map(ModelId::new),
+                on_turn_end: workflow_compact.on_turn_end,
+            };
             merged_compact.merge(agent.compact.clone());
             agent.compact = merged_compact;
         }

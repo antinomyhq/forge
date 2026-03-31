@@ -370,9 +370,10 @@ pub trait StrategyFactory: Send + Sync {
     ) -> anyhow::Result<Self::Strategy>;
 }
 
-/// Repository for loading agent definitions from multiple sources.
+/// Repository for loading agents from multiple sources.
 ///
-/// This trait provides access to agent definitions from:
+/// This trait provides access to fully-resolved domain [`forge_domain::Agent`]
+/// values from:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
 /// 3. Project-local agents (from .forge/agents/ directory in current working
@@ -386,9 +387,9 @@ pub trait StrategyFactory: Send + Sync {
 /// override built-in agents.
 #[async_trait::async_trait]
 pub trait AgentRepository: Send + Sync {
-    /// Load all agent definitions from all available sources with conflict
-    /// resolution.
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
+    /// Load all agents from all available sources with conflict resolution and
+    /// default provider/model applied.
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
 }
 
 /// Infrastructure trait for providing shared gRPC channel

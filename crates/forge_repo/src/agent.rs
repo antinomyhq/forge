@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::domain::{AgentDefinition, Template};
-use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
+use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
+use forge_domain::Template;
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
+
+use crate::agent_definition::AgentDefinition;
 
 /// Infrastructure implementation for loading agent definitions from multiple
 /// sources:
@@ -38,20 +40,15 @@ impl<I> ForgeAgentRepository<I> {
     }
 }
 
-#[async_trait::async_trait]
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> AgentRepository
-    for ForgeAgentRepository<I>
-{
+impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepository<I> {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_app::domain::AgentDefinition>> {
-        self.load_agents().await
+    pub(crate) async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
+        self.load_all_agents().await
     }
-}
 
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepository<I> {
     /// Load all agent definitions from all available sources
-    async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
+    async fn load_all_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
         // Load built-in agents (no path - will display as "BUILT IN")
         let mut agents = self.init_default().await?;
 

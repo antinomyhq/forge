@@ -1,13 +1,11 @@
 use derive_setters::Setters;
 
 use crate::{
-    AgentDefinition, AgentId, Compact, Error, EventContext, MaxTokens, ModelId, ProviderId,
-    ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition, ToolName, TopK,
-    TopP,
+    AgentId, Compact, Error, EventContext, MaxTokens, ModelId, ProviderId, ReasoningConfig, Result,
+    SystemContext, Temperature, Template, ToolDefinition, ToolName, TopK, TopP,
 };
 
 /// Runtime agent representation with required model and provider
-/// Created by converting AgentDefinition with resolved defaults
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(strip_option, into)]
 pub struct Agent {
@@ -118,44 +116,6 @@ impl Agent {
             self.compact.model = Some(self.model.clone());
         }
         self
-    }
-
-    /// Converts an AgentDefinition into an Agent with resolved model and
-    /// provider
-    ///
-    /// # Arguments
-    ///
-    /// * `def` - The agent definition to convert
-    /// * `provider_id` - The provider ID to use if not specified in the
-    ///   definition
-    /// * `model_id` - The model ID to use if not specified in the definition
-    pub fn from_agent_def(
-        def: AgentDefinition,
-        provider_id: ProviderId,
-        model_id: ModelId,
-    ) -> Self {
-        Agent {
-            tool_supported: def.tool_supported,
-            id: def.id,
-            title: def.title,
-            description: def.description,
-            provider: def.provider.unwrap_or(provider_id),
-            model: def.model.unwrap_or(model_id),
-            system_prompt: def.system_prompt,
-            user_prompt: def.user_prompt,
-            temperature: def.temperature,
-            max_tokens: def.max_tokens,
-            top_p: def.top_p,
-            top_k: def.top_k,
-            tools: def.tools,
-            reasoning: def.reasoning,
-            compact: def.compact.unwrap_or_default(),
-            max_turns: def.max_turns,
-            custom_rules: def.custom_rules,
-            max_tool_failure_per_turn: def.max_tool_failure_per_turn,
-            max_requests_per_turn: def.max_requests_per_turn,
-            path: def.path,
-        }
     }
 
     /// Gets the tool ordering for this agent, derived from the tools list

@@ -37,7 +37,6 @@ pub enum ConfigOperation {
     SetSuggestConfig(crate::SuggestConfig),
 }
 
-
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
     None => env!("CARGO_PKG_VERSION"),

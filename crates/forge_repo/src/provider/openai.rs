@@ -5,8 +5,9 @@ use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ProviderId, ResultStream,
-    RetryConfig, Transformer,
+    Transformer,
 };
+use forge_config::RetryConfig;
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use forge_domain::{ChatRepository, Provider};
 use reqwest::header::AUTHORIZATION;

@@ -4,8 +4,9 @@ use anyhow::Context as _;
 use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, Model, ModelId, ResultStream,
 };
+use forge_config::RetryConfig;
 use forge_app::dto::google::{EventData, Request};
 use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;

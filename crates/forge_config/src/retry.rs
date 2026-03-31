@@ -3,9 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for retry mechanism.
-#[derive(
-    Debug, Clone, Default, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, Setters,
-)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, Setters)]
 #[serde(rename_all = "snake_case")]
 #[setters(into)]
 pub struct RetryConfig {
@@ -23,6 +21,18 @@ pub struct RetryConfig {
     pub max_delay_secs: Option<u64>,
     /// Whether to suppress retry error logging and events
     pub suppress_errors: bool,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        let defaults = include_str!("../.forge.toml");
+        config::Config::builder()
+            .add_source(config::File::from_str(defaults, config::FileFormat::Toml))
+            .build()
+            .expect("embedded .forge.toml must be valid")
+            .get::<Self>("retry")
+            .expect("embedded .forge.toml must contain [retry]")
+    }
 }
 
 #[cfg(test)]
@@ -43,6 +53,22 @@ mod tests {
             suppress_errors: false,
         };
         assert_eq!(config.initial_backoff_ms, 200);
+        assert_eq!(config.suppress_errors, false);
+    }
+
+    #[test]
+    fn test_retry_config_default() {
+        let config = RetryConfig::default();
+
+        assert_eq!(config.initial_backoff_ms, 200);
+        assert_eq!(config.min_delay_ms, 1000);
+        assert_eq!(config.backoff_factor, 2);
+        assert_eq!(config.max_attempts, 8);
+        assert_eq!(
+            config.status_codes,
+            vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
+        );
+        assert_eq!(config.max_delay_secs, None);
         assert_eq!(config.suppress_errors, false);
     }
 }

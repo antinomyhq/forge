@@ -465,8 +465,34 @@ where
 impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> AgentRepository
     for ForgeRepo<F>
 {
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
-        self.agent_repository.get_agents().await
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
+        let agent_defs = self.agent_repository.load_agents().await?;
+
+        let config = self.get_config();
+        let session = config
+            .session
+            .as_ref()
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+        let default_provider_id = session
+            .provider_id
+            .as_ref()
+            .map(|id| forge_domain::ProviderId::from(id.clone()))
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+        let default_model = session
+            .model_id
+            .as_ref()
+            .map(forge_domain::ModelId::new)
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No default model configured for provider {}",
+                    default_provider_id
+                )
+            })?;
+
+        Ok(agent_defs
+            .into_iter()
+            .map(|def| def.into_agent(default_provider_id.clone(), default_model.clone()))
+            .collect())
     }
 }
 
