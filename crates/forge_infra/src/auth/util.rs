@@ -43,19 +43,21 @@ pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenRespo
 /// Build HTTP client with custom headers, respecting proxy and TLS settings
 /// from the supplied [`forge_domain::HttpConfig`].
 ///
-/// **Proxy**: `reqwest` automatically reads `HTTPS_PROXY`/`https_proxy`/`ALL_PROXY`
-/// for HTTPS traffic, but does **not** fall back to `HTTP_PROXY` for HTTPS requests.
-/// In corporate environments where only `HTTP_PROXY` is set, HTTPS requests would
-/// bypass the proxy entirely and fail when direct outbound connections are blocked.
-/// This function detects that situation and explicitly routes HTTPS traffic through
-/// `HTTP_PROXY` as well.
+/// **Proxy**: `reqwest` automatically reads
+/// `HTTPS_PROXY`/`https_proxy`/`ALL_PROXY` for HTTPS traffic, but does **not**
+/// fall back to `HTTP_PROXY` for HTTPS requests. In corporate environments
+/// where only `HTTP_PROXY` is set, HTTPS requests would bypass the proxy
+/// entirely and fail when direct outbound connections are blocked.
+/// This function detects that situation and explicitly routes HTTPS traffic
+/// through `HTTP_PROXY` as well.
 ///
-/// **TLS**: Corporate proxies commonly perform TLS inspection using a private root
-/// CA installed in the system certificate store. `rustls` ships its own Mozilla CA
-/// bundle and does **not** read the OS store, so the TLS handshake fails even when
-/// the proxy is correctly configured. The `http_config` parameter carries the same
-/// `accept_invalid_certs` and `root_cert_paths` settings that `ForgeHttpInfra`
-/// uses, so a custom corporate CA is trusted by auth requests too.
+/// **TLS**: Corporate proxies commonly perform TLS inspection using a private
+/// root CA installed in the system certificate store. `rustls` ships its own
+/// Mozilla CA bundle and does **not** read the OS store, so the TLS handshake
+/// fails even when the proxy is correctly configured. The `http_config`
+/// parameter carries the same `accept_invalid_certs` and `root_cert_paths`
+/// settings that `ForgeHttpInfra` uses, so a custom corporate CA is trusted by
+/// auth requests too.
 pub(crate) fn build_http_client(
     custom_headers: Option<&HashMap<String, String>>,
     http_config: &forge_domain::HttpConfig,
@@ -277,12 +279,9 @@ mod tests {
             .unwrap();
 
         let accept_task = tokio::spawn(async move {
-            tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                listener.accept(),
-            )
-            .await
-            .is_ok()
+            tokio::time::timeout(std::time::Duration::from_millis(500), listener.accept())
+                .await
+                .is_ok()
         });
 
         let _ = old_client
@@ -300,8 +299,8 @@ mod tests {
     }
 
     /// Prove that `build_http_client` (the new implementation) routes HTTPS
-    /// requests through `HTTP_PROXY` when no `HTTPS_PROXY` / `ALL_PROXY` is set.
-    /// The fake proxy TCP listener **does** receive the connection.
+    /// requests through `HTTP_PROXY` when no `HTTPS_PROXY` / `ALL_PROXY` is
+    /// set. The fake proxy TCP listener **does** receive the connection.
     #[tokio::test]
     async fn test_new_client_routes_https_through_http_proxy() {
         let _guard = PROXY_TEST_MUTEX.lock().unwrap();
@@ -322,12 +321,9 @@ mod tests {
         let new_client = build_http_client(None, &forge_domain::HttpConfig::default()).unwrap();
 
         let accept_task = tokio::spawn(async move {
-            tokio::time::timeout(
-                std::time::Duration::from_millis(500),
-                listener.accept(),
-            )
-            .await
-            .is_ok()
+            tokio::time::timeout(std::time::Duration::from_millis(500), listener.accept())
+                .await
+                .is_ok()
         });
 
         let _ = new_client
@@ -360,11 +356,7 @@ mod tests {
         std::fs::write(cert_file.path(), b"not a certificate").unwrap();
 
         let http_config = forge_domain::HttpConfig {
-            root_cert_paths: Some(vec![cert_file
-                .path()
-                .to_str()
-                .unwrap()
-                .to_string()]),
+            root_cert_paths: Some(vec![cert_file.path().to_str().unwrap().to_string()]),
             ..Default::default()
         };
 

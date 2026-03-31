@@ -115,14 +115,14 @@ impl ClientBuilderExt for reqwest::ClientBuilder {
             .or_else(|_| std::env::var("all_proxy"))
             .is_ok();
 
-        if !has_https_proxy {
-            if let Ok(proxy_url) =
+        if !has_https_proxy
+            && let Ok(proxy_url) =
                 std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy"))
-            {
-                return Ok(self.proxy(reqwest::Proxy::all(&proxy_url).map_err(|e| {
-                    anyhow::anyhow!("Invalid HTTP_PROXY URL '{proxy_url}': {e}")
-                })?));
-            }
+        {
+            return Ok(self.proxy(
+                reqwest::Proxy::all(&proxy_url)
+                    .map_err(|e| anyhow::anyhow!("Invalid HTTP_PROXY URL '{proxy_url}': {e}"))?,
+            ));
         }
 
         Ok(self)

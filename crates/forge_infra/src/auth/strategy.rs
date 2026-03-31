@@ -175,10 +175,10 @@ impl AuthStrategy for OAuthDeviceStrategy {
         }
 
         // Build HTTP client with custom headers
-        let http_client =
-            build_http_client(self.config.custom_headers.as_ref(), &self.http_config).map_err(
-                |e| AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}")),
-            )?;
+        let http_client = build_http_client(self.config.custom_headers.as_ref(), &self.http_config)
+            .map_err(|e| {
+                AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
+            })?;
 
         let http_fn = |req| github_compliant_http_request(http_client.clone(), req);
 
@@ -547,10 +547,10 @@ fn extract_chatgpt_account_id(token: &str) -> Option<String> {
 #[async_trait::async_trait]
 impl AuthStrategy for CodexDeviceStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
-        let http_client =
-            build_http_client(self.config.custom_headers.as_ref(), &self.http_config).map_err(
-                |e| AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}")),
-            )?;
+        let http_client = build_http_client(self.config.custom_headers.as_ref(), &self.http_config)
+            .map_err(|e| {
+                AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
+            })?;
 
         // Step 1: Request device authorization from OpenAI's custom endpoint
         let response = http_client
