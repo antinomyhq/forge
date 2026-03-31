@@ -11,12 +11,6 @@ use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, RetryConf
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
-///
-/// All fields are `Option` so that partial configs (e.g. legacy JSON, user
-/// overrides) only carry the keys they explicitly set. The `config` crate
-/// merges layers by key: absent (`None`) values are transparently skipped,
-/// letting lower-priority layers supply the defaults from the embedded
-/// `.forge.toml`.
 #[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
