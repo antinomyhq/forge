@@ -1,10 +1,9 @@
 use derive_setters::Setters;
-use merge::Merge;
 
 use crate::{
     AgentDefinition, AgentId, Compact, Error, EventContext, MaxTokens, ModelId, ProviderId,
     ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition, ToolName, TopK,
-    TopP, WorkflowConfig,
+    TopP,
 };
 
 /// Runtime agent representation with required model and provider
@@ -111,56 +110,6 @@ impl Agent {
         }
         Ok(ToolDefinition::new(self.id.as_str().to_string())
             .description(self.description.clone().unwrap()))
-    }
-
-    /// Applies workflow-level configuration overrides to this agent.
-    ///
-    /// # Arguments
-    /// * `config` - Workflow configuration built from `ForgeConfig` by the
-    ///   application layer.
-    pub fn apply_env(self, config: &WorkflowConfig) -> Agent {
-        let mut agent = self;
-
-        if let Some(temperature) = config.temperature {
-            agent.temperature = Some(temperature);
-        }
-
-        if let Some(top_p) = config.top_p {
-            agent.top_p = Some(top_p);
-        }
-
-        if let Some(top_k) = config.top_k {
-            agent.top_k = Some(top_k);
-        }
-
-        if let Some(max_tokens) = config.max_tokens {
-            agent.max_tokens = Some(max_tokens);
-        }
-
-        if agent.max_tool_failure_per_turn.is_none()
-            && let Some(max_tool_failure_per_turn) = config.max_tool_failure_per_turn
-        {
-            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
-        }
-
-        agent.tool_supported = Some(config.tool_supported);
-
-        if agent.max_requests_per_turn.is_none()
-            && let Some(max_requests_per_turn) = config.max_requests_per_turn
-        {
-            agent.max_requests_per_turn = Some(max_requests_per_turn);
-        }
-
-        // Apply workflow compact configuration to agents
-        if let Some(ref workflow_compact) = config.compact {
-            // Merge workflow config into agent config
-            // Agent settings take priority over workflow settings
-            let mut merged_compact = workflow_compact.clone();
-            merged_compact.merge(agent.compact.clone());
-            agent.compact = merged_compact;
-        }
-
-        agent
     }
 
     /// Sets the model in compaction config if not already set

@@ -19,13 +19,14 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService, Services,
+    AgentExt, AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService,
+    Services,
 };
 
 /// Builds a [`WorkflowConfig`] from a [`ForgeConfig`].
 ///
 /// Converts the configuration-layer types into the domain-layer types expected
-/// by [`Agent::apply_env`] and [`Orchestrator`].
+/// by [`AgentExt::apply_config`] and [`Orchestrator`].
 pub(crate) fn build_workflow_config(config: &ForgeConfig) -> WorkflowConfig {
     WorkflowConfig {
         temperature: config
@@ -136,7 +137,7 @@ impl<S: Services> ForgeApp<S> {
             .get_agent(&agent_id)
             .await?
             .ok_or(crate::Error::AgentNotFound(agent_id.clone()))?
-            .apply_env(&workflow_config)
+            .apply_config(&workflow_config)
             .set_compact_model_if_none();
 
         let agent_provider = agent_provider_resolver
@@ -289,7 +290,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get compact config from the agent
         let compact = agent
-            .apply_env(&workflow_config)
+            .apply_config(&workflow_config)
             .set_compact_model_if_none()
             .compact;
 

@@ -40,10 +40,10 @@ pub enum ConfigOperation {
 /// Workflow-level configuration derived from [`ForgeConfig`] that is applied to
 /// agents at runtime.
 ///
-/// This struct contains only the fields that [`crate::Agent::apply_env`] needs,
-/// all expressed in domain types. Callers in the application layer build a
-/// `WorkflowConfig` from the persisted `ForgeConfig` and pass it to
-/// `apply_env`.
+/// This struct contains only the fields that agents need when workflow-level
+/// overrides are applied, all expressed in domain types. Callers in the
+/// application layer build a [`WorkflowConfig`] from the persisted `ForgeConfig`
+/// and pass it to `AgentExt::apply_env`.
 #[derive(Default, Debug, Clone)]
 pub struct WorkflowConfig {
     /// Output randomness for all agents (0.0–2.0).

@@ -19,7 +19,8 @@ use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
+    AgentExt, AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService,
+    TemplateService,
 };
 
 static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
@@ -93,7 +94,7 @@ impl Runner {
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
         let workflow_config = build_workflow_config(&setup.config);
-        let agent = agent.apply_env(&workflow_config).model(setup.model.clone());
+        let agent = agent.apply_config(&workflow_config).model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())

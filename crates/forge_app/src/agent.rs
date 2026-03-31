@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use forge_domain::{
     Agent, ChatCompletionMessage, Context, Conversation, ModelId, ProviderId, ResultStream,
-    ToolCallContext, ToolCallFull, ToolResult,
+    ToolCallContext, ToolCallFull, ToolResult, WorkflowConfig,
 };
+use merge::Merge;
 
 use crate::services::AppConfigService;
 use crate::tool_registry::ToolRegistry;
@@ -64,5 +65,72 @@ impl<T: Services> AgentService for T {
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.upsert_conversation(conversation).await
+    }
+}
+
+/// Extension trait for applying workflow-level configuration overrides to an
+/// [`Agent`].
+///
+/// This lives in the application layer because the [`WorkflowConfig`] is built
+/// from [`forge_config::ForgeConfig`] by the application layer before being
+/// applied to domain agents at runtime.
+pub trait AgentExt {
+    /// Applies workflow-level configuration overrides to this agent.
+    ///
+    /// Fields in `config` always win over agent defaults, except for
+    /// `max_tool_failure_per_turn` and `max_requests_per_turn` where the
+    /// agent's own value takes priority (i.e. the workflow value is only
+    /// applied when the agent has no value set).
+    ///
+    /// # Arguments
+    /// * `config` - Workflow configuration built from `ForgeConfig` by the
+    ///   application layer.
+    fn apply_config(self, config: &WorkflowConfig) -> Agent;
+}
+
+impl AgentExt for Agent {
+    fn apply_config(self, config: &WorkflowConfig) -> Agent {
+        let mut agent = self;
+
+        if let Some(temperature) = config.temperature {
+            agent.temperature = Some(temperature);
+        }
+
+        if let Some(top_p) = config.top_p {
+            agent.top_p = Some(top_p);
+        }
+
+        if let Some(top_k) = config.top_k {
+            agent.top_k = Some(top_k);
+        }
+
+        if let Some(max_tokens) = config.max_tokens {
+            agent.max_tokens = Some(max_tokens);
+        }
+
+        if agent.max_tool_failure_per_turn.is_none()
+            && let Some(max_tool_failure_per_turn) = config.max_tool_failure_per_turn
+        {
+            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
+        }
+
+        agent.tool_supported = Some(config.tool_supported);
+
+        if agent.max_requests_per_turn.is_none()
+            && let Some(max_requests_per_turn) = config.max_requests_per_turn
+        {
+            agent.max_requests_per_turn = Some(max_requests_per_turn);
+        }
+
+        // Apply workflow compact configuration to agents
+        if let Some(ref workflow_compact) = config.compact {
+            // Merge workflow config into agent config
+            // Agent settings take priority over workflow settings
+            let mut merged_compact = workflow_compact.clone();
+            merged_compact.merge(agent.compact.clone());
+            agent.compact = merged_compact;
+        }
+
+        agent
     }
 }
