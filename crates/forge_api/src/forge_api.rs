@@ -8,7 +8,8 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
     FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
+    ProviderAuthService, ProviderService, Services, ShellService, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
@@ -377,6 +378,22 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>> {
         let app = DataGenerationApp::new(self.services.clone());
         app.execute(data_parameters).await
+    }
+
+    async fn list_background_processes(
+        &self,
+    ) -> Result<Vec<(forge_domain::BackgroundProcess, bool)>> {
+        self.services
+            .shell_service()
+            .list_background_processes()
+            .await
+    }
+
+    async fn kill_background_process(&self, pid: u32, delete_log: bool) -> Result<()> {
+        self.services
+            .shell_service()
+            .kill_background_process(pid, delete_log)
+            .await
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {

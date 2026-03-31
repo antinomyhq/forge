@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::CommandInfra;
-use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
+use forge_domain::{
+    BackgroundCommandOutput, CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment,
+};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -223,6 +225,110 @@ impl CommandInfra for ForgeCommandExecutorService {
             .stderr(std::process::Stdio::inherit());
 
         Ok(prepared_command.spawn()?.wait().await?)
+    }
+
+    async fn execute_command_background(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<BackgroundCommandOutput> {
+        // Create a temp log file that will capture stdout/stderr
+        let log_file = tempfile::Builder::new()
+            .prefix("forge-bg-")
+            .suffix(".log")
+            .disable_cleanup(true)
+            .tempfile()
+            .map_err(|e| anyhow::anyhow!("Failed to create background log file: {e}"))?;
+        let log_path = log_file.path().to_path_buf();
+        let log_path_str = log_path.display().to_string();
+
+        tracing::info!(
+            command = %command,
+            log_path = %log_path_str,
+            "Spawning background process"
+        );
+
+        // NOTE: We intentionally do NOT acquire self.ready here.
+        // Background spawns should not block foreground commands.
+
+        let pid = spawn_background_process(
+            &command,
+            &working_dir,
+            &log_path_str,
+            &self.env.shell,
+            env_vars,
+        )
+        .await?;
+
+        tracing::info!(pid = pid, log_path = %log_path_str, "Background process spawned");
+
+        Ok(BackgroundCommandOutput { command, pid, log_file: log_path, log_handle: log_file })
+    }
+}
+
+/// Spawn a background process, returning its PID.
+async fn spawn_background_process(
+    command: &str,
+    working_dir: &Path,
+    log_path: &str,
+    shell: &str,
+    env_vars: Option<Vec<String>>,
+) -> anyhow::Result<u32> {
+    let is_windows = cfg!(target_os = "windows");
+
+    let mut cmd = if is_windows {
+        let bg_command = format!("{command} > \"{log_path}\" 2>&1");
+        let mut cmd = Command::new("cmd");
+        cmd.args(["/C", "start", "/b", "cmd", "/C", &bg_command]);
+        cmd
+    } else {
+        let bg_command = format!("nohup {command} > '{log_path}' 2>&1 & echo $!");
+        let mut cmd = Command::new(shell);
+        cmd.arg("-c").arg(&bg_command);
+        cmd
+    };
+
+    cmd.current_dir(working_dir)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(false);
+
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x00000010); // DETACHED_PROCESS
+    }
+
+    if let Some(vars) = env_vars {
+        for var in vars {
+            if let Ok(value) = std::env::var(&var) {
+                cmd.env(&var, value);
+            }
+        }
+    }
+
+    if is_windows {
+        let child = cmd.spawn()?;
+        child
+            .id()
+            .ok_or_else(|| anyhow::anyhow!("Failed to get PID of background process on Windows"))
+    } else {
+        let output = cmd.output().await?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            anyhow::bail!("Failed to spawn background process: {stderr}");
+        }
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        stdout
+            .trim()
+            .lines()
+            .last()
+            .unwrap_or("")
+            .trim()
+            .parse()
+            .map_err(|e| anyhow::anyhow!("Failed to parse PID from shell output '{stdout}': {e}"))
     }
 }
 

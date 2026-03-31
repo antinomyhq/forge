@@ -1,3 +1,4 @@
+mod background_process;
 mod fetch;
 mod followup;
 mod fs_patch;
@@ -8,9 +9,11 @@ mod fs_undo;
 mod fs_write;
 mod image_read;
 mod plan_create;
+mod process_metadata;
 mod shell;
 mod skill;
 
+pub use background_process::*;
 pub use fetch::*;
 pub use followup::*;
 pub use fs_patch::*;
@@ -21,5 +24,6 @@ pub use fs_undo::*;
 pub use fs_write::*;
 pub use image_read::*;
 pub use plan_create::*;
+pub use process_metadata::*;
 pub use shell::*;
 pub use skill::*;

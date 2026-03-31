@@ -151,6 +151,21 @@ pub enum TopLevelCommand {
 
     /// Run diagnostics on shell environment (alias for `zsh doctor`).
     Doctor,
+
+    /// List and manage background processes spawned during shell sessions.
+    Processes {
+        /// Output in machine-readable format (tab-separated).
+        #[arg(long)]
+        porcelain: bool,
+
+        /// Kill the process with the given PID.
+        #[arg(long)]
+        kill: Option<u32>,
+
+        /// When used with --kill, also delete the log file.
+        #[arg(long)]
+        delete_log: bool,
+    },
 }
 
 /// Command group for custom command management.

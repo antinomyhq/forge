@@ -282,6 +282,7 @@ impl ForgeCommandManager {
                 Ok(SlashCommand::Commit { max_diff_size })
             }
             "/index" => Ok(SlashCommand::Index),
+            "/processes" | "/ps" => Ok(SlashCommand::Processes),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -437,6 +438,10 @@ pub enum SlashCommand {
     /// Index the current workspace for semantic code search
     #[strum(props(usage = "Index the current workspace for semantic search"))]
     Index,
+
+    /// List and manage background processes spawned during this session
+    #[strum(props(usage = "List and manage background processes [alias: ps]"))]
+    Processes,
 }
 
 impl SlashCommand {
@@ -469,6 +474,7 @@ impl SlashCommand {
             SlashCommand::Delete => "delete",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
+            SlashCommand::Processes => "processes",
         }
     }
 

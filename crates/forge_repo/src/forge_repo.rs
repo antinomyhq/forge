@@ -453,6 +453,17 @@ where
             .execute_command_raw(command, working_dir, env_vars)
             .await
     }
+
+    async fn execute_command_background(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<forge_domain::BackgroundCommandOutput> {
+        self.infra
+            .execute_command_background(command, working_dir, env_vars)
+            .await
+    }
 }
 
 #[async_trait::async_trait]

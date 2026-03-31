@@ -65,7 +65,7 @@ mod tests {
     use crate::operation::ToolOperation;
     use crate::{
         Content, FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, Match, MatchResult,
-        PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+        PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput, ShellOutputKind,
     };
 
     // ContentFormat methods are now implemented in ChatResponseContent
@@ -421,12 +421,12 @@ mod tests {
     fn test_shell_success() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "ls -la".to_string(),
                     stdout: "file1.txt\nfile2.txt".to_string(),
                     stderr: "".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -443,12 +443,12 @@ mod tests {
     fn test_shell_success_with_stderr() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "command_with_warnings".to_string(),
                     stdout: "output line".to_string(),
                     stderr: "warning line".to_string(),
                     exit_code: Some(0),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
@@ -465,12 +465,12 @@ mod tests {
     fn test_shell_failure() {
         let fixture = ToolOperation::Shell {
             output: ShellOutput {
-                output: forge_domain::CommandOutput {
+                kind: ShellOutputKind::Foreground(forge_domain::CommandOutput {
                     command: "failing_command".to_string(),
                     stdout: "".to_string(),
                     stderr: "Error: command not found".to_string(),
                     exit_code: Some(127),
-                },
+                }),
                 shell: "/bin/bash".to_string(),
                 description: None,
             },
