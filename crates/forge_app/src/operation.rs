@@ -542,10 +542,7 @@ impl ToolOperation {
                     .attr("url", &input.url)
                     .attr("status_code", output.code)
                     .attr("start_char", 0)
-                    .attr(
-                        "end_char",
-                        config.max_fetch_chars.min(output.content.len()),
-                    )
+                    .attr("end_char", config.max_fetch_chars.min(output.content.len()))
                     .attr("total_chars", output.content.len())
                     .attr("content_type", content_type);
 

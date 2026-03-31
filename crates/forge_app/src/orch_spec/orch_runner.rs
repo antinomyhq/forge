@@ -10,8 +10,8 @@ use include_dir::{Dir, include_dir};
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
+use crate::app::build_template_config;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::app::{build_template_config, retry_config_to_domain};
 use crate::hooks::DoomLoopDetector;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
@@ -119,7 +119,7 @@ impl Runner {
             ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
         let conversation = SetConversationId.apply(conversation);
 
-        let retry_config = setup.config.retry.as_ref().map(retry_config_to_domain).unwrap_or_default();
+        let retry_config = setup.config.retry.clone().unwrap_or_default();
         let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)

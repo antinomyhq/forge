@@ -32,7 +32,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
         let config = self.infra.get_config();
-        config.session
+        config
+            .session
             .as_ref()
             .and_then(|s| s.provider_id.as_ref())
             .map(|id| ProviderId::from(id.clone()))

@@ -1,8 +1,83 @@
 use forge_domain::{
     Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
-    MessageEntry, Transformer,
+    MessageEntry, Role, Transformer,
 };
-use tracing::info;
+use tracing::{debug, info};
+
+/// Extension methods for [`Compact`] that require domain types (`Context`,
+/// `Role`).
+pub(crate) trait CompactExt {
+    /// Determines if compaction should be triggered based on the current
+    /// context and token count.
+    fn should_compact(&self, context: &Context, token_count: usize) -> bool;
+
+    /// Checks if compaction should be triggered when the last message is from a
+    /// user.
+    fn should_compact_on_turn_end(&self, context: &Context) -> bool;
+
+    /// Checks if compaction should be triggered due to token count exceeding
+    /// threshold.
+    fn should_compact_due_to_tokens(&self, token_count: usize) -> bool;
+
+    /// Checks if compaction should be triggered due to turn count exceeding
+    /// threshold.
+    fn should_compact_due_to_turns(&self, context: &Context) -> bool;
+
+    /// Checks if compaction should be triggered due to message count exceeding
+    /// threshold.
+    fn should_compact_due_to_messages(&self, context: &Context) -> bool;
+}
+
+impl CompactExt for Compact {
+    fn should_compact(&self, context: &Context, token_count: usize) -> bool {
+        self.should_compact_due_to_tokens(token_count)
+            || self.should_compact_due_to_turns(context)
+            || self.should_compact_due_to_messages(context)
+            || self.should_compact_on_turn_end(context)
+    }
+
+    fn should_compact_due_to_tokens(&self, token_count: usize) -> bool {
+        if let Some(token_threshold) = self.token_threshold {
+            debug!(tokens = ?token_count, "Token count");
+            token_count >= token_threshold
+        } else {
+            false
+        }
+    }
+
+    fn should_compact_due_to_turns(&self, context: &Context) -> bool {
+        if let Some(turn_threshold) = self.turn_threshold {
+            context
+                .messages
+                .iter()
+                .filter(|message| message.has_role(Role::User))
+                .count()
+                >= turn_threshold
+        } else {
+            false
+        }
+    }
+
+    fn should_compact_due_to_messages(&self, context: &Context) -> bool {
+        if let Some(message_threshold) = self.message_threshold {
+            context.messages.len() >= message_threshold
+        } else {
+            false
+        }
+    }
+
+    fn should_compact_on_turn_end(&self, context: &Context) -> bool {
+        if let Some(true) = self.on_turn_end {
+            context
+                .messages
+                .last()
+                .map(|message| message.has_role(Role::User))
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    }
+}
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
@@ -39,7 +114,7 @@ impl Compactor {
 impl Compactor {
     /// Apply compaction to the context if requested.
     pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
-        let eviction = CompactionStrategy::evict(self.compact.eviction_window);
+        let eviction = CompactionStrategy::evict(self.compact.eviction_window.value());
         let retention = CompactionStrategy::retain(self.compact.retention_window);
 
         let strategy = if max {
@@ -646,5 +721,280 @@ mod tests {
             Some(expected_total_usage),
             "accumulate_usage() must include usage from both compacted and surviving messages"
         );
+    }
+
+    /// Creates a Context from a condensed string pattern where:
+    /// - 'u' = User message
+    /// - 'a' = Assistant message
+    /// - 's' = System message
+    fn ctx(pattern: &str) -> Context {
+        forge_domain::MessagePattern::new(pattern).build()
+    }
+
+    #[test]
+    fn test_should_compact_due_to_tokens_exceeds_threshold() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(100_usize);
+        let actual = fixture.should_compact_due_to_tokens(150);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_tokens_under_threshold() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(100_usize);
+        let actual = fixture.should_compact_due_to_tokens(50);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_tokens_equals_threshold() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(100_usize);
+        let actual = fixture.should_compact_due_to_tokens(100);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_tokens_no_threshold() {
+        let fixture = Compact::new().model("test-model");
+        let actual = fixture.should_compact_due_to_tokens(1000);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_turns_exceeds_threshold() {
+        let fixture = Compact::new().model("test-model").turn_threshold(2_usize);
+        let context = ctx("uauau");
+        let actual = fixture.should_compact_due_to_turns(&context);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_turns_under_threshold() {
+        let fixture = Compact::new().model("test-model").turn_threshold(3_usize);
+        let context = ctx("ua");
+        let actual = fixture.should_compact_due_to_turns(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_turns_equals_threshold() {
+        let fixture = Compact::new().model("test-model").turn_threshold(2_usize);
+        let context = ctx("uau");
+        let actual = fixture.should_compact_due_to_turns(&context);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_turns_no_threshold() {
+        let fixture = Compact::new().model("test-model");
+        let context = ctx("uuu");
+        let actual = fixture.should_compact_due_to_turns(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_turns_ignores_non_user_messages() {
+        let fixture = Compact::new().model("test-model").turn_threshold(2_usize);
+        let context = ctx("uasa");
+        let actual = fixture.should_compact_due_to_turns(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_messages_exceeds_threshold() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .message_threshold(3_usize);
+        let context = ctx("uaua");
+        let actual = fixture.should_compact_due_to_messages(&context);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_messages_under_threshold() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .message_threshold(5_usize);
+        let context = ctx("ua");
+        let actual = fixture.should_compact_due_to_messages(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_messages_equals_threshold() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .message_threshold(3_usize);
+        let context = ctx("uau");
+        let actual = fixture.should_compact_due_to_messages(&context);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_messages_no_threshold() {
+        let fixture = Compact::new().model("test-model");
+        let context = ctx("uauau");
+        let actual = fixture.should_compact_due_to_messages(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_no_thresholds_set() {
+        let fixture = Compact::new().model("test-model");
+        let context = ctx("ua");
+        let actual = fixture.should_compact(&context, 1000);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_token_threshold_triggers() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(100_usize);
+        let context = ctx("u");
+        let actual = fixture.should_compact(&context, 150);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_turn_threshold_triggers() {
+        let fixture = Compact::new().model("test-model").turn_threshold(1_usize);
+        let context = ctx("uau");
+        let actual = fixture.should_compact(&context, 50);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_message_threshold_triggers() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .message_threshold(2_usize);
+        let context = ctx("uau");
+        let actual = fixture.should_compact(&context, 50);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_multiple_thresholds_any_triggers() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(200_usize)
+            .turn_threshold(5_usize)
+            .message_threshold(10_usize);
+        let context = ctx("ua");
+        let actual = fixture.should_compact(&context, 250);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_multiple_thresholds_none_trigger() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(200_usize)
+            .turn_threshold(5_usize)
+            .message_threshold(10_usize);
+        let context = ctx("ua");
+        let actual = fixture.should_compact(&context, 100);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_empty_context() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .message_threshold(1_usize);
+        let context = ctx("");
+        let actual = fixture.should_compact(&context, 0);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_last_user_message_enabled_user_last() {
+        let fixture = Compact::new().model("test-model").on_turn_end(true);
+        let context = ctx("au");
+        let actual = fixture.should_compact_on_turn_end(&context);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_last_user_message_enabled_assistant_last() {
+        let fixture = Compact::new().model("test-model").on_turn_end(true);
+        let context = ctx("ua");
+        let actual = fixture.should_compact_on_turn_end(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_last_user_message_enabled_system_last() {
+        let fixture = Compact::new().model("test-model").on_turn_end(true);
+        let context = ctx("us");
+        let actual = fixture.should_compact_on_turn_end(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_last_user_message_disabled() {
+        let fixture = Compact::new().model("test-model").on_turn_end(false);
+        let context = ctx("au");
+        let actual = fixture.should_compact_on_turn_end(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_last_user_message_not_configured() {
+        let fixture = Compact::new().model("test-model");
+        let context = ctx("au");
+        let actual = fixture.should_compact_on_turn_end(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_due_to_last_user_message_empty_context() {
+        let fixture = Compact::new().model("test-model").on_turn_end(true);
+        let context = ctx("");
+        let actual = fixture.should_compact_on_turn_end(&context);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_last_user_message_integration() {
+        let fixture = Compact::new().model("test-model").on_turn_end(true);
+        let context = ctx("au");
+        let actual = fixture.should_compact(&context, 10);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_should_compact_last_user_message_integration_disabled() {
+        let fixture = Compact::new().model("test-model").on_turn_end(false);
+        let context = ctx("au");
+        let actual = fixture.should_compact(&context, 10);
+        assert_eq!(actual, false);
+    }
+
+    #[test]
+    fn test_should_compact_multiple_conditions_with_last_user_message() {
+        let fixture = Compact::new()
+            .model("test-model")
+            .token_threshold(200_usize)
+            .on_turn_end(true);
+        let context = ctx("au");
+        let actual = fixture.should_compact(&context, 50);
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_compact_model_none_falls_back_to_agent_model() {
+        let compact = Compact::new()
+            .token_threshold(1000_usize)
+            .turn_threshold(5_usize);
+        assert_eq!(compact.model, None);
+        assert_eq!(compact.token_threshold, Some(1000_usize));
+        assert_eq!(compact.turn_threshold, Some(5_usize));
     }
 }

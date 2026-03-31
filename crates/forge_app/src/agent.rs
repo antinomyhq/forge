@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_config::ForgeConfig;
 use forge_domain::{
-    Agent, ChatCompletionMessage, Compact, Context, Conversation, MaxTokens, ModelId, ProviderId,
+    Agent, ChatCompletionMessage, Context, Conversation, MaxTokens, ModelId, ProviderId,
     ResultStream, Temperature, ToolCallContext, ToolCallFull, ToolResult, TopK, TopP,
 };
 use merge::Merge;
@@ -91,7 +91,10 @@ impl AgentExt for Agent {
     fn apply_config(self, config: &ForgeConfig) -> Agent {
         let mut agent = self;
 
-        if let Some(temperature) = config.temperature.and_then(|d| Temperature::new(d.0 as f32).ok()) {
+        if let Some(temperature) = config
+            .temperature
+            .and_then(|d| Temperature::new(d.0 as f32).ok())
+        {
             agent.temperature = Some(temperature);
         }
 
@@ -125,25 +128,11 @@ impl AgentExt for Agent {
         if let Some(ref workflow_compact) = config.compact {
             // Merge workflow config into agent config
             // Agent settings take priority over workflow settings
-            let mut merged_compact = compact_to_domain(workflow_compact);
+            let mut merged_compact = workflow_compact.clone();
             merged_compact.merge(agent.compact.clone());
             agent.compact = merged_compact;
         }
 
         agent
-    }
-}
-
-/// Converts a [`forge_config::Compact`] to a [`forge_domain::Compact`].
-fn compact_to_domain(c: &forge_config::Compact) -> Compact {
-    Compact {
-        retention_window: c.retention_window,
-        eviction_window: c.eviction_window.value(),
-        max_tokens: c.max_tokens,
-        token_threshold: c.token_threshold,
-        turn_threshold: c.turn_threshold,
-        message_threshold: c.message_threshold,
-        model: c.model.as_ref().map(ModelId::new),
-        on_turn_end: c.on_turn_end,
     }
 }

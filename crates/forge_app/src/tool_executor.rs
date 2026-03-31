@@ -69,8 +69,7 @@ impl<
         match operation {
             ToolOperation::NetFetch { input: _, output } => {
                 let original_length = output.content.len();
-                let is_truncated =
-                    original_length > self.services.get_config().max_fetch_chars;
+                let is_truncated = original_length > self.services.get_config().max_fetch_chars;
                 let mut files = TempContentFiles::default();
 
                 if is_truncated {

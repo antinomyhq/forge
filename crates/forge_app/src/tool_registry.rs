@@ -387,7 +387,9 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, Environment, ModelId, ProviderId, TemplateConfig, ToolCatalog, ToolName};
+    use forge_domain::{
+        Agent, AgentId, Environment, ModelId, ProviderId, TemplateConfig, ToolCatalog, ToolName,
+    };
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
@@ -683,10 +685,7 @@ fn test_template_rendering_in_tool_descriptions() {
     use fake::{Fake, Faker};
 
     let env: Environment = Faker.fake();
-    let template_config = TemplateConfig {
-        max_line_length: 2000,
-        ..Default::default()
-    };
+    let template_config = TemplateConfig { max_line_length: 2000, ..Default::default() };
 
     let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
     let fs_search_tool = actual
@@ -896,8 +895,7 @@ fn test_dynamic_tool_description_without_model() {
     };
 
     // When no model is provided, should default to showing minimal capabilities
-    let tools_no_model =
-        ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
+    let tools_no_model = ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
     let read_tool = tools_no_model
         .iter()
         .find(|t| t.name.as_str() == "read")

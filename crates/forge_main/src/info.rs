@@ -294,7 +294,10 @@ impl From<&Environment> for Info {
         let agent_path = env.agent_path();
         info = info
             .add_key_value("Agents", format_path_for_display(env, &agent_path))
-            .add_key_value("History", format_path_for_display(env, &env.history_path(None)))
+            .add_key_value(
+                "History",
+                format_path_for_display(env, &env.history_path(None)),
+            )
             .add_key_value(
                 "Checkpoints",
                 format_path_for_display(env, &env.snapshot_path()),
@@ -316,10 +319,7 @@ impl From<&ForgeConfig> for Info {
         if let Some(retry) = &config.retry {
             info = info
                 .add_title("RETRY CONFIGURATION")
-                .add_key_value(
-                    "Initial Backoff",
-                    format!("{}ms", retry.initial_backoff_ms),
-                )
+                .add_key_value("Initial Backoff", format!("{}ms", retry.initial_backoff_ms))
                 .add_key_value("Backoff Factor", retry.backoff_factor.to_string())
                 .add_key_value("Max Attempts", retry.max_attempts.to_string())
                 .add_key_value("Suppress Errors", retry.suppress_errors.to_string())
@@ -338,10 +338,7 @@ impl From<&ForgeConfig> for Info {
         if let Some(http) = &config.http {
             info = info
                 .add_title("HTTP CONFIGURATION")
-                .add_key_value(
-                    "Connect Timeout",
-                    format!("{}s", http.connect_timeout_secs),
-                )
+                .add_key_value("Connect Timeout", format!("{}s", http.connect_timeout_secs))
                 .add_key_value("Read Timeout", format!("{}s", http.read_timeout_secs))
                 .add_key_value(
                     "Pool Idle Timeout",

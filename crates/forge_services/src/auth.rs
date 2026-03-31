@@ -18,10 +18,7 @@ impl<I: HttpInfra + EnvironmentInfra> ForgeAuthService<I> {
     }
 
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
-        let url = format!(
-            "{}{USER_INFO_ROUTE}",
-            self.infra.get_config().services_url
-        );
+        let url = format!("{}{USER_INFO_ROUTE}", self.infra.get_config().services_url);
 
         let url = Url::parse(&url)?;
         let mut headers = HeaderMap::new();

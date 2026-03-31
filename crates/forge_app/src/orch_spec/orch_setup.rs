@@ -62,7 +62,9 @@ impl Default for TestContext {
                 shell: "bash".to_string(),
                 base_path: PathBuf::from("/Users/tushar/projects"),
             },
-            config: ForgeConfig::default().tool_supported(true).max_extensions(15),
+            config: ForgeConfig::default()
+                .tool_supported(true)
+                .max_extensions(15),
             title: Some("test-conversation".into()),
             agent: Agent::new(
                 AgentId::new("forge"),

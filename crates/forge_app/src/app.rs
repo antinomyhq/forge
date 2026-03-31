@@ -23,20 +23,6 @@ use crate::{
     Services,
 };
 
-/// Converts a [`forge_config::RetryConfig`] to a
-/// [`forge_domain::RetryConfig`].
-pub(crate) fn retry_config_to_domain(r: &forge_config::RetryConfig) -> RetryConfig {
-    RetryConfig {
-        initial_backoff_ms: r.initial_backoff_ms,
-        min_delay_ms: r.min_delay_ms,
-        backoff_factor: r.backoff_factor,
-        max_retry_attempts: r.max_attempts,
-        retry_status_codes: r.status_codes.clone(),
-        max_delay: r.max_delay_secs,
-        suppress_retry_errors: r.suppress_errors,
-    }
-}
-
 /// Builds a [`TemplateConfig`] from a [`ForgeConfig`].
 ///
 /// Converts the configuration-layer field names into the domain-layer struct
@@ -169,22 +155,13 @@ impl<S: Services> ForgeApp<S> {
             .on_toolcall_end(tracing_handler.clone())
             .on_end(tracing_handler.and(title_handler));
 
-        let retry_config = forge_config
-            .retry
-            .as_ref()
-            .map(retry_config_to_domain)
-            .unwrap_or_default();
+        let retry_config = forge_config.retry.clone().unwrap_or_default();
 
-        let orch = Orchestrator::new(
-            services.clone(),
-            retry_config,
-            conversation,
-            agent,
-        )
-        .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-        .tool_definitions(tool_definitions)
-        .models(models)
-        .hook(Arc::new(hook));
+        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent)
+            .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
+            .tool_definitions(tool_definitions)
+            .models(models)
+            .hook(Arc::new(hook));
 
         // Create and return the stream
         let stream = MpscStream::spawn(

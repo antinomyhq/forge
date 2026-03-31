@@ -61,13 +61,20 @@ impl ForgeInfra {
         let config = config_infra.get_config();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
-        let http_service = Arc::new(ForgeHttpInfra::new(config.clone(), file_write_service.clone()));
+        let http_service = Arc::new(ForgeHttpInfra::new(
+            config.clone(),
+            file_write_service.clone(),
+        ));
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
-        let directory_reader_service =
-            Arc::new(ForgeDirectoryReaderService::new(config.max_parallel_file_reads));
+        let directory_reader_service = Arc::new(ForgeDirectoryReaderService::new(
+            config.max_parallel_file_reads,
+        ));
         let grpc_client = Arc::new(ForgeGrpcClient::new(
-            config.services_url.parse().expect("services_url must be a valid URL"),
+            config
+                .services_url
+                .parse()
+                .expect("services_url must be a valid URL"),
         ));
         let output_printer = Arc::new(StdConsoleWriter::default());
 

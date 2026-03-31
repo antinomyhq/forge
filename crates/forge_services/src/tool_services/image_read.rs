@@ -54,11 +54,15 @@ impl<F: FileInfoInfra + EnvironmentInfra + forge_app::FileReaderInfra> ImageRead
 
         // Validate file size before reading content using image-specific file size
         // limit
-        crate::tool_services::fs_read::assert_file_size(&*self.0, path, config.max_image_size_bytes)
-            .await
-            .with_context(
-                || "Image exceeds size limit. Compress the image or increase FORGE_MAX_IMAGE_SIZE.",
-            )?;
+        crate::tool_services::fs_read::assert_file_size(
+            &*self.0,
+            path,
+            config.max_image_size_bytes,
+        )
+        .await
+        .with_context(
+            || "Image exceeds size limit. Compress the image or increase FORGE_MAX_IMAGE_SIZE.",
+        )?;
 
         // Determine image format from file extension
         let extension = path

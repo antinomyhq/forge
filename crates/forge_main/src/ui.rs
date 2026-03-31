@@ -664,8 +664,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Update(args) => {
-                let update =
-                    forge_config::Update::default().auto_update(args.no_confirm);
+                let update = forge_config::Update::default().auto_update(args.no_confirm);
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
