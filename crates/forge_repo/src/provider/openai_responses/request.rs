@@ -113,11 +113,14 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
         // Map effort level
         if let Some(effort) = config.effort {
             let oai_effort = match effort {
-                Effort::High => oai::ReasoningEffort::High,
-                Effort::Medium => oai::ReasoningEffort::Medium,
-                Effort::Low => oai::ReasoningEffort::Low,
+                Effort::XHigh | Effort::High => Some(oai::ReasoningEffort::High),
+                Effort::Medium => Some(oai::ReasoningEffort::Medium),
+                Effort::Low | Effort::Minimal => Some(oai::ReasoningEffort::Low),
+                Effort::None => None,
             };
-            builder.effort(oai_effort);
+            if let Some(oai_effort) = oai_effort {
+                builder.effort(oai_effort);
+            }
         } else if config.enabled.unwrap_or(false) {
             // Default to Medium effort when enabled without explicit effort
             builder.effort(oai::ReasoningEffort::Medium);

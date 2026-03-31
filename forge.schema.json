@@ -240,6 +240,17 @@
       "format": "uint64",
       "minimum": 0
     },
+    "reasoning": {
+      "description": "Reasoning configuration applied to all agents; agent-level settings\ntake priority over this global setting when both are present.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReasoningConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "restricted": {
       "description": "Whether restricted mode is active; when enabled, tool execution requires\nexplicit permission grants.",
       "type": [
@@ -439,6 +450,41 @@
         }
       }
     },
+    "Effort": {
+      "description": "Effort level for the reasoning capability.",
+      "oneOf": [
+        {
+          "description": "No reasoning tokens; disables extended thinking entirely.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "Minimal reasoning; fastest, fewest thinking tokens.",
+          "type": "string",
+          "const": "minimal"
+        },
+        {
+          "description": "Constrained reasoning suitable for straightforward tasks.",
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "description": "Balanced reasoning for moderately complex tasks.",
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "description": "Deep reasoning for complex problems.",
+          "type": "string",
+          "const": "high"
+        },
+        {
+          "description": "Maximum reasoning budget for the hardest tasks.",
+          "type": "string",
+          "const": "xhigh"
+        }
+      ]
+    },
     "HttpConfig": {
       "description": "HTTP client configuration.",
       "type": "object",
@@ -565,6 +611,46 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "ReasoningConfig": {
+      "description": "Reasoning configuration applied to all agents when set at the global level.\n\nControls the reasoning capabilities of the model. When set here, it acts as\na default for all agents; agent-level settings take priority over this\nglobal setting.",
+      "type": "object",
+      "properties": {
+        "effort": {
+          "description": "Controls the effort level of the agent's reasoning.\nSupported by openrouter and forge provider.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "description": "Enables reasoning at the \"medium\" effort level with no exclusions.\nSupported by openrouter, anthropic and forge provider.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "exclude": {
+          "description": "Model thinks deeply, but the reasoning is hidden from you.\nSupported by openrouter and forge provider.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_tokens": {
+          "description": "Controls how many tokens the model can spend thinking.\nSupported by openrouter, anthropic and forge provider.\nShould be greater than 1024 but less than overall max_tokens.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
         }
       }
     },

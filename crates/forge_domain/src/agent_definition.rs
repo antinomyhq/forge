@@ -217,23 +217,43 @@ pub struct ReasoningConfig {
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Effort {
-    High,
-    Medium,
+    /// No reasoning tokens; disables extended thinking entirely.
+    None,
+    /// Minimal reasoning; fastest, fewest thinking tokens (1–512).
+    Minimal,
+    /// Constrained reasoning suitable for straightforward tasks (513–1024).
     Low,
+    /// Balanced reasoning for moderately complex tasks (1025–8192).
+    Medium,
+    /// Deep reasoning for complex problems (8193–32768).
+    High,
+    /// Maximum reasoning budget for the hardest tasks (32769+).
+    #[serde(rename = "xhigh")]
+    #[strum(serialize = "xhigh")]
+    XHigh,
 }
 
 /// Converts a thinking budget (max_tokens) to Effort
-/// - 0-1024 → Low
-/// - 1025-8192 → Medium
-/// - 8193+ → High
+/// - 0 → None
+/// - 1–512 → Minimal
+/// - 513–1024 → Low
+/// - 1025–8192 → Medium
+/// - 8193–32768 → High
+/// - 32769+ → XHigh
 impl From<usize> for Effort {
     fn from(budget: usize) -> Self {
-        if budget <= 1024 {
+        if budget == 0 {
+            Effort::None
+        } else if budget <= 512 {
+            Effort::Minimal
+        } else if budget <= 1024 {
             Effort::Low
         } else if budget <= 8192 {
             Effort::Medium
-        } else {
+        } else if budget <= 32768 {
             Effort::High
+        } else {
+            Effort::XHigh
         }
     }
 }
@@ -295,9 +315,19 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_effort_from_budget_none() {
+        assert_eq!(Effort::from(0), Effort::None);
+    }
+
+    #[test]
+    fn test_effort_from_budget_minimal() {
+        assert_eq!(Effort::from(1), Effort::Minimal);
+        assert_eq!(Effort::from(512), Effort::Minimal);
+    }
+
+    #[test]
     fn test_effort_from_budget_low() {
-        assert_eq!(Effort::from(0), Effort::Low);
-        assert_eq!(Effort::from(1), Effort::Low);
+        assert_eq!(Effort::from(513), Effort::Low);
         assert_eq!(Effort::from(1024), Effort::Low);
     }
 
@@ -312,7 +342,13 @@ mod tests {
     fn test_effort_from_budget_high() {
         assert_eq!(Effort::from(8193), Effort::High);
         assert_eq!(Effort::from(10000), Effort::High);
-        assert_eq!(Effort::from(100000), Effort::High);
+        assert_eq!(Effort::from(32768), Effort::High);
+    }
+
+    #[test]
+    fn test_effort_from_budget_xhigh() {
+        assert_eq!(Effort::from(32769), Effort::XHigh);
+        assert_eq!(Effort::from(100000), Effort::XHigh);
     }
 
     #[test]

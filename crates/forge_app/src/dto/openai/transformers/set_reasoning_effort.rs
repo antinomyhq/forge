@@ -11,11 +11,14 @@ use crate::dto::openai::Request;
 /// # Transformation Rules
 ///
 /// - If `reasoning.enabled == Some(false)` → use "none" (disables reasoning)
-/// - If `reasoning.effort` is set (low/medium/high) → use that value
+/// - If `reasoning.effort` is set (none/minimal/low/medium/high/xhigh) → use that value
 /// - If `reasoning.max_tokens` is set (thinking budget) → convert to effort:
-///   - 0-1024 → "low"
-///   - 1025-8192 → "medium"
-///   - 8193+ → "high"
+///   - 0 → "none"
+///   - 1–512 → "minimal"
+///   - 513–1024 → "low"
+///   - 1025–8192 → "medium"
+///   - 8193–32768 → "high"
+///   - 32769+ → "xhigh"
 /// - If `reasoning.enabled == Some(true)` but no other params → default to
 ///   "medium"
 /// - Original `reasoning` field is removed after transformation

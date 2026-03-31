@@ -5,9 +5,9 @@ use std::sync::Arc;
 use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    AutoDumpFormat, Compact, ConfigOperation, Environment, HttpConfig, MaxTokens, ModelId,
-    RetryConfig, SessionConfig, Temperature, TlsBackend, TlsVersion, TopK, TopP, Update,
-    UpdateFrequency,
+    AutoDumpFormat, Compact, ConfigOperation, Effort, Environment, HttpConfig, MaxTokens, ModelId,
+    ReasoningConfig, RetryConfig, SessionConfig, Temperature, TlsBackend, TlsVersion, TopK, TopP,
+    Update, UpdateFrequency,
 };
 use reqwest::Url;
 use tracing::{debug, error};
@@ -114,6 +114,52 @@ fn to_compact(c: forge_config::Compact) -> Compact {
     }
 }
 
+/// Converts a [`forge_config::Effort`] into a [`forge_domain::Effort`].
+fn to_effort(e: forge_config::Effort) -> Effort {
+    match e {
+        forge_config::Effort::None => Effort::None,
+        forge_config::Effort::Minimal => Effort::Minimal,
+        forge_config::Effort::Low => Effort::Low,
+        forge_config::Effort::Medium => Effort::Medium,
+        forge_config::Effort::High => Effort::High,
+        forge_config::Effort::XHigh => Effort::XHigh,
+    }
+}
+
+/// Converts a [`forge_domain::Effort`] back into a [`forge_config::Effort`].
+fn from_effort(e: Effort) -> forge_config::Effort {
+    match e {
+        Effort::None => forge_config::Effort::None,
+        Effort::Minimal => forge_config::Effort::Minimal,
+        Effort::Low => forge_config::Effort::Low,
+        Effort::Medium => forge_config::Effort::Medium,
+        Effort::High => forge_config::Effort::High,
+        Effort::XHigh => forge_config::Effort::XHigh,
+    }
+}
+
+/// Converts a [`forge_config::ReasoningConfig`] into a
+/// [`forge_domain::ReasoningConfig`].
+fn to_reasoning_config(r: forge_config::ReasoningConfig) -> ReasoningConfig {
+    ReasoningConfig {
+        effort: r.effort.map(to_effort),
+        max_tokens: r.max_tokens,
+        exclude: r.exclude,
+        enabled: r.enabled,
+    }
+}
+
+/// Converts a [`forge_domain::ReasoningConfig`] back into a
+/// [`forge_config::ReasoningConfig`].
+fn from_reasoning_config(r: &ReasoningConfig) -> forge_config::ReasoningConfig {
+    forge_config::ReasoningConfig {
+        effort: r.effort.clone().map(from_effort),
+        max_tokens: r.max_tokens,
+        exclude: r.exclude,
+        enabled: r.enabled,
+    }
+}
+
 /// Builds a [`forge_domain::Environment`] entirely from a [`ForgeConfig`] and
 /// runtime context (`restricted`, `cwd`), mapping every config field to its
 /// corresponding environment field.
@@ -178,6 +224,7 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         max_requests_per_turn: fc.max_requests_per_turn,
         compact: fc.compact.map(to_compact),
         updates: fc.updates.map(to_update),
+        reasoning: fc.reasoning.map(to_reasoning_config),
     }
 }
 
@@ -339,6 +386,7 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.max_requests_per_turn = env.max_requests_per_turn;
     fc.compact = env.compact.as_ref().map(from_compact);
     fc.updates = env.updates.as_ref().map(from_update);
+    fc.reasoning = env.reasoning.as_ref().map(from_reasoning_config);
 
     // --- Session configs ---
     fc.session = env.session.as_ref().map(|sc| ModelConfig {

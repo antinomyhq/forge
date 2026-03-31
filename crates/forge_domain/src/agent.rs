@@ -156,6 +156,19 @@ impl Agent {
             agent.compact = merged_compact;
         }
 
+        // Apply workflow reasoning configuration to agents
+        // Agent-level settings take priority; env fills in any unset fields.
+        if let Some(ref env_reasoning) = env.reasoning {
+            let merged = match agent.reasoning.take() {
+                Some(mut agent_reasoning) => {
+                    agent_reasoning.merge(env_reasoning.clone());
+                    agent_reasoning
+                }
+                None => env_reasoning.clone(),
+            };
+            agent.reasoning = Some(merged);
+        }
+
         agent
     }
 

@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, RetryConfig, SuggestConfig,
-    Temperature, TopK, TopP, Update,
+    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, ReasoningConfig, RetryConfig,
+    SuggestConfig, Temperature, TopK, TopP, Update,
 };
 
 /// Domain-level session configuration pairing a provider with a model.
@@ -190,6 +190,12 @@ pub struct Environment {
     #[dummy(default)]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
+
+    /// Reasoning configuration applied to all agents; agent-level settings
+    /// take priority over this global setting when both are present.
+    #[dummy(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ReasoningConfig>,
 
     /// Configuration for automatic forge updates.
     #[dummy(default)]
