@@ -5,7 +5,7 @@
   "type": "object",
   "properties": {
     "auto_dump": {
-      "description": "Format for automatically creating a dump when a task is completed",
+      "description": "Format used when automatically creating a session dump after task\ncompletion; disabled when absent.",
       "anyOf": [
         {
           "$ref": "#/$defs/AutoDumpFormat"
@@ -23,7 +23,7 @@
       ]
     },
     "commit": {
-      "description": "Provider and model to use for commit message generation",
+      "description": "Model and provider configuration used for commit message generation.",
       "anyOf": [
         {
           "$ref": "#/$defs/ModelConfig"
@@ -45,21 +45,21 @@
       ]
     },
     "custom_history_path": {
-      "description": "Custom history file path",
+      "description": "Path to the conversation history file; defaults to the global history\nlocation when absent.",
       "type": [
         "string",
         "null"
       ]
     },
     "debug_requests": {
-      "description": "Path where debug request files should be written",
+      "description": "Directory where debug request files are written; disabled when absent.",
       "type": [
         "string",
         "null"
       ]
     },
     "http": {
-      "description": "HTTP configuration",
+      "description": "HTTP client settings including proxy, TLS, and timeout configuration.",
       "anyOf": [
         {
           "$ref": "#/$defs/HttpConfig"
@@ -248,7 +248,7 @@
       ]
     },
     "retry": {
-      "description": "Configuration for the retry mechanism",
+      "description": "Retry settings applied at the system level to all IO operations.",
       "anyOf": [
         {
           "$ref": "#/$defs/RetryConfig"
@@ -286,7 +286,7 @@
       ]
     },
     "suggest": {
-      "description": "Provider and model to use for shell command suggestion generation",
+      "description": "Model and provider configuration used for shell command suggestion\ngeneration.",
       "anyOf": [
         {
           "$ref": "#/$defs/ModelConfig"
@@ -344,7 +344,7 @@
       ]
     },
     "updates": {
-      "description": "Configuration for automatic forge updates",
+      "description": "Configuration for automatic Forge updates.",
       "anyOf": [
         {
           "$ref": "#/$defs/Update"
