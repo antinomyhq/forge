@@ -18,46 +18,50 @@ pub struct ForgeConfig {
     /// Retry settings applied at the system level to all IO operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
-    /// The maximum number of lines returned for FSSearch
+    /// Maximum number of lines returned by a single file search operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_search_lines: Option<usize>,
-    /// Maximum bytes allowed for search results
+    /// Maximum number of bytes returned by a single file search operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_search_result_bytes: Option<usize>,
-    /// Maximum characters for fetch content
+    /// Maximum number of characters returned from a URL fetch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_fetch_chars: Option<usize>,
-    /// Maximum lines for shell output prefix
+    /// Maximum number of lines captured from the leading portion of shell
+    /// command output.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_stdout_prefix_lines: Option<usize>,
-    /// Maximum lines for shell output suffix
+    /// Maximum number of lines captured from the trailing portion of shell
+    /// command output.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_stdout_suffix_lines: Option<usize>,
-    /// Maximum characters per line for shell output
+    /// Maximum number of characters per line in shell command output.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_stdout_line_chars: Option<usize>,
-    /// Maximum characters per line for file read operations
+    /// Maximum number of characters per line when reading a file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_line_chars: Option<usize>,
-    /// Maximum number of lines to read from a file
+    /// Maximum number of lines read from a file in a single operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_read_lines: Option<u64>,
-    /// Maximum number of files that can be read in a single batch operation
+    /// Maximum number of files read in a single batch operation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_file_read_batch_size: Option<usize>,
     /// HTTP client settings including proxy, TLS, and timeout configuration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub http: Option<HttpConfig>,
-    /// Maximum file size in bytes for operations
+    /// Maximum file size in bytes permitted for read operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_file_size_bytes: Option<u64>,
-    /// Maximum image file size in bytes for binary read operations
+    /// Maximum image file size in bytes permitted for read operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_image_size_bytes: Option<u64>,
-    /// Maximum execution time in seconds for a single tool call
+    /// Maximum time in seconds a single tool call may run before being
+    /// cancelled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_timeout_secs: Option<u64>,
-    /// Whether to automatically open HTML dump files in the browser
+    /// Whether to automatically open HTML dump files in the browser after
+    /// creation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_open_dump: Option<bool>,
     /// Directory where debug request files are written; disabled when absent.
@@ -67,30 +71,32 @@ pub struct ForgeConfig {
     /// location when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_history_path: Option<PathBuf>,
-    /// Maximum number of conversations to show in list
+    /// Maximum number of conversations shown in the conversation list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_conversations: Option<usize>,
-    /// Maximum number of results to return from initial vector search
+    /// Maximum number of candidate results returned from the initial semantic
+    /// search vector query.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_sem_search_results: Option<usize>,
-    /// Top-k parameter for relevance filtering during semantic search
+    /// Number of top results retained after re-ranking in semantic search.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sem_search_top_k: Option<usize>,
-    /// URL for the indexing server
+    /// Base URL of the Forge services API used for semantic search and
+    /// indexing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[dummy(expr = "Some(\"https://example.com/api\".to_string())")]
     pub services_url: Option<String>,
-    /// Maximum number of file extensions to include in the system prompt
+    /// Maximum number of file extensions included in the agent system prompt.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_extensions: Option<usize>,
     /// Format used when automatically creating a session dump after task
     /// completion; disabled when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_dump: Option<AutoDumpFormat>,
-    /// Maximum number of files read concurrently in parallel operations
+    /// Maximum number of files read concurrently during batch operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_parallel_file_reads: Option<usize>,
-    /// TTL in seconds for the model API list cache
+    /// Time-to-live in seconds for the cached model API list.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_cache_ttl_secs: Option<u64>,
     /// Default model and provider configuration used when not overridden by
@@ -144,13 +150,13 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
 
-    /// Whether the application is running in restricted mode.
-    /// When true, tool execution requires explicit permission grants.    
+    /// Whether restricted mode is active; when enabled, tool execution requires
+    /// explicit permission grants.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub restricted: Option<bool>,
 
-    /// Whether tool use is supported in the current environment.
-    /// When false, tool calls are disabled regardless of agent configuration.
+    /// Whether tool use is supported in the current environment; when false,
+    /// all tool calls are disabled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_supported: Option<bool>,
 }
