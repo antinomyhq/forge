@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Configuration for retry mechanism.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, Setters)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, Setters)]
 #[serde(rename_all = "snake_case")]
 #[setters(into)]
 pub struct RetryConfig {
@@ -21,18 +21,6 @@ pub struct RetryConfig {
     pub max_delay_secs: Option<u64>,
     /// Whether to suppress retry error logging and events
     pub suppress_errors: bool,
-}
-
-impl Default for RetryConfig {
-    fn default() -> Self {
-        let defaults = include_str!("../.forge.toml");
-        config::Config::builder()
-            .add_source(config::File::from_str(defaults, config::FileFormat::Toml))
-            .build()
-            .expect("embedded .forge.toml must be valid")
-            .get::<Self>("retry")
-            .expect("embedded .forge.toml must contain [retry]")
-    }
 }
 
 #[cfg(test)]
