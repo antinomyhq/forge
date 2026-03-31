@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::{Agent, *};
+use forge_domain::{Agent, RetryConfig, *};
 use forge_template::Element;
 use tokio::sync::Notify;
 use tracing::warn;
@@ -18,7 +18,7 @@ pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
-    environment: Environment,
+    retry_config: RetryConfig,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
@@ -29,13 +29,13 @@ pub struct Orchestrator<S> {
 impl<S: AgentService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
-        environment: Environment,
+        retry_config: RetryConfig,
         conversation: Conversation,
         agent: Agent,
     ) -> Self {
         Self {
             conversation,
-            environment,
+            retry_config,
             services,
             agent,
             sender: Default::default(),
@@ -225,7 +225,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
 
             let message = crate::retry::retry_with_config(
-                &self.environment.retry_config,
+                &self.retry_config,
                 || {
                     self.execute_chat_turn(
                         &model_id,

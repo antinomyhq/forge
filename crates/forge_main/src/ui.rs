@@ -204,13 +204,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
+        let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), command.clone()),
+            console: Console::new(env.clone(), config.custom_history_path, command.clone()),
             cli,
             command,
             spinner,
@@ -663,7 +664,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Update(args) => {
-                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                let update =
+                    forge_config::Update::default().auto_update(args.no_confirm);
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
@@ -1512,7 +1514,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_env(&mut self) -> anyhow::Result<()> {
         let env = self.api.environment();
-        let info = Info::from(&env);
+        let config = self.api.get_config();
+        let info = Info::from(&env).extend(Info::from(&config));
         self.writeln(info)?;
         Ok(())
     }
@@ -1707,7 +1710,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let max_conversations = self.api.environment().max_conversations;
+        let max_conversations = self.api.get_config().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
@@ -1741,7 +1744,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let max_conversations = self.api.environment().max_conversations;
+        let max_conversations = self.api.get_config().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
@@ -2916,8 +2919,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            let env = self.api.environment();
-            on_update(self.api.clone(), env.updates.as_ref()).await;
+            on_update(self.api.clone(), self.api.get_config().updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -3076,7 +3078,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.environment().auto_open_dump {
+                    if self.api.get_config().auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 } else {
@@ -3100,7 +3102,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.environment().auto_open_dump {
+                    if self.api.get_config().auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 };
@@ -3180,7 +3182,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
-                if !self.api.environment().retry_config.suppress_retry_errors {
+                if !self
+                    .api
+                    .get_config()
+                    .retry
+                    .as_ref()
+                    .map_or(false, |r| r.suppress_errors)
+                {
                     writer.finish()?;
                     self.spinner.start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
@@ -3217,8 +3225,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if let Some(format) = self.api.environment().auto_dump {
-                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                if let Some(format) = self.api.get_config().auto_dump {
+                    let html = matches!(format, forge_config::AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }
             }

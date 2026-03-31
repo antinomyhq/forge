@@ -190,8 +190,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
+    type Config = forge_config::ForgeConfig;
+
     fn get_environment(&self) -> Environment {
         self.infra.get_environment()
+    }
+
+    fn get_config(&self) -> forge_config::ForgeConfig {
+        self.infra.get_config()
     }
 
     fn update_environment(

@@ -58,14 +58,17 @@ impl ForgeInfra {
     pub fn new(cwd: PathBuf) -> Self {
         let config_infra = Arc::new(ForgeEnvironmentInfra::new(cwd));
         let env = config_infra.get_environment();
+        let config = config_infra.get_config();
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
-        let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
+        let http_service = Arc::new(ForgeHttpInfra::new(config.clone(), file_write_service.clone()));
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service =
-            Arc::new(ForgeDirectoryReaderService::new(env.parallel_file_reads));
-        let grpc_client = Arc::new(ForgeGrpcClient::new(env.service_url.clone()));
+            Arc::new(ForgeDirectoryReaderService::new(config.max_parallel_file_reads));
+        let grpc_client = Arc::new(ForgeGrpcClient::new(
+            config.services_url.parse().expect("services_url must be a valid URL"),
+        ));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
         Self {
@@ -92,6 +95,8 @@ impl ForgeInfra {
 }
 
 impl EnvironmentInfra for ForgeInfra {
+    type Config = forge_config::ForgeConfig;
+
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.config_infra.get_env_var(key)
     }
@@ -102,6 +107,10 @@ impl EnvironmentInfra for ForgeInfra {
 
     fn get_environment(&self) -> forge_domain::Environment {
         self.config_infra.get_environment()
+    }
+
+    fn get_config(&self) -> forge_config::ForgeConfig {
+        self.config_infra.get_config()
     }
 
     async fn update_environment(

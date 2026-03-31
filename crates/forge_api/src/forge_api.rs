@@ -10,6 +10,7 @@ use forge_app::{
     FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
     ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
 };
+use forge_config::ForgeConfig;
 use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
@@ -144,6 +145,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
 
     fn environment(&self) -> Environment {
         self.services.get_environment().clone()
+    }
+
+    fn get_config(&self) -> ForgeConfig {
+        self.infra.get_config()
     }
 
     async fn conversation(

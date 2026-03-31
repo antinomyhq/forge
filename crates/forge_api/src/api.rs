@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
+use forge_config::ForgeConfig;
 use forge_domain::{AgentId, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
@@ -49,6 +50,9 @@ pub trait API: Sync + Send {
 
     /// Returns the current environment
     fn environment(&self) -> Environment;
+
+    /// Returns the full application configuration.
+    fn get_config(&self) -> ForgeConfig;
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;

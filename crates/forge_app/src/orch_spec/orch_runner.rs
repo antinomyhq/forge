@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
+use crate::app::{build_template_config, build_workflow_config};
 use crate::hooks::DoomLoopDetector;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
@@ -91,12 +92,15 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
-        let agent = agent.apply_env(&setup.env).model(setup.model.clone());
+        let workflow_config = build_workflow_config(&setup.config);
+        let agent = agent.apply_env(&workflow_config).model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
             .files(setup.files.clone())
             .tool_definitions(system_tools.clone())
+            .max_extensions(setup.config.max_extensions)
+            .template_config(build_template_config(&setup.config))
             .add_system_message(conversation)
             .await?;
 
@@ -115,7 +119,7 @@ impl Runner {
             ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
         let conversation = SetConversationId.apply(conversation);
 
-        let orch = Orchestrator::new(services.clone(), setup.env.clone(), conversation, agent)
+        let orch = Orchestrator::new(services.clone(), workflow_config.retry_config, conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
             .hook(Arc::new(

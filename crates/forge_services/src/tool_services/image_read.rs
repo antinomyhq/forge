@@ -50,11 +50,11 @@ impl<F: FileInfoInfra + EnvironmentInfra + forge_app::FileReaderInfra> ImageRead
     async fn read_image(&self, path: String) -> anyhow::Result<Image> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
-        let env = self.0.get_environment();
+        let config = self.0.get_config();
 
         // Validate file size before reading content using image-specific file size
         // limit
-        crate::tool_services::fs_read::assert_file_size(&*self.0, path, env.max_image_size)
+        crate::tool_services::fs_read::assert_file_size(&*self.0, path, config.max_image_size_bytes)
             .await
             .with_context(
                 || "Image exceeds size limit. Compress the image or increase FORGE_MAX_IMAGE_SIZE.",
