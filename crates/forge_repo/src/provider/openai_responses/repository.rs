@@ -1228,7 +1228,7 @@ mod tests {
         let repo = OpenAIResponsesResponseRepository::new(infra.clone());
 
         assert_eq!(
-            repo.retry_config.retry_status_codes,
+            repo.retry_config.status_codes,
             vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
         );
     }

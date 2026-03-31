@@ -33,21 +33,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let config = infra.get_config();
-        let retry_config = Arc::new(
-            config
-                .retry
-                .as_ref()
-                .map(|r| forge_domain::RetryConfig {
-                    initial_backoff_ms: r.initial_backoff_ms,
-                    min_delay_ms: r.min_delay_ms,
-                    backoff_factor: r.backoff_factor,
-                    max_retry_attempts: r.max_attempts,
-                    retry_status_codes: r.status_codes.clone(),
-                    max_delay: r.max_delay_secs,
-                    suppress_retry_errors: r.suppress_errors,
-                })
-                .unwrap_or_default(),
-        );
+        let retry_config = Arc::new(config.retry.clone().unwrap_or_default());
 
         let openai_repo =
             OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());

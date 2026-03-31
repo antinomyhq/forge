@@ -8,7 +8,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if let Some(code) = get_req_status_code(&error)
         .or(get_event_req_status_code(&error))
         .or(get_api_status_code(&error))
-        && retry_config.retry_status_codes.contains(&code)
+        && retry_config.status_codes.contains(&code)
     {
         return DomainError::Retryable(error).into();
     }
@@ -132,7 +132,7 @@ mod tests {
 
     // Fixture functions
     fn fixture_retry_config(codes: Vec<u16>) -> RetryConfig {
-        RetryConfig::default().retry_status_codes(codes)
+        RetryConfig::default().status_codes(codes)
     }
 
     fn fixture_response_error(code: Option<u16>) -> anyhow::Error {
