@@ -129,6 +129,14 @@ impl BedrockProvider {
             _ => "",
         };
 
+        // Remove :0 suffix from Anthropic models before adding regional prefix
+        // AWS Bedrock Anthropic models don't accept :0 suffix in the model ID
+        let model_id = if model_id.contains("anthropic.") && model_id.ends_with(":0") {
+            &model_id[..model_id.len() - 2]
+        } else {
+            model_id
+        };
+
         // Only prefix Anthropic models that don't already have a regional prefix
         if model_id.contains("anthropic.")
             && !model_id.starts_with("us.")
