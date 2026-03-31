@@ -3186,7 +3186,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .get_config()
                     .retry
                     .as_ref()
-                    .map_or(false, |r| r.suppress_errors)
+                    .is_some_and(|r| r.suppress_errors)
                 {
                     writer.finish()?;
                     self.spinner.start(Some("Retrying"))?;

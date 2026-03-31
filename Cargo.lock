@@ -1957,7 +1957,6 @@ dependencies = [
  "dotenvy",
  "fake",
  "is_ci",
- "merge",
  "pretty_assertions",
  "schemars 1.2.1",
  "serde",

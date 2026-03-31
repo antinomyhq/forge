@@ -37,7 +37,7 @@ fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     /// Creates a new [`ForgeHttpInfra`] from a resolved [`ForgeConfig`].
     pub fn new(config: ForgeConfig, file_writer: Arc<F>) -> Self {
-        let http = config.http.unwrap_or_else(|| forge_config::HttpConfig {
+        let http = config.http.unwrap_or(forge_config::HttpConfig {
             connect_timeout_secs: 30,
             read_timeout_secs: 900,
             pool_idle_timeout_secs: 90,

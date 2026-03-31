@@ -163,32 +163,6 @@ fn merge_opt_vec<T>(base: &mut Option<Vec<T>>, other: Option<Vec<T>>) {
 }
 
 impl AgentDefinition {
-    /// Creates a new AgentDefinition with the given ID
-    pub fn new(id: impl Into<AgentId>) -> Self {
-        Self {
-            id: id.into(),
-            title: Default::default(),
-            tool_supported: Default::default(),
-            model: Default::default(),
-            description: Default::default(),
-            system_prompt: Default::default(),
-            user_prompt: Default::default(),
-            tools: Default::default(),
-            max_turns: Default::default(),
-            compact: Default::default(),
-            custom_rules: Default::default(),
-            temperature: Default::default(),
-            top_p: Default::default(),
-            top_k: Default::default(),
-            max_tokens: Default::default(),
-            reasoning: Default::default(),
-            max_tool_failure_per_turn: Default::default(),
-            max_requests_per_turn: Default::default(),
-            provider: Default::default(),
-            path: Default::default(),
-        }
-    }
-
     /// Converts this definition into a domain [`Agent`] by applying the
     /// provided default provider and model when the definition does not
     /// specify its own.
@@ -230,6 +204,34 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    impl AgentDefinition {
+        /// Creates a new AgentDefinition with the given ID
+        fn new(id: impl Into<AgentId>) -> Self {
+            Self {
+                id: id.into(),
+                title: Default::default(),
+                tool_supported: Default::default(),
+                model: Default::default(),
+                description: Default::default(),
+                system_prompt: Default::default(),
+                user_prompt: Default::default(),
+                tools: Default::default(),
+                max_turns: Default::default(),
+                compact: Default::default(),
+                custom_rules: Default::default(),
+                temperature: Default::default(),
+                top_p: Default::default(),
+                top_k: Default::default(),
+                max_tokens: Default::default(),
+                reasoning: Default::default(),
+                max_tool_failure_per_turn: Default::default(),
+                max_requests_per_turn: Default::default(),
+                provider: Default::default(),
+                path: Default::default(),
+            }
+        }
+    }
 
     #[test]
     fn test_merge_model() {

@@ -391,8 +391,8 @@ pub trait AgentRepository: Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `provider_id` - Default provider applied to agents that do not
-    ///   specify one
+    /// * `provider_id` - Default provider applied to agents that do not specify
+    ///   one
     /// * `model_id` - Default model applied to agents that do not specify one
     async fn get_agents(
         &self,

@@ -1,8 +1,8 @@
 use forge_domain::{
     Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
-    MessageEntry, Role, Transformer,
+    MessageEntry, Transformer,
 };
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;

@@ -1,7 +1,7 @@
 use forge_app::domain::Error as DomainError;
-use forge_config::RetryConfig;
 use forge_app::dto::anthropic::Error as AnthropicError;
 use forge_app::dto::openai::{Error, ErrorResponse};
+use forge_config::RetryConfig;
 
 const TRANSPORT_ERROR_CODES: [&str; 3] = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
 

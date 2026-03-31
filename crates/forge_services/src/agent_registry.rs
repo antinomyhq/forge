@@ -70,10 +70,7 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
     /// provider/model receive the session-level defaults.
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
         let config = self.repository.get_config();
-        let session = config
-            .session
-            .as_ref()
-            .ok_or(Error::NoDefaultProvider)?;
+        let session = config.session.as_ref().ok_or(Error::NoDefaultProvider)?;
         let provider_id = session
             .provider_id
             .as_ref()
@@ -87,10 +84,7 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
                 anyhow::anyhow!("No default model configured for provider {}", provider_id)
             })?;
 
-        let agents = self
-            .repository
-            .get_agents(provider_id, model_id)
-            .await?;
+        let agents = self.repository.get_agents(provider_id, model_id).await?;
 
         let agents_map = DashMap::new();
         for agent in agents {
@@ -103,7 +97,8 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
 
 #[async_trait::async_trait]
 impl<R: AgentRepository + EnvironmentInfra + Send + Sync> forge_app::AgentRegistry
-    for ForgeAgentRegistryService<R> {
+    for ForgeAgentRegistryService<R>
+{
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         let agent_id = self.active_agent_id.read().await;
         Ok(agent_id.clone())
