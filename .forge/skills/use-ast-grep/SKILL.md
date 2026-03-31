@@ -17,7 +17,7 @@ Write shell script → run sg test → analyze failures → fix rule → repeat 
 
 ### Step 1 — Write a shell script
 
-Every ast-grep task starts as a self-contained shell script. The script creates a temp workspace, writes the rule and test cases, runs `sg test`, and (once tests pass) applies the rule.
+Every ast-grep task starts as a self-contained shell script saved to `.forge/scripts/<rule-name>.sh`. The script creates a workspace under `.forge/scripts/<rule-name>/`, writes the rule and test cases, runs `sg test`, and (once tests pass) applies the rule.
 
 Use this template:
 
@@ -25,8 +25,8 @@ Use this template:
 #!/usr/bin/env bash
 set -euo pipefail
 
-WORK_DIR=$(mktemp -d)
-trap 'rm -rf "$WORK_DIR"' EXIT
+WORK_DIR=".forge/scripts/my-rule"
+mkdir -p "$WORK_DIR/rules" "$WORK_DIR/tests"
 
 # ── sgconfig ─────────────────────────────────────────────────────────
 cat > "$WORK_DIR/sgconfig.yml" << 'SGCONFIG'
@@ -35,8 +35,6 @@ ruleDirs:
 testConfigs:
   - testDir: tests
 SGCONFIG
-
-mkdir -p "$WORK_DIR/rules" "$WORK_DIR/tests"
 
 # ── Rule ─────────────────────────────────────────────────────────────
 cat > "$WORK_DIR/rules/my-rule.yml" << 'RULE'
@@ -71,7 +69,7 @@ sg scan --rule "$WORK_DIR/rules/my-rule.yml" --update-all .
 
 ### Step 2 — Run the script and read the output
 
-Execute the script with `bash script.sh`. Test output tells you exactly what is wrong:
+Execute the script with `bash .forge/scripts/my-rule.sh`. Test output tells you exactly what is wrong:
 
 | Symbol | Meaning                                                 | Action           |
 | ------ | ------------------------------------------------------- | ---------------- |
