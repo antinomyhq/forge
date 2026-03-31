@@ -27,7 +27,7 @@ impl FormatContent for ToolOperation {
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
-                    format_display_path(&output.path, &env.cwd)
+                    format_display_path(&output.path, &env.light.cwd)
                 ));
                 title.into()
             }),

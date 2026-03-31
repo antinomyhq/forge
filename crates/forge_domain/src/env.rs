@@ -431,20 +431,6 @@ pub struct EnvironmentLight {
     pub base_path: PathBuf,
 }
 
-impl std::ops::Deref for Environment {
-    type Target = EnvironmentLight;
-
-    fn deref(&self) -> &EnvironmentLight {
-        &self.light
-    }
-}
-
-impl std::ops::DerefMut for Environment {
-    fn deref_mut(&mut self) -> &mut EnvironmentLight {
-        &mut self.light
-    }
-}
-
 impl From<&Environment> for EnvironmentLight {
     fn from(env: &Environment) -> Self {
         env.light.clone()

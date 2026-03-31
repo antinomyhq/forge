@@ -3791,7 +3791,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let env = self.api.environment();
         let (workspaces_result, current_workspace_result) = tokio::join!(
             self.api.list_workspaces(),
-            self.api.get_workspace_info(env.cwd.clone())
+            self.api.get_workspace_info(env.light.cwd.clone())
         );
 
         match workspaces_result {

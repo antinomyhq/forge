@@ -102,7 +102,7 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug("Undo").sub_title(display_path).into())
             }
             ToolCatalog::Shell(input) => Some(
-                TitleFormat::debug(format!("Execute [{}]", env.shell))
+                TitleFormat::debug(format!("Execute [{}]", env.light.shell))
                     .sub_title(&input.command)
                     .into(),
             ),

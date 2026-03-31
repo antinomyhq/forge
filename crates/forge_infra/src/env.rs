@@ -460,7 +460,7 @@ mod tests {
 
         // Config-derived fields should all be zero/default since ForgeConfig
         // derives Default (all-zeros) without the defaults file.
-        assert_eq!(actual.cwd, PathBuf::from("/test/cwd"));
+        assert_eq!(actual.light.cwd, PathBuf::from("/test/cwd"));
         assert!(!actual.is_restricted);
         assert_eq!(actual.retry_config, RetryConfig::default());
         assert_eq!(actual.http, HttpConfig::default());
