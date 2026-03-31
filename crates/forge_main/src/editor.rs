@@ -81,7 +81,7 @@ impl ForgeEditor {
         let edit_mode = Box::new(Emacs::new(Self::init()));
 
         let editor = Reedline::create()
-            .with_completer(Box::new(InputCompleter::new(env.cwd, manager)))
+            .with_completer(Box::new(InputCompleter::new(env.cwd.clone(), manager)))
             .with_history(history)
             .with_hinter(Box::new(
                 DefaultHinter::default().with_style(Style::new().fg(Color::DarkGray)),

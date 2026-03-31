@@ -5,8 +5,8 @@ use std::sync::Arc;
 use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{
-    AutoDumpFormat, Compact, ConfigOperation, Environment, HttpConfig, MaxTokens, ModelId,
-    RetryConfig, SessionConfig, Temperature, TlsBackend, TlsVersion, TopK, TopP, Update,
+    AutoDumpFormat, Compact, ConfigOperation, Environment, EnvironmentLight, HttpConfig, MaxTokens,
+    ModelId, RetryConfig, SessionConfig, Temperature, TlsBackend, TlsVersion, TopK, TopP, Update,
     UpdateFrequency,
 };
 use reqwest::Url;
@@ -119,19 +119,21 @@ fn to_compact(c: forge_config::Compact) -> Compact {
 /// corresponding environment field.
 fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
     Environment {
-        // --- Infrastructure-derived fields ---
-        os: std::env::consts::OS.to_string(),
-        pid: std::process::id(),
-        cwd,
-        home: dirs::home_dir(),
-        shell: if cfg!(target_os = "windows") {
-            std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
-        } else {
-            std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+        // --- Infrastructure-derived fields (via EnvironmentLight) ---
+        light: EnvironmentLight {
+            os: std::env::consts::OS.to_string(),
+            pid: std::process::id(),
+            cwd,
+            home: dirs::home_dir(),
+            shell: if cfg!(target_os = "windows") {
+                std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+            } else {
+                std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+            },
+            base_path: dirs::home_dir()
+                .map(|h| h.join("forge"))
+                .unwrap_or_else(|| PathBuf::from(".").join("forge")),
         },
-        base_path: dirs::home_dir()
-            .map(|h| h.join("forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join("forge")),
 
         // --- ForgeConfig-mapped fields ---
         retry_config: fc.retry.map(to_retry_config).unwrap_or_default(),

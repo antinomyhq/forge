@@ -67,7 +67,7 @@ impl<S: Services> ToolRegistry<S> {
         tool_input: &ToolCatalog,
         context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
-        let cwd = self.services.get_environment().cwd;
+        let cwd = self.services.get_environment().cwd.clone();
         let operation = tool_input.to_policy_operation(cwd.clone());
         if let Some(operation) = operation {
             let decision = self.services.check_operation_permission(&operation).await?;

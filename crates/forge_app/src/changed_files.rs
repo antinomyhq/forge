@@ -47,7 +47,7 @@ impl<S: FsReadService + EnvironmentInfra> ChangedFiles<S> {
         }
         conversation.metrics = updated_metrics;
 
-        let cwd = self.services.get_environment().cwd;
+        let cwd = self.services.get_environment().cwd.clone();
         let file_elements: Vec<Element> = changes
             .iter()
             .map(|change| {

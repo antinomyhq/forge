@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
-    OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CommandOutput, ConfigOperation, Environment, EnvironmentLight, FileInfo,
+    McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -24,6 +24,13 @@ pub trait EnvironmentInfra: Send + Sync {
 
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
+
+    /// Returns a lightweight snapshot containing only the core system
+    /// identification fields from the current environment: os, pid, cwd,
+    /// home, shell, and base_path.
+    fn get_environment_light(&self) -> EnvironmentLight {
+        EnvironmentLight::from(&self.get_environment())
+    }
 
     /// Applies a list of configuration operations to the persisted config.
     ///

@@ -52,18 +52,10 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 #[setters(strip_option)]
 /// Represents the environment in which the application is running.
 pub struct Environment {
-    /// The operating system of the environment.
-    pub os: String,
-    /// The process ID of the current process.
-    pub pid: u32,
-    /// The current working directory.
-    pub cwd: PathBuf,
-    /// The home directory.
-    pub home: Option<PathBuf>,
-    /// The shell being used.
-    pub shell: String,
-    /// The base path relative to which everything else stored.
-    pub base_path: PathBuf,
+    /// Core system identification fields shared with [`EnvironmentLight`].
+    #[setters(skip)]
+    #[serde(flatten)]
+    pub light: EnvironmentLight,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch.
@@ -362,6 +354,42 @@ impl Environment {
 
         WorkspaceHash(hasher.finish())
     }
+
+    /// Sets the current working directory, delegating to [`EnvironmentLight`].
+    pub fn cwd(mut self, val: impl Into<PathBuf>) -> Self {
+        self.light = self.light.cwd(val);
+        self
+    }
+
+    /// Sets the home directory, delegating to [`EnvironmentLight`].
+    pub fn home(mut self, val: impl Into<PathBuf>) -> Self {
+        self.light = self.light.home(val);
+        self
+    }
+
+    /// Sets the base path, delegating to [`EnvironmentLight`].
+    pub fn base_path(mut self, val: impl Into<PathBuf>) -> Self {
+        self.light = self.light.base_path(val);
+        self
+    }
+
+    /// Sets the shell, delegating to [`EnvironmentLight`].
+    pub fn shell(mut self, val: impl Into<String>) -> Self {
+        self.light = self.light.shell(val);
+        self
+    }
+
+    /// Sets the operating system name, delegating to [`EnvironmentLight`].
+    pub fn os(mut self, val: impl Into<String>) -> Self {
+        self.light = self.light.os(val);
+        self
+    }
+
+    /// Sets the process ID, delegating to [`EnvironmentLight`].
+    pub fn pid(mut self, val: u32) -> Self {
+        self.light.pid = val;
+        self
+    }
 }
 
 #[derive(Clone, Copy, Display)]
@@ -373,6 +401,53 @@ impl WorkspaceHash {
 
     pub fn id(&self) -> u64 {
         self.0
+    }
+}
+
+/// A lightweight snapshot of the core system context from [`Environment`].
+///
+/// Contains only the essential fields needed for system identification:
+/// the operating system, process ID, working directory, home directory,
+/// shell, and base storage path.
+///
+/// [`Environment`] embeds this as its `light` field and implements
+/// [`Deref`](std::ops::Deref) targeting it, so all fields are accessible
+/// directly on `Environment` without qualification.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy, Setters)]
+#[serde(rename_all = "camelCase")]
+#[setters(strip_option, into)]
+pub struct EnvironmentLight {
+    /// The operating system name (e.g. "linux", "macos", "windows").
+    pub os: String,
+    /// The current process ID.
+    pub pid: u32,
+    /// The current working directory.
+    pub cwd: PathBuf,
+    /// The home directory.
+    pub home: Option<PathBuf>,
+    /// The shell being used.
+    pub shell: String,
+    /// The base path relative to which everything else is stored.
+    pub base_path: PathBuf,
+}
+
+impl std::ops::Deref for Environment {
+    type Target = EnvironmentLight;
+
+    fn deref(&self) -> &EnvironmentLight {
+        &self.light
+    }
+}
+
+impl std::ops::DerefMut for Environment {
+    fn deref_mut(&mut self) -> &mut EnvironmentLight {
+        &mut self.light
+    }
+}
+
+impl From<&Environment> for EnvironmentLight {
+    fn from(env: &Environment) -> Self {
+        env.light.clone()
     }
 }
 

@@ -59,7 +59,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
-        let config = Walker::unlimited().cwd(environment.cwd);
+        let config = Walker::unlimited().cwd(environment.cwd.clone());
         self.services.collect_files(config).await
     }
 
@@ -196,7 +196,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         &self,
         command: &str,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        let cwd = self.environment().cwd;
+        let cwd = self.environment().cwd.clone();
         self.infra.execute_command_raw(command, cwd, None).await
     }
 

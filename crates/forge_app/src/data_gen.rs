@@ -32,7 +32,7 @@ impl<A: Services> DataGenerationApp<A> {
         let resolved_path = if path.is_absolute() {
             path
         } else {
-            let cwd = self.services.get_environment().cwd;
+            let cwd = self.services.get_environment().cwd.clone();
             cwd.join(path)
         };
 
