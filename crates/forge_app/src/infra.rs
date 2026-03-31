@@ -387,9 +387,18 @@ pub trait StrategyFactory: Send + Sync {
 /// override built-in agents.
 #[async_trait::async_trait]
 pub trait AgentRepository: Send + Sync {
-    /// Load all agents from all available sources with conflict resolution and
-    /// default provider/model applied.
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
+    /// Load all agents from all available sources with conflict resolution.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Default provider applied to agents that do not
+    ///   specify one
+    /// * `model_id` - Default model applied to agents that do not specify one
+    async fn get_agents(
+        &self,
+        provider_id: forge_domain::ProviderId,
+        model_id: forge_domain::ModelId,
+    ) -> anyhow::Result<Vec<forge_domain::Agent>>;
 }
 
 /// Infrastructure trait for providing shared gRPC channel
