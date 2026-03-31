@@ -1,0 +1,531 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use async_trait::async_trait;
+use forge_domain::{
+    Conversation, EndPayload, EventData, EventHandle, HookEventInput, HookExecutionResult,
+    HookInput, HookOutput, RequestPayload, ResponsePayload, StartPayload, ToolcallEndPayload,
+    ToolcallStartPayload, UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
+};
+use regex::Regex;
+use tracing::{debug, warn};
+
+use super::user_hook_executor::UserHookExecutor;
+
+/// EventHandle implementation that bridges user-configured hooks with the
+/// existing lifecycle event system.
+///
+/// This handler is constructed from a `UserHookConfig` and executes matching
+/// hook commands at each lifecycle event point. It wires into the existing
+/// `Hook` system via `Hook::zip()`.
+#[derive(Clone)]
+pub struct UserHookHandler {
+    config: UserHookConfig,
+    cwd: PathBuf,
+    env_vars: HashMap<String, String>,
+    /// Tracks whether a Stop hook has already fired to prevent infinite loops.
+    stop_hook_active: std::sync::Arc<AtomicBool>,
+}
+
+impl UserHookHandler {
+    /// Creates a new user hook handler from configuration.
+    ///
+    /// # Arguments
+    /// * `config` - The merged user hook configuration.
+    /// * `cwd` - Current working directory for command execution.
+    /// * `project_dir` - Project root directory for `FORGE_PROJECT_DIR` env
+    ///   var.
+    /// * `session_id` - Current session/conversation ID.
+    pub fn new(
+        config: UserHookConfig,
+        cwd: PathBuf,
+        project_dir: PathBuf,
+        session_id: String,
+    ) -> Self {
+        let mut env_vars = HashMap::new();
+        env_vars.insert(
+            "FORGE_PROJECT_DIR".to_string(),
+            project_dir.to_string_lossy().to_string(),
+        );
+        env_vars.insert("FORGE_SESSION_ID".to_string(), session_id);
+        env_vars.insert(
+            "FORGE_CWD".to_string(),
+            cwd.to_string_lossy().to_string(),
+        );
+
+        Self {
+            config,
+            cwd,
+            env_vars,
+            stop_hook_active: std::sync::Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Checks if the config has any hooks for the given event.
+    fn has_hooks(&self, event: &UserHookEventName) -> bool {
+        !self.config.get_groups(event).is_empty()
+    }
+
+    /// Finds matching hook entries for an event, filtered by the optional
+    /// matcher regex against the given subject string.
+    fn find_matching_hooks<'a>(
+        groups: &'a [UserHookMatcherGroup],
+        subject: Option<&str>,
+    ) -> Vec<&'a UserHookEntry> {
+        let mut matching = Vec::new();
+
+        for group in groups {
+            let matches = match (&group.matcher, subject) {
+                (Some(pattern), Some(subj)) => {
+                    match Regex::new(pattern) {
+                        Ok(re) => re.is_match(subj),
+                        Err(e) => {
+                            warn!(
+                                pattern = pattern,
+                                error = %e,
+                                "Invalid regex in hook matcher, skipping"
+                            );
+                            false
+                        }
+                    }
+                }
+                (Some(_), None) => {
+                    // Matcher specified but no subject to match against; skip
+                    false
+                }
+                (None, _) => {
+                    // No matcher means unconditional match
+                    true
+                }
+            };
+
+            if matches {
+                matching.extend(group.hooks.iter());
+            }
+        }
+
+        matching
+    }
+
+    /// Executes a list of hook entries and returns their results.
+    async fn execute_hooks(
+        &self,
+        hooks: &[&UserHookEntry],
+        input: &HookInput,
+    ) -> Vec<HookExecutionResult> {
+        let input_json = match serde_json::to_string(input) {
+            Ok(json) => json,
+            Err(e) => {
+                warn!(error = %e, "Failed to serialize hook input");
+                return Vec::new();
+            }
+        };
+
+        let mut results = Vec::new();
+        for hook in hooks {
+            if let Some(command) = &hook.command {
+                match UserHookExecutor::execute(
+                    command,
+                    &input_json,
+                    hook.timeout,
+                    &self.cwd,
+                    &self.env_vars,
+                )
+                .await
+                {
+                    Ok(result) => results.push(result),
+                    Err(e) => {
+                        warn!(
+                            command = command,
+                            error = %e,
+                            "Hook command failed to execute"
+                        );
+                    }
+                }
+            }
+        }
+
+        results
+    }
+
+    /// Processes hook results, returning a blocking reason if any hook blocked.
+    fn process_results(results: &[HookExecutionResult]) -> Option<String> {
+        for result in results {
+            // Exit code 2 = blocking error
+            if result.is_blocking_exit() {
+                let message = result
+                    .blocking_message()
+                    .unwrap_or("Hook blocked execution")
+                    .to_string();
+                return Some(message);
+            }
+
+            // Exit code 0 = check stdout for JSON decisions
+            if let Some(output) = result.parse_output() {
+                if output.is_blocking() {
+                    let reason = output
+                        .reason
+                        .unwrap_or_else(|| "Hook blocked execution".to_string());
+                    return Some(reason);
+                }
+            }
+
+            // Non-blocking errors (exit code 1, etc.) are logged but don't block
+            if result.is_non_blocking_error() {
+                warn!(
+                    exit_code = ?result.exit_code,
+                    stderr = result.stderr.as_str(),
+                    "Hook command returned non-blocking error"
+                );
+            }
+        }
+
+        None
+    }
+
+    /// Processes PreToolUse results, extracting updated input if present.
+    fn process_pre_tool_use_output(results: &[HookExecutionResult]) -> PreToolUseDecision {
+        for result in results {
+            // Exit code 2 = blocking error
+            if result.is_blocking_exit() {
+                let message = result
+                    .blocking_message()
+                    .unwrap_or("Hook blocked tool execution")
+                    .to_string();
+                return PreToolUseDecision::Block(message);
+            }
+
+            // Exit code 0 = check stdout for JSON decisions
+            if let Some(output) = result.parse_output() {
+                // Check permission decision
+                if output.permission_decision.as_deref() == Some("deny") {
+                    let reason = output
+                        .reason
+                        .unwrap_or_else(|| "Tool execution denied by hook".to_string());
+                    return PreToolUseDecision::Block(reason);
+                }
+
+                // Check generic block decision
+                if output.is_blocking() {
+                    let reason = output
+                        .reason
+                        .unwrap_or_else(|| "Hook blocked tool execution".to_string());
+                    return PreToolUseDecision::Block(reason);
+                }
+
+                // Check for updated input
+                if output.updated_input.is_some() {
+                    return PreToolUseDecision::AllowWithUpdate(output);
+                }
+            }
+
+            // Non-blocking errors are logged but don't block
+            if result.is_non_blocking_error() {
+                warn!(
+                    exit_code = ?result.exit_code,
+                    stderr = result.stderr.as_str(),
+                    "PreToolUse hook command returned non-blocking error"
+                );
+            }
+        }
+
+        PreToolUseDecision::Allow
+    }
+}
+
+/// Decision result from PreToolUse hook processing.
+enum PreToolUseDecision {
+    /// Allow the tool call to proceed.
+    Allow,
+    /// Allow but with updated input from the hook output.
+    AllowWithUpdate(HookOutput),
+    /// Block the tool call with the given reason.
+    Block(String),
+}
+
+// --- EventHandle implementations ---
+
+#[async_trait]
+impl EventHandle<EventData<StartPayload>> for UserHookHandler {
+    async fn handle(
+        &self,
+        _event: &EventData<StartPayload>,
+        _conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        if !self.has_hooks(&UserHookEventName::SessionStart) {
+            return Ok(());
+        }
+
+        let groups = self.config.get_groups(&UserHookEventName::SessionStart);
+        let hooks = Self::find_matching_hooks(groups, Some("startup"));
+
+        if hooks.is_empty() {
+            return Ok(());
+        }
+
+        let input = HookInput {
+            hook_event_name: "SessionStart".to_string(),
+            cwd: self.cwd.to_string_lossy().to_string(),
+            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+            event_data: HookEventInput::SessionStart { source: "startup".to_string() },
+        };
+
+        let results = self.execute_hooks(&hooks, &input).await;
+
+        // SessionStart hooks can provide additional context but not block
+        for result in &results {
+            if let Some(output) = result.parse_output() {
+                if let Some(context) = &output.additional_context {
+                    debug!(
+                        context_len = context.len(),
+                        "SessionStart hook provided additional context"
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EventHandle<EventData<RequestPayload>> for UserHookHandler {
+    async fn handle(
+        &self,
+        _event: &EventData<RequestPayload>,
+        _conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        // No user hook events map to Request currently
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EventHandle<EventData<ResponsePayload>> for UserHookHandler {
+    async fn handle(
+        &self,
+        _event: &EventData<ResponsePayload>,
+        _conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        // No user hook events map to Response currently
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
+    async fn handle(
+        &self,
+        event: &EventData<ToolcallStartPayload>,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        if !self.has_hooks(&UserHookEventName::PreToolUse) {
+            return Ok(());
+        }
+
+        let tool_name = event.payload.tool_call.name.as_str();
+        let groups = self.config.get_groups(&UserHookEventName::PreToolUse);
+        let hooks = Self::find_matching_hooks(groups, Some(tool_name));
+
+        if hooks.is_empty() {
+            return Ok(());
+        }
+
+        let tool_input =
+            serde_json::to_value(&event.payload.tool_call.arguments).unwrap_or_default();
+
+        let input = HookInput {
+            hook_event_name: "PreToolUse".to_string(),
+            cwd: self.cwd.to_string_lossy().to_string(),
+            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+            event_data: HookEventInput::PreToolUse {
+                tool_name: tool_name.to_string(),
+                tool_input,
+            },
+        };
+
+        let results = self.execute_hooks(&hooks, &input).await;
+        let decision = Self::process_pre_tool_use_output(&results);
+
+        match decision {
+            PreToolUseDecision::Allow => Ok(()),
+            PreToolUseDecision::AllowWithUpdate(_output) => {
+                // Note: Updating tool call input would require modifying the tool call
+                // in-flight, which would need changes to the orchestrator.
+                // For now, we log and proceed.
+                debug!(
+                    tool_name = tool_name,
+                    "PreToolUse hook returned updatedInput (not yet supported for modification)"
+                );
+                Ok(())
+            }
+            PreToolUseDecision::Block(reason) => {
+                debug!(
+                    tool_name = tool_name,
+                    reason = reason.as_str(),
+                    "PreToolUse hook blocked tool call"
+                );
+                // Inject a user message with the block reason so the agent sees it
+                if let Some(context) = conversation.context.as_mut() {
+                    let block_msg = format!(
+                        "<hook_feedback>\n<event>PreToolUse</event>\n<tool>{}</tool>\n<status>blocked</status>\n<reason>{}</reason>\n</hook_feedback>",
+                        tool_name, reason
+                    );
+                    context.messages.push(
+                        forge_domain::ContextMessage::user(block_msg, None).into(),
+                    );
+                }
+                // Return an error to signal the orchestrator to skip this tool call
+                Err(anyhow::anyhow!(
+                    "Tool call '{}' blocked by PreToolUse hook: {}",
+                    tool_name,
+                    reason
+                ))
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl EventHandle<EventData<ToolcallEndPayload>> for UserHookHandler {
+    async fn handle(
+        &self,
+        event: &EventData<ToolcallEndPayload>,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        let is_error = event.payload.result.is_error();
+        let event_name = if is_error {
+            UserHookEventName::PostToolUseFailure
+        } else {
+            UserHookEventName::PostToolUse
+        };
+
+        if !self.has_hooks(&event_name) {
+            return Ok(());
+        }
+
+        let tool_name = event.payload.tool_call.name.as_str();
+        let groups = self.config.get_groups(&event_name);
+        let hooks = Self::find_matching_hooks(groups, Some(tool_name));
+
+        if hooks.is_empty() {
+            return Ok(());
+        }
+
+        let tool_input =
+            serde_json::to_value(&event.payload.tool_call.arguments).unwrap_or_default();
+        let tool_response = serde_json::to_value(&event.payload.result.output).unwrap_or_default();
+
+        let input = HookInput {
+            hook_event_name: event_name.to_string(),
+            cwd: self.cwd.to_string_lossy().to_string(),
+            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+            event_data: HookEventInput::PostToolUse {
+                tool_name: tool_name.to_string(),
+                tool_input,
+                tool_response,
+            },
+        };
+
+        let results = self.execute_hooks(&hooks, &input).await;
+
+        // PostToolUse can provide feedback via blocking
+        if let Some(reason) = Self::process_results(&results) {
+            debug!(
+                tool_name = tool_name,
+                event = %event_name,
+                reason = reason.as_str(),
+                "PostToolUse hook blocked with feedback"
+            );
+            // Inject feedback as a user message
+            if let Some(context) = conversation.context.as_mut() {
+                let feedback_msg = format!(
+                    "<hook_feedback>\n<event>{}</event>\n<tool>{}</tool>\n<status>blocked</status>\n<reason>{}</reason>\n</hook_feedback>",
+                    event_name, tool_name, reason
+                );
+                context.messages.push(
+                    forge_domain::ContextMessage::user(feedback_msg, None).into(),
+                );
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EventHandle<EventData<EndPayload>> for UserHookHandler {
+    async fn handle(
+        &self,
+        _event: &EventData<EndPayload>,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        // Fire SessionEnd hooks
+        if self.has_hooks(&UserHookEventName::SessionEnd) {
+            let groups = self.config.get_groups(&UserHookEventName::SessionEnd);
+            let hooks = Self::find_matching_hooks(groups, None);
+
+            if !hooks.is_empty() {
+                let input = HookInput {
+                    hook_event_name: "SessionEnd".to_string(),
+                    cwd: self.cwd.to_string_lossy().to_string(),
+                    session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+                    event_data: HookEventInput::Empty {},
+                };
+                self.execute_hooks(&hooks, &input).await;
+            }
+        }
+
+        // Fire Stop hooks
+        if !self.has_hooks(&UserHookEventName::Stop) {
+            return Ok(());
+        }
+
+        // Prevent infinite loops
+        let was_active = self.stop_hook_active.swap(true, Ordering::SeqCst);
+        if was_active {
+            debug!("Stop hook already active, skipping to prevent infinite loop");
+            return Ok(());
+        }
+
+        let groups = self.config.get_groups(&UserHookEventName::Stop);
+        let hooks = Self::find_matching_hooks(groups, None);
+
+        if hooks.is_empty() {
+            self.stop_hook_active.store(false, Ordering::SeqCst);
+            return Ok(());
+        }
+
+        let input = HookInput {
+            hook_event_name: "Stop".to_string(),
+            cwd: self.cwd.to_string_lossy().to_string(),
+            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+            event_data: HookEventInput::Stop { stop_hook_active: was_active },
+        };
+
+        let results = self.execute_hooks(&hooks, &input).await;
+
+        if let Some(reason) = Self::process_results(&results) {
+            debug!(
+                reason = reason.as_str(),
+                "Stop hook wants to continue conversation"
+            );
+            // Inject a message to continue the conversation
+            if let Some(context) = conversation.context.as_mut() {
+                let continue_msg = format!(
+                    "<hook_feedback>\n<event>Stop</event>\n<status>continue</status>\n<reason>{}</reason>\n</hook_feedback>",
+                    reason
+                );
+                context
+                    .messages
+                    .push(forge_domain::ContextMessage::user(continue_msg, None).into());
+            }
+        }
+
+        // Reset the stop hook active flag
+        self.stop_hook_active.store(false, Ordering::SeqCst);
+
+        Ok(())
+    }
+}
