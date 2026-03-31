@@ -187,8 +187,7 @@ mod tests {
         )
         .unwrap();
 
-        let actual =
-            UserHookConfigLoader::load(Some(home_dir.path()), project_dir.path());
+        let actual = UserHookConfigLoader::load(Some(home_dir.path()), project_dir.path());
 
         // PreToolUse should have 2 groups (global + project)
         assert_eq!(

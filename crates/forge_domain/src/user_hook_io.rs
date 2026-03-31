@@ -248,10 +248,7 @@ mod tests {
 
     #[test]
     fn test_hook_output_is_blocking() {
-        let fixture = HookOutput {
-            decision: Some("block".to_string()),
-            ..Default::default()
-        };
+        let fixture = HookOutput { decision: Some("block".to_string()), ..Default::default() };
         assert!(fixture.is_blocking());
 
         let fixture = HookOutput {
@@ -275,10 +272,7 @@ mod tests {
         assert!(fixture.is_blocking_exit());
         assert!(!fixture.is_success());
         assert!(!fixture.is_non_blocking_error());
-        assert_eq!(
-            fixture.blocking_message(),
-            Some("Blocked: unsafe command")
-        );
+        assert_eq!(fixture.blocking_message(), Some("Blocked: unsafe command"));
         assert!(fixture.parse_output().is_none());
     }
 

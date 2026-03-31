@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 /// Top-level user hook configuration.
 ///
 /// Maps hook event names to a list of matcher groups. This is deserialized
-/// from the `"hooks"` key in `.forge/settings.json` or `~/.forge/settings.json`.
+/// from the `"hooks"` key in `.forge/settings.json` or
+/// `~/.forge/settings.json`.
 ///
 /// Example JSON:
 /// ```json
@@ -207,16 +208,14 @@ mod tests {
 
         let actual: UserHookConfig = serde_json::from_str(json).unwrap();
 
-        assert_eq!(
-            actual.get_groups(&UserHookEventName::PreToolUse).len(),
-            1
-        );
-        assert_eq!(
-            actual.get_groups(&UserHookEventName::PostToolUse).len(),
-            1
-        );
+        assert_eq!(actual.get_groups(&UserHookEventName::PreToolUse).len(), 1);
+        assert_eq!(actual.get_groups(&UserHookEventName::PostToolUse).len(), 1);
         assert_eq!(actual.get_groups(&UserHookEventName::Stop).len(), 1);
-        assert!(actual.get_groups(&UserHookEventName::SessionStart).is_empty());
+        assert!(
+            actual
+                .get_groups(&UserHookEventName::SessionStart)
+                .is_empty()
+        );
     }
 
     #[test]
@@ -257,10 +256,7 @@ mod tests {
         let config2: UserHookConfig = serde_json::from_str(json2).unwrap();
         actual.merge(config2);
 
-        assert_eq!(
-            actual.get_groups(&UserHookEventName::PreToolUse).len(),
-            2
-        );
+        assert_eq!(actual.get_groups(&UserHookEventName::PreToolUse).len(), 2);
         assert_eq!(actual.get_groups(&UserHookEventName::Stop).len(), 1);
     }
 

@@ -134,10 +134,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_simple_command() {
         let cwd = std::env::current_dir().unwrap();
-        let actual =
-            UserHookExecutor::execute("echo hello", "{}", None, &cwd, &HashMap::new())
-                .await
-                .unwrap();
+        let actual = UserHookExecutor::execute("echo hello", "{}", None, &cwd, &HashMap::new())
+            .await
+            .unwrap();
 
         assert_eq!(actual.exit_code, Some(0));
         assert_eq!(actual.stdout.trim(), "hello");
@@ -182,15 +181,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_non_blocking_error() {
         let cwd = std::env::current_dir().unwrap();
-        let actual = UserHookExecutor::execute(
-            "exit 1",
-            "{}",
-            None,
-            &cwd,
-            &HashMap::new(),
-        )
-        .await
-        .unwrap();
+        let actual = UserHookExecutor::execute("exit 1", "{}", None, &cwd, &HashMap::new())
+            .await
+            .unwrap();
 
         assert_eq!(actual.exit_code, Some(1));
         assert!(actual.is_non_blocking_error());
@@ -218,20 +211,11 @@ mod tests {
     async fn test_execute_with_env_vars() {
         let cwd = std::env::current_dir().unwrap();
         let mut env_vars = HashMap::new();
-        env_vars.insert(
-            "FORGE_TEST_VAR".to_string(),
-            "test_value".to_string(),
-        );
+        env_vars.insert("FORGE_TEST_VAR".to_string(), "test_value".to_string());
 
-        let actual = UserHookExecutor::execute(
-            "echo $FORGE_TEST_VAR",
-            "{}",
-            None,
-            &cwd,
-            &env_vars,
-        )
-        .await
-        .unwrap();
+        let actual = UserHookExecutor::execute("echo $FORGE_TEST_VAR", "{}", None, &cwd, &env_vars)
+            .await
+            .unwrap();
 
         assert_eq!(actual.exit_code, Some(0));
         assert_eq!(actual.stdout.trim(), "test_value");
