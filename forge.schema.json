@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ForgeConfig",
-  "description": "Top-level Forge configuration merged from all sources (defaults, file,\nenvironment).\n\nAll fields are `Option` so that partial configs (e.g. legacy JSON, user\noverrides) only carry the keys they explicitly set. The `config` crate\nmerges layers by key: absent (`None`) values are transparently skipped,\nletting lower-priority layers supply the defaults from the embedded\n`.forge.toml`.",
+  "description": "Top-level Forge configuration merged from all sources (defaults, file,\nenvironment).",
   "type": "object",
   "properties": {
     "auto_dump": {

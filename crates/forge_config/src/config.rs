@@ -15,7 +15,7 @@ use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, RetryConf
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
-    /// Configuration for the retry mechanism
+    /// Retry settings applied at the system level to all IO operations.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
     /// The maximum number of lines returned for FSSearch
@@ -45,7 +45,7 @@ pub struct ForgeConfig {
     /// Maximum number of files that can be read in a single batch operation
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_file_read_batch_size: Option<usize>,
-    /// HTTP configuration
+    /// HTTP client settings including proxy, TLS, and timeout configuration.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub http: Option<HttpConfig>,
     /// Maximum file size in bytes for operations
@@ -60,10 +60,11 @@ pub struct ForgeConfig {
     /// Whether to automatically open HTML dump files in the browser
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_open_dump: Option<bool>,
-    /// Path where debug request files should be written
+    /// Directory where debug request files are written; disabled when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_requests: Option<PathBuf>,
-    /// Custom history file path
+    /// Path to the conversation history file; defaults to the global history
+    /// location when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_history_path: Option<PathBuf>,
     /// Maximum number of conversations to show in list
@@ -82,7 +83,8 @@ pub struct ForgeConfig {
     /// Maximum number of file extensions to include in the system prompt
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_extensions: Option<usize>,
-    /// Format for automatically creating a dump when a task is completed
+    /// Format used when automatically creating a session dump after task
+    /// completion; disabled when absent.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_dump: Option<AutoDumpFormat>,
     /// Maximum number of files read concurrently in parallel operations
@@ -95,15 +97,16 @@ pub struct ForgeConfig {
     /// individual agents.    
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<ModelConfig>,
-    /// Provider and model to use for commit message generation    
+    /// Model and provider configuration used for commit message generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit: Option<ModelConfig>,
-    /// Provider and model to use for shell command suggestion generation    
+    /// Model and provider configuration used for shell command suggestion
+    /// generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<ModelConfig>,
 
     // --- Workflow fields ---
-    /// Configuration for automatic forge updates
+    /// Configuration for automatic Forge updates.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
