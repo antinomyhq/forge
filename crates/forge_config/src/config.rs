@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
-use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update};
+use crate::{
+    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
+};
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).

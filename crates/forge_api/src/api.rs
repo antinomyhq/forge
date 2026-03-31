@@ -149,9 +149,7 @@ pub trait API: Sync + Send {
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
 
     /// Gets the global reasoning configuration.
-    async fn get_reasoning_config(
-        &self,
-    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>>;
+    async fn get_reasoning_config(&self) -> anyhow::Result<Option<forge_domain::ReasoningConfig>>;
 
     /// Sets the global reasoning configuration.
     async fn set_reasoning_config(

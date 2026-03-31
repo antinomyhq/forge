@@ -280,16 +280,11 @@ mod tests {
             Ok(())
         }
 
-        async fn get_reasoning_config(
-            &self,
-        ) -> Result<Option<forge_domain::ReasoningConfig>> {
+        async fn get_reasoning_config(&self) -> Result<Option<forge_domain::ReasoningConfig>> {
             Ok(None)
         }
 
-        async fn set_reasoning_config(
-            &self,
-            _config: forge_domain::ReasoningConfig,
-        ) -> Result<()> {
+        async fn set_reasoning_config(&self, _config: forge_domain::ReasoningConfig) -> Result<()> {
             Ok(())
         }
     }

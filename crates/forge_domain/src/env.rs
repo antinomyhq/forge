@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, ReasoningConfig, RetryConfig,
-    SuggestConfig, Temperature, TopK, TopP, Update,
+    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, ReasoningConfig,
+    RetryConfig, SuggestConfig, Temperature, TopK, TopP, Update,
 };
 
 /// Domain-level session configuration pairing a provider with a model.
