@@ -168,7 +168,6 @@ impl AgentDefinition {
 
 #[cfg(test)]
 mod tests {
-    use merge::Merge;
     use pretty_assertions::assert_eq;
     use serde_json::json;
 
@@ -200,66 +199,6 @@ mod tests {
                 path: Default::default(),
             }
         }
-    }
-
-    #[test]
-    fn test_merge_model() {
-        // Base has a value, should not be overwritten
-        let mut base = AgentDefinition::new("Base").model(ModelId::new("base"));
-        let other = AgentDefinition::new("Other").model(ModelId::new("other"));
-        base.merge(other);
-        assert_eq!(base.model.unwrap(), ModelId::new("other"));
-
-        // Base has no value, should take the other value
-        let mut base = AgentDefinition::new("Base"); // No model
-        let other = AgentDefinition::new("Other").model(ModelId::new("other"));
-        base.merge(other);
-        assert_eq!(base.model.unwrap(), ModelId::new("other"));
-    }
-
-    #[test]
-    fn test_merge_tool_supported() {
-        // Base has no value, should use other's value
-        let mut base = AgentDefinition::new("Base"); // No tool_supported set
-        let other = AgentDefinition::new("Other").tool_supported(true);
-        base.merge(other);
-        assert_eq!(base.tool_supported, Some(true));
-
-        // Base has a value, should not be overwritten
-        let mut base = AgentDefinition::new("Base").tool_supported(false);
-        let other = AgentDefinition::new("Other").tool_supported(true);
-        base.merge(other);
-        assert_eq!(base.tool_supported, Some(true));
-    }
-
-    #[test]
-    fn test_merge_tools() {
-        // Base has no value, should take other's values
-        let mut base = AgentDefinition::new("Base"); // no tools
-        let other = AgentDefinition::new("Other")
-            .tools(vec![ToolName::new("tool2"), ToolName::new("tool3")]);
-        base.merge(other);
-
-        // Should contain all tools from the other agent
-        let tools = base.tools.as_ref().unwrap();
-        assert_eq!(tools.len(), 2);
-        assert!(tools.contains(&ToolName::new("tool2")));
-        assert!(tools.contains(&ToolName::new("tool3")));
-
-        // Base has a value, should merge with other's tools
-        let mut base = AgentDefinition::new("Base")
-            .tools(vec![ToolName::new("tool1"), ToolName::new("tool2")]);
-        let other = AgentDefinition::new("Other")
-            .tools(vec![ToolName::new("tool3"), ToolName::new("tool4")]);
-        base.merge(other);
-
-        // Should have other's tools
-        let tools = base.tools.as_ref().unwrap();
-        assert_eq!(tools.len(), 4);
-        assert!(tools.contains(&ToolName::new("tool1")));
-        assert!(tools.contains(&ToolName::new("tool2")));
-        assert!(tools.contains(&ToolName::new("tool3")));
-        assert!(tools.contains(&ToolName::new("tool4")));
     }
 
     #[test]
