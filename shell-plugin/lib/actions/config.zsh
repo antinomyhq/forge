@@ -436,3 +436,89 @@ function _forge_action_skill() {
     echo
     _forge_exec list skill
 }
+
+# Helper: Print the static list of reasoning effort levels.
+# Outputs a two-column header + data table (EFFORT  DESCRIPTION) for fzf.
+function _forge_reasoning_levels() {
+    printf "EFFORT    DESCRIPTION\n"
+    printf "none      No reasoning tokens; disables extended thinking entirely\n"
+    printf "minimal   Minimal reasoning; fastest, fewest thinking tokens\n"
+    printf "low       Constrained reasoning suitable for straightforward tasks\n"
+    printf "medium    Balanced reasoning for moderately complex tasks\n"
+    printf "high      Deep reasoning for complex problems\n"
+    printf "xhigh     Maximum reasoning budget for the hardest tasks\n"
+}
+
+# Action handler: Select reasoning effort level for the current session only.
+# Sets _FORGE_SESSION_REASONING in the shell environment so that every
+# subsequent forge invocation uses FORGE_REASONING__EFFORT without touching
+# the permanent global configuration.
+function _forge_action_reasoning() {
+    local input_text="$1"
+    echo
+
+    local levels
+    levels=$(_forge_reasoning_levels)
+
+    local fzf_args=(
+        --delimiter="$_FORGE_DELIMITER"
+        --with-nth="1,2"
+        --prompt="Reasoning ❯ "
+    )
+
+    if [[ -n "$input_text" ]]; then
+        fzf_args+=(--query="$input_text")
+    fi
+
+    if [[ -n "$_FORGE_SESSION_REASONING" ]]; then
+        local index=$(_forge_find_index "$levels" "$_FORGE_SESSION_REASONING" 1)
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    local selected
+    selected=$(echo "$levels" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+    if [[ -n "$selected" ]]; then
+        local effort="${selected%% *}"
+        _FORGE_SESSION_REASONING="$effort"
+        _forge_log success "Session reasoning effort set to \033[1m${effort}\033[0m"
+    fi
+}
+
+# Action handler: Set the global reasoning effort level in the persistent config.
+# Calls `forge config set reasoning <effort>` to write to ~/forge/.forge.toml.
+function _forge_action_config_reasoning() {
+    local input_text="$1"
+    (
+        echo
+
+        local levels
+        levels=$(_forge_reasoning_levels)
+
+        local current_effort
+        current_effort=$(_forge_exec config get reasoning 2>/dev/null)
+
+        local fzf_args=(
+            --delimiter="$_FORGE_DELIMITER"
+            --with-nth="1,2"
+            --prompt="Config Reasoning ❯ "
+        )
+
+        if [[ -n "$input_text" ]]; then
+            fzf_args+=(--query="$input_text")
+        fi
+
+        if [[ -n "$current_effort" ]]; then
+            local index=$(_forge_find_index "$levels" "$current_effort" 1)
+            fzf_args+=(--bind="start:pos($index)")
+        fi
+
+        local selected
+        selected=$(echo "$levels" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+        if [[ -n "$selected" ]]; then
+            local effort="${selected%% *}"
+            _forge_exec config set reasoning "$effort"
+        fi
+    )
+}

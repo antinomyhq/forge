@@ -40,6 +40,8 @@ pub enum ConfigOperation {
     SetCommitConfig(CommitConfig),
     /// Set the shell-command suggestion configuration.
     SetSuggestConfig(SuggestConfig),
+    /// Set the global reasoning configuration.
+    SetReasoning(ReasoningConfig),
 }
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -263,6 +265,9 @@ impl Environment {
                         .model_id(suggest.model.to_string()),
                 );
             }
+            ConfigOperation::SetReasoning(reasoning) => {
+                self.reasoning = Some(reasoning);
+            }
         }
     }
 
@@ -388,6 +393,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::Effort;
 
     fn fixture_env() -> Environment {
         Faker.fake()
@@ -481,6 +487,14 @@ mod tests {
             .provider_id("anthropic".to_string())
             .model_id("claude-3-haiku".to_string());
         assert_eq!(fixture.suggest, Some(expected));
+    }
+
+    #[test]
+    fn test_apply_op_set_reasoning() {
+        let mut fixture = fixture_env();
+        let reasoning = ReasoningConfig::default().effort(Effort::High);
+        fixture.apply_op(ConfigOperation::SetReasoning(reasoning.clone()));
+        assert_eq!(fixture.reasoning, Some(reasoning));
     }
 
     #[test]

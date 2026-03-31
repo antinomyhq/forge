@@ -561,34 +561,46 @@ impl FromDomain<forge_domain::Context>
         // Based on AWS Bedrock docs: additionalModelRequestFields for Claude extended
         // thinking https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
         let additional_model_fields = if let Some(reasoning_config) = &context.reasoning {
-            if reasoning_config.enabled.unwrap_or(false) {
-                let mut thinking_config = std::collections::HashMap::new();
-                thinking_config.insert(
-                    "type".to_string(),
-                    aws_smithy_types::Document::String("enabled".to_string()),
-                );
-
-                // Set budget_tokens (REQUIRED when thinking is enabled)
-                // The budget_tokens parameter determines the maximum number of tokens
-                // Claude is allowed to use for its internal reasoning process
-                // Default to 4000 if not specified (AWS recommendation for good quality)
-                let budget_tokens = reasoning_config.max_tokens.unwrap_or(4000);
-                thinking_config.insert(
-                    "budget_tokens".to_string(),
-                    aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(
-                        budget_tokens as u64,
-                    )),
-                );
-
-                let mut fields = std::collections::HashMap::new();
-                fields.insert(
-                    "thinking".to_string(),
-                    aws_smithy_types::Document::Object(thinking_config),
-                );
-
-                Some(aws_smithy_types::Document::Object(fields))
-            } else {
+            // Effort::None explicitly disables thinking
+            if matches!(reasoning_config.effort, Some(forge_domain::Effort::None)) {
                 None
+            } else {
+                // Map effort variant to a token budget; takes priority over max_tokens
+                let effort_budget: Option<usize> =
+                    reasoning_config.effort.as_ref().map(|e| match e {
+                        forge_domain::Effort::None => 0, // unreachable — handled above
+                        forge_domain::Effort::Minimal => 1024,
+                        forge_domain::Effort::Low => 2048,
+                        forge_domain::Effort::Medium => 8192,
+                        forge_domain::Effort::High => 16384,
+                        forge_domain::Effort::XHigh => 32768,
+                    });
+                let should_enable =
+                    effort_budget.is_some() || reasoning_config.enabled.unwrap_or(false);
+                if should_enable {
+                    let budget_tokens = effort_budget
+                        .or(reasoning_config.max_tokens)
+                        .unwrap_or(4000);
+                    let mut thinking_config = std::collections::HashMap::new();
+                    thinking_config.insert(
+                        "type".to_string(),
+                        aws_smithy_types::Document::String("enabled".to_string()),
+                    );
+                    thinking_config.insert(
+                        "budget_tokens".to_string(),
+                        aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(
+                            budget_tokens as u64,
+                        )),
+                    );
+                    let mut fields = std::collections::HashMap::new();
+                    fields.insert(
+                        "thinking".to_string(),
+                        aws_smithy_types::Document::Object(thinking_config),
+                    );
+                    Some(aws_smithy_types::Document::Object(fields))
+                } else {
+                    None
+                }
             }
         } else {
             None

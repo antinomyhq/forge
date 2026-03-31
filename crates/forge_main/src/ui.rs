@@ -3448,6 +3448,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::Reasoning { effort } => {
+                let domain_effort = forge_domain::Effort::from(effort);
+                let reasoning =
+                    forge_domain::ReasoningConfig::default().effort(domain_effort.clone());
+                self.api.set_reasoning_config(reasoning).await?;
+                self.writeln_title(
+                    TitleFormat::action(domain_effort.to_string().as_str())
+                        .sub_title("is now the reasoning effort level"),
+                )?;
+            }
         }
 
         Ok(())
@@ -3507,6 +3517,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::Reasoning => {
+                let reasoning = self.api.get_reasoning_config().await?;
+                match reasoning {
+                    Some(config) => {
+                        let effort = config
+                            .effort
+                            .map(|e| e.to_string())
+                            .unwrap_or_else(|| "Not set".to_string());
+                        self.writeln(effort)?;
+                    }
+                    None => self.writeln("Reasoning: Not set")?,
                 }
             }
         }

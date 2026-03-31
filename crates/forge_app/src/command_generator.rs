@@ -279,6 +279,19 @@ mod tests {
         async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
             Ok(())
         }
+
+        async fn get_reasoning_config(
+            &self,
+        ) -> Result<Option<forge_domain::ReasoningConfig>> {
+            Ok(None)
+        }
+
+        async fn set_reasoning_config(
+            &self,
+            _config: forge_domain::ReasoningConfig,
+        ) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]

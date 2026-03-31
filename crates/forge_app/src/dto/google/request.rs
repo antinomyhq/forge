@@ -397,17 +397,33 @@ impl From<Context> for Request {
                 _ => None,
             }),
             thinking_config: context.reasoning.and_then(|reasoning| {
-                reasoning.enabled.and_then(|enabled| {
-                    if enabled {
-                        Some(ThinkingConfig {
-                            thinking_level: None,
-                            thinking_budget: reasoning.max_tokens.map(|t| t as i32),
-                            include_thoughts: Some(true),
-                        })
-                    } else {
-                        None
-                    }
-                })
+                use forge_domain::Effort;
+                // Effort::None explicitly disables thinking
+                if matches!(reasoning.effort, Some(Effort::None)) {
+                    return None;
+                }
+                // Map effort variant to Google's Level enum
+                let thinking_level = reasoning.effort.as_ref().and_then(|e| match e {
+                    Effort::None => None, // unreachable — handled above
+                    Effort::Minimal => Some(Level::Minimal),
+                    Effort::Low => Some(Level::Low),
+                    Effort::Medium => Some(Level::Medium),
+                    Effort::High | Effort::XHigh => Some(Level::High),
+                });
+                let thinking_budget = reasoning.max_tokens.map(|t| t as i32);
+                // Enable if effort is set, budget is set, or explicitly enabled
+                if thinking_level.is_some()
+                    || thinking_budget.is_some()
+                    || reasoning.enabled == Some(true)
+                {
+                    Some(ThinkingConfig {
+                        thinking_level,
+                        thinking_budget,
+                        include_thoughts: Some(true),
+                    })
+                } else {
+                    None
+                }
             }),
             ..Default::default()
         });

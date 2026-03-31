@@ -277,6 +277,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         self.services.set_suggest_config(config).await
     }
 
+    async fn get_reasoning_config(&self) -> anyhow::Result<Option<ReasoningConfig>> {
+        self.services.get_reasoning_config().await
+    }
+
+    async fn set_reasoning_config(&self, config: ReasoningConfig) -> anyhow::Result<()> {
+        self.services.set_reasoning_config(config).await
+    }
+
     async fn reload_mcp(&self) -> Result<()> {
         self.services.mcp_service().reload_mcp().await
     }

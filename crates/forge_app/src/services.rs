@@ -226,6 +226,17 @@ pub trait AppConfigService: Send + Sync {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    /// Gets the global reasoning configuration.
+    async fn get_reasoning_config(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>>;
+
+    /// Sets the global reasoning configuration.
+    async fn set_reasoning_config(
+        &self,
+        config: forge_domain::ReasoningConfig,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -983,6 +994,19 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
         self.config_service().set_suggest_config(config).await
+    }
+
+    async fn get_reasoning_config(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::ReasoningConfig>> {
+        self.config_service().get_reasoning_config().await
+    }
+
+    async fn set_reasoning_config(
+        &self,
+        config: forge_domain::ReasoningConfig,
+    ) -> anyhow::Result<()> {
+        self.config_service().set_reasoning_config(config).await
     }
 }
 

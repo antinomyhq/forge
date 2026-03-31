@@ -184,6 +184,12 @@ function forge-accept-line() {
         config-suggest-model|csm)
             _forge_action_suggest_model "$input_text"
         ;;
+        reasoning|re)
+            _forge_action_reasoning "$input_text"
+        ;;
+        config-reasoning|cr)
+            _forge_action_config_reasoning "$input_text"
+        ;;
         tools|t)
             _forge_action_tools
         ;;

@@ -10,6 +10,37 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::{AgentId, ConversationId, ModelId, ProviderId};
 
+/// Reasoning effort level for CLI configuration.
+#[derive(Copy, Clone, Debug, ValueEnum)]
+#[clap(rename_all = "lower")]
+pub enum CliEffort {
+    /// No reasoning tokens; disables extended thinking entirely.
+    None,
+    /// Minimal reasoning; fastest, fewest thinking tokens.
+    Minimal,
+    /// Constrained reasoning suitable for straightforward tasks.
+    Low,
+    /// Balanced reasoning for moderately complex tasks.
+    Medium,
+    /// Deep reasoning for complex problems.
+    High,
+    /// Maximum reasoning budget for the hardest tasks.
+    Xhigh,
+}
+
+impl From<CliEffort> for forge_domain::Effort {
+    fn from(e: CliEffort) -> Self {
+        match e {
+            CliEffort::None => forge_domain::Effort::None,
+            CliEffort::Minimal => forge_domain::Effort::Minimal,
+            CliEffort::Low => forge_domain::Effort::Low,
+            CliEffort::Medium => forge_domain::Effort::Medium,
+            CliEffort::High => forge_domain::Effort::High,
+            CliEffort::Xhigh => forge_domain::Effort::XHigh,
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 pub struct Cli {
@@ -542,6 +573,11 @@ pub enum ConfigSetField {
         /// Model ID to use for command suggestion generation.
         model: ModelId,
     },
+    /// Set the global reasoning effort level.
+    Reasoning {
+        /// Reasoning effort level (none/minimal/low/medium/high/xhigh).
+        effort: CliEffort,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -555,6 +591,8 @@ pub enum ConfigGetField {
     Commit,
     /// Get the command suggestion generation config.
     Suggest,
+    /// Get the global reasoning effort level.
+    Reasoning,
 }
 
 /// Command group for conversation management.
@@ -941,6 +979,38 @@ mod tests {
             "claude-haiku-4-20250514".to_string(),
         ));
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_set_reasoning_effort() {
+        let fixture = Cli::parse_from(["forge", "config", "set", "reasoning", "high"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Set(args) => match args.field {
+                    ConfigSetField::Reasoning { effort } => {
+                        Some(forge_domain::Effort::from(effort).to_string())
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        let expected = Some("high".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_config_get_reasoning() {
+        let fixture = Cli::parse_from(["forge", "config", "get", "reasoning"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Config(config)) => match config.command {
+                ConfigCommand::Get(args) => matches!(args.field, ConfigGetField::Reasoning),
+                _ => panic!("Expected ConfigCommand::Get"),
+            },
+            _ => panic!("Expected TopLevelCommand::Config"),
+        };
+        assert!(actual);
     }
 
     #[test]

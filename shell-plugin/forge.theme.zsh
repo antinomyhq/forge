@@ -17,6 +17,7 @@ function _forge_prompt_info() {
     forge_cmd+=(zsh rprompt)
     [[ -n "$_FORGE_SESSION_MODEL" ]] && local -x FORGE_SESSION__MODEL_ID="$_FORGE_SESSION_MODEL"
     [[ -n "$_FORGE_SESSION_PROVIDER" ]] && local -x FORGE_SESSION__PROVIDER_ID="$_FORGE_SESSION_PROVIDER"
+    [[ -n "$_FORGE_SESSION_REASONING" ]] && local -x FORGE_REASONING__EFFORT="$_FORGE_SESSION_REASONING"
     _FORGE_CONVERSATION_ID=$_FORGE_CONVERSATION_ID _FORGE_ACTIVE_AGENT=$_FORGE_ACTIVE_AGENT "${forge_cmd[@]}"
 }
 

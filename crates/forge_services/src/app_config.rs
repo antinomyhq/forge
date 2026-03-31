@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use forge_app::{AppConfigService, EnvironmentInfra};
 use forge_domain::{
-    CommitConfig, ConfigOperation, ModelId, ProviderId, ProviderRepository, SuggestConfig,
+    CommitConfig, ConfigOperation, ModelId, ProviderId, ProviderRepository, ReasoningConfig,
+    SuggestConfig,
 };
 use tracing::debug;
 
@@ -126,6 +127,15 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     ) -> anyhow::Result<()> {
         self.update(ConfigOperation::SetSuggestConfig(suggest_config))
             .await
+    }
+
+    async fn get_reasoning_config(&self) -> anyhow::Result<Option<ReasoningConfig>> {
+        let env = self.infra.get_environment();
+        Ok(env.reasoning)
+    }
+
+    async fn set_reasoning_config(&self, reasoning: ReasoningConfig) -> anyhow::Result<()> {
+        self.update(ConfigOperation::SetReasoning(reasoning)).await
     }
 }
 
@@ -261,6 +271,9 @@ mod tests {
                                     .provider_id(suggest.provider.as_ref().to_string())
                                     .model_id(suggest.model.to_string()),
                             );
+                        }
+                        ConfigOperation::SetReasoning(reasoning) => {
+                            env.reasoning = Some(reasoning);
                         }
                     }
                 }

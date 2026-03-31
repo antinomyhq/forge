@@ -116,16 +116,30 @@ impl TryFrom<forge_domain::Context> for Request {
             tool_choice: request.tool_choice.map(ToolChoice::from),
             stream: Some(request.stream.unwrap_or(true)),
             thinking: request.reasoning.and_then(|reasoning| {
-                reasoning.enabled.and_then(|enabled| {
-                    if enabled {
-                        Some(Thinking {
-                            r#type: ThinkingType::Enabled,
-                            budget_tokens: reasoning.max_tokens.unwrap_or(10000) as u64,
-                        })
-                    } else {
-                        None
-                    }
-                })
+                use forge_domain::Effort;
+                // Effort::None explicitly disables thinking
+                if matches!(reasoning.effort, Some(Effort::None)) {
+                    return None;
+                }
+                // Map effort variant to a token budget; takes priority over max_tokens
+                let effort_budget: Option<u64> = reasoning.effort.as_ref().map(|e| match e {
+                    Effort::None => 0, // unreachable — handled above
+                    Effort::Minimal => 1024,
+                    Effort::Low => 2048,
+                    Effort::Medium => 8192,
+                    Effort::High => 16384,
+                    Effort::XHigh => 32768,
+                });
+                // Enable if a non-None effort is set, or if explicitly enabled
+                let should_enable = effort_budget.is_some() || reasoning.enabled == Some(true);
+                if should_enable {
+                    let budget_tokens = effort_budget
+                        .or_else(|| reasoning.max_tokens.map(|t| t as u64))
+                        .unwrap_or(10000);
+                    Some(Thinking { r#type: ThinkingType::Enabled, budget_tokens })
+                } else {
+                    None
+                }
             }),
             output_format: request.response_format.and_then(|rf| match rf {
                 forge_domain::ResponseFormat::Text => {

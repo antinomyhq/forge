@@ -32,6 +32,14 @@
     "description": "Set the model used for command suggestion generation [alias: csm]"
   },
   {
+    "command": "reasoning",
+    "description": "Switch the reasoning effort for the current session only, without modifying global config [alias: re]"
+  },
+  {
+    "command": "config-reasoning",
+    "description": "Set the global reasoning effort level [alias: cr]"
+  },
+  {
     "command": "config",
     "description": "List current configuration values"
   },
