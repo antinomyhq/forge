@@ -200,9 +200,10 @@ mod tests {
     fn test_apply_config_op_set_model_matching_provider() {
         use forge_domain::{ModelId, ProviderId};
 
-        let mut fixture = ForgeConfig::default();
-        fixture.session =
-            Some(ModelConfig { provider_id: Some("anthropic".to_string()), model_id: None });
+        let mut fixture = ForgeConfig {
+            session: Some(ModelConfig { provider_id: Some("anthropic".to_string()), model_id: None }),
+            ..Default::default()
+        };
 
         apply_config_op(
             &mut fixture,
@@ -222,11 +223,13 @@ mod tests {
     fn test_apply_config_op_set_model_different_provider_replaces_session() {
         use forge_domain::{ModelId, ProviderId};
 
-        let mut fixture = ForgeConfig::default();
-        fixture.session = Some(ModelConfig {
-            provider_id: Some("openai".to_string()),
-            model_id: Some("gpt-4".to_string()),
-        });
+        let mut fixture = ForgeConfig {
+            session: Some(ModelConfig {
+                provider_id: Some("openai".to_string()),
+                model_id: Some("gpt-4".to_string()),
+            }),
+            ..Default::default()
+        };
 
         apply_config_op(
             &mut fixture,
