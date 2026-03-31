@@ -134,6 +134,35 @@ pub struct ForgeConfig {
     pub tool_supported: bool,
 }
 
+impl ForgeConfig {
+    /// Reads and merges configuration from all sources, returning the resolved
+    /// [`ForgeConfig`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config path cannot be resolved, the file cannot
+    /// be read, or deserialization fails.
+    pub fn read() -> crate::Result<ForgeConfig> {
+        ConfigReader::default()
+            .read_defaults()
+            .read_legacy()
+            .read_global()
+            .read_env()
+            .build()
+    }
+
+    /// Writes the configuration to the user config file.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration cannot be serialized or written to
+    /// disk.
+    pub fn write(&self) -> crate::Result<()> {
+        let path = ConfigReader::config_path();
+        ConfigWriter::new(self.clone()).write(&path)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -174,34 +203,5 @@ mod tests {
         let actual = ConfigReader::default().read_toml(&toml).build().unwrap();
 
         assert_eq!(actual.temperature, fixture.temperature);
-    }
-}
-
-impl ForgeConfig {
-    /// Reads and merges configuration from all sources, returning the resolved
-    /// [`ForgeConfig`].
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the config path cannot be resolved, the file cannot
-    /// be read, or deserialization fails.
-    pub fn read() -> crate::Result<ForgeConfig> {
-        ConfigReader::default()
-            .read_defaults()
-            .read_legacy()
-            .read_global()
-            .read_env()
-            .build()
-    }
-
-    /// Writes the configuration to the user config file.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the configuration cannot be serialized or written to
-    /// disk.
-    pub fn write(&self) -> crate::Result<()> {
-        let path = ConfigReader::config_path();
-        ConfigWriter::new(self.clone()).write(&path)
     }
 }
