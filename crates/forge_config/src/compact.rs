@@ -6,7 +6,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::Percentage;
-use crate::util::{overwrite, overwrite_some};
 
 /// Frequency at which forge checks for updates
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
@@ -41,7 +40,7 @@ pub struct Update {
 }
 
 /// Configuration for automatic context compaction for all agents
-#[derive(Debug, Clone, Serialize, Deserialize, Setters, JsonSchema, PartialEq, merge::Merge)]
+#[derive(Debug, Clone, Serialize, Deserialize, Setters, JsonSchema, PartialEq)]
 #[setters(strip_option, into)]
 pub struct Compact {
     /// Number of most recent messages to preserve during compaction.
@@ -49,7 +48,6 @@ pub struct Compact {
     /// eviction_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[serde(default)]
-    #[merge(strategy = overwrite)]
     pub retention_window: usize,
 
     /// Maximum percentage of the context that can be summarized during
@@ -58,39 +56,32 @@ pub struct Compact {
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[serde(default)]
-    #[merge(strategy = overwrite)]
     pub eviction_window: Percentage,
 
     /// Maximum number of tokens to keep after compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = overwrite_some)]
     pub max_tokens: Option<usize>,
 
     /// Maximum number of tokens before triggering compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = overwrite_some)]
     pub token_threshold: Option<usize>,
 
     /// Maximum number of conversation turns before triggering compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = overwrite_some)]
     pub turn_threshold: Option<usize>,
 
     /// Maximum number of messages before triggering compaction
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = overwrite_some)]
     pub message_threshold: Option<usize>,
 
     /// Model ID to use for compaction, useful when compacting with a
     /// cheaper/faster model. If not specified, the root level model will be
     /// used.
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = overwrite_some)]
     pub model: Option<String>,
 
     /// Whether to trigger compaction when the last message is from a user
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = overwrite_some)]
     pub on_turn_end: Option<bool>,
 }
 

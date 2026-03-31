@@ -9,7 +9,6 @@ mod model;
 mod percentage;
 mod reader;
 mod retry;
-mod util;
 mod writer;
 
 pub use auto_dump::*;
