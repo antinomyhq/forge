@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::Percentage;
-use crate::util::overwrite_some;
+use crate::util::{overwrite, overwrite_some};
 
 /// Frequency at which forge checks for updates
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, fake::Dummy)]
@@ -49,7 +49,7 @@ pub struct Compact {
     /// eviction_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[serde(default)]
-    #[merge(strategy = merge::overwrite)]
+    #[merge(strategy = overwrite)]
     pub retention_window: usize,
 
     /// Maximum percentage of the context that can be summarized during
@@ -58,7 +58,7 @@ pub struct Compact {
     /// retention_window - the more conservative limit (fewer messages to
     /// compact) takes precedence.
     #[serde(default)]
-    #[merge(strategy = merge::overwrite)]
+    #[merge(strategy = overwrite)]
     pub eviction_window: Percentage,
 
     /// Maximum number of tokens to keep after compaction
