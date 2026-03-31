@@ -47,22 +47,19 @@ fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
             if session.provider_id.as_deref() == Some(&pid_str) {
                 session.model_id = Some(mid_str);
             } else {
-                fc.session = Some(ModelConfig {
-                    provider_id: Some(pid_str),
-                    model_id: Some(mid_str),
-                });
+                fc.session =
+                    Some(ModelConfig { provider_id: Some(pid_str), model_id: Some(mid_str) });
             }
         }
         ConfigOperation::SetCommitConfig(commit) => {
-            fc.commit =
-                commit
-                    .provider
-                    .as_ref()
-                    .zip(commit.model.as_ref())
-                    .map(|(pid, mid)| ModelConfig {
-                        provider_id: Some(pid.as_ref().to_string()),
-                        model_id: Some(mid.to_string()),
-                    });
+            fc.commit = commit
+                .provider
+                .as_ref()
+                .zip(commit.model.as_ref())
+                .map(|(pid, mid)| ModelConfig {
+                    provider_id: Some(pid.as_ref().to_string()),
+                    model_id: Some(mid.to_string()),
+                });
         }
         ConfigOperation::SetSuggestConfig(suggest) => {
             fc.suggest = Some(ModelConfig {
@@ -148,8 +145,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
             .read_global()
             .build()?;
 
-        debug!(config = ?fc, "loaded config for update");
-        debug!(?ops, "applying app config operations");
+        debug!(config = ?fc, ?ops, "applying app config operations");
 
         for op in ops {
             apply_config_op(&mut fc, op);
@@ -191,7 +187,10 @@ mod tests {
             ConfigOperation::SetProvider(ProviderId::ANTHROPIC),
         );
 
-        let actual = fixture.session.as_ref().and_then(|s| s.provider_id.as_deref());
+        let actual = fixture
+            .session
+            .as_ref()
+            .and_then(|s| s.provider_id.as_deref());
         let expected = Some("anthropic");
 
         assert_eq!(actual, expected);
@@ -202,10 +201,8 @@ mod tests {
         use forge_domain::{ModelId, ProviderId};
 
         let mut fixture = ForgeConfig::default();
-        fixture.session = Some(ModelConfig {
-            provider_id: Some("anthropic".to_string()),
-            model_id: None,
-        });
+        fixture.session =
+            Some(ModelConfig { provider_id: Some("anthropic".to_string()), model_id: None });
 
         apply_config_op(
             &mut fixture,
@@ -243,10 +240,7 @@ mod tests {
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_deref());
-        let actual_model = fixture
-            .session
-            .as_ref()
-            .and_then(|s| s.model_id.as_deref());
+        let actual_model = fixture.session.as_ref().and_then(|s| s.model_id.as_deref());
 
         assert_eq!(actual_provider, Some("anthropic"));
         assert_eq!(actual_model, Some("claude-3-5-sonnet-20241022"));
