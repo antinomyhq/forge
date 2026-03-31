@@ -8,7 +8,7 @@ use oauth2::basic::BasicClient;
 use oauth2::{ClientId, RefreshToken, TokenUrl};
 
 use crate::auth::error::Error;
-use crate::http_client::ClientBuilderExt;
+use crate::http::ClientBuilderExt;
 
 /// Calculate token expiry with fallback duration
 pub(crate) fn calculate_token_expiry(

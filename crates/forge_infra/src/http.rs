@@ -1,395 +1,157 @@
-use std::sync::Arc;
+use std::time::Duration;
 
-use anyhow::Context;
-use bytes::Bytes;
-use forge_app::HttpInfra;
-use forge_domain::Environment;
-use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
-use reqwest::{Client, Response, StatusCode, Url};
-use reqwest_eventsource::{EventSource, RequestBuilderExt};
-use tracing::debug;
+use forge_domain::{HttpConfig, TlsBackend, TlsVersion};
+use reqwest::Certificate;
+use reqwest::redirect::Policy;
+use tracing::warn;
 
-use crate::http_client::ClientBuilderExt;
-
-const VERSION: &str = match option_env!("APP_VERSION") {
-    None => env!("CARGO_PKG_VERSION"),
-    Some(v) => v,
-};
-
-pub struct ForgeHttpInfra<F> {
-    client: Client,
-    env: Environment,
-    file: Arc<F>,
+fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
+    use reqwest::tls::Version;
+    match tls {
+        TlsVersion::V1_0 => Version::TLS_1_0,
+        TlsVersion::V1_1 => Version::TLS_1_1,
+        TlsVersion::V1_2 => Version::TLS_1_2,
+        TlsVersion::V1_3 => Version::TLS_1_3,
+    }
 }
 
-impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
-    pub fn new(env: Environment, file_writer: Arc<F>) -> Self {
-        let client = reqwest::Client::builder()
-            .with_http_config(&env.http)
-            .build()
-            .unwrap();
-        Self { env, client, file: file_writer }
-    }
+/// Extension methods on [`reqwest::ClientBuilder`] that act as composable
+/// transformers. Each method applies one configuration concern; callers mix
+/// and match them to build any HTTP client without duplicating logic.
+pub(crate) trait ClientBuilderExt: Sized {
+    /// Applies the full [`HttpConfig`]: timeouts, connection-pooling, redirect
+    /// policy, Hickory DNS, HTTP/2 keep-alive, and all TLS settings via
+    /// [`ClientBuilderExt::with_tls_config`].
+    fn with_http_config(self, config: &HttpConfig) -> Self;
 
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        self.execute_request("GET", url, |client| {
-            client.get(url.clone()).headers(self.headers(headers))
-        })
-        .await
-    }
+    /// Applies only the TLS subset of [`HttpConfig`]: root certificate paths,
+    /// `accept_invalid_certs`, min/max TLS version, and TLS backend selection.
+    ///
+    /// Certificate file read or parse failures are emitted as warnings and
+    /// skipped rather than propagated as errors.
+    fn with_tls_config(self, config: &HttpConfig) -> Self;
 
-    async fn post(
-        &self,
-        url: &Url,
-        headers: Option<HeaderMap>,
-        body: Bytes,
-    ) -> anyhow::Result<Response> {
-        let mut request_headers = self.headers(headers);
-        request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+    /// Routes HTTPS traffic through `HTTP_PROXY` when no `HTTPS_PROXY` or
+    /// `ALL_PROXY` is set in the environment. This compensates for reqwest's
+    /// intentional behaviour of applying `HTTP_PROXY` only to plaintext HTTP
+    /// requests, which causes HTTPS traffic to bypass the proxy in corporate
+    /// environments where only `HTTP_PROXY` is configured.
+    fn with_proxy_fallback(self) -> anyhow::Result<Self>;
 
-        self.write_debug_request(&body);
-
-        self.execute_request("POST", url, |client| {
-            client.post(url.clone()).headers(request_headers).body(body)
-        })
-        .await
-    }
-
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
-        self.execute_request("DELETE", url, |client| {
-            client.delete(url.clone()).headers(self.headers(None))
-        })
-        .await
-    }
-
-    /// Generic helper method to execute HTTP requests with consistent error
-    /// handling
-    async fn execute_request<B>(
-        &self,
-        method: &str,
-        url: &Url,
-        request_builder: B,
-    ) -> anyhow::Result<Response>
+    /// Adds every `(key, value)` pair from `headers` to the client's default
+    /// header map. The call is a no-op when the iterator is empty. Returns an
+    /// error if any header name or value is invalid.
+    fn with_custom_headers<K, V>(
+        self,
+        headers: impl IntoIterator<Item = (K, V)>,
+    ) -> anyhow::Result<Self>
     where
-        B: FnOnce(&Client) -> reqwest::RequestBuilder,
+        K: AsRef<str>,
+        V: AsRef<str>;
+}
+
+impl ClientBuilderExt for reqwest::ClientBuilder {
+    fn with_http_config(self, config: &HttpConfig) -> Self {
+        self.connect_timeout(Duration::from_secs(config.connect_timeout))
+            .read_timeout(Duration::from_secs(config.read_timeout))
+            .pool_idle_timeout(Duration::from_secs(config.pool_idle_timeout))
+            .pool_max_idle_per_host(config.pool_max_idle_per_host)
+            .redirect(Policy::limited(config.max_redirects))
+            .hickory_dns(config.hickory)
+            .http2_adaptive_window(config.adaptive_window)
+            .http2_keep_alive_interval(config.keep_alive_interval.map(Duration::from_secs))
+            .http2_keep_alive_timeout(Duration::from_secs(config.keep_alive_timeout))
+            .http2_keep_alive_while_idle(config.keep_alive_while_idle)
+            .with_tls_config(config)
+    }
+
+    fn with_tls_config(self, config: &HttpConfig) -> Self {
+        let mut builder = self;
+
+        if let Some(ref cert_paths) = config.root_cert_paths {
+            for cert_path in cert_paths {
+                match std::fs::read(cert_path) {
+                    Ok(buf) => {
+                        if let Ok(cert) = Certificate::from_pem(&buf) {
+                            builder = builder.add_root_certificate(cert);
+                        } else if let Ok(cert) = Certificate::from_der(&buf) {
+                            builder = builder.add_root_certificate(cert);
+                        } else {
+                            warn!(
+                                cert = %cert_path,
+                                "Failed to parse certificate as PEM or DER format"
+                            );
+                        }
+                    }
+                    Err(error) => {
+                        warn!(cert = %cert_path, %error, "Failed to read certificate file");
+                    }
+                }
+            }
+        }
+
+        if config.accept_invalid_certs {
+            builder = builder.danger_accept_invalid_certs(true);
+        }
+
+        if let Some(version) = config.min_tls_version.clone() {
+            builder = builder.min_tls_version(to_reqwest_tls(version));
+        }
+
+        if let Some(version) = config.max_tls_version.clone() {
+            builder = builder.max_tls_version(to_reqwest_tls(version));
+        }
+
+        match &config.tls_backend {
+            TlsBackend::Rustls => builder.use_rustls_tls(),
+            TlsBackend::Default => builder,
+        }
+    }
+
+    fn with_proxy_fallback(self) -> anyhow::Result<Self> {
+        let has_https_proxy = std::env::var("HTTPS_PROXY")
+            .or_else(|_| std::env::var("https_proxy"))
+            .or_else(|_| std::env::var("ALL_PROXY"))
+            .or_else(|_| std::env::var("all_proxy"))
+            .is_ok();
+
+        if !has_https_proxy {
+            if let Ok(proxy_url) =
+                std::env::var("HTTP_PROXY").or_else(|_| std::env::var("http_proxy"))
+            {
+                return Ok(self.proxy(reqwest::Proxy::all(&proxy_url).map_err(|e| {
+                    anyhow::anyhow!("Invalid HTTP_PROXY URL '{proxy_url}': {e}")
+                })?));
+            }
+        }
+
+        Ok(self)
+    }
+
+    fn with_custom_headers<K, V>(
+        self,
+        headers: impl IntoIterator<Item = (K, V)>,
+    ) -> anyhow::Result<Self>
+    where
+        K: AsRef<str>,
+        V: AsRef<str>,
     {
-        let response = request_builder(&self.client)
-            .send()
-            .await
-            .with_context(|| format_http_context(None, method, url))?;
+        let mut header_map = reqwest::header::HeaderMap::new();
 
-        let status = response.status();
-        if !status.is_success() {
-            let error_body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read response body".to_string());
-            return Err(anyhow::anyhow!(error_body))
-                .with_context(|| format_http_context(Some(status), method, url));
+        for (key, value) in headers {
+            let k = key.as_ref();
+            let v = value.as_ref();
+            let header_name = reqwest::header::HeaderName::try_from(k)
+                .map_err(|e| anyhow::anyhow!("Invalid header name '{k}': {e}"))?;
+            let header_value = reqwest::header::HeaderValue::try_from(v)
+                .map_err(|e| anyhow::anyhow!("Invalid header value for '{k}': {e}"))?;
+            header_map.insert(header_name, header_value);
         }
 
-        Ok(response)
-    }
-
-    // OpenRouter optional headers ref: https://openrouter.ai/docs/api-reference/overview#headers
-    // - `HTTP-Referer`: Identifies your app on openrouter.ai
-    // - `X-Title`: Sets/modifies your app's title
-    fn headers(&self, headers: Option<HeaderMap>) -> HeaderMap {
-        let mut headers = headers.unwrap_or_default();
-        // Only set User-Agent if the provider hasn't already set one
-        if !headers.contains_key("User-Agent") {
-            headers.insert("User-Agent", HeaderValue::from_static("Forge"));
-        }
-        headers.insert("X-Title", HeaderValue::from_static("forge"));
-        headers.insert(
-            "x-app-version",
-            HeaderValue::from_str(format!("v{VERSION}").as_str())
-                .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
-        );
-        headers.insert(
-            "HTTP-Referer",
-            HeaderValue::from_static("https://forgecode.dev"),
-        );
-        headers.insert(
-            reqwest::header::CONNECTION,
-            HeaderValue::from_static("keep-alive"),
-        );
-        debug!(headers = ?Self::sanitize_headers(&headers), "Request Headers");
-        headers
-    }
-
-    fn sanitize_headers(headers: &HeaderMap) -> HeaderMap {
-        let sensitive_headers = [AUTHORIZATION.as_str()];
-        headers
-            .iter()
-            .map(|(name, value)| {
-                let name_str = name.as_str().to_lowercase();
-                let value_str = if sensitive_headers.contains(&name_str.as_str()) {
-                    HeaderValue::from_static("[REDACTED]")
-                } else {
-                    value.clone()
-                };
-                (name.clone(), value_str)
-            })
-            .collect()
-    }
-}
-
-impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
-    fn write_debug_request(&self, body: &Bytes) {
-        if let Some(debug_path) = &self.env.debug_requests {
-            let file_writer = self.file.clone();
-            let body_clone = body.clone();
-            let debug_path = debug_path.clone();
-            tokio::spawn(async move {
-                let _ = file_writer.write(&debug_path, body_clone).await;
-            });
-        }
-    }
-
-    async fn eventsource(
-        &self,
-        url: &Url,
-        headers: Option<HeaderMap>,
-        body: Bytes,
-    ) -> anyhow::Result<EventSource> {
-        let mut request_headers = self.headers(headers);
-        request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
-
-        self.write_debug_request(&body);
-
-        self.client
-            .post(url.clone())
-            .headers(request_headers)
-            .body(body)
-            .eventsource()
-            .with_context(|| format_http_context(None, "POST (EventSource)", url))
-    }
-}
-
-/// Helper function to format HTTP request/response context for logging and
-/// error reporting
-fn format_http_context<U: AsRef<str>>(status: Option<StatusCode>, method: &str, url: U) -> String {
-    if let Some(status) = status {
-        format!("{} {} {}", status.as_u16(), method, url.as_ref())
-    } else {
-        format!("{} {}", method, url.as_ref())
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: forge_app::FileWriterInfra + 'static> HttpInfra for ForgeHttpInfra<F> {
-    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        self.get(url, headers).await
-    }
-
-    async fn http_post(
-        &self,
-        url: &Url,
-        headers: Option<HeaderMap>,
-        body: Bytes,
-    ) -> anyhow::Result<Response> {
-        self.post(url, headers, body).await
-    }
-
-    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
-        self.delete(url).await
-    }
-
-    async fn http_eventsource(
-        &self,
-        url: &Url,
-        headers: Option<HeaderMap>,
-        body: Bytes,
-    ) -> anyhow::Result<EventSource> {
-        self.eventsource(url, headers, body).await
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::PathBuf;
-    use std::sync::Arc;
-
-    use fake::{Fake, Faker};
-    use forge_app::FileWriterInfra;
-    use forge_domain::{Environment, HttpConfig};
-    use tokio::sync::Mutex;
-
-    use super::*;
-
-    #[derive(Clone)]
-    struct MockFileWriter {
-        writes: Arc<Mutex<Vec<(PathBuf, Bytes)>>>,
-    }
-
-    impl MockFileWriter {
-        fn new() -> Self {
-            Self { writes: Arc::new(Mutex::new(Vec::new())) }
+        if header_map.is_empty() {
+            return Ok(self);
         }
 
-        async fn get_writes(&self) -> Vec<(PathBuf, Bytes)> {
-            self.writes.lock().await.clone()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl FileWriterInfra for MockFileWriter {
-        async fn write(&self, path: &std::path::Path, contents: Bytes) -> anyhow::Result<()> {
-            self.writes
-                .lock()
-                .await
-                .push((path.to_path_buf(), contents));
-            Ok(())
-        }
-
-        async fn write_temp(
-            &self,
-            _prefix: &str,
-            _extension: &str,
-            _content: &str,
-        ) -> anyhow::Result<PathBuf> {
-            Ok(Faker.fake())
-        }
-    }
-
-    fn create_test_env(debug_requests: Option<PathBuf>) -> Environment {
-        Environment { debug_requests, http: HttpConfig::default(), ..Faker.fake() }
-    }
-
-    #[tokio::test]
-    async fn test_debug_requests_none_does_not_write() {
-        let file_writer = MockFileWriter::new();
-        let env = create_test_env(None);
-        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
-
-        let body = Bytes::from("test request body");
-        let url = Url::parse("https://api.test.com/messages").unwrap();
-
-        // Attempt to create eventsource (which triggers debug write if enabled)
-        let _ = http.eventsource(&url, None, body).await;
-
-        // Give async task time to complete
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let writes = file_writer.get_writes().await;
-        assert_eq!(
-            writes.len(),
-            0,
-            "No files should be written when debug_requests is None"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_debug_requests_with_valid_path() {
-        let file_writer = MockFileWriter::new();
-        let debug_path = PathBuf::from("/tmp/forge-test/debug.json");
-        let env = create_test_env(Some(debug_path.clone()));
-        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
-
-        let body = Bytes::from("test request body");
-        let url = Url::parse("https://api.test.com/messages").unwrap();
-
-        let _ = http.eventsource(&url, None, body.clone()).await;
-
-        // Give async task time to complete
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let writes = file_writer.get_writes().await;
-        assert_eq!(writes.len(), 1, "Should write one file");
-        assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
-    }
-
-    #[tokio::test]
-    async fn test_debug_requests_with_relative_path() {
-        let file_writer = MockFileWriter::new();
-        let debug_path = PathBuf::from("./debug/requests.json");
-        let env = create_test_env(Some(debug_path.clone()));
-        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
-
-        let body = Bytes::from("test request body");
-        let url = Url::parse("https://api.test.com/messages").unwrap();
-
-        let _ = http.eventsource(&url, None, body.clone()).await;
-
-        // Give async task time to complete
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let writes = file_writer.get_writes().await;
-        assert_eq!(writes.len(), 1, "Should write one file");
-        assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
-    }
-
-    #[tokio::test]
-    async fn test_debug_requests_post_none_does_not_write() {
-        let file_writer = MockFileWriter::new();
-        let env = create_test_env(None);
-        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
-
-        let body = Bytes::from("test request body");
-        let url = Url::parse("http://127.0.0.1:9/responses").unwrap();
-
-        let _ = http.post(&url, None, body).await;
-
-        // Give async task time to complete
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let writes = file_writer.get_writes().await;
-        assert_eq!(
-            writes.len(),
-            0,
-            "No files should be written for POST when debug_requests is None"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_debug_requests_post_writes_body() {
-        let file_writer = MockFileWriter::new();
-        let debug_path = PathBuf::from("/tmp/forge-test/debug-post.json");
-        let env = create_test_env(Some(debug_path.clone()));
-        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
-
-        let body = Bytes::from("test request body");
-        let url = Url::parse("http://127.0.0.1:9/responses").unwrap();
-
-        let _ = http.post(&url, None, body.clone()).await;
-
-        // Give async task time to complete
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let writes = file_writer.get_writes().await;
-        assert_eq!(
-            writes.len(),
-            1,
-            "Should write one file for POST when debug_requests is set"
-        );
-        assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
-    }
-
-    #[tokio::test]
-    async fn test_debug_requests_fallback_on_dir_creation_failure() {
-        let file_writer = MockFileWriter::new();
-        // Use a path with a parent that doesn't exist and can't be created
-        // (in practice, this would be a permission issue)
-        let debug_path = PathBuf::from("test_debug.json");
-        let env = create_test_env(Some(debug_path.clone()));
-        let http = ForgeHttpInfra::new(env, Arc::new(file_writer.clone()));
-
-        let body = Bytes::from("test request body");
-        let url = Url::parse("https://api.test.com/messages").unwrap();
-
-        let _ = http.eventsource(&url, None, body.clone()).await;
-
-        // Give async task time to complete
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let writes = file_writer.get_writes().await;
-        // Should write to debug_path (no parent dir needed)
-        assert_eq!(writes.len(), 1, "Should write one file");
-        assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+        Ok(self.default_headers(header_map))
     }
 }

@@ -18,7 +18,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::error::Error;
-use crate::http_client::ClientBuilderExt;
+use crate::http::ClientBuilderExt;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,

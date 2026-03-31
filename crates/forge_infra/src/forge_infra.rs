@@ -27,7 +27,7 @@ use crate::fs_read_dir::ForgeDirectoryReaderService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_write::ForgeFileWriteService;
 use crate::grpc::ForgeGrpcClient;
-use crate::http::ForgeHttpInfra;
+use crate::llm_client::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
