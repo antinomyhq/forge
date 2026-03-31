@@ -11,72 +11,59 @@ use serde::{Deserialize, Serialize};
 /// Fields like model and provider are optional to support defaults.
 /// This type is a repo concern: it models how agents are stored on disk and
 /// is converted to the domain [`Agent`] type before use.
-#[derive(Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, Setters, JsonSchema)]
 #[setters(strip_option, into)]
 #[serde(rename = "Agent")]
 pub(crate) struct AgentDefinition {
     /// Flag to enable/disable tool support for this agent.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub tool_supported: Option<bool>,
 
     // Unique identifier for the agent
-    #[merge(strategy = forge_domain::merge::std::overwrite)]
     pub id: AgentId,
 
     /// Path to the agent definition file, if loaded from a file
     #[serde(skip)]
-    #[merge(strategy = forge_domain::merge::std::overwrite)]
     pub path: Option<String>,
 
     /// Human-readable title for the agent
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub title: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub provider: Option<ProviderId>,
 
     // The language model ID to be used by this agent
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub model: Option<ModelId>,
 
     // Human-readable description of the agent's purpose
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub description: Option<String>,
 
     // Template for the system prompt provided to the agent
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub system_prompt: Option<Template<SystemContext>>,
 
     // Template for the user prompt provided to the agent
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub user_prompt: Option<Template<EventContext>>,
 
     /// Tools that the agent can use
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = merge_opt_vec)]
     pub tools: Option<Vec<ToolName>>,
 
     /// Maximum number of turns the agent can take
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub max_turns: Option<u64>,
 
     /// Configuration for automatic context compaction
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub compact: Option<Compact>,
 
     /// A set of custom rules that the agent should follow
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub custom_rules: Option<String>,
 
     /// Temperature used for agent
@@ -91,7 +78,6 @@ pub(crate) struct AgentDefinition {
     ///   used
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub temperature: Option<Temperature>,
 
     /// Top-p (nucleus sampling) used for agent
@@ -104,7 +90,6 @@ pub(crate) struct AgentDefinition {
     /// - If not specified, the model provider's default will be used
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub top_p: Option<TopP>,
 
     /// Top-k used for agent
@@ -116,7 +101,6 @@ pub(crate) struct AgentDefinition {
     /// - If not specified, the model provider's default will be used
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub top_k: Option<TopK>,
 
     /// Maximum number of tokens the model can generate
@@ -128,27 +112,23 @@ pub(crate) struct AgentDefinition {
     /// - If not specified, the model provider's default will be used
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub max_tokens: Option<MaxTokens>,
 
     /// Reasoning configuration for the agent.
     /// Controls the reasoning capabilities of the agent
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub reasoning: Option<ReasoningConfig>,
 
     /// Maximum number of times a tool can fail before sending the response back
     /// to the LLM forces the completion.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub max_tool_failure_per_turn: Option<usize>,
 
     /// Maximum number of requests that can be made in a single turn
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = forge_domain::merge::option)]
     pub max_requests_per_turn: Option<usize>,
 }
 
