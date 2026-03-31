@@ -26,6 +26,8 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     pub fn new(env: Environment, file_writer: Arc<F>) -> Self {
         let client = reqwest::Client::builder()
             .with_http_config(&env.http)
+            .with_proxy_fallback()
+            .expect("Failed to configure proxy fallback")
             .build()
             .unwrap();
         Self { env, client, file: file_writer }

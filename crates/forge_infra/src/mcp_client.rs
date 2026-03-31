@@ -33,15 +33,21 @@ pub struct ForgeMcpClient {
     config: McpServerConfig,
     env_vars: BTreeMap<String, String>,
     resolved_config: Arc<OnceLock<anyhow::Result<McpServerConfig>>>,
+    http_config: forge_domain::HttpConfig,
 }
 
 impl ForgeMcpClient {
-    pub fn new(config: McpServerConfig, env_vars: &BTreeMap<String, String>) -> Self {
+    pub fn new(
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+        http_config: forge_domain::HttpConfig,
+    ) -> Self {
         Self {
             client: Default::default(),
             config,
             env_vars: env_vars.clone(),
             resolved_config: Arc::new(OnceLock::new()),
+            http_config,
         }
     }
 
@@ -153,6 +159,7 @@ impl ForgeMcpClient {
     fn reqwest_client(&self, config: &McpHttpServer) -> anyhow::Result<reqwest::Client> {
         Ok(reqwest::Client::builder()
             .with_proxy_fallback()?
+            .with_tls_config(&self.http_config)
             .with_custom_headers(config.headers.iter())?
             .build()?)
     }
