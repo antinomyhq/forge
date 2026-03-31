@@ -37,7 +37,7 @@ pub struct TestContext {
     pub output: TestOutput,
     pub agent: Agent,
     pub tools: Vec<ToolDefinition>,
-    /// ForgeConfig used to build WorkflowConfig and populate TemplateConfig for
+    /// ForgeConfig used to populate TemplateConfig for
     /// system prompt rendering in tests.
     pub config: ForgeConfig,
 }

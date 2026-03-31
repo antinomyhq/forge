@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
+use forge_config::ForgeConfig;
 use forge_domain::{
-    Agent, ChatCompletionMessage, Context, Conversation, ModelId, ProviderId, ResultStream,
-    ToolCallContext, ToolCallFull, ToolResult, WorkflowConfig,
+    Agent, ChatCompletionMessage, Compact, Context, Conversation, MaxTokens, ModelId, ProviderId,
+    ResultStream, Temperature, ToolCallContext, ToolCallFull, ToolResult, TopK, TopP,
 };
 use merge::Merge;
 
@@ -71,9 +72,8 @@ impl<T: Services> AgentService for T {
 /// Extension trait for applying workflow-level configuration overrides to an
 /// [`Agent`].
 ///
-/// This lives in the application layer because the [`WorkflowConfig`] is built
-/// from [`forge_config::ForgeConfig`] by the application layer before being
-/// applied to domain agents at runtime.
+/// This lives in the application layer because the configuration is built
+/// from [`ForgeConfig`] and applied to domain agents at runtime.
 pub trait AgentExt {
     /// Applies workflow-level configuration overrides to this agent.
     ///
@@ -83,28 +83,27 @@ pub trait AgentExt {
     /// applied when the agent has no value set).
     ///
     /// # Arguments
-    /// * `config` - Workflow configuration built from `ForgeConfig` by the
-    ///   application layer.
-    fn apply_config(self, config: &WorkflowConfig) -> Agent;
+    /// * `config` - The top-level Forge configuration.
+    fn apply_config(self, config: &ForgeConfig) -> Agent;
 }
 
 impl AgentExt for Agent {
-    fn apply_config(self, config: &WorkflowConfig) -> Agent {
+    fn apply_config(self, config: &ForgeConfig) -> Agent {
         let mut agent = self;
 
-        if let Some(temperature) = config.temperature {
+        if let Some(temperature) = config.temperature.and_then(|d| Temperature::new(d.0 as f32).ok()) {
             agent.temperature = Some(temperature);
         }
 
-        if let Some(top_p) = config.top_p {
+        if let Some(top_p) = config.top_p.and_then(|d| TopP::new(d.0 as f32).ok()) {
             agent.top_p = Some(top_p);
         }
 
-        if let Some(top_k) = config.top_k {
+        if let Some(top_k) = config.top_k.and_then(|k| TopK::new(k).ok()) {
             agent.top_k = Some(top_k);
         }
 
-        if let Some(max_tokens) = config.max_tokens {
+        if let Some(max_tokens) = config.max_tokens.and_then(|m| MaxTokens::new(m).ok()) {
             agent.max_tokens = Some(max_tokens);
         }
 
@@ -126,11 +125,25 @@ impl AgentExt for Agent {
         if let Some(ref workflow_compact) = config.compact {
             // Merge workflow config into agent config
             // Agent settings take priority over workflow settings
-            let mut merged_compact = workflow_compact.clone();
+            let mut merged_compact = compact_to_domain(workflow_compact);
             merged_compact.merge(agent.compact.clone());
             agent.compact = merged_compact;
         }
 
         agent
+    }
+}
+
+/// Converts a [`forge_config::Compact`] to a [`forge_domain::Compact`].
+fn compact_to_domain(c: &forge_config::Compact) -> Compact {
+    Compact {
+        retention_window: c.retention_window,
+        eviction_window: c.eviction_window.value(),
+        max_tokens: c.max_tokens,
+        token_threshold: c.token_threshold,
+        turn_threshold: c.turn_threshold,
+        message_threshold: c.message_threshold,
+        model: c.model.as_ref().map(ModelId::new),
+        on_turn_end: c.on_turn_end,
     }
 }

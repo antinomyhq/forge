@@ -23,33 +23,9 @@ use crate::{
     Services,
 };
 
-/// Builds a [`WorkflowConfig`] from a [`ForgeConfig`].
-///
-/// Converts the configuration-layer types into the domain-layer types expected
-/// by [`AgentExt::apply_config`] and [`Orchestrator`].
-pub(crate) fn build_workflow_config(config: &ForgeConfig) -> WorkflowConfig {
-    WorkflowConfig {
-        temperature: config
-            .temperature
-            .and_then(|d| Temperature::new(d.0 as f32).ok()),
-        top_p: config.top_p.and_then(|d| TopP::new(d.0 as f32).ok()),
-        top_k: config.top_k.and_then(|k| TopK::new(k).ok()),
-        max_tokens: config.max_tokens.and_then(|m| MaxTokens::new(m).ok()),
-        max_tool_failure_per_turn: config.max_tool_failure_per_turn,
-        tool_supported: config.tool_supported,
-        max_requests_per_turn: config.max_requests_per_turn,
-        compact: config.compact.as_ref().map(compact_to_domain),
-        retry_config: config
-            .retry
-            .as_ref()
-            .map(retry_config_to_domain)
-            .unwrap_or_default(),
-    }
-}
-
 /// Converts a [`forge_config::RetryConfig`] to a
 /// [`forge_domain::RetryConfig`].
-fn retry_config_to_domain(r: &forge_config::RetryConfig) -> RetryConfig {
+pub(crate) fn retry_config_to_domain(r: &forge_config::RetryConfig) -> RetryConfig {
     RetryConfig {
         initial_backoff_ms: r.initial_backoff_ms,
         min_delay_ms: r.min_delay_ms,
@@ -58,20 +34,6 @@ fn retry_config_to_domain(r: &forge_config::RetryConfig) -> RetryConfig {
         retry_status_codes: r.status_codes.clone(),
         max_delay: r.max_delay_secs,
         suppress_retry_errors: r.suppress_errors,
-    }
-}
-
-/// Converts a [`forge_config::Compact`] to a [`forge_domain::Compact`].
-fn compact_to_domain(c: &forge_config::Compact) -> Compact {
-    Compact {
-        retention_window: c.retention_window,
-        eviction_window: c.eviction_window.value(),
-        max_tokens: c.max_tokens,
-        token_threshold: c.token_threshold,
-        turn_threshold: c.turn_threshold,
-        message_threshold: c.message_threshold,
-        model: c.model.as_ref().map(ModelId::new),
-        on_turn_end: c.on_turn_end,
     }
 }
 
@@ -121,7 +83,7 @@ impl<S: Services> ForgeApp<S> {
             .expect("conversation for the request should've been created at this point.");
 
         // Discover files using the discovery service
-        let workflow_config = build_workflow_config(&services.get_config());
+        let forge_config = services.get_config();
         let environment = services.get_environment();
 
         let files = services.list_current_directory().await?;
@@ -137,7 +99,7 @@ impl<S: Services> ForgeApp<S> {
             .get_agent(&agent_id)
             .await?
             .ok_or(crate::Error::AgentNotFound(agent_id.clone()))?
-            .apply_config(&workflow_config)
+            .apply_config(&forge_config)
             .set_compact_model_if_none();
 
         let agent_provider = agent_provider_resolver
@@ -167,8 +129,8 @@ impl<S: Services> ForgeApp<S> {
                 .tool_definitions(tool_definitions.clone())
                 .models(models.clone())
                 .files(files.clone())
-                .max_extensions(services.get_config().max_extensions)
-                .template_config(build_template_config(&services.get_config()))
+                .max_extensions(forge_config.max_extensions)
+                .template_config(build_template_config(&forge_config))
                 .add_system_message(conversation)
                 .await?;
 
@@ -207,9 +169,15 @@ impl<S: Services> ForgeApp<S> {
             .on_toolcall_end(tracing_handler.clone())
             .on_end(tracing_handler.and(title_handler));
 
+        let retry_config = forge_config
+            .retry
+            .as_ref()
+            .map(retry_config_to_domain)
+            .unwrap_or_default();
+
         let orch = Orchestrator::new(
             services.clone(),
-            workflow_config.retry_config.clone(),
+            retry_config,
             conversation,
             agent,
         )
@@ -274,7 +242,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
 
-        let workflow_config = build_workflow_config(&self.services.get_config());
+        let forge_config = self.services.get_config();
 
         // Get agent and apply workflow config
         let agent = self.services.get_agent(&active_agent_id).await?;
@@ -290,7 +258,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Get compact config from the agent
         let compact = agent
-            .apply_config(&workflow_config)
+            .apply_config(&forge_config)
             .set_compact_model_if_none()
             .compact;
 

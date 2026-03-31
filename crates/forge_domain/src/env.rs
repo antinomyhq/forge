@@ -5,7 +5,7 @@ use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Compact, MaxTokens, ModelId, ProviderId, RetryConfig, Temperature, TopK, TopP};
+use crate::{ModelId, ProviderId};
 
 /// Domain-level session configuration pairing a provider with a model.
 ///
@@ -37,35 +37,6 @@ pub enum ConfigOperation {
     SetSuggestConfig(crate::SuggestConfig),
 }
 
-/// Workflow-level configuration derived from [`ForgeConfig`] that is applied to
-/// agents at runtime.
-///
-/// This struct contains only the fields that agents need when workflow-level
-/// overrides are applied, all expressed in domain types. Callers in the
-/// application layer build a [`WorkflowConfig`] from the persisted `ForgeConfig`
-/// and pass it to `AgentExt::apply_env`.
-#[derive(Default, Debug, Clone)]
-pub struct WorkflowConfig {
-    /// Output randomness for all agents (0.0–2.0).
-    pub temperature: Option<Temperature>,
-    /// Nucleus sampling threshold for all agents (0.0–1.0).
-    pub top_p: Option<TopP>,
-    /// Top-k vocabulary cutoff for all agents (1–1000).
-    pub top_k: Option<TopK>,
-    /// Maximum tokens the model may generate per response (1–100,000).
-    pub max_tokens: Option<MaxTokens>,
-    /// Maximum tool failures per turn before the orchestrator forces
-    /// completion.
-    pub max_tool_failure_per_turn: Option<usize>,
-    /// Whether tool use is supported in the current environment.
-    pub tool_supported: bool,
-    /// Maximum number of requests that can be made in a single turn.
-    pub max_requests_per_turn: Option<usize>,
-    /// Context compaction settings applied to all agents.
-    pub compact: Option<Compact>,
-    /// Retry configuration for LLM API calls.
-    pub retry_config: RetryConfig,
-}
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,

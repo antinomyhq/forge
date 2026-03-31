@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::app::{build_template_config, build_workflow_config};
+use crate::app::{build_template_config, retry_config_to_domain};
 use crate::hooks::DoomLoopDetector;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
@@ -93,8 +93,7 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
-        let workflow_config = build_workflow_config(&setup.config);
-        let agent = agent.apply_config(&workflow_config).model(setup.model.clone());
+        let agent = agent.apply_config(&setup.config).model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
@@ -120,7 +119,8 @@ impl Runner {
             ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
         let conversation = SetConversationId.apply(conversation);
 
-        let orch = Orchestrator::new(services.clone(), workflow_config.retry_config, conversation, agent)
+        let retry_config = setup.config.retry.as_ref().map(retry_config_to_domain).unwrap_or_default();
+        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
             .hook(Arc::new(
