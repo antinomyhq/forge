@@ -21,7 +21,7 @@ impl std::fmt::Debug for Decimal {
 
 impl Clone for Decimal {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 
