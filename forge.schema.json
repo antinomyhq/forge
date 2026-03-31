@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ForgeConfig",
-  "description": "Top-level Forge configuration merged from all sources (defaults, file,\nenvironment).",
+  "description": "Top-level Forge configuration merged from all sources (defaults, file,\nenvironment).\n\nAll fields are `Option` so that partial configs (e.g. legacy JSON, user\noverrides) only carry the keys they explicitly set. The `config` crate\nmerges layers by key: absent (`None`) values are transparently skipped,\nletting lower-priority layers supply the defaults from the embedded\n`.forge.toml`.",
   "type": "object",
   "properties": {
     "auto_dump": {
@@ -17,7 +17,10 @@
     },
     "auto_open_dump": {
       "description": "Whether to automatically open HTML dump files in the browser",
-      "type": "boolean"
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "commit": {
       "description": "Provider and model to use for commit message generation",
@@ -28,8 +31,7 @@
         {
           "type": "null"
         }
-      ],
-      "default": null
+      ]
     },
     "compact": {
       "description": "Context compaction settings applied to all agents; falls back to each\nagent's individual setting when absent.",
@@ -69,55 +71,82 @@
     },
     "max_conversations": {
       "description": "Maximum number of conversations to show in list",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_extensions": {
       "description": "Maximum number of file extensions to include in the system prompt",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_fetch_chars": {
       "description": "Maximum characters for fetch content",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_file_read_batch_size": {
       "description": "Maximum number of files that can be read in a single batch operation",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_file_size_bytes": {
       "description": "Maximum file size in bytes for operations",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0
     },
     "max_image_size_bytes": {
       "description": "Maximum image file size in bytes for binary read operations",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0
     },
     "max_line_chars": {
       "description": "Maximum characters per line for file read operations",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_parallel_file_reads": {
       "description": "Maximum number of files read concurrently in parallel operations",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_read_lines": {
       "description": "Maximum number of lines to read from a file",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0
     },
@@ -132,37 +161,55 @@
     },
     "max_search_lines": {
       "description": "The maximum number of lines returned for FSSearch",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_search_result_bytes": {
       "description": "Maximum bytes allowed for search results",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_sem_search_results": {
       "description": "Maximum number of results to return from initial vector search",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_line_chars": {
       "description": "Maximum characters per line for shell output",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_prefix_lines": {
       "description": "Maximum lines for shell output prefix",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "max_stdout_suffix_lines": {
       "description": "Maximum lines for shell output suffix",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
@@ -186,13 +233,19 @@
     },
     "model_cache_ttl_secs": {
       "description": "TTL in seconds for the model API list cache",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0
     },
     "restricted": {
       "description": "Whether the application is running in restricted mode.\nWhen true, tool execution requires explicit permission grants.",
-      "type": "boolean"
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "retry": {
       "description": "Configuration for the retry mechanism",
@@ -207,13 +260,19 @@
     },
     "sem_search_top_k": {
       "description": "Top-k parameter for relevance filtering during semantic search",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint",
       "minimum": 0
     },
     "services_url": {
       "description": "URL for the indexing server",
-      "type": "string"
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "session": {
       "description": "Default model and provider configuration used when not overridden by\nindividual agents.",
@@ -224,8 +283,7 @@
         {
           "type": "null"
         }
-      ],
-      "default": null
+      ]
     },
     "suggest": {
       "description": "Provider and model to use for shell command suggestion generation",
@@ -236,8 +294,7 @@
         {
           "type": "null"
         }
-      ],
-      "default": null
+      ]
     },
     "temperature": {
       "description": "Output randomness for all agents; lower values are deterministic, higher\nvalues are creative (0.0–2.0).",
@@ -252,11 +309,17 @@
     },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment.\nWhen false, tool calls are disabled regardless of agent configuration.",
-      "type": "boolean"
+      "type": [
+        "boolean",
+        "null"
+      ]
     },
     "tool_timeout_secs": {
       "description": "Maximum execution time in seconds for a single tool call",
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "format": "uint64",
       "minimum": 0
     },
@@ -292,30 +355,6 @@
       ]
     }
   },
-  "required": [
-    "max_search_lines",
-    "max_search_result_bytes",
-    "max_fetch_chars",
-    "max_stdout_prefix_lines",
-    "max_stdout_suffix_lines",
-    "max_stdout_line_chars",
-    "max_line_chars",
-    "max_read_lines",
-    "max_file_read_batch_size",
-    "max_file_size_bytes",
-    "max_image_size_bytes",
-    "tool_timeout_secs",
-    "auto_open_dump",
-    "max_conversations",
-    "max_sem_search_results",
-    "sem_search_top_k",
-    "services_url",
-    "max_extensions",
-    "max_parallel_file_reads",
-    "model_cache_ttl_secs",
-    "restricted",
-    "tool_supported"
-  ],
   "$defs": {
     "AutoDumpFormat": {
       "description": "The output format used when auto-dumping a conversation on task completion.",
