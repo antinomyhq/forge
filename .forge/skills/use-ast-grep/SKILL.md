@@ -7,84 +7,119 @@ description: Use ast-grep (sg) for structural code search, linting, and rewritin
 
 ast-grep (`sg`) is a polyglot AST-based code search, lint, and rewrite tool. Unlike grep, it understands code structure.
 
-## Decision: CLI one-liner vs YAML rule
+## Mandatory Workflow: Script → Test → Iterate
 
-- **One-liner** (`sg run`): quick search or simple rewrite, no persistence needed
-- **YAML rule** (`sg scan --rule`): complex matching, linting with messages, project-wide enforcement, or automated fix
+**Always** follow this loop — never apply a rule to the codebase until it passes tests.
 
-## Quick CLI Usage
-
-```bash
-# Search
-sg --pattern 'console.log($ARGS)' --lang js
-
-# Search + rewrite (preview only)
-sg --pattern 'var $X = $Y' --rewrite 'let $X = $Y' --lang js
-
-# Apply rewrites interactively
-sg --pattern 'var $X = $Y' --rewrite 'let $X = $Y' --lang js -i
-
-# Apply all rewrites without confirmation
-sg --pattern 'var $X = $Y' --rewrite 'let $X = $Y' --lang js -U
-
-# Search specific files/dirs
-sg --pattern 'foo($ARG)' --lang rust src/
+```
+Write shell script → run sg test → analyze failures → fix rule → repeat → apply
 ```
 
-## Pattern Syntax Essentials
+### Step 1 — Write a shell script
 
-| Syntax     | Meaning                                       |
-| ---------- | --------------------------------------------- |
-| `$NAME`    | Matches **one** AST node; captures as `$NAME` |
-| `$$$ARGS`  | Matches **zero or more** AST nodes (variadic) |
-| `$_`       | Matches one node, no capture (anonymous)      |
-| `$$VAR`    | Matches unnamed/anonymous nodes               |
-| `$A == $A` | Reuse same name = both must match same text   |
+Every ast-grep task starts as a self-contained shell script. The script creates a temp workspace, writes the rule and test cases, runs `sg test`, and (once tests pass) applies the rule.
 
-**Pattern must be valid parseable code.** If the pattern is ambiguous (e.g., a bare object literal `{x: y}`), use object-style pattern with `context`/`selector`.
+Use this template:
 
-## YAML Rule Workflow
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-### 1. Write the rule file
+WORK_DIR=$(mktemp -d)
+trap 'rm -rf "$WORK_DIR"' EXIT
 
-```yaml
-id: no-console-log
+# ── sgconfig ─────────────────────────────────────────────────────────
+cat > "$WORK_DIR/sgconfig.yml" << 'SGCONFIG'
+ruleDirs:
+  - rules
+testConfigs:
+  - testDir: tests
+SGCONFIG
+
+mkdir -p "$WORK_DIR/rules" "$WORK_DIR/tests"
+
+# ── Rule ─────────────────────────────────────────────────────────────
+cat > "$WORK_DIR/rules/my-rule.yml" << 'RULE'
+id: my-rule
 language: JavaScript
 severity: warning
-message: "Avoid console.log in production"
+message: "Prefer logger over console.log"
 rule:
   pattern: console.log($$$ARGS)
 fix: "logger.log($$$ARGS)"
-```
+RULE
 
-### 2. Run against codebase
-
-```bash
-# Single rule file
-sg scan --rule no-console-log.yml src/
-
-# Inline (no file needed)
-sg scan --inline-rules '
+# ── Test cases ───────────────────────────────────────────────────────
+cat > "$WORK_DIR/tests/my-rule-test.yml" << 'TESTS'
 id: my-rule
-language: Rust
-rule:
-  pattern: println!($$$)
-' src/
+valid:
+  - logger.log('hello')
+  - console.warn('hello')
+invalid:
+  - console.log('hello')
+  - console.log(a, b, c)
+TESTS
 
-# Apply fixes automatically
-sg scan --rule no-console-log.yml -U src/
+# ── Run tests ────────────────────────────────────────────────────────
+echo "--- Running tests ---"
+sg test -c "$WORK_DIR/sgconfig.yml" --skip-snapshot-tests
+
+# ── Apply (only reached if tests pass) ───────────────────────────────
+echo "--- Tests passed. Applying rule ---"
+sg scan --rule "$WORK_DIR/rules/my-rule.yml" --update-all .
 ```
 
-### 3. Compose rules for complex patterns
+### Step 2 — Run the script and read the output
+
+Execute the script with `bash script.sh`. Test output tells you exactly what is wrong:
+
+| Symbol | Meaning                                                 | Action           |
+| ------ | ------------------------------------------------------- | ---------------- |
+| `.`    | Correct match                                           | Good             |
+| `N`    | **Noisy** — rule matched valid code (false positive)    | Tighten the rule |
+| `M`    | **Missing** — rule missed invalid code (false negative) | Broaden the rule |
+
+Example failure output:
+
+```
+FAIL my-rule  ..N..M
+
+[Noisy] Expect my-rule to report no issue, but some issues found in:
+  console.warn('hello')
+
+[Missing] Expect rule my-rule to report issues, but none found in:
+  console.log(a, b, c)
+```
+
+### Step 3 — Fix and iterate
+
+Adjust the rule YAML inside the script. Common fixes:
+
+- **Noisy** → add `not:`, tighten `pattern`, or add `constraints:`
+- **Missing** → switch to `any:` for multiple patterns, use `$$$` for variadic args
+- **Nothing matches at all** → check `language`, try `sg run --debug-query` to inspect the AST
+
+**Re-run the script after every change. Do not stop iterating until the test output shows all `.` with no `N` or `M`.**
+
+---
+
+## Pattern Syntax Essentials
+
+| Syntax     | Meaning                                             |
+| ---------- | --------------------------------------------------- |
+| `$NAME`    | Matches **one** AST node; captures as `$NAME`       |
+| `$$$ARGS`  | Matches **zero or more** AST nodes (variadic)       |
+| `$_`       | Matches one node, no capture (anonymous)            |
+| `$_VAR`    | Non-capturing — same name can match different nodes |
+| `$$VAR`    | Matches unnamed/anonymous nodes                     |
+| `$A == $A` | Reuse same name = both must match same text         |
+
+Pattern must be **valid parseable code**. For ambiguous snippets (e.g., bare `{x: y}`), use object-style:
 
 ```yaml
-id: await-in-promise-all
-language: TypeScript
-rule:
-  pattern: Promise.all($A)
-  has:
-    pattern: await $_
-    stopBy: end
+pattern:
+  context: "const x = { $KEY: $VAL }"
+  selector: pair
 ```
 
 ## Rule Object Quick Reference
@@ -92,75 +127,55 @@ rule:
 **Atomic** (what to match):
 
 - `pattern: expr` — match by code structure
-- `kind: node_kind` — match by tree-sitter node type
+- `kind: node_kind` — match by tree-sitter node type (use playground to find names)
 - `regex: ^pattern$` — match node text with Rust regex
 
-**Relational** (context filtering):
+**Relational** (structural context):
 
 - `inside: <rule>` — must be a descendant of matching node
 - `has: <rule>` — must have a matching descendant
 - `follows: <rule>` — must appear after matching sibling
 - `precedes: <rule>` — must appear before matching sibling
-- Add `stopBy: end` to search beyond immediate neighbors
+- Add `stopBy: end` to search beyond immediate neighbors (default: `neighbor`)
 
 **Composite** (logic):
 
-- `all: [<rules>]` — all must match
-- `any: [<rules>]` — any must match
+- `all: [<rules>]` — all must match (AND)
+- `any: [<rules>]` — any must match (OR)
 - `not: <rule>` — must not match
 - `matches: util-id` — reuse a named utility rule from `utils:`
 
-**Modifiers:**
+**Extra fields in rule files:**
 
-- `constraints:` — additional rules on captured meta-variables
-- `utils:` — define reusable named sub-rules locally
-- `transform:` — manipulate captured variables for the `fix`
+- `constraints:` — refine captured `$VAR` with additional rules
+- `utils:` — local reusable named sub-rules
+- `transform:` — manipulate captured variables before use in `fix`
 
 ## Finding Node Kinds
 
-When you need a `kind:` value but don't know the exact name:
+When you need a `kind:` value and don't know the exact name:
 
-1. Use the [ast-grep playground](https://ast-grep.github.io/playground.html) to inspect the AST
-2. Run `sg run --debug-query --lang <lang> -p '<pattern>'` to dump the pattern tree
+1. Run `sg run --debug-query --lang <lang> -p '<pattern>'` to dump the pattern AST
+2. Check the [playground](https://ast-grep.github.io/playground.html) interactively
 
-## Common Patterns
+## Test Case Format
 
 ```yaml
-# Find function calls with specific arg count
-rule:
-  kind: call_expression
-  has:
-    kind: arguments
-    has:
-      nthChild: 3  # exactly 3 args (1-based, named nodes only)
-
-# Find inside specific context
-rule:
-  pattern: $X.unwrap()
-  inside:
-    kind: function_item
-    stopBy: end
-
-# Match with constrained meta-variable
-rule:
-  pattern: foo($ARG)
-constraints:
-  ARG:
-    kind: string
-
-# Multiple alternatives
-rule:
-  any:
-    - pattern: console.log($$$)
-    - pattern: console.warn($$$)
-    - pattern: console.error($$$)
-fix: ""  # delete all matches
+id: rule-id # must match the rule's id field
+valid:
+  - "code that should NOT trigger the rule"
+  - "another valid snippet"
+invalid:
+  - "code that SHOULD trigger the rule"
+  - "another invalid snippet"
 ```
+
+Run with `--skip-snapshot-tests` during iteration. Once the rule is stable, run without the flag to generate/validate snapshots of the exact error output.
 
 ## Reference Files
 
-Load these when you need detailed information:
+Load these when you need deeper detail:
 
-- **`references/pattern-syntax.md`** — complete pattern syntax, meta-variable rules, edge cases
-- **`references/rule-object.md`** — full rule object reference with all fields
-- **`references/yaml-config.md`** — complete YAML rule config (id, severity, fix, transform, files/ignores, etc.)
+- **`references/pattern-syntax.md`** — complete pattern syntax, meta-variable rules, strictness levels, edge cases
+- **`references/rule-object.md`** — full rule object reference with all fields and examples
+- **`references/yaml-config.md`** — complete YAML rule config (fix, transform, rewriters, severity, files/ignores, project config)
