@@ -46,19 +46,4 @@ mod tests {
         assert_eq!(config.suppress_errors, false);
     }
 
-    #[test]
-    fn test_retry_config_default() {
-        let config = RetryConfig::default();
-
-        assert_eq!(config.initial_backoff_ms, 200);
-        assert_eq!(config.min_delay_ms, 1000);
-        assert_eq!(config.backoff_factor, 2);
-        assert_eq!(config.max_attempts, 8);
-        assert_eq!(
-            config.status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
-        );
-        assert_eq!(config.max_delay_secs, None);
-        assert_eq!(config.suppress_errors, false);
-    }
 }
