@@ -897,13 +897,15 @@ mod tests {
     #[tokio::test]
     async fn test_rename_conversation_via_upsert() -> anyhow::Result<()> {
         let repo = repository()?;
-        let conversation = Conversation::new(ConversationId::generate())
-            .title(Some("Original Title".to_string()));
+        let conversation =
+            Conversation::new(ConversationId::generate()).title(Some("Original Title".to_string()));
 
         repo.upsert_conversation(conversation.clone()).await?;
 
         // Rename by upserting with a new title
-        let renamed = conversation.clone().title(Some("Renamed Session".to_string()));
+        let renamed = conversation
+            .clone()
+            .title(Some("Renamed Session".to_string()));
         repo.upsert_conversation(renamed).await?;
 
         let actual = repo.get_conversation(&conversation.id).await?.unwrap();

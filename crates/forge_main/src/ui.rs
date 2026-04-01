@@ -773,7 +773,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 let name = name.join(" ").trim().to_string();
                 if name.is_empty() {
-                    return Err(anyhow::anyhow!("Please provide a name for the conversation."));
+                    return Err(anyhow::anyhow!(
+                        "Please provide a name for the conversation."
+                    ));
                 }
                 self.api.rename_conversation(&id, name.clone()).await?;
                 self.writeln_title(TitleFormat::info(format!(
