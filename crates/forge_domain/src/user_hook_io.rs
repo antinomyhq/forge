@@ -60,6 +60,11 @@ pub enum HookEventInput {
         /// Source of the session start (e.g., "startup", "resume").
         source: String,
     },
+    /// Input for UserPromptSubmit events.
+    UserPromptSubmit {
+        /// The raw prompt text submitted by the user.
+        prompt: String,
+    },
     /// Empty input for events that don't need event-specific data.
     Empty {},
 }
@@ -221,6 +226,28 @@ mod tests {
 
         assert_eq!(actual["hook_event_name"], "Stop");
         assert_eq!(actual["stop_hook_active"], false);
+    }
+
+    #[test]
+    fn test_hook_input_serialization_user_prompt_submit() {
+        let fixture = HookInput {
+            hook_event_name: "UserPromptSubmit".to_string(),
+            cwd: "/project".to_string(),
+            session_id: Some("sess-abc".to_string()),
+            event_data: HookEventInput::UserPromptSubmit {
+                prompt: "fix the bug".to_string(),
+            },
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        assert_eq!(actual["hook_event_name"], "UserPromptSubmit");
+        assert_eq!(actual["cwd"], "/project");
+        assert_eq!(actual["session_id"], "sess-abc");
+        assert_eq!(actual["prompt"], "fix the bug");
+        // No tool_name, stop_hook_active, or other variant fields present
+        assert!(actual["tool_name"].is_null());
+        assert!(actual["stop_hook_active"].is_null());
     }
 
     #[test]

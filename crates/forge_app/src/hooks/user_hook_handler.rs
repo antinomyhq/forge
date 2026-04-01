@@ -4,9 +4,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
 use forge_domain::{
-    Conversation, EndPayload, EventData, EventHandle, HookEventInput, HookExecutionResult,
-    HookInput, HookOutput, RequestPayload, ResponsePayload, StartPayload, ToolcallEndPayload,
-    ToolcallStartPayload, UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
+    ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
+    HookExecutionResult, HookInput, HookOutput, RequestPayload, ResponsePayload, Role, StartPayload,
+    ToolcallEndPayload, ToolcallStartPayload, UserHookConfig, UserHookEntry, UserHookEventName,
+    UserHookMatcherGroup,
 };
 use regex::Regex;
 use tracing::{debug, warn};
@@ -295,10 +296,66 @@ impl EventHandle<EventData<StartPayload>> for UserHookHandler {
 impl EventHandle<EventData<RequestPayload>> for UserHookHandler {
     async fn handle(
         &self,
-        _event: &EventData<RequestPayload>,
-        _conversation: &mut Conversation,
+        event: &EventData<RequestPayload>,
+        conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        // No user hook events map to Request currently
+        // Only fire on the first request of a turn (user-submitted prompt).
+        // Subsequent iterations are internal LLM retry/tool-call loops and
+        // should not re-trigger UserPromptSubmit.
+        if event.payload.request_count != 0 {
+            return Ok(());
+        }
+
+        if !self.has_hooks(&UserHookEventName::UserPromptSubmit) {
+            return Ok(());
+        }
+
+        let groups = self.config.get_groups(&UserHookEventName::UserPromptSubmit);
+        let hooks = Self::find_matching_hooks(groups, None);
+
+        if hooks.is_empty() {
+            return Ok(());
+        }
+
+        // Extract the last user message text as the prompt sent to the hook.
+        let prompt = conversation
+            .context
+            .as_ref()
+            .and_then(|ctx| {
+                ctx.messages
+                    .iter()
+                    .rev()
+                    .find(|m| m.has_role(Role::User))
+                    .and_then(|m| m.content())
+                    .map(|s| s.to_string())
+            })
+            .unwrap_or_default();
+
+        let input = HookInput {
+            hook_event_name: "UserPromptSubmit".to_string(),
+            cwd: self.cwd.to_string_lossy().to_string(),
+            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+            event_data: HookEventInput::UserPromptSubmit { prompt },
+        };
+
+        let results = self.execute_hooks(&hooks, &input).await;
+
+        if let Some(reason) = Self::process_results(&results) {
+            debug!(
+                reason = reason.as_str(),
+                "UserPromptSubmit hook blocked with feedback"
+            );
+            // Inject feedback so the model sees why the prompt was flagged.
+            if let Some(context) = conversation.context.as_mut() {
+                let feedback_msg = format!(
+                    "<hook_feedback>\n<event>UserPromptSubmit</event>\n<status>blocked</status>\n<reason>{reason}</reason>\n</hook_feedback>"
+                );
+                context
+                    .messages
+                    .push(ContextMessage::user(feedback_msg, None).into());
+            }
+        }
+
         Ok(())
     }
 }
