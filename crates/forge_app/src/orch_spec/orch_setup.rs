@@ -72,6 +72,7 @@ impl Default for TestContext {
                     suppress_retry_errors: Default::default(),
                 },
                 tool_timeout: 300,
+                hook_timeout: 600000,
                 max_search_lines: 1000,
                 fetch_truncation_limit: 1024,
                 stdout_max_prefix_length: 256,

@@ -22,8 +22,11 @@ impl UserHookExecutor {
     /// # Arguments
     /// * `command` - The shell command string to execute.
     /// * `input_json` - JSON string to pipe to the command's stdin.
-    /// * `timeout` - Optional timeout in milliseconds. Uses default (10 min) if
-    ///   `None`.
+    /// * `timeout` - Optional per-hook timeout in milliseconds. Falls back to
+    ///   `default_timeout_ms` when `None`.
+    /// * `default_timeout_ms` - Default timeout in milliseconds from the
+    ///   environment configuration. Uses the built-in default (10 min) when
+    ///   zero.
     /// * `cwd` - Working directory for the command.
     /// * `env_vars` - Additional environment variables to set.
     ///
@@ -33,12 +36,19 @@ impl UserHookExecutor {
         command: &str,
         input_json: &str,
         timeout: Option<u64>,
+        default_timeout_ms: u64,
         cwd: &PathBuf,
         env_vars: &HashMap<String, String>,
     ) -> anyhow::Result<HookExecutionResult> {
         let timeout_duration = timeout
             .map(Duration::from_millis)
-            .unwrap_or(DEFAULT_HOOK_TIMEOUT);
+            .unwrap_or_else(|| {
+                if default_timeout_ms > 0 {
+                    Duration::from_millis(default_timeout_ms)
+                } else {
+                    DEFAULT_HOOK_TIMEOUT
+                }
+            });
 
         debug!(
             command = command,
@@ -134,9 +144,10 @@ mod tests {
     #[tokio::test]
     async fn test_execute_simple_command() {
         let cwd = std::env::current_dir().unwrap();
-        let actual = UserHookExecutor::execute("echo hello", "{}", None, &cwd, &HashMap::new())
-            .await
-            .unwrap();
+        let actual =
+            UserHookExecutor::execute("echo hello", "{}", None, 0, &cwd, &HashMap::new())
+                .await
+                .unwrap();
 
         assert_eq!(actual.exit_code, Some(0));
         assert_eq!(actual.stdout.trim(), "hello");
@@ -150,6 +161,7 @@ mod tests {
             "cat",
             r#"{"hook_event_name": "PreToolUse"}"#,
             None,
+            0,
             &cwd,
             &HashMap::new(),
         )
@@ -167,6 +179,7 @@ mod tests {
             "echo 'blocked' >&2; exit 2",
             "{}",
             None,
+            0,
             &cwd,
             &HashMap::new(),
         )
@@ -181,7 +194,7 @@ mod tests {
     #[tokio::test]
     async fn test_execute_non_blocking_error() {
         let cwd = std::env::current_dir().unwrap();
-        let actual = UserHookExecutor::execute("exit 1", "{}", None, &cwd, &HashMap::new())
+        let actual = UserHookExecutor::execute("exit 1", "{}", None, 0, &cwd, &HashMap::new())
             .await
             .unwrap();
 
@@ -196,6 +209,7 @@ mod tests {
             "sleep 10",
             "{}",
             Some(100), // 100ms timeout
+            0,
             &cwd,
             &HashMap::new(),
         )
@@ -213,9 +227,10 @@ mod tests {
         let mut env_vars = HashMap::new();
         env_vars.insert("FORGE_TEST_VAR".to_string(), "test_value".to_string());
 
-        let actual = UserHookExecutor::execute("echo $FORGE_TEST_VAR", "{}", None, &cwd, &env_vars)
-            .await
-            .unwrap();
+        let actual =
+            UserHookExecutor::execute("echo $FORGE_TEST_VAR", "{}", None, 0, &cwd, &env_vars)
+                .await
+                .unwrap();
 
         assert_eq!(actual.exit_code, Some(0));
         assert_eq!(actual.stdout.trim(), "test_value");
@@ -228,6 +243,7 @@ mod tests {
             r#"echo '{"decision":"block","reason":"test"}'"#,
             "{}",
             None,
+            0,
             &cwd,
             &HashMap::new(),
         )

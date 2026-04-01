@@ -24,6 +24,8 @@ pub struct UserHookHandler {
     config: UserHookConfig,
     cwd: PathBuf,
     env_vars: HashMap<String, String>,
+    /// Default timeout in milliseconds for hook commands from the environment.
+    default_hook_timeout: u64,
     /// Tracks whether a Stop hook has already fired to prevent infinite loops.
     stop_hook_active: std::sync::Arc<AtomicBool>,
 }
@@ -37,11 +39,14 @@ impl UserHookHandler {
     /// * `project_dir` - Project root directory for `FORGE_PROJECT_DIR` env
     ///   var.
     /// * `session_id` - Current session/conversation ID.
+    /// * `default_hook_timeout` - Default timeout in milliseconds for hook
+    ///   commands.
     pub fn new(
         config: UserHookConfig,
         cwd: PathBuf,
         project_dir: PathBuf,
         session_id: String,
+        default_hook_timeout: u64,
     ) -> Self {
         let mut env_vars = HashMap::new();
         env_vars.insert(
@@ -55,6 +60,7 @@ impl UserHookHandler {
             config,
             cwd,
             env_vars,
+            default_hook_timeout,
             stop_hook_active: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
@@ -124,6 +130,7 @@ impl UserHookHandler {
                     command,
                     &input_json,
                     hook.timeout,
+                    self.default_hook_timeout,
                     &self.cwd,
                     &self.env_vars,
                 )
@@ -697,6 +704,7 @@ mod tests {
             PathBuf::from("/tmp"),
             PathBuf::from("/tmp"),
             "sess-1".to_string(),
+            0,
         );
         assert!(!handler.has_hooks(&UserHookEventName::PreToolUse));
     }
@@ -710,6 +718,7 @@ mod tests {
             PathBuf::from("/tmp"),
             PathBuf::from("/tmp"),
             "sess-1".to_string(),
+            0,
         );
         assert!(handler.has_hooks(&UserHookEventName::PreToolUse));
         assert!(!handler.has_hooks(&UserHookEventName::Stop));

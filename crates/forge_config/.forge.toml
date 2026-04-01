@@ -23,6 +23,7 @@ sem_search_top_k = 10
 services_url = "https://api.forgecode.dev/"
 tool_supported = true
 tool_timeout_secs = 300
+hook_timeout_ms = 600000
 top_k = 30
 top_p = 0.8
 

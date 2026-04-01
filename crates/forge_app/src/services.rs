@@ -488,6 +488,18 @@ pub trait CommandLoaderService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait UserHookConfigService: Send + Sync {
+    /// Loads and merges user hook configurations from all settings file
+    /// locations.
+    ///
+    /// Resolution order (all merged, not overridden):
+    /// 1. `~/.forge/settings.json` (user-level, applies to all projects)
+    /// 2. `.forge/settings.json` (project-level, committable)
+    /// 3. `.forge/settings.local.json` (project-level, gitignored)
+    async fn get_user_hook_config(&self) -> anyhow::Result<forge_domain::UserHookConfig>;
+}
+
+#[async_trait::async_trait]
 pub trait PolicyService: Send + Sync {
     /// Check if an operation is allowed and handle user confirmation if needed
     /// Returns PolicyDecision with allowed flag and optional policy file path
@@ -566,6 +578,7 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type AuthService: AuthService;
     type AgentRegistry: AgentRegistry;
     type CommandLoaderService: CommandLoaderService;
+    type UserHookConfigService: UserHookConfigService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
     type WorkspaceService: WorkspaceService;
@@ -594,6 +607,7 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     fn auth_service(&self) -> &Self::AuthService;
     fn agent_registry(&self) -> &Self::AgentRegistry;
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
+    fn user_hook_config_service(&self) -> &Self::UserHookConfigService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
     fn workspace_service(&self) -> &Self::WorkspaceService;
@@ -928,6 +942,15 @@ impl<I: Services> AgentRegistry for I {
 impl<I: Services> CommandLoaderService for I {
     async fn get_commands(&self) -> anyhow::Result<Vec<forge_domain::Command>> {
         self.command_loader_service().get_commands().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> UserHookConfigService for I {
+    async fn get_user_hook_config(&self) -> anyhow::Result<forge_domain::UserHookConfig> {
+        self.user_hook_config_service()
+            .get_user_hook_config()
+            .await
     }
 }
 

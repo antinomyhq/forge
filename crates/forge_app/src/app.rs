@@ -9,12 +9,13 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::hooks::{
-    CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler,
-    UserHookConfigLoader, UserHookHandler,
+    CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler, UserHookHandler,
 };
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AgentRegistry, CustomInstructionsService, ProviderAuthService};
+use crate::services::{
+    AgentRegistry, CustomInstructionsService, ProviderAuthService, UserHookConfigService,
+};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -140,8 +141,7 @@ impl<S: Services> ForgeApp<S> {
             .on_end(tracing_handler.and(title_handler));
 
         // Load user-configurable hooks from settings files
-        let user_hook_config =
-            UserHookConfigLoader::load(environment.home.as_deref(), &environment.cwd);
+        let user_hook_config = services.get_user_hook_config().await?;
 
         let hook = if !user_hook_config.is_empty() {
             let user_handler = UserHookHandler::new(
@@ -149,6 +149,7 @@ impl<S: Services> ForgeApp<S> {
                 environment.cwd.clone(),
                 environment.cwd.clone(),
                 conversation.id.to_string(),
+                environment.hook_timeout,
             );
             let user_hook = Hook::default()
                 .on_start(user_handler.clone())

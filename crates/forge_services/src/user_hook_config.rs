@@ -97,6 +97,8 @@ impl<F: FileReaderInfra + EnvironmentInfra> forge_app::UserHookConfigService
 mod tests {
     use std::path::PathBuf;
 
+    use fake::Fake;
+    use forge_app::UserHookConfigService;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -117,11 +119,7 @@ mod tests {
         )
         .unwrap();
 
-        let infra = TestInfra {
-            home: None,
-            cwd: PathBuf::from("/nonexistent"),
-        };
-        let service = ForgeUserHookConfigService::new(Arc::new(infra));
+        let service = fixture(None, PathBuf::from("/nonexistent"));
 
         let actual = service.load_file(&settings_path).await;
         assert!(actual.is_some());
@@ -140,11 +138,7 @@ mod tests {
         let settings_path = dir.path().join("settings.json");
         std::fs::write(&settings_path, r#"{"other_key": "value"}"#).unwrap();
 
-        let infra = TestInfra {
-            home: None,
-            cwd: PathBuf::from("/nonexistent"),
-        };
-        let service = ForgeUserHookConfigService::new(Arc::new(infra));
+        let service = fixture(None, PathBuf::from("/nonexistent"));
 
         let actual = service.load_file(&settings_path).await;
         assert!(actual.is_none());
@@ -152,11 +146,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_user_hook_config_nonexistent_paths() {
-        let infra = TestInfra {
-            home: Some(PathBuf::from("/nonexistent/home")),
-            cwd: PathBuf::from("/nonexistent/project"),
-        };
-        let service = ForgeUserHookConfigService::new(Arc::new(infra));
+        let service = fixture(
+            Some(PathBuf::from("/nonexistent/home")),
+            PathBuf::from("/nonexistent/project"),
+        );
 
         let actual = service.get_user_hook_config().await.unwrap();
         assert!(actual.is_empty());
@@ -207,11 +200,10 @@ mod tests {
         )
         .unwrap();
 
-        let infra = TestInfra {
-            home: Some(home_dir.path().to_path_buf()),
-            cwd: project_dir.path().to_path_buf(),
-        };
-        let service = ForgeUserHookConfigService::new(Arc::new(infra));
+        let service = fixture(
+            Some(home_dir.path().to_path_buf()),
+            project_dir.path().to_path_buf(),
+        );
 
         let actual = service.get_user_hook_config().await.unwrap();
 
@@ -231,7 +223,14 @@ mod tests {
         );
     }
 
-    // --- Test infrastructure ---
+    // --- Test helpers ---
+
+    fn fixture(
+        home: Option<PathBuf>,
+        cwd: PathBuf,
+    ) -> ForgeUserHookConfigService<TestInfra> {
+        ForgeUserHookConfigService::new(Arc::new(TestInfra { home, cwd }))
+    }
 
     struct TestInfra {
         home: Option<PathBuf>,
@@ -244,11 +243,24 @@ mod tests {
             Ok(tokio::fs::read_to_string(path).await?)
         }
 
-        async fn read_utf8_batch(
+        fn read_batch_utf8(
             &self,
-            _paths: Vec<PathBuf>,
             _batch_size: usize,
-        ) -> forge_stream::MpscStream<(PathBuf, anyhow::Result<String>)> {
+            _paths: Vec<PathBuf>,
+        ) -> impl futures::Stream<Item = (PathBuf, anyhow::Result<String>)> + Send {
+            futures::stream::empty()
+        }
+
+        async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>> {
+            Ok(tokio::fs::read(path).await?)
+        }
+
+        async fn range_read_utf8(
+            &self,
+            _path: &Path,
+            _start_line: u64,
+            _end_line: u64,
+        ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
             unimplemented!("not needed for tests")
         }
     }
@@ -257,13 +269,23 @@ mod tests {
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
         }
+
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
             Default::default()
         }
+
         fn get_environment(&self) -> forge_domain::Environment {
-            forge_domain::Environment::default()
-                .home(self.home.clone())
-                .cwd(self.cwd.clone())
+            let mut env: forge_domain::Environment = fake::Faker.fake();
+            env.home = self.home.clone();
+            env.cwd = self.cwd.clone();
+            env
+        }
+
+        async fn update_environment(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> anyhow::Result<()> {
+            unimplemented!("not needed for tests")
         }
     }
 }

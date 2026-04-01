@@ -60,6 +60,10 @@ pub struct ForgeConfig {
     /// cancelled.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_timeout_secs: Option<u64>,
+    /// Default timeout in milliseconds for user hook commands.
+    /// Individual hooks can override this via their own `timeout` field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hook_timeout_ms: Option<u64>,
     /// Whether to automatically open HTML dump files in the browser after
     /// creation.
     #[serde(default, skip_serializing_if = "Option::is_none")]

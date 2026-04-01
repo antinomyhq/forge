@@ -148,6 +148,7 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         max_file_size: fc.max_file_size_bytes.unwrap_or_default(),
         max_image_size: fc.max_image_size_bytes.unwrap_or_default(),
         tool_timeout: fc.tool_timeout_secs.unwrap_or_default(),
+        hook_timeout: fc.hook_timeout_ms.unwrap_or_default(),
         auto_open_dump: fc.auto_open_dump.unwrap_or_default(),
         debug_requests: fc.debug_requests,
         custom_history_path: fc.custom_history_path,
@@ -314,6 +315,7 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     fc.max_file_size_bytes = Some(env.max_file_size);
     fc.max_image_size_bytes = Some(env.max_image_size);
     fc.tool_timeout_secs = Some(env.tool_timeout);
+    fc.hook_timeout_ms = Some(env.hook_timeout);
     fc.auto_open_dump = Some(env.auto_open_dump);
     fc.debug_requests = env.debug_requests.clone();
     fc.custom_history_path = env.custom_history_path.clone();

@@ -21,6 +21,7 @@ mod provider_service;
 mod range;
 mod template;
 mod tool_services;
+mod user_hook_config;
 mod utils;
 
 pub use app_config::*;

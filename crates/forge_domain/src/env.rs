@@ -95,6 +95,10 @@ pub struct Environment {
     /// Maximum execution time in seconds for a single tool call.
     /// Controls how long a tool can run before being terminated.
     pub tool_timeout: u64,
+    /// Default timeout in milliseconds for user hook commands.
+    /// Individual hooks can override this via their own `timeout` field.
+    /// Controlled by FORGE_HOOK_TIMEOUT_MS environment variable.
+    pub hook_timeout: u64,
     /// Whether to automatically open HTML dump files in the browser.
     /// Controlled by FORGE_DUMP_AUTO_OPEN environment variable.
     pub auto_open_dump: bool,

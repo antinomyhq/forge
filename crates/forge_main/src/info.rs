@@ -388,6 +388,7 @@ impl From<&Environment> for Info {
             .add_key_value("ForgeCode Service URL", env.service_url.to_string())
             .add_title("TOOL CONFIGURATION")
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
+            .add_key_value("Hook Timeout", format!("{}ms", env.hook_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
             .add_key_value(
