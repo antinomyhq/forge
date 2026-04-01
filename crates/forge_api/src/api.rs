@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
+use forge_config::ForgeConfig;
 use forge_domain::{AgentId, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
@@ -50,6 +51,9 @@ pub trait API: Sync + Send {
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
+    /// Returns the full application configuration.
+    fn get_config(&self) -> ForgeConfig;
+
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
 
@@ -70,6 +74,20 @@ pub trait API: Sync + Send {
     /// # Errors
     /// Returns an error if the operation fails
     async fn delete_conversation(&self, conversation_id: &ConversationId) -> Result<()>;
+
+    /// Renames a conversation by setting its title
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The ID of the conversation to rename
+    /// * `title` - The new title for the conversation
+    ///
+    /// # Errors
+    /// Returns an error if the conversation is not found or the operation fails
+    async fn rename_conversation(
+        &self,
+        conversation_id: &ConversationId,
+        title: String,
+    ) -> Result<()>;
 
     /// Compacts the context of the main agent for the given conversation and
     /// persists it. Returns metrics about the compaction (original vs.

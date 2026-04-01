@@ -5,8 +5,9 @@ use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderResponse,
-    ResultStream, RetryConfig,
+    ResultStream,
 };
+use forge_config::RetryConfig;
 use forge_domain::ChatRepository;
 use url::Url;
 

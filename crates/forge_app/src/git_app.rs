@@ -55,7 +55,7 @@ pub struct CommitMessageResponse {
 }
 
 /// Context for generating a commit message from a diff
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DiffContext {
     diff_content: String,
     branch_name: String,
@@ -212,13 +212,20 @@ where
         // Truncate diff if it exceeds max size
         let (truncated_diff, _) = self.truncate_diff(diff_content, max_diff_size, original_size);
 
-        self.generate_message_from_diff(DiffContext {
+        let ctx = DiffContext {
             diff_content: truncated_diff,
             branch_name,
             recent_commits,
             has_staged_files,
             additional_context,
-        })
+        };
+
+        let retry_config = self.services.get_config().retry.unwrap_or_default();
+        crate::retry::retry_with_config(
+            &retry_config,
+            || self.generate_message_from_diff(ctx.clone()),
+            None::<fn(&anyhow::Error, std::time::Duration)>,
+        )
         .await
     }
 
@@ -387,6 +394,10 @@ where
                 message.content.trim().to_string()
             }
         };
+
+        if commit_message.is_empty() {
+            return Err(Error::Retryable(anyhow::anyhow!("Empty commit message generated")).into());
+        }
 
         Ok(CommitMessageDetails {
             message: commit_message,

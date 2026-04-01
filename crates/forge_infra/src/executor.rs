@@ -293,18 +293,15 @@ mod tests {
 
     fn test_env() -> Environment {
         use fake::{Fake, Faker};
-        let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
         let fixture: Environment = Faker.fake();
-        fixture
-            .max_search_result_bytes(max_bytes.ceil() as usize)
-            .shell(
-                if cfg!(target_os = "windows") {
-                    "cmd"
-                } else {
-                    "bash"
-                }
-                .to_string(),
-            )
+        fixture.shell(
+            if cfg!(target_os = "windows") {
+                "cmd"
+            } else {
+                "bash"
+            }
+            .to_string(),
+        )
     }
 
     fn test_printer() -> Arc<StdConsoleWriter> {

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use forge_api::Environment;
@@ -15,8 +16,12 @@ pub struct Console {
 
 impl Console {
     /// Creates a new instance of `Console`.
-    pub fn new(env: Environment, command: Arc<ForgeCommandManager>) -> Self {
-        let editor = Mutex::new(ForgeEditor::new(env, command.clone()));
+    pub fn new(
+        env: Environment,
+        custom_history_path: Option<PathBuf>,
+        command: Arc<ForgeCommandManager>,
+    ) -> Self {
+        let editor = Mutex::new(ForgeEditor::new(env, custom_history_path, command.clone()));
         Self { command, editor }
     }
 }

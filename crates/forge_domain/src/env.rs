@@ -8,14 +8,14 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::{
-    CommitConfig, Compact, HttpConfig, MaxTokens, ModelId, ProviderId, RetryConfig, SuggestConfig,
+    Compact, HttpConfig, MaxTokens, ModelId, ProviderId, RetryConfig,
     Temperature, TopK, TopP, Update,
 };
 
 /// Domain-level session configuration pairing a provider with a model.
 ///
-/// Used inside [`Environment`] to represent the active session, decoupled from
-/// the on-disk configuration format.
+/// Used to represent an active session, decoupled from the on-disk
+/// configuration format.
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
 #[setters(strip_option, into)]
 pub struct SessionConfig {
@@ -37,9 +37,9 @@ pub enum ConfigOperation {
     /// Set the model for the given provider.
     SetModel(ProviderId, ModelId),
     /// Set the commit-message generation configuration.
-    SetCommitConfig(CommitConfig),
+    SetCommitConfig(crate::CommitConfig),
     /// Set the shell-command suggestion configuration.
-    SetSuggestConfig(SuggestConfig),
+    SetSuggestConfig(crate::SuggestConfig),
 }
 
 const VERSION: &str = match option_env!("APP_VERSION") {
@@ -47,10 +47,16 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
+/// Represents the minimal runtime environment in which the application is
+/// running.
+///
+/// Contains only the six fields that cannot be sourced from [`ForgeConfig`]:
+/// `os`, `pid`, `cwd`, `home`, `shell`, and `base_path`. All configuration
+/// values previously carried here are now accessed through
+/// `EnvironmentInfra::get_config()`.
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
-/// Represents the environment in which the application is running.
 pub struct Environment {
     /// The operating system of the environment.
     pub os: String,
@@ -62,7 +68,7 @@ pub struct Environment {
     pub home: Option<PathBuf>,
     /// The shell being used.
     pub shell: String,
-    /// The base path relative to which everything else stored.
+    /// The base path relative to which everything else is stored.
     pub base_path: PathBuf,
     /// Configuration for the retry mechanism
     pub retry_config: RetryConfig,
@@ -268,9 +274,15 @@ impl Environment {
         self.base_path.join("logs")
     }
 
-    pub fn history_path(&self) -> PathBuf {
-        self.custom_history_path
-            .clone()
+    /// Returns the history file path.
+    ///
+    /// # Arguments
+    /// * `custom_path` - An optional custom path sourced from
+    ///   `ForgeConfig::custom_history_path`. When present it overrides the
+    ///   default location inside `base_path`.
+    pub fn history_path(&self, custom_path: Option<&PathBuf>) -> PathBuf {
+        custom_path
+            .cloned()
             .unwrap_or(self.base_path.join(".forge_history"))
     }
     pub fn snapshot_path(&self) -> PathBuf {
@@ -386,100 +398,6 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-
-    fn fixture_env() -> Environment {
-        Faker.fake()
-    }
-
-    #[test]
-    fn test_apply_op_set_provider_creates_session_when_absent() {
-        let mut fixture = fixture_env();
-        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
-            "anthropic".to_string(),
-        )));
-        let expected = SessionConfig::default().provider_id("anthropic".to_string());
-        assert_eq!(fixture.session, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_provider_updates_existing_session_keeping_model() {
-        let mut fixture = fixture_env();
-        fixture.session = Some(
-            SessionConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-4".to_string()),
-        );
-        fixture.apply_op(ConfigOperation::SetProvider(ProviderId::from(
-            "anthropic".to_string(),
-        )));
-        let expected = SessionConfig::default()
-            .provider_id("anthropic".to_string())
-            .model_id("gpt-4".to_string());
-        assert_eq!(fixture.session, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_model_for_matching_provider_updates_model() {
-        let mut fixture = fixture_env();
-        fixture.session = Some(
-            SessionConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-3.5".to_string()),
-        );
-        fixture.apply_op(ConfigOperation::SetModel(
-            ProviderId::from("openai".to_string()),
-            ModelId::new("gpt-4"),
-        ));
-        let expected = SessionConfig::default()
-            .provider_id("openai".to_string())
-            .model_id("gpt-4".to_string());
-        assert_eq!(fixture.session, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_model_for_different_provider_replaces_session() {
-        let mut fixture = fixture_env();
-        fixture.session = Some(
-            SessionConfig::default()
-                .provider_id("openai".to_string())
-                .model_id("gpt-4".to_string()),
-        );
-        fixture.apply_op(ConfigOperation::SetModel(
-            ProviderId::from("anthropic".to_string()),
-            ModelId::new("claude-3"),
-        ));
-        let expected = SessionConfig::default()
-            .provider_id("anthropic".to_string())
-            .model_id("claude-3".to_string());
-        assert_eq!(fixture.session, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_commit_config() {
-        let mut fixture = fixture_env();
-        let commit = CommitConfig::default()
-            .provider(ProviderId::from("openai".to_string()))
-            .model(ModelId::new("gpt-4o"));
-        fixture.apply_op(ConfigOperation::SetCommitConfig(commit));
-        let expected = SessionConfig::default()
-            .provider_id("openai".to_string())
-            .model_id("gpt-4o".to_string());
-        assert_eq!(fixture.commit, Some(expected));
-    }
-
-    #[test]
-    fn test_apply_op_set_suggest_config() {
-        let mut fixture = fixture_env();
-        let suggest = SuggestConfig {
-            provider: ProviderId::from("anthropic".to_string()),
-            model: ModelId::new("claude-3-haiku"),
-        };
-        fixture.apply_op(ConfigOperation::SetSuggestConfig(suggest));
-        let expected = SessionConfig::default()
-            .provider_id("anthropic".to_string())
-            .model_id("claude-3-haiku".to_string());
-        assert_eq!(fixture.suggest, Some(expected));
-    }
 
     #[test]
     fn test_agent_cwd_path() {

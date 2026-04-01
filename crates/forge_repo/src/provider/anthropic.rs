@@ -5,13 +5,14 @@ use derive_setters::Setters;
 use eventsource_stream::Eventsource;
 use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig, Transformer,
+    ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
     EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SanitizeToolIds,
     SetCache,
 };
+use forge_config::RetryConfig;
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use futures::StreamExt;
 use reqwest::Url;

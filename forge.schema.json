@@ -17,10 +17,8 @@
     },
     "auto_open_dump": {
       "description": "Whether to automatically open HTML dump files in the browser after\ncreation.",
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": "boolean",
+      "default": false
     },
     "commit": {
       "description": "Model and provider configuration used for commit message generation.",
@@ -80,83 +78,65 @@
     },
     "max_conversations": {
       "description": "Maximum number of conversations shown in the conversation list.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_extensions": {
       "description": "Maximum number of file extensions included in the agent system prompt.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_fetch_chars": {
       "description": "Maximum number of characters returned from a URL fetch.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_file_read_batch_size": {
       "description": "Maximum number of files read in a single batch operation.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_file_size_bytes": {
       "description": "Maximum file size in bytes permitted for read operations.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
+      "default": 0,
       "minimum": 0
     },
     "max_image_size_bytes": {
       "description": "Maximum image file size in bytes permitted for read operations.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
+      "default": 0,
       "minimum": 0
     },
     "max_line_chars": {
       "description": "Maximum number of characters per line when reading a file.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_parallel_file_reads": {
       "description": "Maximum number of files read concurrently during batch operations.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_read_lines": {
       "description": "Maximum number of lines read from a file in a single operation.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
+      "default": 0,
       "minimum": 0
     },
     "max_requests_per_turn": {
@@ -170,56 +150,44 @@
     },
     "max_search_lines": {
       "description": "Maximum number of lines returned by a single file search operation.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_search_result_bytes": {
       "description": "Maximum number of bytes returned by a single file search operation.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_sem_search_results": {
       "description": "Maximum number of candidate results returned from the initial semantic\nsearch vector query.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_stdout_line_chars": {
       "description": "Maximum number of characters per line in shell command output.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_stdout_prefix_lines": {
       "description": "Maximum number of lines captured from the leading portion of shell\ncommand output.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_stdout_suffix_lines": {
       "description": "Maximum number of lines captured from the trailing portion of shell\ncommand output.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "max_tokens": {
@@ -242,19 +210,15 @@
     },
     "model_cache_ttl_secs": {
       "description": "Time-to-live in seconds for the cached model API list.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
+      "default": 0,
       "minimum": 0
     },
     "restricted": {
       "description": "Whether restricted mode is active; when enabled, tool execution requires\nexplicit permission grants.",
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": "boolean",
+      "default": false
     },
     "retry": {
       "description": "Retry settings applied at the system level to all IO operations.",
@@ -269,19 +233,15 @@
     },
     "sem_search_top_k": {
       "description": "Number of top results retained after re-ranking in semantic search.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint",
+      "default": 0,
       "minimum": 0
     },
     "services_url": {
       "description": "Base URL of the Forge services API used for semantic search and\nindexing.",
-      "type": [
-        "string",
-        "null"
-      ]
+      "type": "string",
+      "default": ""
     },
     "session": {
       "description": "Default model and provider configuration used when not overridden by\nindividual agents.",
@@ -318,18 +278,14 @@
     },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment; when false,\nall tool calls are disabled.",
-      "type": [
-        "boolean",
-        "null"
-      ]
+      "type": "boolean",
+      "default": false
     },
     "tool_timeout_secs": {
       "description": "Maximum time in seconds a single tool call may run before being\ncancelled.",
-      "type": [
-        "integer",
-        "null"
-      ],
+      "type": "integer",
       "format": "uint64",
+      "default": 0,
       "minimum": 0
     },
     "top_k": {

@@ -191,8 +191,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
+    type Config = forge_config::ForgeConfig;
+
     fn get_environment(&self) -> Environment {
         self.infra.get_environment()
+    }
+
+    fn get_config(&self) -> forge_config::ForgeConfig {
+        self.infra.get_config()
     }
 
     fn update_environment(
@@ -473,8 +479,16 @@ where
 impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> AgentRepository
     for ForgeRepo<F>
 {
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
-        self.agent_repository.get_agents().await
+    async fn get_agents(
+        &self,
+        provider_id: forge_domain::ProviderId,
+        model_id: forge_domain::ModelId,
+    ) -> anyhow::Result<Vec<forge_domain::Agent>> {
+        let agent_defs = self.agent_repository.load_agents().await?;
+        Ok(agent_defs
+            .into_iter()
+            .map(|def| def.into_agent(provider_id.clone(), model_id.clone()))
+            .collect())
     }
 }
 

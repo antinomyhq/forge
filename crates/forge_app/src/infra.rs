@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use bytes::Bytes;
+use forge_config::ForgeConfig;
 use forge_domain::{
     AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
     OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
@@ -20,11 +21,22 @@ use crate::{WalkedFile, Walker};
 /// Infrastructure trait for accessing environment configuration, system
 /// variables, and persisted application configuration.
 pub trait EnvironmentInfra: Send + Sync {
+    /// The fully-resolved configuration type returned by
+    /// [`EnvironmentInfra::get_config`].
+    type Config: Clone + Send + Sync;
+
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
 
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
+
+    /// Returns the full [`ForgeConfig`] for the current session.
+    ///
+    /// Callers that need configuration values previously carried on
+    /// [`Environment`] (e.g. `retry_config`, `tool_timeout_secs`,
+    /// `session`, etc.) must call this method instead.
+    fn get_config(&self) -> ForgeConfig;
 
     /// Applies a list of configuration operations to the persisted config.
     ///
@@ -384,9 +396,10 @@ pub trait StrategyFactory: Send + Sync {
     ) -> anyhow::Result<Self::Strategy>;
 }
 
-/// Repository for loading agent definitions from multiple sources.
+/// Repository for loading agents from multiple sources.
 ///
-/// This trait provides access to agent definitions from:
+/// This trait provides access to fully-resolved domain [`forge_domain::Agent`]
+/// values from:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
 /// 3. Project-local agents (from .forge/agents/ directory in current working
@@ -400,9 +413,18 @@ pub trait StrategyFactory: Send + Sync {
 /// override built-in agents.
 #[async_trait::async_trait]
 pub trait AgentRepository: Send + Sync {
-    /// Load all agent definitions from all available sources with conflict
-    /// resolution.
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
+    /// Load all agents from all available sources with conflict resolution.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Default provider applied to agents that do not specify
+    ///   one
+    /// * `model_id` - Default model applied to agents that do not specify one
+    async fn get_agents(
+        &self,
+        provider_id: forge_domain::ProviderId,
+        model_id: forge_domain::ModelId,
+    ) -> anyhow::Result<Vec<forge_domain::Agent>>;
 }
 
 /// Infrastructure trait for providing shared gRPC channel

@@ -378,8 +378,14 @@ impl<
         + Sync,
 > forge_app::EnvironmentInfra for ForgeServices<F>
 {
+    type Config = forge_config::ForgeConfig;
+
     fn get_environment(&self) -> forge_domain::Environment {
         self.infra.get_environment()
+    }
+
+    fn get_config(&self) -> forge_config::ForgeConfig {
+        self.infra.get_config()
     }
 
     fn update_environment(

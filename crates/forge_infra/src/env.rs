@@ -115,8 +115,8 @@ fn to_compact(c: forge_config::Compact) -> Compact {
 }
 
 /// Builds a [`forge_domain::Environment`] entirely from a [`ForgeConfig`] and
-/// runtime context (`restricted`, `cwd`), mapping every config field to its
-/// corresponding environment field.
+/// runtime context (`cwd`), mapping every config field to its corresponding
+/// environment field.
 fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
     Environment {
         // --- Infrastructure-derived fields ---
@@ -135,40 +135,37 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
 
         // --- ForgeConfig-mapped fields ---
         retry_config: fc.retry.map(to_retry_config).unwrap_or_default(),
-        max_search_lines: fc.max_search_lines.unwrap_or_default(),
-        max_search_result_bytes: fc.max_search_result_bytes.unwrap_or_default(),
-        fetch_truncation_limit: fc.max_fetch_chars.unwrap_or_default(),
-        stdout_max_prefix_length: fc.max_stdout_prefix_lines.unwrap_or_default(),
-        stdout_max_suffix_length: fc.max_stdout_suffix_lines.unwrap_or_default(),
-        stdout_max_line_length: fc.max_stdout_line_chars.unwrap_or_default(),
-        max_line_length: fc.max_line_chars.unwrap_or_default(),
-        max_read_size: fc.max_read_lines.unwrap_or_default(),
-        max_file_read_batch_size: fc.max_file_read_batch_size.unwrap_or_default(),
+        max_search_lines: fc.max_search_lines,
+        max_search_result_bytes: fc.max_search_result_bytes,
+        fetch_truncation_limit: fc.max_fetch_chars,
+        stdout_max_prefix_length: fc.max_stdout_prefix_lines,
+        stdout_max_suffix_length: fc.max_stdout_suffix_lines,
+        stdout_max_line_length: fc.max_stdout_line_chars,
+        max_line_length: fc.max_line_chars,
+        max_read_size: fc.max_read_lines,
+        max_file_read_batch_size: fc.max_file_read_batch_size,
         http: fc.http.map(to_http_config).unwrap_or_default(),
-        max_file_size: fc.max_file_size_bytes.unwrap_or_default(),
-        max_image_size: fc.max_image_size_bytes.unwrap_or_default(),
-        tool_timeout: fc.tool_timeout_secs.unwrap_or_default(),
+        max_file_size: fc.max_file_size_bytes,
+        max_image_size: fc.max_image_size_bytes,
+        tool_timeout: fc.tool_timeout_secs,
         hook_timeout: fc.hook_timeout_ms.unwrap_or_default(),
-        auto_open_dump: fc.auto_open_dump.unwrap_or_default(),
+        auto_open_dump: fc.auto_open_dump,
         debug_requests: fc.debug_requests,
         custom_history_path: fc.custom_history_path,
-        max_conversations: fc.max_conversations.unwrap_or_default(),
-        sem_search_limit: fc.max_sem_search_results.unwrap_or_default(),
-        sem_search_top_k: fc.sem_search_top_k.unwrap_or_default(),
-        service_url: fc
-            .services_url
-            .as_deref()
-            .and_then(|s| Url::parse(s).ok())
-            .unwrap_or_else(|| Url::parse("https://api.forgecode.dev").unwrap()),
-        max_extensions: fc.max_extensions.unwrap_or_default(),
+        max_conversations: fc.max_conversations,
+        sem_search_limit: fc.max_sem_search_results,
+        sem_search_top_k: fc.sem_search_top_k,
+        service_url: Url::parse(&fc.services_url)
+            .unwrap_or_else(|_| Url::parse("https://api.forgecode.dev").unwrap()),
+        max_extensions: fc.max_extensions,
         auto_dump: fc.auto_dump.map(to_auto_dump_format),
-        parallel_file_reads: fc.max_parallel_file_reads.unwrap_or_default(),
-        model_cache_ttl: fc.model_cache_ttl_secs.unwrap_or_default(),
+        parallel_file_reads: fc.max_parallel_file_reads,
+        model_cache_ttl: fc.model_cache_ttl_secs,
         session: fc.session.as_ref().map(to_session_config),
         commit: fc.commit.as_ref().map(to_session_config),
         suggest: fc.suggest.as_ref().map(to_session_config),
-        is_restricted: fc.restricted.unwrap_or_default(),
-        tool_supported: fc.tool_supported.unwrap_or_default(),
+        is_restricted: fc.restricted,
+        tool_supported: fc.tool_supported,
         temperature: fc
             .temperature
             .and_then(|v| Temperature::new(v.value() as f32).ok()),
@@ -284,9 +281,7 @@ fn from_compact(c: &Compact) -> forge_config::Compact {
 ///
 /// Builds a fresh [`ForgeConfig`] from [`ForgeConfig::default()`] and maps
 /// every field that originated from [`ForgeConfig`] back from the
-/// [`Environment`], preserving the round-trip identity. Fields that only exist
-/// in [`ForgeConfig`] but are not represented in [`Environment`] (e.g.
-/// `updates`, `temperature`, `compact`) remain at their default values.
+/// [`Environment`], preserving the round-trip identity.
 fn to_forge_config(env: &Environment) -> ForgeConfig {
     let mut fc = ForgeConfig::default();
 
@@ -297,38 +292,38 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
     } else {
         Some(from_retry_config(&env.retry_config))
     };
-    fc.max_search_lines = Some(env.max_search_lines);
-    fc.max_search_result_bytes = Some(env.max_search_result_bytes);
-    fc.max_fetch_chars = Some(env.fetch_truncation_limit);
-    fc.max_stdout_prefix_lines = Some(env.stdout_max_prefix_length);
-    fc.max_stdout_suffix_lines = Some(env.stdout_max_suffix_length);
-    fc.max_stdout_line_chars = Some(env.stdout_max_line_length);
-    fc.max_line_chars = Some(env.max_line_length);
-    fc.max_read_lines = Some(env.max_read_size);
-    fc.max_file_read_batch_size = Some(env.max_file_read_batch_size);
+    fc.max_search_lines = env.max_search_lines;
+    fc.max_search_result_bytes = env.max_search_result_bytes;
+    fc.max_fetch_chars = env.fetch_truncation_limit;
+    fc.max_stdout_prefix_lines = env.stdout_max_prefix_length;
+    fc.max_stdout_suffix_lines = env.stdout_max_suffix_length;
+    fc.max_stdout_line_chars = env.stdout_max_line_length;
+    fc.max_line_chars = env.max_line_length;
+    fc.max_read_lines = env.max_read_size;
+    fc.max_file_read_batch_size = env.max_file_read_batch_size;
     let default_http = HttpConfig::default();
     fc.http = if env.http == default_http {
         None
     } else {
         Some(from_http_config(&env.http))
     };
-    fc.max_file_size_bytes = Some(env.max_file_size);
-    fc.max_image_size_bytes = Some(env.max_image_size);
-    fc.tool_timeout_secs = Some(env.tool_timeout);
+    fc.max_file_size_bytes = env.max_file_size;
+    fc.max_image_size_bytes = env.max_image_size;
+    fc.tool_timeout_secs = env.tool_timeout;
     fc.hook_timeout_ms = Some(env.hook_timeout);
-    fc.auto_open_dump = Some(env.auto_open_dump);
+    fc.auto_open_dump = env.auto_open_dump;
     fc.debug_requests = env.debug_requests.clone();
     fc.custom_history_path = env.custom_history_path.clone();
-    fc.max_conversations = Some(env.max_conversations);
-    fc.max_sem_search_results = Some(env.sem_search_limit);
-    fc.sem_search_top_k = Some(env.sem_search_top_k);
-    fc.services_url = Some(env.service_url.to_string());
-    fc.max_extensions = Some(env.max_extensions);
+    fc.max_conversations = env.max_conversations;
+    fc.max_sem_search_results = env.sem_search_limit;
+    fc.sem_search_top_k = env.sem_search_top_k;
+    fc.services_url = env.service_url.to_string();
+    fc.max_extensions = env.max_extensions;
     fc.auto_dump = env.auto_dump.as_ref().map(from_auto_dump_format);
-    fc.max_parallel_file_reads = Some(env.parallel_file_reads);
-    fc.model_cache_ttl_secs = Some(env.model_cache_ttl);
-    fc.restricted = Some(env.is_restricted);
-    fc.tool_supported = Some(env.tool_supported);
+    fc.max_parallel_file_reads = env.parallel_file_reads;
+    fc.model_cache_ttl_secs = env.model_cache_ttl;
+    fc.restricted = env.is_restricted;
+    fc.tool_supported = env.tool_supported;
 
     // --- Workflow fields ---
     fc.temperature = env
@@ -370,10 +365,9 @@ pub struct ForgeEnvironmentInfra {
 }
 
 impl ForgeEnvironmentInfra {
-    /// Creates a new [`ForgeConfigInfra`].
+    /// Creates a new [`ForgeEnvironmentInfra`].
     ///
     /// # Arguments
-    /// * `restricted` - If true, enables restricted mode
     /// * `cwd` - The working directory path; used to resolve `.env` files
     pub fn new(cwd: PathBuf) -> Self {
         Self { cwd, cache: Arc::new(std::sync::Mutex::new(None)) }
@@ -393,9 +387,24 @@ impl ForgeEnvironmentInfra {
             }
         }
     }
+
+    /// Returns the cached [`ForgeConfig`], reading from disk if the cache is
+    /// empty.
+    fn cached_config(&self) -> ForgeConfig {
+        let mut cache = self.cache.lock().expect("cache mutex poisoned");
+        if let Some(ref config) = *cache {
+            config.clone()
+        } else {
+            let config = Self::read_from_disk();
+            *cache = Some(config.clone());
+            config
+        }
+    }
 }
 
 impl EnvironmentInfra for ForgeEnvironmentInfra {
+    type Config = ForgeConfig;
+
     fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
     }
@@ -405,18 +414,11 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     }
 
     fn get_environment(&self) -> Environment {
-        let fc = {
-            let mut cache = self.cache.lock().expect("cache mutex poisoned");
-            if let Some(ref config) = *cache {
-                config.clone()
-            } else {
-                let config = Self::read_from_disk();
-                *cache = Some(config.clone());
-                config
-            }
-        };
+        to_environment(self.cached_config(), self.cwd.clone())
+    }
 
-        to_environment(fc, self.cwd.clone())
+    fn get_config(&self) -> ForgeConfig {
+        self.cached_config()
     }
 
     async fn update_environment(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
@@ -430,7 +432,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
         // Convert to Environment and apply each operation
         debug!(?ops, "applying app config operations");
-        let mut env = to_environment(fc.clone(), self.cwd.clone());
+        let mut env = to_environment(fc, self.cwd.clone());
         for op in ops {
             env.apply_op(op);
         }

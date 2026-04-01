@@ -10,6 +10,7 @@ use forge_app::{
     FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
     ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
 };
+use forge_config::ForgeConfig;
 use forge_domain::{Agent, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
@@ -146,6 +147,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         self.services.get_environment().clone()
     }
 
+    fn get_config(&self) -> ForgeConfig {
+        self.infra.get_config()
+    }
+
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
@@ -167,6 +172,18 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
 
     async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
         self.services.delete_conversation(conversation_id).await
+    }
+
+    async fn rename_conversation(
+        &self,
+        conversation_id: &ConversationId,
+        title: String,
+    ) -> anyhow::Result<()> {
+        self.services
+            .modify_conversation(conversation_id, |conv| {
+                conv.title = Some(title);
+            })
+            .await
     }
 
     async fn execute_shell_command(
