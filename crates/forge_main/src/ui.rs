@@ -768,6 +768,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
             }
+            ConversationCommand::Rename { id, name } => {
+                self.validate_conversation_exists(&id).await?;
+
+                let name = name.join(" ").trim().to_string();
+                if name.is_empty() {
+                    return Err(anyhow::anyhow!("Please provide a name for the conversation."));
+                }
+                self.api.rename_conversation(&id, name.clone()).await?;
+                self.writeln_title(TitleFormat::info(format!(
+                    "Conversation renamed to '{}'",
+                    name.bold()
+                )))?;
+            }
         }
 
         Ok(())
@@ -1814,6 +1827,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Delete => {
                 self.handle_delete_conversation().await?;
             }
+            SlashCommand::Rename(ref name) => {
+                self.handle_rename_conversation(name.clone()).await?;
+            }
             SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(html).await?;
@@ -2004,6 +2020,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_delete_conversation(&mut self) -> anyhow::Result<()> {
         let conversation_id = self.init_conversation().await?;
         self.on_conversation_delete(conversation_id).await?;
+        Ok(())
+    }
+
+    async fn handle_rename_conversation(&mut self, name: String) -> anyhow::Result<()> {
+        let conversation_id = self.init_conversation().await?;
+        self.api
+            .rename_conversation(&conversation_id, name.clone())
+            .await?;
+        self.writeln_title(TitleFormat::info(format!(
+            "Conversation renamed to '{}'",
+            name.bold()
+        )))?;
         Ok(())
     }
 

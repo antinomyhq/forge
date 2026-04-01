@@ -894,6 +894,41 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_rename_conversation_via_upsert() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation = Conversation::new(ConversationId::generate())
+            .title(Some("Original Title".to_string()));
+
+        repo.upsert_conversation(conversation.clone()).await?;
+
+        // Rename by upserting with a new title
+        let renamed = conversation.clone().title(Some("Renamed Session".to_string()));
+        repo.upsert_conversation(renamed).await?;
+
+        let actual = repo.get_conversation(&conversation.id).await?.unwrap();
+        assert_eq!(actual.title, Some("Renamed Session".to_string()));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_rename_conversation_from_none() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation = Conversation::new(ConversationId::generate());
+
+        // Start with no title
+        assert!(conversation.title.is_none());
+        repo.upsert_conversation(conversation.clone()).await?;
+
+        // Rename it
+        let renamed = conversation.clone().title(Some("My Session".to_string()));
+        repo.upsert_conversation(renamed).await?;
+
+        let actual = repo.get_conversation(&conversation.id).await?.unwrap();
+        assert_eq!(actual.title, Some("My Session".to_string()));
+        Ok(())
+    }
+
     #[test]
     fn test_legacy_tool_value_pair_deserialization() {
         use crate::conversation::conversation_record::ToolOutputRecord;
