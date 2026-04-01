@@ -82,11 +82,11 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
                 AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
             }
             None => {
-                let env = self.infra.get_environment();
+                let config = self.infra.get_config();
 
                 let start = tag.loc.as_ref().and_then(|loc| loc.start);
                 let end = tag.loc.as_ref().and_then(|loc| loc.end);
-                let (start_line, end_line) = resolve_range(start, end, env.max_read_size);
+                let (start_line, end_line) = resolve_range(start, end, config.max_read_lines);
 
                 // range_read_utf8 returns the range content and FileInfo which
                 // carries a content_hash of the **full** file. Using the
@@ -145,6 +145,8 @@ pub mod tests {
     pub struct MockEnvironmentInfra {}
 
     impl EnvironmentInfra for MockEnvironmentInfra {
+        type Config = forge_config::ForgeConfig;
+
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
         }
@@ -155,15 +157,15 @@ pub mod tests {
 
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
             let fixture: Environment = Faker.fake();
-            fixture
-                .max_search_lines(25)
-                .max_search_result_bytes(max_bytes.ceil() as usize)
-                .max_read_size(2000)
-                .max_line_length(2000)
-                .max_file_size(256 << 10)
-                .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
+            fixture.cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
+        }
+
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
 
         async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
@@ -481,8 +483,14 @@ pub mod tests {
     }
 
     impl EnvironmentInfra for MockCompositeService {
+        type Config = forge_config::ForgeConfig;
+
         fn get_environment(&self) -> Environment {
             self.env_service.get_environment()
+        }
+
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            self.env_service.get_config()
         }
 
         fn update_environment(
