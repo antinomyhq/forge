@@ -206,6 +206,17 @@
       "default": 0,
       "minimum": 0
     },
+    "reasoning": {
+      "description": "Reasoning settings applied to all agents; individual agent settings\ntake priority over this global default via merge semantics.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReasoningConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "restricted": {
       "description": "Whether restricted mode is active; when enabled, tool execution requires\nexplicit permission grants.",
       "type": "boolean",
@@ -395,6 +406,14 @@
         }
       }
     },
+    "Effort": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
     "HttpConfig": {
       "description": "HTTP client configuration.",
       "type": "object",
@@ -521,6 +540,45 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "ReasoningConfig": {
+      "type": "object",
+      "properties": {
+        "effort": {
+          "description": "Controls the effort level of the agent's reasoning\nsupported by openrouter and forge provider",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "description": "Enables reasoning at the \"medium\" effort level with no exclusions.\nsupported by openrouter, anthropic and forge provider",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "exclude": {
+          "description": "Model thinks deeply, but the reasoning is hidden from you.\nsupported by openrouter and forge provider",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_tokens": {
+          "description": "Controls how many tokens the model can spend thinking.\nsupported by openrouter, anthropic and forge provider\nshould be greater then 1024 but less than overall max_tokens",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
         }
       }
     },

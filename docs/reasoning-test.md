@@ -26,10 +26,20 @@ Set the following environment variables and run the binary with a simple prompt.
 FORGE_DEBUG_REQUESTS="forge.request.json" \
 FORGE_SESSION__PROVIDER_ID=<provider_id> \
 FORGE_SESSION__MODEL_ID=<model_id> \
+FORGE_REASONING__EFFORT=<effort> \
 target/debug/forge -p "Hello!"
 ```
 
-Replace `<provider_id>` and `<model_id>` with the provider and model you want to test. To see available providers:
+The `FORGE_REASONING__*` variables map directly to `ReasoningConfig` fields and apply globally to all agents:
+
+| Variable                      | Values                            |
+| ----------------------------- | --------------------------------- |
+| `FORGE_REASONING__EFFORT`     | `low` · `medium` · `high` · `max` |
+| `FORGE_REASONING__ENABLED`    | `true` · `false`                  |
+| `FORGE_REASONING__MAX_TOKENS` | integer ≥ 1024                    |
+| `FORGE_REASONING__EXCLUDE`    | `true` · `false`                  |
+
+Replace `<provider_id>`, `<model_id>`, and `<effort>` with the values you want to test. To see available providers:
 
 ```bash
 target/debug/forge provider list
