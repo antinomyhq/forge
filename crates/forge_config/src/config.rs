@@ -144,8 +144,8 @@ impl ForgeConfig {
     /// be read, or deserialization fails.
     pub fn read() -> crate::Result<ForgeConfig> {
         ConfigReader::default()
-            .read_defaults()
             .read_legacy()
+            .read_defaults()
             .read_global()
             .read_env()
             .build()
