@@ -1,7 +1,7 @@
 use std::collections::HashMap;
-use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 
 /// Top-level user hook configuration.
 ///
@@ -52,7 +52,7 @@ impl UserHookConfig {
 
 /// Supported hook event names that map to lifecycle points in the
 /// orchestrator.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]
 pub enum UserHookEventName {
     /// Fired before a tool call executes. Can block execution.
     PreToolUse,
@@ -74,23 +74,6 @@ pub enum UserHookEventName {
     PreCompact,
     /// Fired after context compaction.
     PostCompact,
-}
-
-impl fmt::Display for UserHookEventName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PreToolUse => write!(f, "PreToolUse"),
-            Self::PostToolUse => write!(f, "PostToolUse"),
-            Self::PostToolUseFailure => write!(f, "PostToolUseFailure"),
-            Self::Stop => write!(f, "Stop"),
-            Self::Notification => write!(f, "Notification"),
-            Self::SessionStart => write!(f, "SessionStart"),
-            Self::SessionEnd => write!(f, "SessionEnd"),
-            Self::UserPromptSubmit => write!(f, "UserPromptSubmit"),
-            Self::PreCompact => write!(f, "PreCompact"),
-            Self::PostCompact => write!(f, "PostCompact"),
-        }
-    }
 }
 
 /// A matcher group pairs an optional regex matcher with a list of hook
