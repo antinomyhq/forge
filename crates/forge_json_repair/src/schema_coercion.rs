@@ -979,7 +979,8 @@ mod tests {
 
     #[test]
     fn test_repairs_invalid_json_string_when_schema_expects_array() {
-        // Invalid JSON-like array strings are repaired into arrays when the schema expects one.
+        // Invalid JSON-like array strings are repaired into arrays when the schema
+        // expects one.
         let fixture = json!({"data": "[invalid json"});
         let schema = schema_for!(DataArray);
         let actual = coerce_to_schema(fixture, &schema);
