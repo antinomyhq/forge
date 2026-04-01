@@ -771,7 +771,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ConversationCommand::Rename { id, name } => {
                 self.validate_conversation_exists(&id).await?;
 
-                let name = name.join(" ").trim().to_string();
+                let name = name.trim().to_string();
                 if name.is_empty() {
                     return Err(anyhow::anyhow!(
                         "Please provide a name for the conversation."

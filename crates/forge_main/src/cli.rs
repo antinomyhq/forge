@@ -652,7 +652,7 @@ pub enum ConversationCommand {
         id: ConversationId,
 
         /// New name for the conversation.
-        name: Vec<String>,
+        name: String,
     },
 }
 
