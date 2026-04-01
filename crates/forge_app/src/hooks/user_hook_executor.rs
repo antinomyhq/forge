@@ -40,15 +40,13 @@ impl UserHookExecutor {
         cwd: &PathBuf,
         env_vars: &HashMap<String, String>,
     ) -> anyhow::Result<HookExecutionResult> {
-        let timeout_duration = timeout
-            .map(Duration::from_millis)
-            .unwrap_or_else(|| {
-                if default_timeout_ms > 0 {
-                    Duration::from_millis(default_timeout_ms)
-                } else {
-                    DEFAULT_HOOK_TIMEOUT
-                }
-            });
+        let timeout_duration = timeout.map(Duration::from_millis).unwrap_or_else(|| {
+            if default_timeout_ms > 0 {
+                Duration::from_millis(default_timeout_ms)
+            } else {
+                DEFAULT_HOOK_TIMEOUT
+            }
+        });
 
         debug!(
             command = command,
@@ -144,10 +142,9 @@ mod tests {
     #[tokio::test]
     async fn test_execute_simple_command() {
         let cwd = std::env::current_dir().unwrap();
-        let actual =
-            UserHookExecutor::execute("echo hello", "{}", None, 0, &cwd, &HashMap::new())
-                .await
-                .unwrap();
+        let actual = UserHookExecutor::execute("echo hello", "{}", None, 0, &cwd, &HashMap::new())
+            .await
+            .unwrap();
 
         assert_eq!(actual.exit_code, Some(0));
         assert_eq!(actual.stdout.trim(), "hello");

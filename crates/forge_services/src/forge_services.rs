@@ -24,11 +24,11 @@ use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
 use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
-use crate::user_hook_config::ForgeUserHookConfigService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
     ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
+use crate::user_hook_config::ForgeUserHookConfigService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;

@@ -948,9 +948,7 @@ impl<I: Services> CommandLoaderService for I {
 #[async_trait::async_trait]
 impl<I: Services> UserHookConfigService for I {
     async fn get_user_hook_config(&self) -> anyhow::Result<forge_domain::UserHookConfig> {
-        self.user_hook_config_service()
-            .get_user_hook_config()
-            .await
+        self.user_hook_config_service().get_user_hook_config().await
     }
 }
 

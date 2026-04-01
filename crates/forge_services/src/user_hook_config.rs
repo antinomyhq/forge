@@ -225,10 +225,7 @@ mod tests {
 
     // --- Test helpers ---
 
-    fn fixture(
-        home: Option<PathBuf>,
-        cwd: PathBuf,
-    ) -> ForgeUserHookConfigService<TestInfra> {
+    fn fixture(home: Option<PathBuf>, cwd: PathBuf) -> ForgeUserHookConfigService<TestInfra> {
         ForgeUserHookConfigService::new(Arc::new(TestInfra { home, cwd }))
     }
 
