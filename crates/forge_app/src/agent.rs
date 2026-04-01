@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use forge_config::ForgeConfig;
 use forge_domain::{
-    Agent, ChatCompletionMessage, Compact, Context, Conversation, MaxTokens, ModelId, ProviderId,
-    ResultStream, Temperature, ToolCallContext, ToolCallFull, ToolResult, TopK, TopP,
+    Agent, ChatCompletionMessage, Compact, Context, Conversation, Effort, MaxTokens, ModelId,
+    ProviderId, ReasoningConfig, ResultStream, Temperature, ToolCallContext, ToolCallFull,
+    ToolResult, TopK, TopP,
 };
 use merge::Merge;
 
@@ -140,6 +141,25 @@ impl AgentExt for Agent {
             };
             merged_compact.merge(agent.compact.clone());
             agent.compact = merged_compact;
+        }
+
+        // Apply workflow reasoning configuration to agents.
+        // Config provides the base; agent-level settings take priority via merge.
+        if let Some(ref config_reasoning) = config.reasoning {
+            use forge_config::Effort as ConfigEffort;
+            let mut base = ReasoningConfig {
+                effort: config_reasoning.effort.as_ref().map(|e| match e {
+                    ConfigEffort::High => Effort::High,
+                    ConfigEffort::Medium => Effort::Medium,
+                    ConfigEffort::Low => Effort::Low,
+                }),
+                max_tokens: config_reasoning.max_tokens,
+                exclude: config_reasoning.exclude,
+                enabled: config_reasoning.enabled,
+            };
+            // Merge agent's reasoning on top so agent-level fields take priority.
+            base.merge(agent.reasoning.clone().unwrap_or_default());
+            agent.reasoning = Some(base);
         }
 
         agent
