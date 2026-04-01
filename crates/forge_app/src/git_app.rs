@@ -225,18 +225,11 @@ where
     /// Fetches git context (branch name and recent commits)
     async fn fetch_git_context(&self, cwd: &Path) -> Result<(String, String)> {
         let max_commit_count = self.services.get_environment().max_commit_count;
-        let git_log_cmd = format!(
-            "git log --pretty=format:%s --abbrev-commit --max-count={max_commit_count}"
-        );
+        let git_log_cmd =
+            format!("git log --pretty=format:%s --abbrev-commit --max-count={max_commit_count}");
         let (recent_commits, branch_name) = tokio::join!(
-            self.services.execute(
-                git_log_cmd,
-                cwd.to_path_buf(),
-                false,
-                true,
-                None,
-                None,
-            ),
+            self.services
+                .execute(git_log_cmd, cwd.to_path_buf(), false, true, None, None,),
             self.services.execute(
                 "git rev-parse --abbrev-ref HEAD".into(),
                 cwd.to_path_buf(),
