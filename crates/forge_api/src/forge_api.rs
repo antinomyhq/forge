@@ -217,8 +217,15 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        let result = self.services.set_default_provider(provider_id).await;
+    async fn set_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model_id: ModelId,
+    ) -> anyhow::Result<()> {
+        let result = self
+            .services
+            .set_provider_and_model(provider_id, model_id)
+            .await;
         // Invalidate cache for agents
         let _ = self.services.reload_agents().await;
         result
@@ -264,13 +271,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
 
     async fn get_default_model(&self) -> Option<ModelId> {
         self.services.get_provider_model(None).await.ok()
-    }
-    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        let result = self.services.set_default_model(model_id).await;
-        // Invalidate cache for agents
-        let _ = self.services.reload_agents().await;
-
-        result
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<CommitConfig>> {

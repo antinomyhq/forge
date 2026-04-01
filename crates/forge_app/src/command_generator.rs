@@ -249,7 +249,11 @@ mod tests {
             Ok(ProviderId::OPENAI)
         }
 
-        async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
+        async fn set_provider_and_model(
+            &self,
+            _provider_id: ProviderId,
+            _model: ModelId,
+        ) -> Result<()> {
             Ok(())
         }
 
@@ -258,10 +262,6 @@ mod tests {
             _provider_id: Option<&ProviderId>,
         ) -> anyhow::Result<ModelId> {
             Ok(ModelId::new("test-model"))
-        }
-
-        async fn set_default_model(&self, _model: ModelId) -> Result<()> {
-            Ok(())
         }
 
         async fn get_commit_config(&self) -> Result<Option<forge_domain::CommitConfig>> {
