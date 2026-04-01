@@ -597,7 +597,9 @@ mod env_tests {
     use forge_app::domain::{
         ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
     };
-    use forge_domain::{AnyProvider, ApiKey, AuthDetails, ChatRepository, ProviderTemplate, URLParamValue};
+    use forge_domain::{
+        AnyProvider, ApiKey, AuthDetails, ChatRepository, ProviderTemplate, URLParamValue,
+    };
     use pretty_assertions::assert_eq;
     use url::Url;
 
