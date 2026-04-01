@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::Context;
 use bytes::Bytes;
@@ -17,20 +17,32 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 };
 
 pub struct ForgeHttpInfra<F> {
-    client: Client,
+    client: OnceLock<Client>,
     env: Environment,
     file: Arc<F>,
 }
 
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     pub fn new(env: Environment, file_writer: Arc<F>) -> Self {
-        let client = reqwest::Client::builder()
-            .with_http_config(&env.http)
+        Self { env, client: OnceLock::new(), file: file_writer }
+    }
+
+    fn client(&self) -> anyhow::Result<&Client> {
+        // Fast path: already initialized.
+        if let Some(client) = self.client.get() {
+            return Ok(client);
+        }
+
+        // Build the client. On failure the error propagates and nothing is
+        // stored, so the next call will retry.
+        let new_client = reqwest::Client::builder()
+            .with_http_config(&self.env.http)
             .with_proxy_fallback()
-            .expect("Failed to configure proxy fallback")
-            .build()
-            .unwrap();
-        Self { env, client, file: file_writer }
+            .and_then(|b| b.build().map_err(Into::into))?;
+
+        // Store on success. If another thread raced us here and already stored
+        // a client, `get_or_init` returns theirs and drops ours — that's fine.
+        Ok(self.client.get_or_init(|| new_client))
     }
 
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
@@ -75,7 +87,7 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     where
         B: FnOnce(&Client) -> reqwest::RequestBuilder,
     {
-        let response = request_builder(&self.client)
+        let response = request_builder(self.client()?)
             .send()
             .await
             .with_context(|| format_http_context(None, method, url))?;
@@ -158,7 +170,7 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
 
         self.write_debug_request(&body);
 
-        self.client
+        self.client()?
             .post(url.clone())
             .headers(request_headers)
             .body(body)
