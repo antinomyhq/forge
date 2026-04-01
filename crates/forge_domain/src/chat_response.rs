@@ -69,7 +69,8 @@ pub enum ChatResponse {
     HookError {
         /// Name of the tool that was blocked.
         tool_name: ToolName,
-        /// Human-readable reason provided by the hook (from stderr or JSON output).
+        /// Human-readable reason provided by the hook (from stderr or JSON
+        /// output).
         reason: String,
     },
     RetryAttempt {
