@@ -98,6 +98,8 @@ impl ForgeCommandManager {
                 | "conversations"
                 | "list"
                 | "commit"
+                | "rename"
+                | "rn"
         )
     }
 
@@ -107,6 +109,7 @@ impl ForgeCommandManager {
             .filter(|command| !matches!(command, SlashCommand::Custom(_)))
             .filter(|command| !matches!(command, SlashCommand::Shell(_)))
             .filter(|command| !matches!(command, SlashCommand::AgentSwitch(_)))
+            .filter(|command| !matches!(command, SlashCommand::Rename(_)))
             .map(|command| ForgeCommand {
                 name: command.name().to_string(),
                 description: command.usage().to_string(),
@@ -282,6 +285,16 @@ impl ForgeCommandManager {
                 Ok(SlashCommand::Commit { max_diff_size })
             }
             "/index" => Ok(SlashCommand::Index),
+            "/rename" | "/rn" => {
+                let name = parameters.join(" ");
+                let name = name.trim().to_string();
+                if name.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "Usage: /rename <name>. Please provide a name for the conversation."
+                    ));
+                }
+                Ok(SlashCommand::Rename(name))
+            }
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -420,6 +433,10 @@ pub enum SlashCommand {
     #[strum(props(usage = "Delete a conversation permanently"))]
     Delete,
 
+    /// Rename the current conversation
+    #[strum(props(usage = "Rename the current conversation. Usage: /rename <name>"))]
+    Rename(String),
+
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
@@ -467,6 +484,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::Delete => "delete",
+            SlashCommand::Rename(_) => "rename",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
         }
@@ -1241,5 +1259,56 @@ mod tests {
         // Verify
         let expected = SlashCommand::Dump { html: true };
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_rename_command() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/rename my-session").unwrap();
+        assert_eq!(actual, SlashCommand::Rename("my-session".to_string()));
+    }
+
+    #[test]
+    fn test_parse_rename_command_multi_word() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/rename auth refactor work").unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Rename("auth refactor work".to_string())
+        );
+    }
+
+    #[test]
+    fn test_parse_rename_command_no_name() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/rename");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("provide a name"));
+    }
+
+    #[test]
+    fn test_parse_rename_alias() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/rn my-session").unwrap();
+        assert_eq!(actual, SlashCommand::Rename("my-session".to_string()));
+    }
+
+    #[test]
+    fn test_parse_rename_trims_whitespace() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/rename   my title   ").unwrap();
+        assert_eq!(actual, SlashCommand::Rename("my title".to_string()));
+    }
+
+    #[test]
+    fn test_rename_is_reserved_command() {
+        assert!(ForgeCommandManager::is_reserved_command("rename"));
+        assert!(ForgeCommandManager::is_reserved_command("rn"));
+    }
+
+    #[test]
+    fn test_rename_command_name() {
+        let cmd = SlashCommand::Rename("test".to_string());
+        assert_eq!(cmd.name(), "rename");
     }
 }
