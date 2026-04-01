@@ -45,5 +45,4 @@ mod tests {
         assert_eq!(config.initial_backoff_ms, 200);
         assert_eq!(config.suppress_errors, false);
     }
-
 }

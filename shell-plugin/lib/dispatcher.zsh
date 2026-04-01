@@ -217,6 +217,12 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        rename|rn)
+            _forge_action_rename "$input_text"
+        ;;
+        conversation-rename)
+            _forge_action_conversation_rename "$input_text"
+        ;;
         copy)
             _forge_action_copy
         ;;

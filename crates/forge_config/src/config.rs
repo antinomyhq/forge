@@ -16,79 +16,104 @@ use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, RetryConf
 #[setters(strip_option)]
 pub struct ForgeConfig {
     /// Retry settings applied at the system level to all IO operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
     /// Maximum number of lines returned by a single file search operation.
+    #[serde(default)]
     pub max_search_lines: usize,
     /// Maximum number of bytes returned by a single file search operation.
+    #[serde(default)]
     pub max_search_result_bytes: usize,
     /// Maximum number of characters returned from a URL fetch.
+    #[serde(default)]
     pub max_fetch_chars: usize,
     /// Maximum number of lines captured from the leading portion of shell
     /// command output.
+    #[serde(default)]
     pub max_stdout_prefix_lines: usize,
     /// Maximum number of lines captured from the trailing portion of shell
     /// command output.
+    #[serde(default)]
     pub max_stdout_suffix_lines: usize,
     /// Maximum number of characters per line in shell command output.
+    #[serde(default)]
     pub max_stdout_line_chars: usize,
     /// Maximum number of characters per line when reading a file.
+    #[serde(default)]
     pub max_line_chars: usize,
     /// Maximum number of lines read from a file in a single operation.
+    #[serde(default)]
     pub max_read_lines: u64,
     /// Maximum number of files read in a single batch operation.
+    #[serde(default)]
     pub max_file_read_batch_size: usize,
     /// HTTP client settings including proxy, TLS, and timeout configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub http: Option<HttpConfig>,
     /// Maximum file size in bytes permitted for read operations.
+    #[serde(default)]
     pub max_file_size_bytes: u64,
     /// Maximum image file size in bytes permitted for read operations.
+    #[serde(default)]
     pub max_image_size_bytes: u64,
     /// Maximum time in seconds a single tool call may run before being
     /// cancelled.
+    #[serde(default)]
     pub tool_timeout_secs: u64,
     /// Whether to automatically open HTML dump files in the browser after
     /// creation.
+    #[serde(default)]
     pub auto_open_dump: bool,
     /// Directory where debug request files are written; disabled when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_requests: Option<PathBuf>,
     /// Path to the conversation history file; defaults to the global history
     /// location when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_history_path: Option<PathBuf>,
     /// Maximum number of conversations shown in the conversation list.
+    #[serde(default)]
     pub max_conversations: usize,
     /// Maximum number of candidate results returned from the initial semantic
     /// search vector query.
+    #[serde(default)]
     pub max_sem_search_results: usize,
     /// Number of top results retained after re-ranking in semantic search.
+    #[serde(default)]
     pub sem_search_top_k: usize,
     /// Base URL of the Forge services API used for semantic search and
     /// indexing.
-    #[dummy(expr = "\"https://example.com/api\".to_string()")]
+    #[serde(default)]
+    #[dummy(expr = "\"https://api.forgecode.dev/api\".to_string()")]
     pub services_url: String,
     /// Maximum number of file extensions included in the agent system prompt.
+    #[serde(default)]
     pub max_extensions: usize,
     /// Format used when automatically creating a session dump after task
     /// completion; disabled when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_dump: Option<AutoDumpFormat>,
     /// Maximum number of files read concurrently during batch operations.
+    #[serde(default)]
     pub max_parallel_file_reads: usize,
     /// Time-to-live in seconds for the cached model API list.
+    #[serde(default)]
     pub model_cache_ttl_secs: u64,
     /// Default model and provider configuration used when not overridden by
-    /// individual agents.
-    #[serde(default)]
+    /// individual agents.    
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<ModelConfig>,
     /// Model and provider configuration used for commit message generation.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit: Option<ModelConfig>,
     /// Model and provider configuration used for shell command suggestion
     /// generation.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<ModelConfig>,
 
     // --- Workflow fields ---
     /// Configuration for automatic Forge updates.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
     /// Output randomness for all agents; lower values are deterministic, higher
@@ -127,10 +152,12 @@ pub struct ForgeConfig {
 
     /// Whether restricted mode is active; when enabled, tool execution requires
     /// explicit permission grants.
+    #[serde(default)]
     pub restricted: bool,
 
     /// Whether tool use is supported in the current environment; when false,
     /// all tool calls are disabled.
+    #[serde(default)]
     pub tool_supported: bool,
 }
 

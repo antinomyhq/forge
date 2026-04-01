@@ -12,7 +12,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -125,6 +125,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
         self.spinner.ewrite_ln(title)
+    }
+
+    /// Retrieve available models
+    async fn get_models(&mut self) -> Result<Vec<Model>> {
+        self.spinner.start(Some("Loading"))?;
+        let models = self.api.get_models().await?;
+        self.spinner.stop(None)?;
+        Ok(models)
     }
 
     /// Helper to get provider for an optional agent, defaulting to the current
@@ -760,6 +768,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.spinner.start(Some("Cloning"))?;
                 self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
+            }
+            ConversationCommand::Rename { id, name } => {
+                self.validate_conversation_exists(&id).await?;
+
+                let name = name.trim().to_string();
+                if name.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "Please provide a name for the conversation."
+                    ));
+                }
+                self.api.rename_conversation(&id, name.clone()).await?;
+                self.writeln_title(TitleFormat::info(format!(
+                    "Conversation renamed to '{}'",
+                    name.bold()
+                )))?;
             }
         }
 
@@ -1808,6 +1831,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Delete => {
                 self.handle_delete_conversation().await?;
             }
+            SlashCommand::Rename(ref name) => {
+                self.handle_rename_conversation(name.clone()).await?;
+            }
             SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(html).await?;
@@ -2001,6 +2027,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    async fn handle_rename_conversation(&mut self, name: String) -> anyhow::Result<()> {
+        let conversation_id = self.init_conversation().await?;
+        self.api
+            .rename_conversation(&conversation_id, name.clone())
+            .await?;
+        self.writeln_title(TitleFormat::info(format!(
+            "Conversation renamed to '{}'",
+            name.bold()
+        )))?;
+        Ok(())
+    }
+
     /// Select a model from all configured providers using porcelain-style
     /// tabular display matching the shell plugin's `:model` UI.
     ///
@@ -2021,9 +2059,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
         if self.api.get_default_provider().await.is_err() {
-            if !self.on_provider_selection().await? {
-                return Ok(None);
-            }
+            self.on_provider_selection().await?;
 
             // Check if a model was already selected during provider activation
             // Return None to signal the model selection is complete and message was already
@@ -2682,16 +2718,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(Some(model))
     }
 
-    async fn on_provider_selection(&mut self) -> Result<bool> {
+    async fn on_provider_selection(&mut self) -> Result<()> {
         // Select a provider
         // If no provider was selected (user canceled), return early
         let any_provider = match self.select_provider().await? {
             Some(provider) => provider,
-            None => return Ok(false),
+            None => return Ok(()),
         };
 
-        self.activate_provider(any_provider).await?;
-        Ok(true)
+        self.activate_provider(any_provider).await
     }
 
     /// Activates a provider by configuring it if needed, setting it as default,
@@ -2738,22 +2773,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider: Provider<Url>,
         model: Option<ModelId>,
     ) -> Result<()> {
+        // Set the provider via API
+        self.api.set_default_provider(provider.id.clone()).await?;
+
+        self.writeln_title(
+            TitleFormat::action(format!("{}", provider.id))
+                .sub_title("is now the default provider"),
+        )?;
+
         // If a model was pre-selected (e.g. from :model), validate and set it
         // directly without prompting
         if let Some(model) = model {
             let model_id = self
                 .validate_model(model.as_str(), Some(&provider.id))
                 .await?;
-
-            //set provider
-            self.api.set_default_provider(provider.id.clone()).await?;
-
-            self.writeln_title(
-                TitleFormat::action(format!("{}", provider.id))
-                    .sub_title("is now the default provider"),
-            )?;
-
-            //set model
             self.api.set_default_model(model_id.clone()).await?;
             self.writeln_title(
                 TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
@@ -2762,35 +2795,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Check if the current model is available for the new provider
-
         let current_model = self.api.get_default_model().await;
+        if let Some(current_model) = current_model {
+            let models = self.get_models().await?;
+            let model_available = models.iter().any(|m| m.id == current_model);
 
-        let needs_model_selection = match current_model {
-            None => true,
-            Some(current_model) => {
-                let provider_models = self.api.get_all_provider_models().await?;
-                !provider_models
-                    .iter()
-                    .find(|pm| pm.provider_id == provider.id)
-                    .map(|pm| pm.models.iter().any(|m| m.id == current_model))
-                    .unwrap_or(false)
+            if !model_available {
+                // Prompt user to select a new model, scoped to the activated provider
+                self.writeln_title(TitleFormat::info("Please select a new model"))?;
+                self.on_model_selection(Some(provider.id.clone())).await?;
             }
-        };
-
-        if needs_model_selection {
-            self.writeln_title(TitleFormat::info("Please select a new model"))?;
-            let selected = self.on_model_selection(Some(provider.id.clone())).await?;
-            if selected.is_none() {
-                // User cancelled — preserve existing config untouched
-                return Ok(());
-            }
+        } else {
+            // No model set, select one now scoped to the activated provider
+            self.on_model_selection(Some(provider.id.clone())).await?;
         }
-        // Only reaches here if model is confirmed — safe to write provider now
-        self.api.set_default_provider(provider.id.clone()).await?;
-        self.writeln_title(
-            TitleFormat::action(format!("{}", provider.id))
-                .sub_title("is now the default provider"),
-        )?;
 
         Ok(())
     }
@@ -2897,17 +2915,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Ensure we have a model selected before proceeding with initialization
         let active_agent = self.api.get_active_agent().await;
 
-        // Validate provider is configured before loading agents
-        // If provider is set in config but not configured (no credentials), prompt user
-        // to login
-        if self.api.get_default_provider().await.is_err() && !self.on_provider_selection().await? {
-            return Ok(());
-        }
-
         let mut operating_model = self.get_agent_model(active_agent.clone()).await;
         if operating_model.is_none() {
             // Use the model returned from selection instead of re-fetching
             operating_model = self.on_model_selection(None).await?;
+        }
+
+        // Validate provider is configured before loading agents
+        // If provider is set in config but not configured (no credentials), prompt user
+        // to login
+        if self.api.get_default_provider().await.is_err() {
+            self.on_provider_selection().await?;
         }
 
         if first {

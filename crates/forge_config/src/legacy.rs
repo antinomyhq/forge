@@ -38,6 +38,10 @@ impl LegacyConfig {
     /// Reads the legacy `~/forge/.config.json` file at `path`, parses it, and
     /// returns the equivalent TOML representation as a [`String`].
     ///
+    /// Because every field in [`ForgeConfig`] is `Option`, fields not covered
+    /// by the legacy format are `None` and omitted from the serialized TOML,
+    /// so they cannot overwrite values from lower-priority config layers.
+    ///
     /// # Errors
     ///
     /// Returns an error if the file cannot be read, the JSON is invalid, or the
@@ -51,7 +55,7 @@ impl LegacyConfig {
     }
 
     /// Converts a [`LegacyConfig`] into the fields of [`ForgeConfig`] that it
-    /// covers, leaving all other fields at their defaults.
+    /// covers, leaving all other fields at their defaults (`None`).
     fn into_forge_config(self) -> ForgeConfig {
         let session = self.provider.as_deref().map(|provider_id| {
             let model_id = self.model.get(provider_id).cloned();
