@@ -11,6 +11,11 @@ use include_dir::{Dir, include_dir};
 
 use crate::cli::Cli;
 
+/// Normalizes CRLF to LF for scripts embedded via `include_str!` on Windows
+fn normalize_line_endings(s: &str) -> String {
+    s.replace("\r\n", "\n")
+}
+
 /// Embeds shell plugin files for zsh integration
 static ZSH_PLUGIN_LIB: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../shell-plugin/lib");
 
@@ -51,7 +56,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").to_string();
+    let mut content = normalize_line_endings(include_str!("../../../../shell-plugin/forge.theme.zsh"));
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -71,10 +76,15 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// Returns error if the script cannot be executed, if output streaming fails,
 /// or if the script exits with a non-zero status code
 fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
+    // Write script to a temp file to avoid Windows command-line escaping issues
+    let temp_dir = std::env::temp_dir();
+    let script_path = temp_dir.join(format!("forge_{}.zsh", script_name));
+    fs::write(&script_path, script_content)
+        .context(format!("Failed to write temp script for {}", script_name))?;
+
     // Execute the script in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
-        .arg("-c")
-        .arg(script_content)
+        .arg(script_path.to_str().unwrap())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -114,6 +124,9 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
         .wait()
         .context(format!("Failed to wait for zsh {} script", script_name))?;
 
+    // Clean up temp script file
+    let _ = fs::remove_file(&script_path);
+
     if !status.success() {
         let exit_code = status
             .code()
@@ -135,8 +148,8 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
 ///
 /// Returns error if the doctor script cannot be executed
 pub fn run_zsh_doctor() -> Result<()> {
-    let script_content = include_str!("../../../../shell-plugin/doctor.zsh");
-    execute_zsh_script_with_streaming(script_content, "doctor")
+    let script_content = normalize_line_endings(include_str!("../../../../shell-plugin/doctor.zsh"));
+    execute_zsh_script_with_streaming(&script_content, "doctor")
 }
 
 /// Shows ZSH keyboard shortcuts with streaming output
@@ -145,8 +158,8 @@ pub fn run_zsh_doctor() -> Result<()> {
 ///
 /// Returns error if the keyboard script cannot be executed
 pub fn run_zsh_keyboard() -> Result<()> {
-    let script_content = include_str!("../../../../shell-plugin/keyboard.zsh");
-    execute_zsh_script_with_streaming(script_content, "keyboard")
+    let script_content = normalize_line_endings(include_str!("../../../../shell-plugin/keyboard.zsh"));
+    execute_zsh_script_with_streaming(&script_content, "keyboard")
 }
 
 /// Represents the state of markers in a file
