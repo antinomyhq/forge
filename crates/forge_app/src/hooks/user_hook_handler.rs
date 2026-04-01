@@ -5,9 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
-    HookExecutionResult, HookInput, HookOutput, RequestPayload, ResponsePayload, Role, StartPayload,
-    ToolcallEndPayload, ToolcallStartPayload, UserHookConfig, UserHookEntry, UserHookEventName,
-    UserHookMatcherGroup,
+    HookExecutionResult, HookInput, HookOutput, RequestPayload, ResponsePayload, Role,
+    StartPayload, ToolcallEndPayload, ToolcallStartPayload, UserHookConfig, UserHookEntry,
+    UserHookEventName, UserHookMatcherGroup,
 };
 use regex::Regex;
 use tracing::{debug, warn};

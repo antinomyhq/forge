@@ -234,9 +234,7 @@ mod tests {
             hook_event_name: "UserPromptSubmit".to_string(),
             cwd: "/project".to_string(),
             session_id: Some("sess-abc".to_string()),
-            event_data: HookEventInput::UserPromptSubmit {
-                prompt: "fix the bug".to_string(),
-            },
+            event_data: HookEventInput::UserPromptSubmit { prompt: "fix the bug".to_string() },
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();
