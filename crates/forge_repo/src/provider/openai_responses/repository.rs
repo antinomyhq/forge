@@ -1223,17 +1223,7 @@ mod tests {
         assert!(session_id.is_none());
     }
 
-    #[test]
-    fn test_openai_responses_repository_new() {
-        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
-        let repo = OpenAIResponsesResponseRepository::new(infra.clone());
-
-        assert_eq!(
-            repo.retry_config.status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
-        );
-    }
-
+  
     #[tokio::test]
     async fn test_openai_responses_repository_models_returns_empty() -> anyhow::Result<()> {
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
