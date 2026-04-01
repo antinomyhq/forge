@@ -263,6 +263,8 @@ mod tests {
     }
 
     impl EnvironmentInfra for TestInfra {
+        type Config = forge_config::ForgeConfig;
+
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
         }
@@ -276,6 +278,10 @@ mod tests {
             env.home = self.home.clone();
             env.cwd = self.cwd.clone();
             env
+        }
+
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            Default::default()
         }
 
         async fn update_environment(
