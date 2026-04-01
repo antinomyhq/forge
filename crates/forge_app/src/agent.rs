@@ -149,9 +149,13 @@ impl AgentExt for Agent {
             use forge_config::Effort as ConfigEffort;
             let config_as_domain = ReasoningConfig {
                 effort: config_reasoning.effort.as_ref().map(|e| match e {
-                    ConfigEffort::High => Effort::High,
-                    ConfigEffort::Medium => Effort::Medium,
+                    ConfigEffort::None => Effort::None,
+                    ConfigEffort::Minimal => Effort::Minimal,
                     ConfigEffort::Low => Effort::Low,
+                    ConfigEffort::Medium => Effort::Medium,
+                    ConfigEffort::High => Effort::High,
+                    ConfigEffort::XHigh => Effort::XHigh,
+                    ConfigEffort::Max => Effort::Max,
                 }),
                 max_tokens: config_reasoning.max_tokens,
                 exclude: config_reasoning.exclude,
