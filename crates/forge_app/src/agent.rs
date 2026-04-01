@@ -183,8 +183,8 @@ mod tests {
         )
     }
 
-    /// When the agent has no reasoning config, the config's reasoning is applied
-    /// in full.
+    /// When the agent has no reasoning config, the config's reasoning is
+    /// applied in full.
     #[test]
     fn test_reasoning_applied_from_config_when_agent_has_none() {
         let config = ForgeConfig::default().reasoning(

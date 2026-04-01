@@ -34,7 +34,9 @@ pub struct ReasoningConfig {
 }
 
 /// Effort level for model reasoning.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, StrumDisplay)]
+#[derive(
+    Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, fake::Dummy, StrumDisplay,
+)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]
 pub enum Effort {
