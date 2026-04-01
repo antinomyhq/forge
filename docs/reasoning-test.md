@@ -29,15 +29,42 @@ FORGE_SESSION__MODEL_ID=<model_id> \
 target/debug/forge -p "Hello!"
 ```
 
-Replace `<provider_id>` and `<model_id>` with the provider and model you want to test (e.g. `anthropic` / `claude-opus-4-5`, `open_router` / `openai/o3`, etc.).
+Replace `<provider_id>` and `<model_id>` with the provider and model you want to test. To see available providers:
+
+```bash
+target/debug/forge provider list
+```
 
 ### 2. Inspect the captured request
 
 After the command completes, a file is written to `.forge/forge.request.json`. Open it and verify that the correct reasoning parameters are present in the request body.
 
-#### OpenAI (Responses API)
+#### OpenAI — Chat Completions API
 
-OpenAI o-series and GPT-5 models accept a `reasoning` object:
+The Chat Completions API (`POST /v1/chat/completions`) uses a top-level `reasoning_effort` string field:
+
+```json
+{
+  "model": "gpt-5.1",
+  "reasoning_effort": "medium",
+  "messages": [...]
+}
+```
+
+- `reasoning_effort`: `"none"` | `"minimal"` | `"low"` | `"medium"` | `"high"` | `"xhigh"` — constrains how many tokens the model spends on reasoning. Reducing it produces faster responses at lower cost.
+
+Model-specific defaults and constraints:
+
+- `gpt-5.1` defaults to `"none"` (no reasoning); supports `"none"`, `"low"`, `"medium"`, `"high"`.
+- Models before `gpt-5.1` default to `"medium"` and do not support `"none"`.
+- `gpt-5-pro` defaults to and only supports `"high"`.
+- `"xhigh"` is supported for all models after `gpt-5.1-codex-max`.
+
+Note: OpenAI does not return reasoning tokens in the response body.
+
+#### OpenAI — Responses API
+
+The Responses API uses a nested `reasoning` object instead:
 
 ```json
 {
@@ -48,10 +75,8 @@ OpenAI o-series and GPT-5 models accept a `reasoning` object:
 }
 ```
 
-- `effort`: `"low"` | `"medium"` | `"high"` — controls how many tokens the model spends on reasoning.
-- `summary`: `"auto"` | `"concise"` | `"detailed"` — controls the reasoning summary returned in the response. When `exclude=true` is set in Forge, this maps to `"concise"`.
-
-Note: OpenAI o-series models do not return reasoning tokens in the response body.
+- `effort`: `"low"` | `"medium"` | `"high"` — controls reasoning depth.
+- `summary`: `"auto"` | `"concise"` | `"detailed"` — controls the reasoning summary in the response. When `exclude=true` is set in Forge, this maps to `"concise"`.
 
 #### Anthropic
 
@@ -111,6 +136,7 @@ The `ReasoningConfig` fields in Forge that drive all of the above are:
 
 ## References
 
-- [OpenAI Reasoning](https://developers.openai.com/api/docs/guides/reasoning)
+- [OpenAI Reasoning guide](https://developers.openai.com/api/docs/guides/reasoning)
+- [OpenAI Chat Completions API reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
 - [Anthropic Extended Thinking](https://platform.claude.com/docs/en/build-with-claude/effort)
 - [OpenRouter Reasoning Tokens](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)
