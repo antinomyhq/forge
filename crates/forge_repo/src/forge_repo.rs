@@ -11,7 +11,7 @@ use forge_app::{
 use forge_domain::{
     AnyProvider, AuthCredential, ChatCompletionMessage, ChatRepository, CommandOutput, Context,
     Conversation, ConversationId, ConversationRepository, Environment, FileInfo,
-    FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
+    FuzzySearchRepository, McpServerConfig, Model, ModelId, Provider, ProviderId,
     ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository, Snapshot,
     SnapshotRepository,
 };
@@ -181,10 +181,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
         // All providers now use file-based credentials
         self.provider_repository.remove_credential(id).await
-    }
-
-    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
-        self.provider_repository.migrate_env_to_file().await
     }
 }
 

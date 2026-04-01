@@ -7,8 +7,8 @@ use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
 use forge_domain::{
-    AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
-    ProviderRepository, ProviderTemplate,
+    AuthCredential, ChatRepository, Context, ModelSource, Provider, ProviderRepository,
+    ProviderTemplate,
 };
 use url::Url;
 
@@ -128,10 +128,6 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
     async fn remove_credential(&self, id: &ProviderId) -> Result<()> {
         self.repository.remove_credential(id).await
     }
-
-    async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
-        self.repository.migrate_env_credentials().await
-    }
 }
 
 #[cfg(test)]
@@ -197,10 +193,6 @@ mod tests {
 
         async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
             Ok(())
-        }
-
-        async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
-            Ok(None)
         }
     }
 

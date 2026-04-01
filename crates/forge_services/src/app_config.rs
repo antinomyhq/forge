@@ -138,8 +138,8 @@ mod tests {
 
     use forge_config::{ForgeConfig, ModelConfig};
     use forge_domain::{
-        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality, MigrationResult,
-        Model, ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
+        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality, Model,
+        ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -364,10 +364,6 @@ mod tests {
 
         async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
             Ok(())
-        }
-
-        async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
-            Ok(None)
         }
     }
 

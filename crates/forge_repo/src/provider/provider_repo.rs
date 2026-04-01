@@ -4,8 +4,8 @@ use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
-    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
-    ProviderRepository, ProviderType, URLParam, URLParamSpec, URLParamValue,
+    AnyProvider, AuthCredential, Error, Provider, ProviderRepository, ProviderType, URLParam,
+    URLParamSpec,
 };
 use merge::Merge;
 use serde::Deserialize;
@@ -32,14 +32,6 @@ enum UrlParamVarConfig {
 }
 
 impl UrlParamVarConfig {
-    /// Returns the parameter name (used as env var name and template variable).
-    fn param_name(&self) -> &str {
-        match self {
-            Self::Plain(s) => s,
-            Self::WithOptions { name, .. } => name,
-        }
-    }
-
     /// Converts into a `URLParamSpec` for use in the domain layer.
     fn into_spec(self) -> URLParamSpec {
         match self {
@@ -194,99 +186,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         providers.sort_by_key(|a| a.id());
 
         providers
-    }
-
-    /// Migrates environment variable-based credentials to file-based
-    /// credentials. This is a one-time migration that runs only if the
-    /// credentials file doesn't exist.
-    pub async fn migrate_env_to_file(&self) -> anyhow::Result<Option<MigrationResult>> {
-        let path = self.infra.get_environment().credentials_path();
-
-        // Check if credentials file already exists
-        if self.infra.read_utf8(&path).await.is_ok() {
-            return Ok(None);
-        }
-
-        let mut credentials = Vec::new();
-        let mut migrated_providers = Vec::new();
-        let configs = self.get_merged_configs().await;
-
-        let has_openai_url = self.infra.get_env_var("OPENAI_URL").is_some();
-        let has_anthropic_url = self.infra.get_env_var("ANTHROPIC_URL").is_some();
-
-        for config in configs {
-            // Skip Forge provider and ContextEngine providers - they're not configurable
-            // via env like other providers
-            if config.id == ProviderId::FORGE || config.provider_type == ProviderType::ContextEngine
-            {
-                continue;
-            }
-
-            if config.id == ProviderId::OPENAI && has_openai_url {
-                continue;
-            }
-            if (config.id == ProviderId::OPENAI_COMPATIBLE
-                || config.id == ProviderId::OPENAI_RESPONSES_COMPATIBLE)
-                && !has_openai_url
-            {
-                continue;
-            }
-            if config.id == ProviderId::ANTHROPIC && has_anthropic_url {
-                continue;
-            }
-            if config.id == ProviderId::ANTHROPIC_COMPATIBLE && !has_anthropic_url {
-                continue;
-            }
-
-            // Try to create credential from environment variables
-            if let Ok(credential) = self.create_credential_from_env(&config) {
-                migrated_providers.push(config.id);
-                credentials.push(credential);
-            }
-        }
-
-        // Only write if we have credentials to migrate
-        if !credentials.is_empty() {
-            self.write_credentials(&credentials).await?;
-            Ok(Some(MigrationResult::new(path, migrated_providers)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Creates a credential from environment variables for a given config
-    fn create_credential_from_env(
-        &self,
-        config: &ProviderConfig,
-    ) -> anyhow::Result<AuthCredential> {
-        // Check API key environment variable (if specified)
-        let api_key = if let Some(api_key_var) = &config.api_key_vars {
-            self.infra
-                .get_env_var(api_key_var)
-                .ok_or_else(|| Error::env_var_not_found(config.id.clone(), api_key_var))?
-        } else {
-            // For context engine, we don't use env vars for API key
-            String::new()
-        };
-
-        // Check URL parameter environment variables
-        let mut url_params = std::collections::HashMap::new();
-
-        for env_var in &config.url_param_vars {
-            let name = env_var.param_name();
-            if let Some(value) = self.infra.get_env_var(name) {
-                url_params.insert(URLParam::from(name.to_string()), URLParamValue::from(value));
-            } else {
-                return Err(Error::env_var_not_found(config.id.clone(), name).into());
-            }
-        }
-
-        // Create AuthCredential
-        Ok(AuthCredential {
-            id: config.id.clone(),
-            auth_details: AuthDetails::ApiKey(ApiKey::from(api_key)),
-            url_params,
-        })
     }
 
     /// Creates a provider with template URLs (not rendered).
@@ -486,9 +385,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
 
         Ok(())
     }
+}
 
-    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
-        self.migrate_env_to_file().await
+#[cfg(test)]
+impl UrlParamVarConfig {
+    fn param_name(&self) -> &str {
+        match self {
+            Self::Plain(s) => s,
+            Self::WithOptions { name, .. } => name,
+        }
     }
 }
 
@@ -692,7 +597,7 @@ mod env_tests {
     use forge_app::domain::{
         ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
     };
-    use forge_domain::{AnyProvider, ChatRepository, ProviderTemplate};
+    use forge_domain::{AnyProvider, ApiKey, AuthDetails, ChatRepository, ProviderTemplate, URLParamValue};
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -886,188 +791,6 @@ mod env_tests {
         async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
             Ok(())
         }
-
-        async fn migrate_env_credentials(
-            &self,
-        ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
-            Ok(None)
-        }
-    }
-
-    #[tokio::test]
-    async fn test_migration_from_env_to_file() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("OPENAI_API_KEY".to_string(), "test-openai-key".to_string());
-        env_vars.insert(
-            "ANTHROPIC_API_KEY".to_string(),
-            "test-anthropic-key".to_string(),
-        );
-        env_vars.insert(
-            "OPENAI_URL".to_string(),
-            "https://custom.openai.com/v1".to_string(),
-        );
-
-        let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra.clone());
-
-        // Trigger migration
-        registry.migrate_env_to_file().await.unwrap();
-
-        // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
-
-        // Should have migrated OpenAICompatible (not OpenAI) and Anthropic (not
-        // AnthropicCompatible)
-        assert!(
-            !credentials.iter().any(|c| c.id == ProviderId::OPENAI),
-            "Should NOT create OpenAI credential when OPENAI_URL is set"
-        );
-        assert!(
-            credentials
-                .iter()
-                .any(|c| c.id == ProviderId::OPENAI_COMPATIBLE),
-            "Should create OpenAICompatible credential when OPENAI_URL is set"
-        );
-        assert!(
-            credentials.iter().any(|c| c.id == ProviderId::ANTHROPIC),
-            "Should create Anthropic credential when ANTHROPIC_URL is NOT set"
-        );
-        assert!(
-            !credentials
-                .iter()
-                .any(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE),
-            "Should NOT create AnthropicCompatible credential when ANTHROPIC_URL is NOT set"
-        );
-
-        // Verify OpenAICompatible credential
-        let openai_compat_cred = credentials
-            .iter()
-            .find(|c| c.id == ProviderId::OPENAI_COMPATIBLE)
-            .unwrap();
-        match &openai_compat_cred.auth_details {
-            AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-openai-key"),
-            _ => panic!("Expected API key"),
-        }
-
-        // Verify OpenAICompatible has URL param
-        assert!(!openai_compat_cred.url_params.is_empty());
-        let url_params = &openai_compat_cred.url_params;
-        assert_eq!(
-            url_params
-                .get(&URLParam::from("OPENAI_URL".to_string()))
-                .map(|v| v.as_str()),
-            Some("https://custom.openai.com/v1")
-        );
-
-        // Verify Anthropic credential
-        let anthropic_cred = credentials
-            .iter()
-            .find(|c| c.id == ProviderId::ANTHROPIC)
-            .unwrap();
-        match &anthropic_cred.auth_details {
-            AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-anthropic-key"),
-            _ => panic!("Expected API key"),
-        }
-    }
-
-    #[tokio::test]
-    async fn test_migration_should_not_create_forge_services_credential() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
-
-        let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra.clone());
-
-        // Trigger migration
-        registry.migrate_env_to_file().await.unwrap();
-
-        // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
-
-        // Verify forge_services was NOT created during migration
-        assert!(
-            !credentials
-                .iter()
-                .any(|c| c.id == ProviderId::FORGE_SERVICES),
-            "Should NOT create forge_services credential during environment migration"
-        );
-
-        // Verify only OpenAI credential was created
-        assert_eq!(
-            credentials.len(),
-            1,
-            "Should only have one credential (OpenAI)"
-        );
-        assert!(
-            credentials.iter().any(|c| c.id == ProviderId::OPENAI),
-            "Should have OpenAI credential"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_migration_both_compatible_urls() {
-        let mut env_vars = HashMap::new();
-        env_vars.insert("OPENAI_API_KEY".to_string(), "test-openai-key".to_string());
-        env_vars.insert(
-            "ANTHROPIC_API_KEY".to_string(),
-            "test-anthropic-key".to_string(),
-        );
-        env_vars.insert(
-            "OPENAI_URL".to_string(),
-            "https://custom.openai.com/v1".to_string(),
-        );
-        env_vars.insert(
-            "ANTHROPIC_URL".to_string(),
-            "https://custom.anthropic.com/v1".to_string(),
-        );
-
-        let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra.clone());
-
-        // Trigger migration
-        registry.migrate_env_to_file().await.unwrap();
-
-        // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
-
-        // Should have migrated only compatible versions
-        assert!(
-            !credentials.iter().any(|c| c.id == ProviderId::OPENAI),
-            "Should NOT create OpenAI credential when OPENAI_URL is set"
-        );
-        assert!(
-            credentials
-                .iter()
-                .any(|c| c.id == ProviderId::OPENAI_COMPATIBLE),
-            "Should create OpenAICompatible credential when OPENAI_URL is set"
-        );
-        assert!(
-            !credentials.iter().any(|c| c.id == ProviderId::ANTHROPIC),
-            "Should NOT create Anthropic credential when ANTHROPIC_URL is set"
-        );
-        assert!(
-            credentials
-                .iter()
-                .any(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE),
-            "Should create AnthropicCompatible credential when ANTHROPIC_URL is set"
-        );
-
-        // Verify AnthropicCompatible has URL param
-        let anthropic_compat_cred = credentials
-            .iter()
-            .find(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE)
-            .unwrap();
-        assert!(!anthropic_compat_cred.url_params.is_empty());
-        let url_params = &anthropic_compat_cred.url_params;
-        assert_eq!(
-            url_params
-                .get(&URLParam::from("ANTHROPIC_URL".to_string()))
-                .map(|v| v.as_str()),
-            Some("https://custom.anthropic.com/v1")
-        );
     }
 
     #[tokio::test]
@@ -1090,8 +813,30 @@ mod env_tests {
         let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
 
-        // Trigger migration to populate credentials file
-        registry.migrate_env_to_file().await.unwrap();
+        // Set up Azure credentials directly
+        registry
+            .upsert_credential(AuthCredential {
+                id: ProviderId::AZURE,
+                auth_details: AuthDetails::ApiKey(ApiKey::from("test-key-123".to_string())),
+                url_params: [
+                    (
+                        URLParam::from("AZURE_RESOURCE_NAME".to_string()),
+                        URLParamValue::from("my-test-resource".to_string()),
+                    ),
+                    (
+                        URLParam::from("AZURE_DEPLOYMENT_NAME".to_string()),
+                        URLParamValue::from("gpt-4-deployment".to_string()),
+                    ),
+                    (
+                        URLParam::from("AZURE_API_VERSION".to_string()),
+                        URLParamValue::from("2024-02-01-preview".to_string()),
+                    ),
+                ]
+                .into_iter()
+                .collect(),
+            })
+            .await
+            .unwrap();
 
         // Get Azure config from embedded configs
         let configs = get_provider_configs();
@@ -1147,8 +892,23 @@ mod env_tests {
         let infra = Arc::new(MockInfra::new(env_vars));
         let registry = ForgeProviderRepository::new(infra);
 
-        // Migrate environment variables to credentials file
-        registry.migrate_env_to_file().await.unwrap();
+        // Set up credentials directly
+        registry
+            .upsert_credential(AuthCredential {
+                id: ProviderId::OPENAI,
+                auth_details: AuthDetails::ApiKey(ApiKey::from("test-key".to_string())),
+                url_params: std::collections::HashMap::new(),
+            })
+            .await
+            .unwrap();
+        registry
+            .upsert_credential(AuthCredential {
+                id: ProviderId::ANTHROPIC,
+                auth_details: AuthDetails::ApiKey(ApiKey::from("test-key".to_string())),
+                url_params: std::collections::HashMap::new(),
+            })
+            .await
+            .unwrap();
 
         let providers = registry.get_all_providers().await.unwrap();
 
@@ -1370,12 +1130,6 @@ mod env_tests {
 
             async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
                 Ok(())
-            }
-
-            async fn migrate_env_credentials(
-                &self,
-            ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
-                Ok(None)
             }
         }
 
