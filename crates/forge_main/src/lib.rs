@@ -20,6 +20,7 @@ mod ui;
 mod utils;
 mod vscode;
 mod zsh;
+mod fish;
 
 mod update;
 
