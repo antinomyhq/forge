@@ -683,6 +683,15 @@ pub enum ConversationCommand {
         /// Conversation ID to delete.
         id: String,
     },
+
+    /// Rename a conversation.
+    Rename {
+        /// Conversation ID to rename.
+        id: ConversationId,
+
+        /// New name for the conversation.
+        name: String,
+    },
 }
 
 /// Command group for provider authentication management.

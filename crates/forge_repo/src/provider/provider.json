@@ -2564,5 +2564,154 @@
       }
     ],
     "auth_methods": ["api_key"]
+  },
+  {
+    "id": "fireworks-ai",
+    "api_key_vars": "FIREWORKS_AI_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.fireworks.ai/inference/v1/chat/completions",
+    "auth_methods": ["api_key"],
+    "models": [
+      {
+        "id": "accounts/fireworks/routers/kimi-k2p5-turbo",
+        "name": "Kimi K2.5 Turbo (Firepass) ",
+        "description": "Kimi K2.5 Turbo model",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "accounts/fireworks/models/kimi-k2p5",
+        "name": "Kimi K2.5",
+        "description": "Kimi K2.5 model",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "accounts/fireworks/models/kimi-k2-instruct",
+        "name": "Kimi K2 Instruct",
+        "description": "Kimi K2 Instruct model",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/kimi-k2-thinking",
+        "name": "Kimi K2 Thinking",
+        "description": "Kimi K2 Thinking model",
+        "context_length": 256000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/deepseek-v3p1",
+        "name": "DeepSeek V3.1",
+        "description": "DeepSeek V3.1 model",
+        "context_length": 163840,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/minimax-m2p1",
+        "name": "MiniMax-M2.1",
+        "description": "MiniMax-M2.1 model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/minimax-m2p5",
+        "name": "MiniMax-M2.5",
+        "description": "MiniMax-M2.5 model",
+        "context_length": 196608,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/gpt-oss-120b",
+        "name": "GPT OSS 120B",
+        "description": "GPT OSS 120B model",
+        "context_length": 131072,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/glm-4p7",
+        "name": "GLM 4.7",
+        "description": "GLM 4.7 model",
+        "context_length": 198000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/deepseek-v3p2",
+        "name": "DeepSeek V3.2",
+        "description": "DeepSeek V3.2 model",
+        "context_length": 160000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/glm-4p5",
+        "name": "GLM 4.5",
+        "description": "GLM 4.5 model",
+        "context_length": 131072,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/glm-5",
+        "name": "GLM 5",
+        "description": "GLM 5 model",
+        "context_length": 202752,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/glm-4p5-air",
+        "name": "GLM 4.5 Air",
+        "description": "GLM 4.5 Air model",
+        "context_length": 131072,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "accounts/fireworks/models/gpt-oss-20b",
+        "name": "GPT OSS 20B",
+        "description": "GPT OSS 20B model",
+        "context_length": 131072,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      }
+    ]
   }
 ]

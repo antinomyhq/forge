@@ -169,6 +169,18 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         self.services.delete_conversation(conversation_id).await
     }
 
+    async fn rename_conversation(
+        &self,
+        conversation_id: &ConversationId,
+        title: String,
+    ) -> anyhow::Result<()> {
+        self.services
+            .modify_conversation(conversation_id, |conv| {
+                conv.title = Some(title);
+            })
+            .await
+    }
+
     async fn execute_shell_command(
         &self,
         command: &str,

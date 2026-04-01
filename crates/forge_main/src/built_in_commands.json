@@ -124,6 +124,14 @@
     "description": "Clone and manage conversation context"
   },
   {
+    "command": "rename",
+    "description": "Rename the current conversation [alias: rn]"
+  },
+  {
+    "command": "conversation-rename",
+    "description": "Rename a conversation by ID or interactively"
+  },
+  {
     "command": "copy",
     "description": "Copy last assistant message to clipboard as raw markdown"
   },
