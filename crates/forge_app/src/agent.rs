@@ -144,10 +144,10 @@ impl AgentExt for Agent {
         }
 
         // Apply workflow reasoning configuration to agents.
-        // Config provides the base; agent-level settings take priority via merge.
+        // Agent-level fields take priority; config fills in any unset fields.
         if let Some(ref config_reasoning) = config.reasoning {
             use forge_config::Effort as ConfigEffort;
-            let mut base = ReasoningConfig {
+            let config_as_domain = ReasoningConfig {
                 effort: config_reasoning.effort.as_ref().map(|e| match e {
                     ConfigEffort::High => Effort::High,
                     ConfigEffort::Medium => Effort::Medium,
@@ -157,11 +157,76 @@ impl AgentExt for Agent {
                 exclude: config_reasoning.exclude,
                 enabled: config_reasoning.enabled,
             };
-            // Merge agent's reasoning on top so agent-level fields take priority.
-            base.merge(agent.reasoning.clone().unwrap_or_default());
-            agent.reasoning = Some(base);
+            // Start from the agent's own settings and fill unset fields from config.
+            let mut merged = agent.reasoning.clone().unwrap_or_default();
+            merged.merge(config_as_domain);
+            agent.reasoning = Some(merged);
         }
 
         agent
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_config::{Effort as ConfigEffort, ReasoningConfig as ConfigReasoningConfig};
+    use forge_domain::{AgentId, Effort, ModelId, ProviderId, ReasoningConfig};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    fn fixture_agent() -> Agent {
+        Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+    }
+
+    /// When the agent has no reasoning config, the config's reasoning is applied
+    /// in full.
+    #[test]
+    fn test_reasoning_applied_from_config_when_agent_has_none() {
+        let config = ForgeConfig::default().reasoning(
+            ConfigReasoningConfig::default()
+                .enabled(true)
+                .effort(ConfigEffort::Medium),
+        );
+
+        let actual = fixture_agent().apply_config(&config).reasoning;
+
+        let expected = Some(
+            ReasoningConfig::default()
+                .enabled(true)
+                .effort(Effort::Medium),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    /// When the agent already has reasoning fields set, those fields take
+    /// priority; config only fills in fields the agent left unset.
+    #[test]
+    fn test_reasoning_agent_fields_take_priority_over_config() {
+        let config = ForgeConfig::default().reasoning(
+            ConfigReasoningConfig::default()
+                .enabled(true)
+                .effort(ConfigEffort::Low)
+                .max_tokens(1024_usize),
+        );
+
+        // Agent overrides effort but leaves enabled and max_tokens unset.
+        let agent = fixture_agent().reasoning(ReasoningConfig::default().effort(Effort::High));
+
+        let actual = agent.apply_config(&config).reasoning;
+
+        let expected = Some(
+            ReasoningConfig::default()
+                .effort(Effort::High) // agent's value wins
+                .enabled(true) // filled in from config
+                .max_tokens(1024_usize), // filled in from config
+        );
+
+        assert_eq!(actual, expected);
     }
 }
