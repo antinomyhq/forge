@@ -134,6 +134,22 @@ The `ReasoningConfig` fields in Forge that drive all of the above are:
 - `max_tokens` — token budget for thinking; must be > 1024 (supported by OpenRouter, Anthropic, and Forge)
 - `exclude` — hides the reasoning trace from the response (supported by OpenRouter and Forge)
 
+## Test Matrix
+
+Use these combinations to exercise reasoning across providers and models. For each row, set the listed `ReasoningConfig` fields in your agent definition (or via the forge config), then verify the JSON field appears in `.forge/forge.request.json`.
+
+| Provider      | Model                        | `ReasoningConfig` fields             | JSON field in request                      | Valid effort / token values                              |
+| ------------- | ---------------------------- | ------------------------------------ | ------------------------------------------ | -------------------------------------------------------- |
+| `open_router` | `openai/o4-mini`             | `effort: high`                       | `reasoning.effort`                         | `none` · `minimal` · `low` · `medium` · `high` · `xhigh` |
+| `open_router` | `anthropic/claude-opus-4-5`  | `max_tokens: 4000`                   | `reasoning.max_tokens`                     | integer ≥ 1024                                           |
+| `anthropic`   | `claude-opus-4-6`            | `effort: medium`                     | `output_config.effort`                     | `low` · `medium` · `high` · `max`¹                       |
+| `anthropic`   | `claude-3-7-sonnet-20250219` | `enabled: true` + `max_tokens: 8000` | `thinking.type` + `thinking.budget_tokens` | integer ≥ 1024                                           |
+
+**Notes:**
+
+1. `max` effort is only available on `claude-opus-4-6`; using it on any other model returns an API error.
+2. The `openai` provider strips the `reasoning` field before sending. Use `open_router` with an OpenAI model (e.g. `openai/o4-mini`) to test OpenAI reasoning.
+
 ## References
 
 - [OpenAI Reasoning guide](https://developers.openai.com/api/docs/guides/reasoning)
