@@ -315,10 +315,15 @@ pub trait OAuthHttpProvider: Send + Sync {
         config: &OAuthConfig,
         code: &str,
         verifier: Option<&str>,
+        http_config: &forge_domain::HttpConfig,
     ) -> anyhow::Result<OAuthTokenResponse>;
 
     /// Creates an HTTP client with provider-specific headers and behavior.
-    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client>;
+    fn build_http_client(
+        &self,
+        config: &OAuthConfig,
+        http_config: &forge_domain::HttpConfig,
+    ) -> anyhow::Result<reqwest::Client>;
 }
 
 /// Authentication strategy trait

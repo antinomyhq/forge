@@ -19,17 +19,22 @@ impl OAuthHttpProvider for GithubHttpProvider {
         config: &OAuthConfig,
         code: &str,
         verifier: Option<&str>,
+        http_config: &forge_domain::HttpConfig,
     ) -> anyhow::Result<OAuthTokenResponse> {
         // Use standard exchange - quirks handled in HTTP client via
         // github_compliant_http_request
         StandardHttpProvider
-            .exchange_code(config, code, verifier)
+            .exchange_code(config, code, verifier, http_config)
             .await
     }
 
-    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
+    fn build_http_client(
+        &self,
+        config: &OAuthConfig,
+        http_config: &forge_domain::HttpConfig,
+    ) -> anyhow::Result<reqwest::Client> {
         // GitHub quirk: HTTP 200 responses may contain errors
         // This is handled by the github_compliant_http_request function
-        build_http_client(config.custom_headers.as_ref())
+        build_http_client(config.custom_headers.as_ref(), http_config)
     }
 }

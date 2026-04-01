@@ -57,6 +57,7 @@ impl OAuthHttpProvider for StandardHttpProvider {
         config: &OAuthConfig,
         code: &str,
         verifier: Option<&str>,
+        http_config: &forge_domain::HttpConfig,
     ) -> anyhow::Result<OAuthTokenResponse> {
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
@@ -69,7 +70,7 @@ impl OAuthHttpProvider for StandardHttpProvider {
             client = client.set_redirect_uri(oauth2::RedirectUrl::new(redirect_uri.clone())?);
         }
 
-        let http_client = self.build_http_client(config)?;
+        let http_client = self.build_http_client(config, http_config)?;
 
         let mut request = client.exchange_code(OAuth2AuthCode::new(code.to_string()));
 
@@ -82,8 +83,12 @@ impl OAuthHttpProvider for StandardHttpProvider {
     }
 
     /// Create HTTP client with provider-specific headers/behavior
-    fn build_http_client(&self, config: &OAuthConfig) -> anyhow::Result<reqwest::Client> {
-        build_http_client(config.custom_headers.as_ref())
+    fn build_http_client(
+        &self,
+        config: &OAuthConfig,
+        http_config: &forge_domain::HttpConfig,
+    ) -> anyhow::Result<reqwest::Client> {
+        build_http_client(config.custom_headers.as_ref(), http_config)
     }
 }
 

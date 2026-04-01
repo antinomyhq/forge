@@ -27,8 +27,8 @@ use crate::fs_read_dir::ForgeDirectoryReaderService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_write::ForgeFileWriteService;
 use crate::grpc::ForgeGrpcClient;
-use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
+use crate::llm_client::ForgeHttpInfra;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
 use crate::walker::ForgeWalkerService;
@@ -81,9 +81,9 @@ impl ForgeInfra {
                 output_printer.clone(),
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
-            mcp_server: ForgeMcpServer,
+            mcp_server: ForgeMcpServer::new(env.http.clone()),
             walker_service: Arc::new(ForgeWalkerService::new()),
-            strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
+            strategy_factory: Arc::new(ForgeAuthStrategyFactory::new(env.http.clone())),
             http_service,
             grpc_client,
             output_printer,

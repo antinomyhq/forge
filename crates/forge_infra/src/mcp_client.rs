@@ -1,13 +1,11 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::future::Future;
-use std::str::FromStr;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
 use forge_app::McpClientInfra;
 use forge_domain::{Image, McpHttpServer, McpServerConfig, ToolDefinition, ToolName, ToolOutput};
-use http::{HeaderName, HeaderValue, header};
 use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
 use rmcp::service::RunningService;
 use rmcp::transport::sse_client::SseClientConfig;
@@ -20,6 +18,7 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::error::Error;
+use crate::http::ClientBuilderExt;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -34,15 +33,21 @@ pub struct ForgeMcpClient {
     config: McpServerConfig,
     env_vars: BTreeMap<String, String>,
     resolved_config: Arc<OnceLock<anyhow::Result<McpServerConfig>>>,
+    http_config: forge_domain::HttpConfig,
 }
 
 impl ForgeMcpClient {
-    pub fn new(config: McpServerConfig, env_vars: &BTreeMap<String, String>) -> Self {
+    pub fn new(
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+        http_config: forge_domain::HttpConfig,
+    ) -> Self {
         Self {
             client: Default::default(),
             config,
             env_vars: env_vars.clone(),
             resolved_config: Arc::new(OnceLock::new()),
+            http_config,
         }
     }
 
@@ -152,13 +157,11 @@ impl ForgeMcpClient {
     }
 
     fn reqwest_client(&self, config: &McpHttpServer) -> anyhow::Result<reqwest::Client> {
-        let mut headers = header::HeaderMap::new();
-        for (key, value) in config.headers.iter() {
-            headers.insert(HeaderName::from_str(key)?, HeaderValue::from_str(value)?);
-        }
-
-        let client = reqwest::Client::builder().default_headers(headers);
-        Ok(client.build()?)
+        Ok(reqwest::Client::builder()
+            .with_proxy_fallback()?
+            .with_tls_config(&self.http_config)
+            .with_custom_headers(config.headers.iter())?
+            .build()?)
     }
 
     async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

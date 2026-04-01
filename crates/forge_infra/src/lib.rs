@@ -15,6 +15,7 @@ mod grpc;
 mod http;
 mod inquire;
 mod kv_storage;
+mod llm_client;
 mod mcp_client;
 mod mcp_server;
 mod walker;
