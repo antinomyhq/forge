@@ -327,6 +327,8 @@ impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
         }
 
         let tool_name = event.payload.tool_call.name.as_str();
+        // TODO: Add a tool name transformer to map tool names to Forge
+        // equivalents (e.g. "Bash" → "shell") so that hook configs written
         let groups = self.config.get_groups(&UserHookEventName::PreToolUse);
         let hooks = Self::find_matching_hooks(groups, Some(tool_name));
 

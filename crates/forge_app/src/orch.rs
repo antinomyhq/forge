@@ -97,8 +97,13 @@ impl<S: AgentService> Orchestrator<S> {
                 .await;
 
             let tool_result = if let Err(hook_err) = hook_result {
-                // Hook blocked this tool call — produce an error ToolResult
-                // so the model sees feedback without aborting the session.
+                // Hook blocked this tool call — notify the UI and produce an
+                // error ToolResult so the model sees feedback without aborting.
+                self.send(ChatResponse::HookError {
+                    tool_name: tool_call.name.clone(),
+                    reason: hook_err.to_string(),
+                })
+                .await?;
                 ToolResult::from(tool_call.clone()).failure(hook_err)
             } else {
                 // Execute the tool normally

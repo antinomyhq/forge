@@ -65,6 +65,13 @@ pub enum ChatResponse {
         notifier: Arc<Notify>,
     },
     ToolCallEnd(ToolResult),
+    /// A user-configured hook blocked execution of a tool call.
+    HookError {
+        /// Name of the tool that was blocked.
+        tool_name: ToolName,
+        /// Human-readable reason provided by the hook (from stderr or JSON output).
+        reason: String,
+    },
     RetryAttempt {
         cause: Cause,
         duration: Duration,
