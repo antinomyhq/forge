@@ -9,7 +9,10 @@ use forge_stream::MpscStream;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
+use crate::hooks::{
+    CompactionHandler, DoomLoopDetector, SkillRecommendationHandler, TitleGenerationHandler,
+    TracingHandler,
+};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{AgentRegistry, CustomInstructionsService, ProviderAuthService};
@@ -143,8 +146,14 @@ impl<S: Services> ForgeApp<S> {
         // Create the orchestrator with all necessary dependencies
         let tracing_handler = TracingHandler::new();
         let title_handler = TitleGenerationHandler::new(services.clone());
+        let skill_recommendation_handler = SkillRecommendationHandler::new(services.clone());
         let hook = Hook::default()
-            .on_start(tracing_handler.clone().and(title_handler.clone()))
+            .on_start(
+                tracing_handler
+                    .clone()
+                    .and(title_handler.clone())
+                    .and(skill_recommendation_handler),
+            )
             .on_request(tracing_handler.clone().and(DoomLoopDetector::default()))
             .on_response(
                 tracing_handler
