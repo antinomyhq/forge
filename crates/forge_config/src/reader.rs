@@ -185,8 +185,9 @@ mod tests {
         let legacy_toml = toml_edit::ser::to_string_pretty(&legacy).unwrap();
 
         let actual = ConfigReader::default()
-            .read_defaults()
+            // Read legacy first and then defaults
             .read_toml(&legacy_toml)
+            .read_defaults()
             .build()
             .unwrap();
 
