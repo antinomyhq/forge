@@ -96,6 +96,7 @@ impl Default for TestContext {
                 model_cache_ttl: 604_800,
                 session: None,
                 commit: None,
+                max_commit_count: 20,
                 suggest: None,
                 is_restricted: false,
                 temperature: None,

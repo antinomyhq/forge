@@ -141,6 +141,9 @@ pub struct Environment {
     /// Provider and model for commit message generation.
     #[dummy(default)]
     pub commit: Option<SessionConfig>,
+    /// Maximum number of recent commits to include as context during commit
+    /// message generation.
+    pub max_commit_count: usize,
     /// Provider and model for shell command suggestion generation.
     #[dummy(default)]
     pub suggest: Option<SessionConfig>,

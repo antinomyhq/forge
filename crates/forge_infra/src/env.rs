@@ -165,6 +165,7 @@ fn to_environment(fc: ForgeConfig, cwd: PathBuf) -> Environment {
         model_cache_ttl: fc.model_cache_ttl_secs.unwrap_or_default(),
         session: fc.session.as_ref().map(to_session_config),
         commit: fc.commit.as_ref().map(to_session_config),
+        max_commit_count: fc.max_commit_count.unwrap_or(20),
         suggest: fc.suggest.as_ref().map(to_session_config),
         is_restricted: fc.restricted.unwrap_or_default(),
         tool_supported: fc.tool_supported.unwrap_or_default(),
@@ -349,6 +350,7 @@ fn to_forge_config(env: &Environment) -> ForgeConfig {
         provider_id: sc.provider_id.clone(),
         model_id: sc.model_id.clone(),
     });
+    fc.max_commit_count = Some(env.max_commit_count);
     fc.suggest = env.suggest.as_ref().map(|sc| ModelConfig {
         provider_id: sc.provider_id.clone(),
         model_id: sc.model_id.clone(),
