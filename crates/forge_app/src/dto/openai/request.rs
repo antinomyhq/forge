@@ -749,12 +749,12 @@ mod tests {
 
     #[test]
     fn test_assistant_message_with_dump_style_tool_call_arguments_conversion() {
-        let fixture = ToolCallFull::from(ToolCatalog::tool_call_patch(
+        let fixture = ToolCatalog::tool_call_patch(
             "/tmp/file.txt",
             "new text",
             "old text",
             false,
-        ))
+        )
         .arguments(
             serde_json::from_str::<forge_domain::ToolCallArguments>(
                 r#""{\"file_path\":\"/tmp/file.txt\",\"old_string\":\"old text\",\"new_string\":\"new text\",\"replace_all\":false}""#,
