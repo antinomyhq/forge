@@ -264,9 +264,7 @@ pub fn setup_fish_integration(
     if let Some(editor) = forge_editor {
         forge_config.push(String::new());
         forge_config.push("# Editor for editing prompts (set during setup)".to_string());
-        forge_config.push(
-            "# To change: update FORGE_EDITOR or remove to use $EDITOR".to_string(),
-        );
+        forge_config.push("# To change: update FORGE_EDITOR or remove to use $EDITOR".to_string());
         forge_config.push(format!("set -gx FORGE_EDITOR \"{}\"", editor));
     }
 
@@ -592,7 +590,11 @@ mod tests {
     #[test]
     fn test_generate_fish_plugin() {
         let actual = generate_fish_plugin();
-        assert!(actual.is_ok(), "generate_fish_plugin should succeed: {:?}", actual);
+        assert!(
+            actual.is_ok(),
+            "generate_fish_plugin should succeed: {:?}",
+            actual
+        );
 
         let output = actual.unwrap();
         assert!(
@@ -612,7 +614,11 @@ mod tests {
     #[test]
     fn test_generate_fish_theme() {
         let actual = generate_fish_theme();
-        assert!(actual.is_ok(), "generate_fish_theme should succeed: {:?}", actual);
+        assert!(
+            actual.is_ok(),
+            "generate_fish_theme should succeed: {:?}",
+            actual
+        );
 
         let output = actual.unwrap();
         assert!(

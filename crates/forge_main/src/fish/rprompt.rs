@@ -168,8 +168,7 @@ mod tests {
             .use_nerd_font(false)
             .to_string();
 
-        let expected =
-            " \x1b[1m\x1b[38;5;15mFORGE\x1b[0m \x1b[1m\x1b[38;5;15m1.5k\x1b[0m \x1b[38;5;134mgpt-4\x1b[0m";
+        let expected = " \x1b[1m\x1b[38;5;15mFORGE\x1b[0m \x1b[1m\x1b[38;5;15m1.5k\x1b[0m \x1b[38;5;134mgpt-4\x1b[0m";
         assert_eq!(actual, expected);
     }
 

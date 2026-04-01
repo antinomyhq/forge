@@ -4,6 +4,7 @@ mod completer;
 mod conversation_selector;
 mod display_constants;
 mod editor;
+mod fish;
 mod info;
 mod input;
 mod model;
@@ -20,7 +21,6 @@ mod ui;
 mod utils;
 mod vscode;
 mod zsh;
-mod fish;
 
 mod update;
 
