@@ -26,7 +26,8 @@ use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
-    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFsUndo, ForgeFsWrite, ForgeHookCommandService, ForgeImageRead, ForgePlanCreate,
+    ForgeShell, ForgeSkillFetch,
 };
 use crate::user_hook_config::ForgeUserHookConfigService;
 
@@ -85,6 +86,7 @@ pub struct ForgeServices<
     provider_auth_service: ForgeProviderAuthService<F>,
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
+    hook_command_service: Arc<ForgeHookCommandService<F>>,
     infra: Arc<F>,
 }
 
@@ -145,6 +147,7 @@ impl<
             discovery,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
+        let hook_command_service = Arc::new(ForgeHookCommandService::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -174,6 +177,7 @@ impl<
             provider_auth_service,
             workspace_service,
             skill_service,
+            hook_command_service,
             chat_service,
             infra,
         }
@@ -242,6 +246,7 @@ impl<
     type ProviderService = ForgeProviderService<F>;
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>;
     type SkillFetchService = ForgeSkillFetch<F>;
+    type HookCommandService = ForgeHookCommandService<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -344,6 +349,10 @@ impl<
     }
     fn skill_fetch_service(&self) -> &Self::SkillFetchService {
         &self.skill_service
+    }
+
+    fn hook_command_service(&self) -> &Self::HookCommandService {
+        &self.hook_command_service
     }
 
     fn provider_service(&self) -> &Self::ProviderService {

@@ -13,6 +13,7 @@ use regex::Regex;
 use tracing::{debug, warn};
 
 use super::user_hook_executor::UserHookExecutor;
+use crate::services::HookCommandService;
 
 /// EventHandle implementation that bridges user-configured hooks with the
 /// existing lifecycle event system.
@@ -20,8 +21,8 @@ use super::user_hook_executor::UserHookExecutor;
 /// This handler is constructed from a `UserHookConfig` and executes matching
 /// hook commands at each lifecycle event point. It wires into the existing
 /// `Hook` system via `Hook::zip()`.
-#[derive(Clone)]
-pub struct UserHookHandler {
+pub struct UserHookHandler<I> {
+    executor: UserHookExecutor<I>,
     config: UserHookConfig,
     cwd: PathBuf,
     env_vars: HashMap<String, String>,
@@ -31,10 +32,24 @@ pub struct UserHookHandler {
     stop_hook_active: std::sync::Arc<AtomicBool>,
 }
 
-impl UserHookHandler {
+impl<I: Clone> Clone for UserHookHandler<I> {
+    fn clone(&self) -> Self {
+        Self {
+            executor: self.executor.clone(),
+            config: self.config.clone(),
+            cwd: self.cwd.clone(),
+            env_vars: self.env_vars.clone(),
+            default_hook_timeout: self.default_hook_timeout,
+            stop_hook_active: self.stop_hook_active.clone(),
+        }
+    }
+}
+
+impl<I> UserHookHandler<I> {
     /// Creates a new user hook handler from configuration.
     ///
     /// # Arguments
+    /// * `service` - The hook command service used to execute hook commands.
     /// * `config` - The merged user hook configuration.
     /// * `cwd` - Current working directory for command execution.
     /// * `project_dir` - Project root directory for `FORGE_PROJECT_DIR` env
@@ -43,6 +58,7 @@ impl UserHookHandler {
     /// * `default_hook_timeout` - Default timeout in milliseconds for hook
     ///   commands.
     pub fn new(
+        service: I,
         config: UserHookConfig,
         cwd: PathBuf,
         project_dir: PathBuf,
@@ -58,6 +74,7 @@ impl UserHookHandler {
         env_vars.insert("FORGE_CWD".to_string(), cwd.to_string_lossy().to_string());
 
         Self {
+            executor: UserHookExecutor::new(service),
             config,
             cwd,
             env_vars,
@@ -115,7 +132,10 @@ impl UserHookHandler {
         &self,
         hooks: &[&UserHookEntry],
         input: &HookInput,
-    ) -> Vec<HookExecutionResult> {
+    ) -> Vec<HookExecutionResult>
+    where
+        I: HookCommandService,
+    {
         let input_json = match serde_json::to_string(input) {
             Ok(json) => json,
             Err(e) => {
@@ -127,15 +147,17 @@ impl UserHookHandler {
         let mut results = Vec::new();
         for hook in hooks {
             if let Some(command) = &hook.command {
-                match UserHookExecutor::execute(
-                    command,
-                    &input_json,
-                    hook.timeout,
-                    self.default_hook_timeout,
-                    &self.cwd,
-                    &self.env_vars,
-                )
-                .await
+                match self
+                    .executor
+                    .execute(
+                        command,
+                        &input_json,
+                        hook.timeout,
+                        self.default_hook_timeout,
+                        &self.cwd,
+                        &self.env_vars,
+                    )
+                    .await
                 {
                     Ok(result) => results.push(result),
                     Err(e) => {
@@ -250,7 +272,7 @@ enum PreToolUseDecision {
 // --- EventHandle implementations ---
 
 #[async_trait]
-impl EventHandle<EventData<StartPayload>> for UserHookHandler {
+impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
         _event: &EventData<StartPayload>,
@@ -293,7 +315,7 @@ impl EventHandle<EventData<StartPayload>> for UserHookHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<RequestPayload>> for UserHookHandler {
+impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
         event: &EventData<RequestPayload>,
@@ -361,7 +383,7 @@ impl EventHandle<EventData<RequestPayload>> for UserHookHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<ResponsePayload>> for UserHookHandler {
+impl<I: HookCommandService> EventHandle<EventData<ResponsePayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
         _event: &EventData<ResponsePayload>,
@@ -373,7 +395,9 @@ impl EventHandle<EventData<ResponsePayload>> for UserHookHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
+impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>>
+    for UserHookHandler<I>
+{
     async fn handle(
         &self,
         event: &EventData<ToolcallStartPayload>,
@@ -438,7 +462,9 @@ impl EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<ToolcallEndPayload>> for UserHookHandler {
+impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>>
+    for UserHookHandler<I>
+{
     async fn handle(
         &self,
         event: &EventData<ToolcallEndPayload>,
@@ -505,7 +531,7 @@ impl EventHandle<EventData<ToolcallEndPayload>> for UserHookHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<EndPayload>> for UserHookHandler {
+impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
         _event: &EventData<EndPayload>,
@@ -582,12 +608,51 @@ impl EventHandle<EventData<EndPayload>> for UserHookHandler {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+    use std::time::Duration;
+
     use forge_domain::{
-        HookExecutionResult, UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType,
+        CommandOutput, HookExecutionResult, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
+        UserHookType,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    /// A no-op service stub for tests that only exercise config/matching logic.
+    #[derive(Clone)]
+    struct NullInfra;
+
+    #[async_trait::async_trait]
+    impl HookCommandService for NullInfra {
+        async fn execute_command_with_input(
+            &self,
+            command: String,
+            _working_dir: PathBuf,
+            _stdin_input: String,
+            _timeout: Duration,
+            _env_vars: HashMap<String, String>,
+        ) -> anyhow::Result<CommandOutput> {
+            Ok(CommandOutput {
+                command,
+                exit_code: Some(0),
+                stdout: String::new(),
+                stderr: String::new(),
+            })
+        }
+    }
+
+    fn null_handler(config: UserHookConfig) -> UserHookHandler<NullInfra> {
+        UserHookHandler::new(
+            NullInfra,
+            config,
+            PathBuf::from("/tmp"),
+            PathBuf::from("/tmp"),
+            "sess-1".to_string(),
+            0,
+        )
+    }
 
     fn make_entry(command: &str) -> UserHookEntry {
         UserHookEntry {
@@ -607,7 +672,7 @@ mod tests {
     #[test]
     fn test_find_matching_hooks_no_matcher_fires_unconditionally() {
         let groups = vec![make_group(None, &["echo hi"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"));
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].command, Some("echo hi".to_string()));
     }
@@ -615,42 +680,42 @@ mod tests {
     #[test]
     fn test_find_matching_hooks_no_matcher_fires_without_subject() {
         let groups = vec![make_group(None, &["echo hi"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, None);
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, None);
         assert_eq!(actual.len(), 1);
     }
 
     #[test]
     fn test_find_matching_hooks_regex_match() {
         let groups = vec![make_group(Some("Bash"), &["block.sh"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"));
         assert_eq!(actual.len(), 1);
     }
 
     #[test]
     fn test_find_matching_hooks_regex_no_match() {
         let groups = vec![make_group(Some("Bash"), &["block.sh"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Write"));
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Write"));
         assert!(actual.is_empty());
     }
 
     #[test]
     fn test_find_matching_hooks_regex_partial_match() {
         let groups = vec![make_group(Some("Bash|Write"), &["check.sh"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"));
         assert_eq!(actual.len(), 1);
     }
 
     #[test]
     fn test_find_matching_hooks_matcher_but_no_subject() {
         let groups = vec![make_group(Some("Bash"), &["block.sh"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, None);
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, None);
         assert!(actual.is_empty());
     }
 
     #[test]
     fn test_find_matching_hooks_invalid_regex_skipped() {
         let groups = vec![make_group(Some("[invalid"), &["block.sh"])];
-        let actual = UserHookHandler::find_matching_hooks(&groups, Some("anything"));
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("anything"));
         assert!(actual.is_empty());
     }
 
@@ -661,7 +726,7 @@ mod tests {
             make_group(Some("Write"), &["write-hook.sh"]),
             make_group(None, &["always.sh"]),
         ];
-        let actual = UserHookHandler::find_matching_hooks(&groups, Some("Bash"));
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"));
         assert_eq!(actual.len(), 2); // Bash match + unconditional
     }
 
@@ -672,7 +737,7 @@ mod tests {
             stdout: String::new(),
             stderr: String::new(),
         }];
-        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Allow));
     }
 
@@ -683,7 +748,7 @@ mod tests {
             stdout: String::new(),
             stderr: "Blocked: dangerous command".to_string(),
         }];
-        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(
             matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("dangerous command"))
         );
@@ -696,7 +761,7 @@ mod tests {
             stdout: r#"{"permissionDecision": "deny", "reason": "Not allowed"}"#.to_string(),
             stderr: String::new(),
         }];
-        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Not allowed"));
     }
 
@@ -707,7 +772,7 @@ mod tests {
             stdout: r#"{"decision": "block", "reason": "Blocked by policy"}"#.to_string(),
             stderr: String::new(),
         }];
-        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Blocked by policy"));
     }
 
@@ -718,7 +783,7 @@ mod tests {
             stdout: String::new(),
             stderr: "some error".to_string(),
         }];
-        let actual = UserHookHandler::process_pre_tool_use_output(&results);
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Allow));
     }
 
@@ -729,7 +794,7 @@ mod tests {
             stdout: String::new(),
             stderr: String::new(),
         }];
-        let actual = UserHookHandler::process_results(&results);
+        let actual = UserHookHandler::<NullInfra>::process_results(&results);
         assert!(actual.is_none());
     }
 
@@ -740,7 +805,7 @@ mod tests {
             stdout: String::new(),
             stderr: "stop reason".to_string(),
         }];
-        let actual = UserHookHandler::process_results(&results);
+        let actual = UserHookHandler::<NullInfra>::process_results(&results);
         assert_eq!(actual, Some("stop reason".to_string()));
     }
 
@@ -751,20 +816,14 @@ mod tests {
             stdout: r#"{"decision": "block", "reason": "keep going"}"#.to_string(),
             stderr: String::new(),
         }];
-        let actual = UserHookHandler::process_results(&results);
+        let actual = UserHookHandler::<NullInfra>::process_results(&results);
         assert_eq!(actual, Some("keep going".to_string()));
     }
 
     #[test]
     fn test_has_hooks_returns_false_for_empty_config() {
         let config = UserHookConfig::new();
-        let handler = UserHookHandler::new(
-            config,
-            PathBuf::from("/tmp"),
-            PathBuf::from("/tmp"),
-            "sess-1".to_string(),
-            0,
-        );
+        let handler = null_handler(config);
         assert!(!handler.has_hooks(&UserHookEventName::PreToolUse));
     }
 
@@ -772,13 +831,7 @@ mod tests {
     fn test_has_hooks_returns_true_when_configured() {
         let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
-        let handler = UserHookHandler::new(
-            config,
-            PathBuf::from("/tmp"),
-            PathBuf::from("/tmp"),
-            "sess-1".to_string(),
-            0,
-        );
+        let handler = null_handler(config);
         assert!(handler.has_hooks(&UserHookEventName::PreToolUse));
         assert!(!handler.has_hooks(&UserHookEventName::Stop));
     }

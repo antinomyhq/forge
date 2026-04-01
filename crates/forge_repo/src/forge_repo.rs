@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Duration;
 
 use bytes::Bytes;
 use forge_app::{
@@ -451,6 +452,19 @@ where
     ) -> anyhow::Result<std::process::ExitStatus> {
         self.infra
             .execute_command_raw(command, working_dir, env_vars)
+            .await
+    }
+
+    async fn execute_command_with_input(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        stdin_input: String,
+        timeout: Duration,
+        env_vars: HashMap<String, String>,
+    ) -> anyhow::Result<CommandOutput> {
+        self.infra
+            .execute_command_with_input(command, working_dir, stdin_input, timeout, env_vars)
             .await
     }
 }

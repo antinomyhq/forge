@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -554,6 +555,37 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
+/// Service for executing hook commands with stdin input and timeout.
+///
+/// Abstracts over the underlying process execution so that `UserHookExecutor`
+/// depends on a service rather than infrastructure directly.
+#[async_trait::async_trait]
+pub trait HookCommandService: Send + Sync {
+    /// Executes a shell command with stdin input and a timeout.
+    ///
+    /// Pipes `stdin_input` to the process stdin and waits up to `timeout`.
+    /// Returns `CommandOutput` with `exit_code: None` and a timeout message in
+    /// `stderr` when the timeout expires.
+    ///
+    /// # Arguments
+    /// * `command` - Shell command string to execute.
+    /// * `working_dir` - Working directory for the command.
+    /// * `stdin_input` - Data to pipe to the process stdin.
+    /// * `timeout` - Maximum duration to wait for the command.
+    /// * `env_vars` - Additional environment variables as key-value pairs.
+    ///
+    /// # Errors
+    /// Returns an error if the process cannot be spawned.
+    async fn execute_command_with_input(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        stdin_input: String,
+        timeout: Duration,
+        env_vars: HashMap<String, String>,
+    ) -> anyhow::Result<forge_domain::CommandOutput>;
+}
+
 pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
@@ -583,6 +615,7 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderAuthService: ProviderAuthService;
     type WorkspaceService: WorkspaceService;
     type SkillFetchService: SkillFetchService;
+    type HookCommandService: HookCommandService + Clone;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -612,6 +645,7 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
     fn workspace_service(&self) -> &Self::WorkspaceService;
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
+    fn hook_command_service(&self) -> &Self::HookCommandService;
 }
 
 #[async_trait::async_trait]

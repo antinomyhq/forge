@@ -1,6 +1,7 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use anyhow::Result;
 use bytes::Bytes;
@@ -148,6 +149,31 @@ pub trait CommandInfra: Send + Sync {
         working_dir: PathBuf,
         env_vars: Option<Vec<String>>,
     ) -> anyhow::Result<std::process::ExitStatus>;
+
+    /// Executes a shell command with stdin input and a timeout.
+    ///
+    /// Pipes `stdin_input` to the process stdin, captures stdout and stderr,
+    /// and waits up to `timeout` for the process to complete. On timeout,
+    /// returns `CommandOutput` with `exit_code: None` and a timeout message in
+    /// `stderr`.
+    ///
+    /// # Arguments
+    /// * `command` - Shell command string to execute.
+    /// * `working_dir` - Working directory for the command.
+    /// * `stdin_input` - Data to pipe to the process stdin.
+    /// * `timeout` - Maximum duration to wait for the command.
+    /// * `env_vars` - Additional environment variables as key-value pairs.
+    ///
+    /// # Errors
+    /// Returns an error if the process cannot be spawned.
+    async fn execute_command_with_input(
+        &self,
+        command: String,
+        working_dir: PathBuf,
+        stdin_input: String,
+        timeout: Duration,
+        env_vars: HashMap<String, String>,
+    ) -> anyhow::Result<CommandOutput>;
 }
 
 #[async_trait::async_trait]

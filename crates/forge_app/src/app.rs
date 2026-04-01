@@ -145,6 +145,7 @@ impl<S: Services> ForgeApp<S> {
 
         let hook = if !user_hook_config.is_empty() {
             let user_handler = UserHookHandler::new(
+                services.hook_command_service().clone(),
                 user_hook_config,
                 environment.cwd.clone(),
                 environment.cwd.clone(),
