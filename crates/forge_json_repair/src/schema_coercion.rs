@@ -978,12 +978,12 @@ mod tests {
     }
 
     #[test]
-    fn test_preserve_invalid_json_string() {
-        // Test that invalid JSON strings are preserved
+    fn test_repairs_invalid_json_string_when_schema_expects_array() {
+        // Invalid JSON-like array strings are repaired into arrays when the schema expects one.
         let fixture = json!({"data": "[invalid json"});
         let schema = schema_for!(DataArray);
         let actual = coerce_to_schema(fixture, &schema);
-        let expected = json!({"data": "[invalid json"});
+        let expected = json!({"data": ["invalid json"]});
         assert_eq!(actual, expected);
     }
 
