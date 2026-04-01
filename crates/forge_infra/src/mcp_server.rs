@@ -25,6 +25,10 @@ impl McpServerInfra for ForgeMcpServer {
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
     ) -> anyhow::Result<Self::Client> {
-        Ok(ForgeMcpClient::new(config, env_vars, self.http_config.clone()))
+        Ok(ForgeMcpClient::new(
+            config,
+            env_vars,
+            self.http_config.clone(),
+        ))
     }
 }
