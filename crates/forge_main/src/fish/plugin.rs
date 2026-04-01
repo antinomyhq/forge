@@ -456,9 +456,13 @@ mod tests {
         unsafe {
             if let Some(home) = original_home {
                 std::env::set_var("HOME", home);
+            } else {
+                std::env::remove_var("HOME");
             }
             if let Some(xdg) = original_xdg {
                 std::env::set_var("XDG_CONFIG_HOME", xdg);
+            } else {
+                std::env::remove_var("XDG_CONFIG_HOME");
             }
         }
     }
