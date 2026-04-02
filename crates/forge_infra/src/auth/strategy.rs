@@ -166,11 +166,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                     &ctx.request.oauth_config,
                     chrono::Duration::hours(1), // Code flow default
                 )?;
-                enrich_codex_oauth_credential(
-                    &self.provider_id,
-                    &mut credential,
-                    &access_token,
-                );
+                enrich_codex_oauth_credential(&self.provider_id, &mut credential, &access_token);
                 Ok(credential)
             }
             _ => Err(AuthError::InvalidContext("Expected Code context".to_string()).into()),
