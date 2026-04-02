@@ -123,10 +123,13 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         // GitHub Copilot uses request-based quota, so only user-initiated requests
         // count against the quota.
         // - User-initiated: last message is from User (new user input)
-        // - Agent-initiated: last message is from Assistant or Tool (continuing conversation)
+        // - Agent-initiated: last message is from Assistant or Tool (continuing
+        //   conversation)
         if self.provider.id == ProviderId::GITHUB_COPILOT {
             let last_message = request.messages.iter().flatten().last();
-            let is_user_message = last_message.map(|m| m.role == forge_app::dto::openai::Role::User).unwrap_or(true);
+            let is_user_message = last_message
+                .map(|m| m.role == forge_app::dto::openai::Role::User)
+                .unwrap_or(true);
             let value = if is_user_message { "user" } else { "agent" };
             headers.push(("x-initiator".to_string(), value.to_string()));
             debug!(
@@ -830,7 +833,8 @@ mod tests {
 
         let headers = openai_provider.get_headers_with_request(&request);
 
-        // Should only have Authorization header (no x-initiator for non-copilot providers)
+        // Should only have Authorization header (no x-initiator for non-copilot
+        // providers)
         assert_eq!(headers.len(), 1);
         assert!(
             headers
