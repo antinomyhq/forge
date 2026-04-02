@@ -40,6 +40,10 @@ Then inspect `.forge/forge.request.json` for the expected fields.
 | `open_router`    | `openai/o4-mini`             | `effort: high` + `exclude: true`                  | `reasoning.effort` + `.exclude`   |
 | `open_router`    | `openai/o4-mini`             | `enabled: true`                                   | `reasoning.enabled`               |
 | `open_router`    | `anthropic/claude-opus-4-5`  | `max_tokens: 4000`                                | `reasoning.max_tokens`            |
+| `open_router`    | `moonshotai/kimi-k2`         | `max_tokens: 4000`                                | `reasoning.max_tokens`            |
+| `open_router`    | `moonshotai/kimi-k2`         | `effort: high`                                    | `reasoning.effort`                |
+| `open_router`    | `minimax/minimax-m2`         | `max_tokens: 4000`                                | `reasoning.max_tokens`            |
+| `open_router`    | `minimax/minimax-m2`         | `effort: high`                                    | `reasoning.effort`                |
 | `anthropic`      | `claude-opus-4-6`            | `effort: low\|medium\|high\|max`                  | `output_config.effort`            |
 | `anthropic`      | `claude-3-7-sonnet-20250219` | `enabled: true` + `max_tokens: 8000`              | `thinking.type` + `budget_tokens` |
 | `github_copilot` | `o4-mini`                    | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning_effort` (top-level)    |

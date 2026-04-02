@@ -185,6 +185,46 @@ else
     log_skip "open_router not configured — skipping"
 fi
 
+# ─── OpenRouter · moonshotai/kimi-k2 — max_tokens ────────────────────────────
+# Kimi K2 uses token-budget reasoning via OpenRouter (reasoning.max_tokens).
+# Valid range: integer >= 1024
+
+log_header "OpenRouter · moonshotai/kimi-k2 · max_tokens: 4000"
+OUT="$WORK_DIR/openrouter-kimi-max-tokens.json"
+if run_test "$OUT" open_router "moonshotai/kimi-k2" FORGE_REASONING__MAX_TOKENS=4000; then
+    assert_field "$OUT" "reasoning.max_tokens" "4000" "openrouter/kimi-k2"
+else
+    log_skip "open_router not configured — skipping"
+fi
+
+log_header "OpenRouter · moonshotai/kimi-k2 · effort: high"
+OUT="$WORK_DIR/openrouter-kimi-effort-high.json"
+if run_test "$OUT" open_router "moonshotai/kimi-k2" FORGE_REASONING__EFFORT=high; then
+    assert_field "$OUT" "reasoning.effort" '"high"' "openrouter/kimi-k2"
+else
+    log_skip "open_router not configured — skipping"
+fi
+
+# ─── OpenRouter · minimax/minimax-m2 — max_tokens ────────────────────────────
+# MiniMax M2 uses token-budget reasoning via OpenRouter; maps to thinking_budget.
+# Valid range: integer >= 1024
+
+log_header "OpenRouter · minimax/minimax-m2 · max_tokens: 4000"
+OUT="$WORK_DIR/openrouter-minimax-max-tokens.json"
+if run_test "$OUT" open_router "minimax/minimax-m2" FORGE_REASONING__MAX_TOKENS=4000; then
+    assert_field "$OUT" "reasoning.max_tokens" "4000" "openrouter/minimax-m2"
+else
+    log_skip "open_router not configured — skipping"
+fi
+
+log_header "OpenRouter · minimax/minimax-m2 · effort: high"
+OUT="$WORK_DIR/openrouter-minimax-effort-high.json"
+if run_test "$OUT" open_router "minimax/minimax-m2" FORGE_REASONING__EFFORT=high; then
+    assert_field "$OUT" "reasoning.effort" '"high"' "openrouter/minimax-m2"
+else
+    log_skip "open_router not configured — skipping"
+fi
+
 # ─── Anthropic · claude-opus-4-6 — effort levels ─────────────────────────────
 # Newer models use output_config.effort instead of the thinking object.
 # Valid effort values: low · medium · high · max  (max is opus-4-6 only)
