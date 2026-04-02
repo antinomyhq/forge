@@ -548,10 +548,7 @@ mod tests {
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
         assert_eq!(ProviderId::CODEX.to_string(), "Codex");
         assert_eq!(ProviderId::FIREWORKS_AI.to_string(), "FireworksAI");
-        assert_eq!(
-            ProviderId::GOOGLE_AI_STUDIO.to_string(),
-            "GoogleAIStudio"
-        );
+        assert_eq!(ProviderId::GOOGLE_AI_STUDIO.to_string(), "GoogleAIStudio");
     }
 
     #[test]
