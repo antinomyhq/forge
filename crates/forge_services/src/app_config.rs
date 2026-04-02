@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::{AppConfigService, EnvironmentInfra};
 use forge_domain::{
-    CommitConfig, ConfigOperation, ModelId, ProviderId, ProviderRepository, SuggestConfig,
+    CommitConfig, ConfigOperation, Effort, ModelId, ProviderId, ProviderRepository, SuggestConfig,
 };
 use tracing::debug;
 
@@ -127,6 +127,23 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     ) -> anyhow::Result<()> {
         self.update(ConfigOperation::SetSuggestConfig(suggest_config))
             .await
+    }
+
+    async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>> {
+        let config = self.infra.get_config();
+        Ok(config.reasoning.and_then(|r| r.effort).map(|e| match e {
+            forge_config::Effort::None => Effort::None,
+            forge_config::Effort::Minimal => Effort::Minimal,
+            forge_config::Effort::Low => Effort::Low,
+            forge_config::Effort::Medium => Effort::Medium,
+            forge_config::Effort::High => Effort::High,
+            forge_config::Effort::XHigh => Effort::XHigh,
+            forge_config::Effort::Max => Effort::Max,
+        }))
+    }
+
+    async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()> {
+        self.update(ConfigOperation::SetReasoningEffort(effort)).await
     }
 }
 
@@ -276,6 +293,9 @@ mod tests {
                                     .provider_id(suggest.provider.as_ref().to_string())
                                     .model_id(suggest.model.to_string()),
                             );
+                        }
+                        ConfigOperation::SetReasoningEffort(_) => {
+                            // No-op in tests
                         }
                     }
                 }

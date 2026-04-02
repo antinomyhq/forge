@@ -3488,6 +3488,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::ReasoningEffort { effort } => {
+                self.api.set_reasoning_effort(effort.clone()).await?;
+                self.writeln_title(
+                    TitleFormat::action(effort.to_string())
+                        .sub_title("is now the reasoning effort"),
+                )?;
+            }
         }
 
         Ok(())
@@ -3547,6 +3554,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::ReasoningEffort => {
+                let effort = self.api.get_reasoning_effort().await?;
+                match effort {
+                    Some(e) => self.writeln(e.to_string())?,
+                    None => self.writeln("ReasoningEffort: Not set")?,
                 }
             }
         }

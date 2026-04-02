@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display as StrumDisplay;
+use strum_macros::{Display as StrumDisplay, EnumString};
 
 use crate::{
     Compact, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
@@ -71,9 +71,9 @@ pub struct ReasoningConfig {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay, EnumString)]
 #[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum Effort {
     /// No reasoning; skips the thinking step entirely.
     None,

@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
 use forge_config::ForgeConfig;
-use forge_domain::{AgentId, ModelId, ProviderModels};
+use forge_domain::{AgentId, Effort, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -165,6 +165,12 @@ pub trait API: Sync + Send {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    /// Gets the current reasoning effort setting.
+    async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>>;
+
+    /// Sets the reasoning effort level applied to all agents.
+    async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
