@@ -1358,14 +1358,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let info = Info::new()
-            .add_title("CONFIGURATION")
-            .add_key_value("Session Model", model)
-            .add_key_value("Session Provider", provider)
-            .add_key_value("Commit Model", commit_model)
-            .add_key_value("Commit Provider", commit_provider)
-            .add_key_value("Suggest Model", suggest_model)
-            .add_key_value("Suggest Provider", suggest_provider)
-            .add_key_value("Reasoning Effort", reasoning_effort);
+            .add_title("SESSION")
+            .add_key_value("Model", model)
+            .add_key_value("Provider", provider)
+            .add_title("COMMIT")
+            .add_key_value("Model", commit_model)
+            .add_key_value("Provider", commit_provider)
+            .add_title("SUGGEST")
+            .add_key_value("Model", suggest_model)
+            .add_key_value("Provider", suggest_provider)
+            .add_title("REASONING")
+            .add_key_value("Effort", reasoning_effort);
 
         if porcelain {
             self.writeln(
