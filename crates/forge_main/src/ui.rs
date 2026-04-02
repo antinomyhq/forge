@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -57,6 +59,209 @@ const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 struct ConversationDump {
     conversation: Conversation,
     related_conversations: Vec<Conversation>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct OAuthCallbackPayload {
+    code: String,
+}
+
+fn escape_html(input: &str) -> String {
+    input
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+fn localhost_oauth_redirect_uri(request: &CodeRequest) -> Option<Url> {
+    request
+        .oauth_config
+        .redirect_uri
+        .as_ref()
+        .and_then(|uri| Url::parse(uri).ok())
+        .filter(|uri| {
+            uri.scheme() == "http"
+                && matches!(uri.host_str(), Some("localhost") | Some("127.0.0.1"))
+                && uri.port().is_some()
+        })
+}
+
+fn localhost_oauth_bind_addr(redirect_uri: &Url) -> anyhow::Result<String> {
+    let host = match redirect_uri.host_str() {
+        Some("localhost") => "127.0.0.1",
+        Some(host) => host,
+        None => anyhow::bail!("OAuth redirect URI is missing a host"),
+    };
+    let port = redirect_uri
+        .port()
+        .ok_or_else(|| anyhow::anyhow!("OAuth redirect URI is missing an explicit port"))?;
+    Ok(format!("{host}:{port}"))
+}
+
+fn oauth_callback_success_page() -> String {
+    "<!doctype html><html><head><title>ForgeCode Authorization Successful</title><meta charset=\"utf-8\"></head><body style=\"font-family: -apple-system, BlinkMacSystemFont, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#111827; color:#f9fafb;\"><div style=\"text-align:center; padding:2rem;\"><h1 style=\"margin-bottom:0.75rem;\">Authorization Successful</h1><p style=\"color:#d1d5db;\">You can close this window and return to ForgeCode.</p></div></body></html>".to_string()
+}
+
+fn oauth_callback_error_page(message: &str) -> String {
+    format!(
+        "<!doctype html><html><head><title>ForgeCode Authorization Failed</title><meta charset=\"utf-8\"></head><body style=\"font-family: -apple-system, BlinkMacSystemFont, sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; margin:0; background:#111827; color:#f9fafb;\"><div style=\"text-align:center; padding:2rem; max-width:42rem;\"><h1 style=\"margin-bottom:0.75rem; color:#fca5a5;\">Authorization Failed</h1><p style=\"color:#d1d5db;\">ForgeCode could not complete sign-in.</p><pre style=\"white-space:pre-wrap; word-break:break-word; margin-top:1rem; padding:1rem; border-radius:0.5rem; background:#1f2937; color:#fca5a5;\">{}</pre></div></body></html>",
+        escape_html(message)
+    )
+}
+
+fn write_http_response(
+    stream: &mut TcpStream,
+    status_line: &str,
+    body: &str,
+) -> anyhow::Result<()> {
+    let response = format!(
+        "HTTP/1.1 {status_line}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
+    );
+    stream.write_all(response.as_bytes())?;
+    stream.flush()?;
+    Ok(())
+}
+
+fn parse_oauth_callback_target(
+    request_target: &str,
+    expected_path: &str,
+    expected_state: &str,
+) -> anyhow::Result<Option<OAuthCallbackPayload>> {
+    let callback_url = Url::parse(&format!("http://localhost{request_target}"))?;
+    if callback_url.path() != expected_path {
+        return Ok(None);
+    }
+
+    let params: HashMap<String, String> = callback_url.query_pairs().into_owned().collect();
+    if let Some(error) = params.get("error") {
+        let detail = params
+            .get("error_description")
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| format!(": {value}"))
+            .unwrap_or_default();
+        anyhow::bail!("Authorization failed ({error}{detail})");
+    }
+
+    let state = params
+        .get("state")
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Missing OAuth state in callback"))?;
+    if state != expected_state {
+        anyhow::bail!("OAuth state mismatch. Please try again.");
+    }
+
+    let code = params
+        .get("code")
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Missing authorization code in callback"))?
+        .to_string();
+
+    Ok(Some(OAuthCallbackPayload { code }))
+}
+
+/// Maximum time to wait for the OAuth browser callback before giving up.
+const OAUTH_CALLBACK_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
+fn wait_for_localhost_oauth_callback(
+    listener: TcpListener,
+    expected_path: String,
+    expected_state: String,
+) -> anyhow::Result<String> {
+    let deadline = std::time::Instant::now() + OAUTH_CALLBACK_TIMEOUT;
+    listener.set_nonblocking(false)?;
+
+    loop {
+        let remaining = deadline
+            .checked_duration_since(std::time::Instant::now())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Timed out waiting for OAuth callback after {} seconds",
+                    OAUTH_CALLBACK_TIMEOUT.as_secs()
+                )
+            })?;
+
+        // Cap each accept at the remaining time so we re-check the deadline
+        let accept_timeout = remaining.min(std::time::Duration::from_secs(5));
+        listener.set_nonblocking(true)?;
+        let accept_result = loop {
+            match listener.accept() {
+                Ok(conn) => break Ok(conn),
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    if std::time::Instant::now() + accept_timeout > deadline {
+                        // Will be caught by the remaining check at top of outer loop
+                        break Err(std::io::Error::new(
+                            std::io::ErrorKind::TimedOut,
+                            "accept timeout",
+                        ));
+                    }
+                }
+                Err(e) => break Err(e),
+            }
+        };
+
+        let (mut stream, _) = match accept_result {
+            Ok(conn) => conn,
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => continue,
+            Err(e) => return Err(e.into()),
+        };
+
+        let mut buffer = [0u8; 8192];
+        let bytes_read = match stream.read(&mut buffer) {
+            Ok(n) => n,
+            Err(_) => continue,
+        };
+        if bytes_read == 0 {
+            continue;
+        }
+
+        let request = String::from_utf8_lossy(&buffer[..bytes_read]);
+        let Some(request_line) = request.lines().next() else {
+            continue;
+        };
+
+        let mut parts = request_line.split_whitespace();
+        let method = parts.next().unwrap_or_default();
+        let request_target = parts.next().unwrap_or_default();
+
+        if method != "GET" {
+            let _ = write_http_response(
+                &mut stream,
+                "405 Method Not Allowed",
+                &oauth_callback_error_page("Only GET requests are supported for OAuth callbacks."),
+            );
+            continue;
+        }
+
+        match parse_oauth_callback_target(request_target, &expected_path, &expected_state) {
+            Ok(Some(payload)) => {
+                let _ = write_http_response(&mut stream, "200 OK", &oauth_callback_success_page());
+                return Ok(payload.code);
+            }
+            Ok(None) => {
+                let _ = write_http_response(
+                    &mut stream,
+                    "404 Not Found",
+                    &oauth_callback_error_page(
+                        "Received a request for an unexpected callback path.",
+                    ),
+                );
+            }
+            Err(err) => {
+                let message = err.to_string();
+                let _ = write_http_response(
+                    &mut stream,
+                    "400 Bad Request",
+                    &oauth_callback_error_page(&message),
+                );
+                return Err(err);
+            }
+        }
+    }
 }
 
 /// Formats an MCP server config for display, redacting sensitive information.
@@ -2420,6 +2625,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
+        let callback_task = if let Some(redirect_uri) = localhost_oauth_redirect_uri(request) {
+            match localhost_oauth_bind_addr(&redirect_uri)
+                .and_then(|addr| TcpListener::bind(&addr).map_err(Into::into))
+            {
+                Ok(listener) => {
+                    let callback_path = redirect_uri.path().to_string();
+                    let expected_state = request.state.to_string();
+                    self.writeln(format!(
+                        "{} Waiting for browser callback on {}",
+                        "→".blue(),
+                        redirect_uri.as_str().blue().underline()
+                    ))?;
+
+                    Some(tokio::task::spawn_blocking(move || {
+                        wait_for_localhost_oauth_callback(listener, callback_path, expected_state)
+                    }))
+                }
+                Err(_) => {
+                    // Port in use or bind failed — fall back to manual paste
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         // Display authorization URL
         self.writeln(format!(
             "{} Please visit: {}",
@@ -2434,14 +2665,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )))?;
         }
 
-        // Prompt user to paste authorization code
-        let code = ForgeWidget::input("Paste the authorization code")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+        let code = if let Some(task) = callback_task {
+            task.await
+                .map_err(|e| anyhow::anyhow!("OAuth callback task failed: {e}"))??
+        } else {
+            // Prompt user to paste authorization code
+            let code = ForgeWidget::input("Paste the authorization code")
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
-        }
+            if code.trim().is_empty() {
+                anyhow::bail!("Authorization code cannot be empty");
+            }
+
+            code
+        };
 
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
@@ -4123,8 +4361,102 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
 #[cfg(test)]
 mod tests {
-    // Note: Tests for confirm_delete_conversation are disabled because
-    // ForgeSelect::confirm is not easily mockable in the current
-    // architecture. The functionality is tested through integration tests
-    // instead.
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+
+    use forge_domain::{CodeRequest, OAuthConfig, PkceVerifier, State};
+    use url::Url;
+
+    use super::{localhost_oauth_redirect_uri, wait_for_localhost_oauth_callback};
+
+    fn sample_code_request(authorization_url: &str) -> CodeRequest {
+        CodeRequest {
+            authorization_url: Url::parse(authorization_url).unwrap(),
+            state: State::from("expected-state".to_string()),
+            pkce_verifier: Some(PkceVerifier::from("verifier".to_string())),
+            oauth_config: OAuthConfig {
+                auth_url: Url::parse("https://auth.openai.com/oauth/authorize").unwrap(),
+                token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
+                client_id: "client-id".to_string().into(),
+                scopes: vec!["openid".to_string()],
+                redirect_uri: Some("http://localhost:1455/auth/callback".to_string()),
+                use_pkce: true,
+                token_refresh_url: None,
+                custom_headers: None,
+                extra_auth_params: None,
+            },
+        }
+    }
+
+    #[test]
+    fn extracts_localhost_redirect_uri_from_oauth_request() {
+        let request = sample_code_request(
+            "https://auth.openai.com/oauth/authorize?client_id=test&redirect_uri=http%3A%2F%2Flocalhost%3A1455%2Fauth%2Fcallback&state=expected-state",
+        );
+
+        let redirect_uri = localhost_oauth_redirect_uri(&request).unwrap();
+
+        assert_eq!(redirect_uri.as_str(), "http://localhost:1455/auth/callback");
+    }
+
+    #[test]
+    fn captures_authorization_code_from_localhost_callback() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let client = thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            stream
+                .write_all(
+                    b"GET /auth/callback?code=auth-code&state=expected-state HTTP/1.1\r\nHost: localhost\r\n\r\n",
+                )
+                .unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).unwrap();
+            response
+        });
+
+        let code = wait_for_localhost_oauth_callback(
+            listener,
+            "/auth/callback".to_string(),
+            "expected-state".to_string(),
+        )
+        .unwrap();
+
+        let response = client.join().unwrap();
+
+        assert_eq!(code, "auth-code");
+        assert!(response.contains("200 OK"));
+    }
+
+    #[test]
+    fn rejects_localhost_callback_with_mismatched_state() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let client = thread::spawn(move || {
+            let mut stream = TcpStream::connect(addr).unwrap();
+            stream
+                .write_all(
+                    b"GET /auth/callback?code=auth-code&state=wrong-state HTTP/1.1\r\nHost: localhost\r\n\r\n",
+                )
+                .unwrap();
+            let mut response = String::new();
+            stream.read_to_string(&mut response).unwrap();
+            response
+        });
+
+        let error = wait_for_localhost_oauth_callback(
+            listener,
+            "/auth/callback".to_string(),
+            "expected-state".to_string(),
+        )
+        .unwrap_err();
+
+        let response = client.join().unwrap();
+
+        assert!(error.to_string().contains("OAuth state mismatch"));
+        assert!(response.contains("400 Bad Request"));
+    }
 }
