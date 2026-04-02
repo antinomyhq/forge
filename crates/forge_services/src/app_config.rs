@@ -143,7 +143,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetReasoningEffort(effort)).await
+        self.update(ConfigOperation::SetReasoningEffort(effort))
+            .await
     }
 }
 
