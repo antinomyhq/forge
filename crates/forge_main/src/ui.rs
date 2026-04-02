@@ -822,8 +822,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use crate::cli::ProviderCommand;
 
         match provider_group.command {
-            ProviderCommand::Login { provider } => {
-                self.handle_provider_login(provider.as_ref()).await?;
+            ProviderCommand::Login { provider, api_key_helper } => {
+                self.handle_provider_login(provider.as_ref(), api_key_helper.as_deref())
+                    .await?;
             }
             ProviderCommand::Logout { provider } => {
                 self.handle_provider_logout(provider.as_ref()).await?;
@@ -840,6 +841,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_provider_login(
         &mut self,
         provider_id: Option<&ProviderId>,
+        api_key_helper: Option<&str>,
     ) -> anyhow::Result<()> {
         // Get the provider to login to
         let any_provider = if let Some(id) = provider_id {
@@ -861,7 +863,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // For login, always configure (even if already configured) to allow
         // re-authentication
         let provider = match self
-            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+            .configure_provider(
+                any_provider.id(),
+                any_provider.auth_methods().to_vec(),
+                api_key_helper,
+            )
             .await?
         {
             Some(provider) => provider,
@@ -1995,7 +2001,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             SlashCommand::Login => {
-                self.handle_provider_login(None).await?;
+                self.handle_provider_login(None, None).await?;
             }
             SlashCommand::Logout => {
                 return self.handle_provider_logout(None).await;
@@ -2229,6 +2235,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         request: &ApiKeyRequest,
+        api_key_helper: Option<&str>,
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
@@ -2277,10 +2284,29 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        // Check if API key is already provided
-        // For Google ADC, we use a marker to skip prompting
-        // For other providers, we use the existing key as a default value (autofill)
-        let api_key_str = if let Some(default_key) = &request.api_key {
+        // Resolve API key: helper command takes precedence, then existing key,
+        // then interactive prompt.
+        let api_key_str = if let Some(helper_cmd) = api_key_helper {
+            // Execute the helper command and use its stdout as the API key
+            let output = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(helper_cmd)
+                .output()
+                .with_context(|| format!("Failed to execute api-key-helper: {helper_cmd}"))?;
+
+            anyhow::ensure!(
+                output.status.success(),
+                "api-key-helper command exited with status {}: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+
+            let key = String::from_utf8(output.stdout)
+                .context("api-key-helper output is not valid UTF-8")?;
+            let key = key.trim().to_string();
+            anyhow::ensure!(!key.is_empty(), "api-key-helper returned an empty API key");
+            key
+        } else if let Some(default_key) = &request.api_key {
             let key_str = default_key.as_ref();
 
             // Skip prompting only for Google ADC marker
@@ -2542,6 +2568,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
+        api_key_helper: Option<&str>,
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::FORGE_SERVICES {
             self.init_forge_services().await?;
@@ -2567,7 +2594,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id.clone(), &request)
+                self.handle_api_key_input(provider_id.clone(), &request, api_key_helper)
                     .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
@@ -2762,7 +2789,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Trigger authentication for the selected provider only if not configured
         let provider = if !any_provider.is_configured() {
             match self
-                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec(), None)
                 .await?
             {
                 Some(provider) => provider,

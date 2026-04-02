@@ -682,6 +682,17 @@ pub enum ProviderCommand {
     Login {
         /// Provider name to authenticate with.
         provider: Option<ProviderId>,
+
+        /// Shell command whose stdout is used as the API key.
+        ///
+        /// When provided, the command is executed and its output (trimmed) is
+        /// used as the API key instead of prompting for manual input.
+        /// Useful for integrating with credential helpers, password managers,
+        /// or the Claude Code `apiKeyHelper` pattern.
+        ///
+        /// Example: forge provider login anthropic --api-key-helper "op read op://vault/anthropic/credential"
+        #[arg(long)]
+        api_key_helper: Option<String>,
     },
 
     /// Remove provider credentials.
