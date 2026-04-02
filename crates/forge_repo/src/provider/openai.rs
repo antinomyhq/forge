@@ -119,6 +119,23 @@ impl<H: HttpInfra> OpenAIProvider<H> {
             );
         }
 
+        // Add x-initiator header for GitHub Copilot to indicate user vs agent request.
+        // GitHub Copilot uses request-based quota, so only user-initiated requests
+        // count against the quota.
+        // - User-initiated: last message is from User (new user input)
+        // - Agent-initiated: last message is from Assistant or Tool (continuing conversation)
+        if self.provider.id == ProviderId::GITHUB_COPILOT {
+            let last_message = request.messages.iter().flatten().last();
+            let is_user_message = last_message.map(|m| m.role == forge_app::dto::openai::Role::User).unwrap_or(true);
+            let value = if is_user_message { "user" } else { "agent" };
+            headers.push(("x-initiator".to_string(), value.to_string()));
+            debug!(
+                provider = %self.provider.url,
+                initiator = %value,
+                "Added x-initiator header for GitHub Copilot"
+            );
+        }
+
         headers
     }
 
@@ -335,6 +352,20 @@ mod tests {
             models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
             )),
+        }
+    }
+
+    fn github_copilot(key: &str) -> Provider<Url> {
+        Provider {
+            id: ProviderId::GITHUB_COPILOT,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://api.githubcopilot.com/chat/completions").unwrap(),
+            credential: make_credential(ProviderId::GITHUB_COPILOT, key),
+            custom_headers: None,
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Hardcoded(vec![])),
         }
     }
 
@@ -702,6 +733,112 @@ mod tests {
         let actual = enhance_error(fixture, &ProviderId::GITHUB_COPILOT);
         let error_string = format!("{:#}", actual);
         insta::assert_snapshot!(error_string);
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_github_copilot_user_initiated() -> anyhow::Result<()> {
+        let provider = github_copilot("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request without tool results (user-initiated)
+        let request = Request::default();
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should have Authorization and x-initiator headers
+        assert_eq!(headers.len(), 2);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "user")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_github_copilot_agent_initiated() -> anyhow::Result<()> {
+        use forge_app::dto::openai::{Message, MessageContent, Role};
+
+        let provider = github_copilot("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with tool results (agent-initiated)
+        let request = Request {
+            messages: Some(vec![Message {
+                role: Role::Tool,
+                content: Some(MessageContent::Text("tool result".to_string())),
+                name: Some("test_tool".into()),
+                tool_call_id: Some("call_123".into()),
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                reasoning_content: None,
+                extra_content: None,
+            }]),
+            ..Default::default()
+        };
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should have Authorization and x-initiator headers
+        assert_eq!(headers.len(), 2);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "agent")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_non_copilot_no_initiator() -> anyhow::Result<()> {
+        use forge_app::dto::openai::{Message, MessageContent, Role};
+
+        let provider = openai("test-key");
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with tool results
+        let request = Request {
+            messages: Some(vec![Message {
+                role: Role::Tool,
+                content: Some(MessageContent::Text("tool result".to_string())),
+                name: Some("test_tool".into()),
+                tool_call_id: Some("call_123".into()),
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                reasoning_content: None,
+                extra_content: None,
+            }]),
+            ..Default::default()
+        };
+
+        let headers = openai_provider.get_headers_with_request(&request);
+
+        // Should only have Authorization header (no x-initiator for non-copilot providers)
+        assert_eq!(headers.len(), 1);
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(!headers.iter().any(|(k, _)| k == "x-initiator"));
+        Ok(())
     }
 
     #[test]
