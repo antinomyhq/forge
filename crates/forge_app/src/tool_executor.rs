@@ -69,8 +69,7 @@ impl<
         match operation {
             ToolOperation::NetFetch { input: _, output } => {
                 let original_length = output.content.len();
-                let is_truncated =
-                    original_length > self.services.get_environment().fetch_truncation_limit;
+                let is_truncated = original_length > self.services.get_config().max_fetch_chars;
                 let mut files = TempContentFiles::default();
 
                 if is_truncated {
@@ -83,13 +82,13 @@ impl<
                 Ok(files)
             }
             ToolOperation::Shell { output } => {
-                let env = self.services.get_environment();
+                let config = self.services.get_config();
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
                 let stdout_truncated =
-                    stdout_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+                    stdout_lines > config.max_stdout_prefix_lines + config.max_stdout_suffix_lines;
                 let stderr_truncated =
-                    stderr_lines > env.stdout_max_prefix_length + env.stdout_max_suffix_length;
+                    stderr_lines > config.max_stdout_prefix_lines + config.max_stdout_suffix_lines;
 
                 let mut files = TempContentFiles::default();
 
@@ -186,10 +185,11 @@ impl<
             }
             ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
+                let config = self.services.get_config();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let limit = env.sem_search_limit;
-                let top_k = env.sem_search_top_k as u32;
+                let limit = config.max_sem_search_results;
+                let top_k = config.sem_search_top_k as u32;
                 let params: Vec<_> = input
                     .queries
                     .iter()
@@ -325,6 +325,7 @@ impl<
     ) -> anyhow::Result<ToolOutput> {
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
+        let config = self.services.get_config();
 
         // Enforce read-before-edit for patch
         if let ToolCatalog::Patch(input) = &tool_input {
@@ -354,7 +355,7 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         context.with_metrics(|metrics| {
-            operation.into_tool_output(tool_kind, truncation_path, &env, metrics)
+            operation.into_tool_output(tool_kind, truncation_path, &env, &config, metrics)
         })
     }
 }

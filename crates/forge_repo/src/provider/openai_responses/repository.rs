@@ -6,8 +6,9 @@ use derive_setters::Setters;
 use eventsource_stream::Eventsource;
 use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream, RetryConfig,
+    ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream,
 };
+use forge_config::RetryConfig;
 use forge_domain::{BoxStream, ChatRepository, Provider};
 use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
@@ -1220,17 +1221,6 @@ mod tests {
 
         assert!(x_client_request_id.is_none());
         assert!(session_id.is_none());
-    }
-
-    #[test]
-    fn test_openai_responses_repository_new() {
-        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
-        let repo = OpenAIResponsesResponseRepository::new(infra.clone());
-
-        assert_eq!(
-            repo.retry_config.retry_status_codes,
-            vec![429, 500, 502, 503, 504, 408, 522, 520, 529]
-        );
     }
 
     #[tokio::test]
