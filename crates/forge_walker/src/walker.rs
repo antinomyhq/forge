@@ -546,11 +546,15 @@ mod tests {
 
         // Root and nested .gitignore files
         fixture.add_file(".gitignore", "*.log\n").unwrap();
-        fixture.add_file("frontend/.gitignore", "node_modules/\n").unwrap();
+        fixture
+            .add_file("frontend/.gitignore", "node_modules/\n")
+            .unwrap();
 
         // Files to exclude
         fixture.add_file("debug.log", "").unwrap();
-        fixture.add_file("frontend/node_modules/lib/index.js", "").unwrap();
+        fixture
+            .add_file("frontend/node_modules/lib/index.js", "")
+            .unwrap();
 
         // Files to include
         fixture.add_file("src/main.rs", "").unwrap();
@@ -562,7 +566,11 @@ mod tests {
             .await
             .unwrap();
 
-        let mut actual: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
+        let mut actual: Vec<_> = actual
+            .iter()
+            .filter(|f| !f.is_dir())
+            .map(|f| f.path.as_str())
+            .collect();
         actual.sort();
         let expected = vec!["frontend/src/main.ts", "src/main.rs"];
         assert_eq!(actual, expected, "should respect nested .gitignore files");
@@ -579,10 +587,14 @@ mod tests {
         std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").unwrap();
 
         fixture.add_file(".gitignore", "*.log\n").unwrap();
-        fixture.add_file("frontend/.gitignore", "node_modules/\n").unwrap();
+        fixture
+            .add_file("frontend/.gitignore", "node_modules/\n")
+            .unwrap();
 
         fixture.add_file("debug.log", "").unwrap();
-        fixture.add_file("frontend/node_modules/lib/index.js", "").unwrap();
+        fixture
+            .add_file("frontend/node_modules/lib/index.js", "")
+            .unwrap();
         fixture.add_file("src/main.rs", "").unwrap();
         fixture.add_file("frontend/src/main.ts", "").unwrap();
 
@@ -592,9 +604,16 @@ mod tests {
             .await
             .unwrap();
 
-        let mut actual: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
+        let mut actual: Vec<_> = actual
+            .iter()
+            .filter(|f| !f.is_dir())
+            .map(|f| f.path.as_str())
+            .collect();
         actual.sort();
         let expected = vec!["frontend/src/main.ts", "src/main.rs"];
-        assert_eq!(actual, expected, "should respect nested .gitignore in git repos");
+        assert_eq!(
+            actual, expected,
+            "should respect nested .gitignore in git repos"
+        );
     }
 }
