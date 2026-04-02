@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
+
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
@@ -6,10 +11,6 @@ use forge_domain::{
     UserHookEventName, UserHookMatcherGroup,
 };
 use regex::Regex;
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 use tracing::{debug, warn};
 
 use super::user_hook_executor::UserHookExecutor;
@@ -46,12 +47,7 @@ impl<I> UserHookHandler<I> {
     /// * `session_id` - Current session/conversation ID.
     /// * `default_hook_timeout` - Default timeout in milliseconds for hook
     ///   commands.
-    pub fn new(
-        service: I,
-        config: UserHookConfig,
-        cwd: PathBuf,
-        session_id: String,
-    ) -> Self {
+    pub fn new(service: I, config: UserHookConfig, cwd: PathBuf, session_id: String) -> Self {
         let mut env_vars = HashMap::new();
         env_vars.insert(
             "FORGE_PROJECT_DIR".to_string(),
