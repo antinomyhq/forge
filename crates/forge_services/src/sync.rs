@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{FileReaderInfra, SyncProgressCounter, WorkspaceStatus, compute_hash};
-use forge_domain::{
-    ApiKey, FileHash, SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository,
-};
+use forge_domain::{ApiKey, FileHash, SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository};
 use futures::stream::{Stream, StreamExt};
 use tracing::{info, warn};
 
@@ -71,14 +69,20 @@ impl<F, D> WorkspaceSyncEngine<F, D> {
         token: ApiKey,
         batch_size: usize,
     ) -> Self {
-        Self { infra, discovery, workspace_root, workspace_id, user_id, token, batch_size }
+        Self {
+            infra,
+            discovery,
+            workspace_root,
+            workspace_id,
+            user_id,
+            token,
+            batch_size,
+        }
     }
 }
 
-impl<
-    F: 'static + WorkspaceIndexRepository + FileReaderInfra,
-    D: FileDiscovery + 'static,
-> WorkspaceSyncEngine<F, D>
+impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery + 'static>
+    WorkspaceSyncEngine<F, D>
 {
     /// Executes the full workspace sync, emitting progress events via `emit`.
     ///
@@ -98,10 +102,7 @@ impl<
         // Pass 1: stream files and collect only hashes — content is discarded
         // immediately after hashing so peak memory is bounded to one batch
         // of file content rather than the entire workspace.
-        let results: Vec<Result<FileHash>> = self
-            .read_hashes()
-            .collect()
-            .await;
+        let results: Vec<Result<FileHash>> = self.read_hashes().collect().await;
         let failed_statuses = extract_failed_statuses(&results);
         let local_hashes: Vec<FileHash> = results.into_iter().flatten().collect();
 
@@ -227,11 +228,8 @@ impl<
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(&self) -> anyhow::Result<Vec<FileHash>> {
         info!(workspace_id = %self.workspace_id, "Fetching existing file hashes from server to detect changes...");
-        let workspace_files = forge_domain::CodeBase::new(
-            self.user_id.clone(),
-            self.workspace_id.clone(),
-            (),
-        );
+        let workspace_files =
+            forge_domain::CodeBase::new(self.user_id.clone(), self.workspace_id.clone(), ());
         self.infra
             .list_workspace_files(&workspace_files, &self.token)
             .await
@@ -250,11 +248,8 @@ impl<
             .map(|p| p.to_string_lossy().into_owned())
             .collect();
 
-        let deletion = forge_domain::CodeBase::new(
-            self.user_id.clone(),
-            self.workspace_id.clone(),
-            paths,
-        );
+        let deletion =
+            forge_domain::CodeBase::new(self.user_id.clone(), self.workspace_id.clone(), paths);
         self.infra
             .delete_files(&deletion, &self.token)
             .await
