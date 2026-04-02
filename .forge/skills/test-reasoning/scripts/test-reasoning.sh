@@ -46,17 +46,18 @@ log_skip()   { printf "SKIP\t%s\n"   "$1"; }
 
 # json_get <file> <dot.separated.path>
 # Prints the JSON value at the given path, or "null" if absent/null.
-# Handles both single-document JSON and NDJSON (reads the first object only).
+# Uses raw_decode to parse only the first JSON object in the file, which
+# correctly handles both single-document JSON and NDJSON (even when multiple
+# objects appear on the same line without a newline separator).
 json_get() {
     python3 - "$1" "$2" <<'PY'
 import json, sys
 with open(sys.argv[1]) as f:
     raw = f.read().strip()
-# Accept the first complete JSON object even when the file is NDJSON.
-try:
-    d = json.loads(raw)
-except json.JSONDecodeError:
-    d = json.loads(raw.split('\n')[0])
+# raw_decode stops after the first complete JSON value regardless of trailing
+# content (extra objects, newlines, null bytes, etc.).
+decoder = json.JSONDecoder()
+d, _ = decoder.raw_decode(raw)
 keys = sys.argv[2].split('.')
 v = d
 for k in keys:
