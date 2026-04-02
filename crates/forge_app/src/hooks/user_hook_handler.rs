@@ -278,7 +278,7 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
         }
 
         let input = HookInput {
-            hook_event_name: "SessionStart".to_string(),
+            hook_event_name: UserHookEventName::SessionStart.to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
             event_data: HookEventInput::SessionStart { source: "startup".to_string() },
