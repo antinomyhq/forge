@@ -349,15 +349,16 @@ mod tests {
     /// Test that the doctor script executes and streams output
     #[test]
     fn test_run_fish_doctor_streaming() {
-        // SAFETY: No mutex needed for single test
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        // SAFETY: We hold ENV_LOCK
         unsafe {
             std::env::set_var("FORGE_SKIP_INTERACTIVE", "1");
         }
 
         let actual = run_fish_doctor();
 
-        // Clean up
-        // SAFETY: No mutex needed for single test
+        // SAFETY: We hold ENV_LOCK
         unsafe {
             std::env::remove_var("FORGE_SKIP_INTERACTIVE");
         }
