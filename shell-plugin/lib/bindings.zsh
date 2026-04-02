@@ -23,11 +23,15 @@ function forge-bracketed-paste() {
     # dragging and dropping file paths
     local trimmed="${pasted##[[:space:]]}"
     trimmed="${trimmed%%[[:space:]]}"
-    # Remove surrounding single quotes (e.g. iTerm2 wraps paths with spaces)
+    # Remove surrounding single or double quotes (e.g. iTerm2 wraps paths with spaces)
     local sq="'"
+    local dq='"'
     if [[ "$trimmed" == ${sq}*${sq} ]]; then
         trimmed="${trimmed#${sq}}"
         trimmed="${trimmed%${sq}}"
+    elif [[ "$trimmed" == ${dq}*${dq} ]]; then
+        trimmed="${trimmed#${dq}}"
+        trimmed="${trimmed%${dq}}"
     fi
     
     # Check if the pasted text looks like a single file path that exists on disk

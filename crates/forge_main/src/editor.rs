@@ -179,15 +179,7 @@ fn wrap_pasted_text(pasted: &str) -> String {
         return normalised;
     }
 
-    // Fast path: the entire paste is a single file path (most common
-    // drag-and-drop scenario).
-    let clean = strip_surrounding_quotes(trimmed);
-    let path = Path::new(clean);
-    if path.is_absolute() && path.is_file() {
-        return format!("@[{}]", clean);
-    }
-
-    // Otherwise scan token by token
+    // Scan token by token, wrapping any absolute paths that exist on disk
     wrap_tokens(&normalised)
 }
 
@@ -354,7 +346,7 @@ mod tests {
     fn test_wrap_pasted_text_crlf_normalised() {
         let fixture = "/usr/bin/env\r\n";
         let actual = wrap_pasted_text(fixture);
-        let expected = "@[/usr/bin/env]";
+        let expected = "@[/usr/bin/env]\n";
         assert_eq!(actual, expected);
     }
 
