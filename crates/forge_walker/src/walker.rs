@@ -115,6 +115,7 @@ impl Walker {
         // TODO: Convert to async and return a stream
         let walk = WalkBuilder::new(&self.cwd)
             .standard_filters(true) // use standard ignore filters.
+            .require_git(false)
             .max_depth(Some(self.max_depth))
             // Skip files that exceed size limit
             .max_filesize(Some(self.max_file_size))
@@ -537,5 +538,65 @@ mod tests {
                 file
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_walker_respects_nested_gitignore() {
+        let fixture = fixtures::Fixture::default();
+
+        // Root and nested .gitignore files
+        fixture.add_file(".gitignore", "*.log\n").unwrap();
+        fixture.add_file("frontend/.gitignore", "node_modules/\n").unwrap();
+
+        // Files to exclude
+        fixture.add_file("debug.log", "").unwrap();
+        fixture.add_file("frontend/node_modules/lib/index.js", "").unwrap();
+
+        // Files to include
+        fixture.add_file("src/main.rs", "").unwrap();
+        fixture.add_file("frontend/src/main.ts", "").unwrap();
+
+        let actual = Walker::max_all()
+            .cwd(fixture.as_path().to_path_buf())
+            .get()
+            .await
+            .unwrap();
+
+        let mut files: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
+        files.sort();
+        assert_eq!(files, &["frontend/src/main.ts", "src/main.rs"][..], "should respect nested .gitignore files");
+    }
+
+    #[tokio::test]
+    async fn test_walker_respects_nested_gitignore_with_git_repo() {
+        let fixture = fixtures::Fixture::default();
+
+        // Create a .git directory to simulate a real git repository
+        let git_dir = fixture.as_path().join(".git");
+        std::fs::create_dir(&git_dir).unwrap();
+        std::fs::write(git_dir.join("config"), "[core]\n").unwrap();
+        std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").unwrap();
+
+        // Root and nested .gitignore files
+        fixture.add_file(".gitignore", "*.log\n").unwrap();
+        fixture.add_file("frontend/.gitignore", "node_modules/\n").unwrap();
+
+        // Files to exclude
+        fixture.add_file("debug.log", "").unwrap();
+        fixture.add_file("frontend/node_modules/lib/index.js", "").unwrap();
+        
+        // Files to include
+        fixture.add_file("src/main.rs", "").unwrap();
+        fixture.add_file("frontend/src/main.ts", "").unwrap();
+
+        let actual = Walker::max_all()
+            .cwd(fixture.as_path().to_path_buf())
+            .get()
+            .await
+            .unwrap();
+
+        let mut files: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
+        files.sort();
+        assert_eq!(files, &["frontend/src/main.ts", "src/main.rs"][..], "should respect nested .gitignore in git repos");
     }
 }
