@@ -3,10 +3,10 @@
 
 # Load forge shell plugin (commands, completions, keybindings) if not already loaded
 if not set -q _FORGE_PLUGIN_LOADED
-    eval (forge fish plugin)
+    forge fish plugin | source
 end
 
 # Load forge shell theme (prompt with AI context) if not already loaded
 if not set -q _FORGE_THEME_LOADED
-    eval (forge fish theme)
+    forge fish theme | source
 end
