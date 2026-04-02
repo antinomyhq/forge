@@ -2,6 +2,12 @@
 
 This document contains guidelines and best practices for AI agents working with this codebase.
 
+## Local and Origin Remote Git Branch Organization
+- main is upstream main (includes pre-release commits) and should never be touched 
+- v2.4.1 etc is the checkout from release tagged upstream commits
+- dev is our own fork with modifications. When running $prm always merge into dev instead of main!
+- for dev work use short-lived branches branched from dev
+
 ## Error Management
 
 - Use `anyhow::Result` for error handling in services and repositories.
