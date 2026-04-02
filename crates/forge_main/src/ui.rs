@@ -187,12 +187,15 @@ fn wait_for_localhost_oauth_callback(
         // Cap each accept at the remaining time so we re-check the deadline
         let accept_timeout = remaining.min(std::time::Duration::from_secs(5));
         listener.set_nonblocking(true)?;
+        let accept_start = std::time::Instant::now();
         let accept_result = loop {
             match listener.accept() {
                 Ok(conn) => break Ok(conn),
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                     std::thread::sleep(std::time::Duration::from_millis(100));
-                    if std::time::Instant::now() + accept_timeout > deadline {
+                    if accept_start.elapsed() >= accept_timeout
+                        || std::time::Instant::now() >= deadline
+                    {
                         // Will be caught by the remaining check at top of outer loop
                         break Err(std::io::Error::new(
                             std::io::ErrorKind::TimedOut,
