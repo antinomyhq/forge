@@ -109,12 +109,14 @@ impl TryFrom<forge_domain::Context> for Request {
         // Route reasoning config to the correct Anthropic serialization.
         // All paths require enabled == Some(true); without it nothing is emitted.
         //
-        // • enabled + max_tokens → thinking object (older models, e.g. claude-3-7-sonnet).
-        //   An explicit reasoning budget unambiguously selects the extended-thinking API.
-        //   effort (which may arrive from embedded defaults) is ignored in this branch.
+        // • enabled + max_tokens → thinking object (older models, e.g.
+        // claude-3-7-sonnet).   An explicit reasoning budget unambiguously
+        // selects the extended-thinking API.   effort (which may arrive from
+        // embedded defaults) is ignored in this branch.
         //
         // • enabled + effort, no max_tokens → output_config.effort (newer models, e.g.
-        //   claude-opus-4-6).  No token budget means the caller chose the effort-based API.
+        //   claude-opus-4-6).  No token budget means the caller chose the effort-based
+        // API.
         //
         // • enabled only (no effort, no max_tokens) → thinking with a default budget.
         let (thinking, output_config) = if let Some(reasoning) = request.reasoning {
@@ -134,10 +136,7 @@ impl TryFrom<forge_domain::Context> for Request {
                 } else {
                     // Enabled-only → thinking with default budget.
                     (
-                        Some(Thinking {
-                            r#type: ThinkingType::Enabled,
-                            budget_tokens: 10000,
-                        }),
+                        Some(Thinking { r#type: ThinkingType::Enabled, budget_tokens: 10000 }),
                         None,
                     )
                 }
@@ -596,7 +595,10 @@ mod tests {
 
         let actual = Request::try_from(fixture).unwrap();
 
-        assert_eq!(actual.output_config, Some(OutputConfig { effort: "low".to_string() }));
+        assert_eq!(
+            actual.output_config,
+            Some(OutputConfig { effort: "low".to_string() })
+        );
         assert_eq!(actual.thinking, None);
     }
 
