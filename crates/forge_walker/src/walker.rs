@@ -562,9 +562,10 @@ mod tests {
             .await
             .unwrap();
 
-        let mut files: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
-        files.sort();
-        assert_eq!(files, &["frontend/src/main.ts", "src/main.rs"][..], "should respect nested .gitignore files");
+        let mut actual: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
+        actual.sort();
+        let expected = vec!["frontend/src/main.ts", "src/main.rs"];
+        assert_eq!(actual, expected, "should respect nested .gitignore files");
     }
 
     #[tokio::test]
@@ -577,15 +578,11 @@ mod tests {
         std::fs::write(git_dir.join("config"), "[core]\n").unwrap();
         std::fs::write(git_dir.join("HEAD"), "ref: refs/heads/main\n").unwrap();
 
-        // Root and nested .gitignore files
         fixture.add_file(".gitignore", "*.log\n").unwrap();
         fixture.add_file("frontend/.gitignore", "node_modules/\n").unwrap();
 
-        // Files to exclude
         fixture.add_file("debug.log", "").unwrap();
         fixture.add_file("frontend/node_modules/lib/index.js", "").unwrap();
-        
-        // Files to include
         fixture.add_file("src/main.rs", "").unwrap();
         fixture.add_file("frontend/src/main.ts", "").unwrap();
 
@@ -595,8 +592,9 @@ mod tests {
             .await
             .unwrap();
 
-        let mut files: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
-        files.sort();
-        assert_eq!(files, &["frontend/src/main.ts", "src/main.rs"][..], "should respect nested .gitignore in git repos");
+        let mut actual: Vec<_> = actual.iter().filter(|f| !f.is_dir()).map(|f| f.path.as_str()).collect();
+        actual.sort();
+        let expected = vec!["frontend/src/main.ts", "src/main.rs"];
+        assert_eq!(actual, expected, "should respect nested .gitignore in git repos");
     }
 }
