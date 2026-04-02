@@ -44,8 +44,9 @@ Then inspect `.forge/forge.request.json` for the expected fields.
 | `open_router`    | `moonshotai/kimi-k2`         | `effort: high`                                    | `reasoning.effort`                |
 | `open_router`    | `minimax/minimax-m2`         | `max_tokens: 4000`                                | `reasoning.max_tokens`            |
 | `open_router`    | `minimax/minimax-m2`         | `effort: high`                                    | `reasoning.effort`                |
-| `anthropic`      | `claude-opus-4-6`            | `effort: low\|medium\|high\|max`                  | `output_config.effort`            |
-| `anthropic`      | `claude-3-7-sonnet-20250219` | `enabled: true` + `max_tokens: 8000`              | `thinking.type` + `budget_tokens` |
+| `anthropic`      | `claude-opus-4-6`            | `effort: low\|medium\|high\|max`                  | `thinking.type: "adaptive"` + `output_config.effort` |
+| `anthropic`      | `claude-sonnet-4-6`          | `effort: low\|medium\|high`                       | `thinking.type: "adaptive"` + `output_config.effort` |
+| `anthropic`      | `claude-3-7-sonnet-20250219` | `enabled: true` + `max_tokens: 8000`              | `thinking.type: "enabled"` + `budget_tokens`         |
 | `github_copilot` | `o4-mini`                    | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning_effort` (top-level)    |
 | `codex`          | `gpt-5.1-codex`              | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning.effort` + `.summary`   |
 | `codex`          | `gpt-5.1-codex`              | `effort: medium` + `exclude: true`                | `reasoning.summary = "concise"`   |
@@ -57,5 +58,6 @@ Tests for unconfigured providers are skipped automatically. Invalid-effort tests
 
 - [OpenAI Reasoning guide](https://developers.openai.com/api/docs/guides/reasoning)
 - [OpenAI Chat Completions API reference](https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create)
-- [Anthropic Extended Thinking](https://platform.claude.com/docs/en/build-with-claude/effort)
+- [Anthropic Adaptive Thinking](https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking)
+- [Anthropic Extended Thinking](https://platform.claude.com/docs/en/build-with-claude/extended-thinking)
 - [OpenRouter Reasoning Tokens](https://openrouter.ai/docs/guides/best-practices/reasoning-tokens)

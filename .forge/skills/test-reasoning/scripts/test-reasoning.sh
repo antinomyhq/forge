@@ -278,9 +278,11 @@ next_result_file
 ) > "$CURRENT_RF" &
 
 # ─── Anthropic · claude-opus-4-6 — effort levels ─────────────────────────────
-# Newer models use output_config.effort instead of the thinking object.
+# Newer models use output_config.effort alongside thinking.type="adaptive".
+# The thinking block with type="adaptive" tells Claude to decide dynamically
+# when and how much to use extended thinking; output_config.effort guides depth.
 # Valid effort values: low · medium · high · max  (max is opus-4-6 only)
-# Ref: https://platform.claude.com/docs/en/build-with-claude/effort
+# Ref: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
 
 for effort in low medium high max; do
     next_result_file
@@ -288,8 +290,27 @@ for effort in low medium high max; do
         log_header "Anthropic · claude-opus-4-6 · effort: $effort"
         OUT="$WORK_DIR/anthropic-opus46-effort-$effort.json"
         if run_test "$OUT" anthropic "claude-opus-4-6" "FORGE_REASONING__EFFORT=$effort"; then
-            assert_field "$OUT" "output_config.effort" "\"$effort\"" "anthropic/opus4.6"
-            assert_field "$OUT" "thinking"             "null"        "anthropic/opus4.6"
+            assert_field "$OUT" "output_config.effort" "\"$effort\""   "anthropic/opus4.6"
+            assert_field "$OUT" "thinking.type"        '"adaptive"'    "anthropic/opus4.6"
+        else
+            log_skip "anthropic not configured — skipping"
+        fi
+    ) > "$CURRENT_RF" &
+done
+
+# ─── Anthropic · claude-sonnet-4-6 — adaptive thinking ──────────────────────
+# claude-sonnet-4-6 supports adaptive thinking just like claude-opus-4-6.
+# The request must include thinking.type="adaptive" alongside output_config.effort.
+# Ref: https://platform.claude.com/docs/en/build-with-claude/adaptive-thinking
+
+for effort in low medium high; do
+    next_result_file
+    (
+        log_header "Anthropic · claude-sonnet-4-6 · effort: $effort"
+        OUT="$WORK_DIR/anthropic-sonnet46-effort-$effort.json"
+        if run_test "$OUT" anthropic "claude-sonnet-4-6" "FORGE_REASONING__EFFORT=$effort"; then
+            assert_field "$OUT" "output_config.effort" "\"$effort\""   "anthropic/sonnet4.6"
+            assert_field "$OUT" "thinking.type"        '"adaptive"'    "anthropic/sonnet4.6"
         else
             log_skip "anthropic not configured — skipping"
         fi
