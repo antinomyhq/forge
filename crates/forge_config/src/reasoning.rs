@@ -55,4 +55,3 @@ pub enum Effort {
     /// Maximum reasoning effort; only available on select Anthropic models.
     Max,
 }
-

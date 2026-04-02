@@ -150,8 +150,9 @@ impl TryFrom<forge_domain::Context> for Request {
                         forge_domain::Effort::High => OutputEffort::High,
                         forge_domain::Effort::Max => OutputEffort::Max,
                         // Map unsupported variants to the nearest Anthropic-valid effort.
-                        forge_domain::Effort::None
-                        | forge_domain::Effort::Minimal => OutputEffort::Low,
+                        forge_domain::Effort::None | forge_domain::Effort::Minimal => {
+                            OutputEffort::Low
+                        }
                         forge_domain::Effort::Medium => OutputEffort::Medium,
                         forge_domain::Effort::XHigh => OutputEffort::Max,
                     };

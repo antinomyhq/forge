@@ -235,4 +235,3 @@ impl From<Agent> for ToolDefinition {
         }
     }
 }
-
