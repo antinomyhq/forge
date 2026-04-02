@@ -17,9 +17,11 @@ mod inquire;
 mod kv_storage;
 mod mcp_client;
 mod mcp_server;
+pub mod migration;
 mod walker;
 
 pub use console::StdConsoleWriter;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;
+pub use migration::Migration;

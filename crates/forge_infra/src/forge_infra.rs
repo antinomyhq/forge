@@ -60,6 +60,9 @@ impl ForgeInfra {
         let environment_service = Arc::new(ForgeEnvironmentInfra::new(restricted, cwd));
         let env = environment_service.get_environment();
 
+        // Capture base_path before env is partially moved into services.
+        let base_path = env.base_path.clone();
+
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
         let file_read_service = Arc::new(ForgeFileReadService::new());
@@ -69,7 +72,7 @@ impl ForgeInfra {
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
-        Self {
+        let infra = Self {
             file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
@@ -88,7 +91,20 @@ impl ForgeInfra {
             http_service,
             grpc_client,
             output_printer,
-        }
+        };
+
+        // Trigger the one-time forge directory migration asynchronously.
+        // This is fire-and-forget: failures are logged as warnings and do not
+        // prevent the application from starting.
+        tokio::spawn(async move {
+            use crate::migration::Migration;
+            let migration = crate::migration::ForgeDirMigration::new(base_path);
+            if let Err(e) = migration.run().await {
+                tracing::warn!("Forge dir migration failed: {}", e);
+            }
+        });
+
+        infra
     }
 }
 

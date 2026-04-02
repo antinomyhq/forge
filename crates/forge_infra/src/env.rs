@@ -57,11 +57,13 @@ impl ForgeEnvironmentInfra {
             pid: std::process::id(),
             cwd,
             shell: self.get_shell_path(),
-            // Resolve base_path: FORGE_FOLDER_PATH env var takes priority, then default to ~/forge
+            // Resolve base_path: FORGE_FOLDER_PATH env var takes priority,
+            // otherwise use the platform config directory (e.g.
+            // ~/Library/Application Support/forge on macOS).
             base_path: parse_env::<String>("FORGE_FOLDER_PATH")
                 .map(PathBuf::from)
                 .unwrap_or_else(|| {
-                    dirs::home_dir()
+                    dirs::config_dir()
                         .map(|a| a.join("forge"))
                         .unwrap_or_else(|| PathBuf::from(".").join("forge"))
                 }),
