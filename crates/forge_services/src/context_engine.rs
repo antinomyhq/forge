@@ -76,16 +76,17 @@ impl<
         // base, even when `path` is a subdirectory of an ancestor workspace.
         let workspace_root = PathBuf::from(&workspace.working_dir);
 
-        WorkspaceSyncEngine::new(Arc::clone(&self.infra), Arc::clone(&self.discovery))
-            .run(
-                workspace_root,
-                workspace_id,
-                user_id,
-                token,
-                batch_size,
-                emit,
-            )
-            .await
+        WorkspaceSyncEngine::new(
+            Arc::clone(&self.infra),
+            Arc::clone(&self.discovery),
+            workspace_root,
+            workspace_id,
+            user_id,
+            token,
+            batch_size,
+        )
+        .run(emit)
+        .await
     }
 
     /// Gets the ForgeCode services credential and extracts workspace auth
@@ -360,15 +361,17 @@ impl<
 
         let batch_size = self.infra.get_config().max_file_read_batch_size;
 
-        WorkspaceSyncEngine::new(Arc::clone(&self.infra), Arc::clone(&self.discovery))
-            .compute_status(
-                canonical_path,
-                workspace.workspace_id,
-                user_id,
-                token,
-                batch_size,
-            )
-            .await
+        WorkspaceSyncEngine::new(
+            Arc::clone(&self.infra),
+            Arc::clone(&self.discovery),
+            canonical_path,
+            workspace.workspace_id,
+            user_id,
+            token,
+            batch_size,
+        )
+        .compute_status()
+        .await
     }
 
     async fn is_authenticated(&self) -> Result<bool> {

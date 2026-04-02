@@ -1,10 +1,10 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{FileReaderInfra, SyncProgressCounter, WorkspaceStatus, compute_hash};
 use forge_domain::{
-    FileHash, SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository,
+    ApiKey, FileHash, SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository,
 };
 use futures::stream::{Stream, StreamExt};
 use tracing::{info, warn};
@@ -52,13 +52,26 @@ pub(crate) fn extract_failed_statuses<T>(results: &[Result<T>]) -> Vec<forge_dom
 pub(crate) struct WorkspaceSyncEngine<F, D> {
     infra: Arc<F>,
     discovery: Arc<D>,
+    workspace_root: PathBuf,
+    workspace_id: WorkspaceId,
+    user_id: UserId,
+    token: ApiKey,
+    batch_size: usize,
 }
 
 impl<F, D> WorkspaceSyncEngine<F, D> {
-    /// Creates a new workspace syncer with the provided infrastructure and
-    /// file-discovery strategy.
-    pub(crate) fn new(infra: Arc<F>, discovery: Arc<D>) -> Self {
-        Self { infra, discovery }
+    /// Creates a new workspace sync engine with the provided infrastructure,
+    /// file-discovery strategy, and workspace context shared by all operations.
+    pub(crate) fn new(
+        infra: Arc<F>,
+        discovery: Arc<D>,
+        workspace_root: PathBuf,
+        workspace_id: WorkspaceId,
+        user_id: UserId,
+        token: ApiKey,
+        batch_size: usize,
+    ) -> Self {
+        Self { infra, discovery, workspace_root, workspace_id, user_id, token, batch_size }
     }
 }
 
@@ -71,22 +84,14 @@ impl<
     ///
     /// Reads local file hashes, compares them against remote, then deletes
     /// stale files and uploads new or modified ones.
-    pub(crate) async fn run<E, Fut>(
-        &self,
-        workspace_root: PathBuf,
-        workspace_id: WorkspaceId,
-        user_id: UserId,
-        token: forge_domain::ApiKey,
-        batch_size: usize,
-        emit: E,
-    ) -> Result<()>
+    pub(crate) async fn run<E, Fut>(&self, emit: E) -> Result<()>
     where
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
         emit(SyncProgress::DiscoveringFiles {
-            path: workspace_root.clone(),
-            workspace_id: workspace_id.clone(),
+            path: self.workspace_root.clone(),
+            workspace_id: self.workspace_id.clone(),
         })
         .await;
 
@@ -94,7 +99,7 @@ impl<
         // immediately after hashing so peak memory is bounded to one batch
         // of file content rather than the entire workspace.
         let results: Vec<Result<FileHash>> = self
-            .read_hashes(batch_size, &workspace_root, &workspace_id)
+            .read_hashes()
             .collect()
             .await;
         let failed_statuses = extract_failed_statuses(&results);
@@ -103,9 +108,7 @@ impl<
         let total_file_count = local_hashes.len() + failed_statuses.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        let remote_files = self
-            .fetch_remote_hashes(&user_id, &workspace_id, &token)
-            .await?;
+        let remote_files = self.fetch_remote_hashes().await?;
 
         emit(SyncProgress::ComparingFiles {
             remote_files: remote_files.len(),
@@ -113,7 +116,7 @@ impl<
         })
         .await;
 
-        let plan = WorkspaceStatus::new(workspace_root.clone(), remote_files);
+        let plan = WorkspaceStatus::new(self.workspace_root.clone(), remote_files);
         let mut statuses = plan.file_statuses(local_hashes.clone());
         statuses.extend(failed_statuses);
 
@@ -152,24 +155,20 @@ impl<
         emit(counter.sync_progress()).await;
 
         // Delete all files in a single batched call
-        match self
-            .delete_files(&user_id, &workspace_id, &token, sync_paths.delete.clone())
-            .await
-        {
+        match self.delete_files(sync_paths.delete.clone()).await {
             Ok(deleted_count) => {
                 counter.complete(deleted_count);
                 emit(counter.sync_progress()).await;
             }
             Err(e) => {
-                warn!(workspace_id = %workspace_id, error = ?e, "Failed to delete files during sync");
+                warn!(workspace_id = %self.workspace_id, error = ?e, "Failed to delete files during sync");
                 failed_files += sync_paths.delete.len();
             }
         }
 
         // Pass 2: upload files — each file's content is read on-demand
         // immediately before upload so only one batch occupies memory at a time.
-        let mut upload_stream =
-            self.upload_files(&user_id, &workspace_id, &token, sync_paths.upload, batch_size);
+        let mut upload_stream = self.upload_files(sync_paths.upload);
 
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
@@ -179,7 +178,7 @@ impl<
                     emit(counter.sync_progress()).await;
                 }
                 Err(e) => {
-                    warn!(workspace_id = %workspace_id, error = ?e, "Failed to upload file during sync");
+                    warn!(workspace_id = %self.workspace_id, error = ?e, "Failed to upload file during sync");
                     failed_files += 1;
                     // Continue processing remaining uploads
                 }
@@ -187,7 +186,7 @@ impl<
         }
 
         info!(
-            workspace_id = %workspace_id,
+            workspace_id = %self.workspace_id,
             total_files = total_file_count,
             "Sync completed successfully"
         );
@@ -211,58 +210,37 @@ impl<
     ///
     /// Reads local file hashes and compares them against the remote server to
     /// produce a per-file status report.
-    pub(crate) async fn compute_status(
-        &self,
-        canonical_path: PathBuf,
-        workspace_id: WorkspaceId,
-        user_id: UserId,
-        token: forge_domain::ApiKey,
-        batch_size: usize,
-    ) -> Result<Vec<forge_domain::FileStatus>> {
-        let results: Vec<Result<FileHash>> = self
-            .read_hashes(batch_size, &canonical_path, &workspace_id)
-            .collect()
-            .await;
+    pub(crate) async fn compute_status(&self) -> Result<Vec<forge_domain::FileStatus>> {
+        let results: Vec<Result<FileHash>> = self.read_hashes().collect().await;
 
         let mut failed_statuses = extract_failed_statuses(&results);
         let local_hashes: Vec<FileHash> = results.into_iter().flatten().collect();
 
-        let remote_files = self
-            .fetch_remote_hashes(&user_id, &workspace_id, &token)
-            .await?;
+        let remote_files = self.fetch_remote_hashes().await?;
 
-        let plan = WorkspaceStatus::new(canonical_path, remote_files);
+        let plan = WorkspaceStatus::new(self.workspace_root.clone(), remote_files);
         let mut statuses = plan.file_statuses(local_hashes);
         statuses.append(&mut failed_statuses);
         Ok(statuses)
     }
 
     /// Fetches remote file hashes from the server.
-    async fn fetch_remote_hashes(
-        &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        auth_token: &forge_domain::ApiKey,
-    ) -> anyhow::Result<Vec<FileHash>> {
-        info!(workspace_id = %workspace_id, "Fetching existing file hashes from server to detect changes...");
-        let workspace_files =
-            forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
-
+    async fn fetch_remote_hashes(&self) -> anyhow::Result<Vec<FileHash>> {
+        info!(workspace_id = %self.workspace_id, "Fetching existing file hashes from server to detect changes...");
+        let workspace_files = forge_domain::CodeBase::new(
+            self.user_id.clone(),
+            self.workspace_id.clone(),
+            (),
+        );
         self.infra
-            .list_workspace_files(&workspace_files, auth_token)
+            .list_workspace_files(&workspace_files, &self.token)
             .await
     }
 
     /// Deletes files from the workspace.
     ///
     /// Returns the number of files that were successfully deleted.
-    async fn delete_files(
-        &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        token: &forge_domain::ApiKey,
-        files_to_delete: Vec<PathBuf>,
-    ) -> Result<usize> {
+    async fn delete_files(&self, files_to_delete: Vec<PathBuf>) -> Result<usize> {
         if files_to_delete.is_empty() {
             return Ok(0);
         }
@@ -272,14 +250,18 @@ impl<
             .map(|p| p.to_string_lossy().into_owned())
             .collect();
 
-        let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
+        let deletion = forge_domain::CodeBase::new(
+            self.user_id.clone(),
+            self.workspace_id.clone(),
+            paths,
+        );
         self.infra
-            .delete_files(&deletion, token)
+            .delete_files(&deletion, &self.token)
             .await
             .context("Failed to delete files")?;
 
         for path in &files_to_delete {
-            info!(workspace_id = %workspace_id, path = %path.display(), "File deleted successfully");
+            info!(workspace_id = %self.workspace_id, path = %path.display(), "File deleted successfully");
         }
 
         Ok(files_to_delete.len())
@@ -294,16 +276,13 @@ impl<
     /// stream and tracking progress.
     fn upload_files(
         &self,
-        user_id: &UserId,
-        workspace_id: &WorkspaceId,
-        token: &forge_domain::ApiKey,
         paths: Vec<PathBuf>,
-        batch_size: usize,
     ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send {
-        let user_id = user_id.clone();
-        let workspace_id = workspace_id.clone();
-        let token = token.clone();
+        let user_id = self.user_id.clone();
+        let workspace_id = self.workspace_id.clone();
+        let token = self.token.clone();
         let infra = self.infra.clone();
+        let batch_size = self.batch_size;
 
         futures::stream::iter(paths)
             .map(move |file_path| {
@@ -344,16 +323,12 @@ impl<
     /// Each file is read in batches for concurrency, but the content is
     /// discarded immediately after the hash is computed so that only one
     /// batch of file content occupies memory at a time.
-    fn read_hashes(
-        &self,
-        batch_size: usize,
-        dir_path: &Path,
-        workspace_id: &WorkspaceId,
-    ) -> impl Stream<Item = Result<FileHash>> + Send {
-        let dir_path = dir_path.to_path_buf();
+    fn read_hashes(&self) -> impl Stream<Item = Result<FileHash>> + Send {
+        let dir_path = self.workspace_root.clone();
         let infra = self.infra.clone();
         let discovery = self.discovery.clone();
-        let workspace_id = workspace_id.clone();
+        let workspace_id = self.workspace_id.clone();
+        let batch_size = self.batch_size;
 
         async_stream::stream! {
             let file_paths: Vec<PathBuf> = match discover_sync_file_paths(
