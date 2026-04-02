@@ -533,7 +533,10 @@ mod tests {
             vivgrid_config.response_type,
             Some(ProviderResponse::OpenAIResponses)
         );
-        assert_eq!(vivgrid_config.url.as_str(), "https://api.vivgrid.com/v1/responses");
+        assert_eq!(
+            vivgrid_config.url.as_str(),
+            "https://api.vivgrid.com/v1/responses"
+        );
     }
 
     #[test]
