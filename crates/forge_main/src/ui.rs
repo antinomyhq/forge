@@ -531,8 +531,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
-                // Make sure to init model
-                self.on_new().await?;
+                // Only initialize state (agent/provider/model resolution).
+                // Avoid on_new() which also spawns fire-and-forget background
+                // tasks via hydrate_caches() that race with process exit and
+                // cause "JoinHandle polled after completion" panics.
+                self.init_state(false).await?;
 
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
