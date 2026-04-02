@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
 
 use forge_app::CommandInfra;
 use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
@@ -232,7 +231,6 @@ impl CommandInfra for ForgeCommandExecutorService {
         command: String,
         working_dir: PathBuf,
         stdin_input: String,
-        timeout: Duration,
         env_vars: HashMap<String, String>,
     ) -> anyhow::Result<CommandOutput> {
         let mut prepared_command = self.prepare_command(&command, &working_dir, None);
@@ -256,31 +254,13 @@ impl CommandInfra for ForgeCommandExecutorService {
             });
         }
 
-        // Wait for the command with timeout
-        let result = tokio::time::timeout(timeout, child.wait_with_output()).await;
-
-        match result {
-            Ok(Ok(output)) => Ok(CommandOutput {
-                command,
-                exit_code: output.status.code(),
-                stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
-                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
-            }),
-            Ok(Err(e)) => Err(e.into()),
-            Err(_) => {
-                tracing::warn!(
-                    command = command,
-                    timeout_ms = timeout.as_millis() as u64,
-                    "Hook command timed out"
-                );
-                Ok(CommandOutput {
-                    command,
-                    exit_code: None,
-                    stdout: String::new(),
-                    stderr: format!("Hook command timed out after {}ms", timeout.as_millis()),
-                })
-            }
-        }
+        let output = child.wait_with_output().await?;
+        Ok(CommandOutput {
+            command,
+            exit_code: output.status.code(),
+            stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        })
     }
 }
 

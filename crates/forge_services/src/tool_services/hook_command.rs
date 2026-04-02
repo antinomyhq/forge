@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
 
 use forge_app::{CommandInfra, HookCommandService};
 use forge_domain::CommandOutput;
@@ -10,8 +9,8 @@ use forge_domain::CommandOutput;
 /// satisfies the [`HookCommandService`] contract.
 ///
 /// By delegating to the underlying infra this service avoids duplicating
-/// process-spawning, stdin-piping, and timeout logic; those concerns live
-/// entirely inside the `CommandInfra` implementation.
+/// process-spawning and stdin-piping logic; those concerns live entirely inside
+/// the `CommandInfra` implementation.
 #[derive(Clone)]
 pub struct ForgeHookCommandService<I>(Arc<I>);
 
@@ -29,11 +28,10 @@ impl<I: CommandInfra> HookCommandService for ForgeHookCommandService<I> {
         command: String,
         working_dir: PathBuf,
         stdin_input: String,
-        timeout: Duration,
         env_vars: HashMap<String, String>,
     ) -> anyhow::Result<CommandOutput> {
         self.0
-            .execute_command_with_input(command, working_dir, stdin_input, timeout, env_vars)
+            .execute_command_with_input(command, working_dir, stdin_input, env_vars)
             .await
     }
 }

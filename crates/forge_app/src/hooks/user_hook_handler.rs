@@ -594,7 +594,6 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
 mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
-    use std::time::Duration;
 
     use forge_domain::{
         CommandOutput, HookExecutionResult, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
@@ -615,7 +614,6 @@ mod tests {
             command: String,
             _working_dir: PathBuf,
             _stdin_input: String,
-            _timeout: Duration,
             _env_vars: HashMap<String, String>,
         ) -> anyhow::Result<CommandOutput> {
             Ok(CommandOutput {

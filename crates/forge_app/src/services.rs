@@ -561,17 +561,15 @@ pub trait ProviderAuthService: Send + Sync {
 /// depends on a service rather than infrastructure directly.
 #[async_trait::async_trait]
 pub trait HookCommandService: Send + Sync {
-    /// Executes a shell command with stdin input and a timeout.
+    /// Executes a shell command with stdin input.
     ///
-    /// Pipes `stdin_input` to the process stdin and waits up to `timeout`.
-    /// Returns `CommandOutput` with `exit_code: None` and a timeout message in
-    /// `stderr` when the timeout expires.
+    /// Pipes `stdin_input` to the process stdin and captures stdout/stderr.
+    /// Timeout enforcement is handled by the caller.
     ///
     /// # Arguments
     /// * `command` - Shell command string to execute.
     /// * `working_dir` - Working directory for the command.
     /// * `stdin_input` - Data to pipe to the process stdin.
-    /// * `timeout` - Maximum duration to wait for the command.
     /// * `env_vars` - Additional environment variables as key-value pairs.
     ///
     /// # Errors
@@ -581,7 +579,6 @@ pub trait HookCommandService: Send + Sync {
         command: String,
         working_dir: PathBuf,
         stdin_input: String,
-        timeout: Duration,
         env_vars: HashMap<String, String>,
     ) -> anyhow::Result<forge_domain::CommandOutput>;
 }

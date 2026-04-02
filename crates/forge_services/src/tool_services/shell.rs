@@ -114,7 +114,6 @@ mod tests {
             command: String,
             _working_dir: PathBuf,
             _stdin_input: String,
-            _timeout: std::time::Duration,
             _env_vars: std::collections::HashMap<String, String>,
         ) -> anyhow::Result<forge_domain::CommandOutput> {
             Ok(forge_domain::CommandOutput {

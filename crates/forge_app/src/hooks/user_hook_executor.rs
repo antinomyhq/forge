@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use forge_domain::HookExecutionResult;
+use forge_domain::{CommandOutput, HookExecutionResult};
 use tracing::debug;
 
 use crate::services::HookCommandService;
@@ -26,12 +26,14 @@ impl<S: HookCommandService> UserHookExecutor<S> {
     /// Executes a shell command, piping `input_json` to stdin and capturing
     /// stdout/stderr.
     ///
+    /// Applies `timeout_duration` by racing the service call against the
+    /// deadline. On timeout, returns a `HookExecutionResult` with
+    /// `exit_code: None` and a descriptive message in `stderr`.
+    ///
     /// # Arguments
     /// * `command` - The shell command string to execute.
     /// * `input_json` - JSON string to pipe to the command's stdin.
-    /// * `timeout` - per-hook timeout in milliseconds. Falls back to
-    ///   environment configuration. Uses the built-in default (10 min) when
-    ///   zero.
+    /// * `timeout_duration` - Maximum time to wait for the command.
     /// * `cwd` - Working directory for the command.
     /// * `env_vars` - Additional environment variables to set.
     ///
@@ -52,16 +54,37 @@ impl<S: HookCommandService> UserHookExecutor<S> {
             "Executing user hook command"
         );
 
-        let output = self
-            .0
-            .execute_command_with_input(
+        let result = tokio::time::timeout(
+            timeout_duration,
+            self.0.execute_command_with_input(
                 command.to_string(),
                 cwd.clone(),
                 input_json.to_string(),
-                timeout_duration,
                 env_vars.clone(),
-            )
-            .await?;
+            ),
+        )
+        .await;
+
+        let output = match result {
+            Ok(Ok(output)) => output,
+            Ok(Err(e)) => return Err(e),
+            Err(_) => {
+                tracing::warn!(
+                    command = command,
+                    timeout_ms = timeout_duration.as_millis() as u64,
+                    "Hook command timed out"
+                );
+                CommandOutput {
+                    command: command.to_string(),
+                    exit_code: None,
+                    stdout: String::new(),
+                    stderr: format!(
+                        "Hook command timed out after {}ms",
+                        timeout_duration.as_millis()
+                    ),
+                }
+            }
+        };
 
         debug!(
             command = command,
@@ -138,7 +161,6 @@ mod tests {
             command: String,
             _working_dir: PathBuf,
             _stdin_input: String,
-            _timeout: Duration,
             _env_vars: HashMap<String, String>,
         ) -> anyhow::Result<CommandOutput> {
             let mut out = self.result.clone();
