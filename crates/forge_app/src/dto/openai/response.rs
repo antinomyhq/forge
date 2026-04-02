@@ -80,6 +80,7 @@ pub struct ResponseUsage {
     pub total_tokens: usize,
     pub cost: Option<f64>,
     pub prompt_tokens_details: Option<PromptTokenDetails>,
+    pub completion_tokens_details: Option<CompletionTokenDetails>,
     pub cost_details: Option<CostDetails>,
 }
 
@@ -112,6 +113,11 @@ impl CostDetails {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PromptTokenDetails {
     pub cached_tokens: usize,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct CompletionTokenDetails {
+    pub reasoning_tokens: usize,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -225,9 +231,12 @@ impl From<ResponseUsage> for Usage {
             })
             .filter(is_non_zero_cost);
 
+        let derived_completion_tokens = usage.total_tokens.saturating_sub(usage.prompt_tokens);
+        let completion_tokens = derived_completion_tokens.max(usage.completion_tokens);
+
         Usage {
             prompt_tokens: TokenCount::Actual(usage.prompt_tokens),
-            completion_tokens: TokenCount::Actual(usage.completion_tokens),
+            completion_tokens: TokenCount::Actual(completion_tokens),
             total_tokens: TokenCount::Actual(usage.total_tokens),
             cached_tokens: usage
                 .prompt_tokens_details
@@ -808,6 +817,7 @@ mod tests {
             total_tokens: 150,
             cost: Some(0.001),
             prompt_tokens_details: None,
+            completion_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.005),
                 upstream_inference_prompt_cost: Some(0.003),
@@ -825,6 +835,7 @@ mod tests {
             total_tokens: 150,
             cost: None,
             prompt_tokens_details: None,
+            completion_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.005),
                 upstream_inference_prompt_cost: Some(0.003),
@@ -842,6 +853,7 @@ mod tests {
             total_tokens: 150,
             cost: None,
             prompt_tokens_details: None,
+            completion_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: None,
                 upstream_inference_prompt_cost: Some(0.003),
@@ -860,6 +872,7 @@ mod tests {
             total_tokens: 150,
             cost: None,
             prompt_tokens_details: None,
+            completion_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.0),
                 upstream_inference_prompt_cost: Some(0.003),
@@ -879,6 +892,7 @@ mod tests {
             total_tokens: 150,
             cost: Some(0.0),
             prompt_tokens_details: None,
+            completion_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.005),
                 upstream_inference_prompt_cost: None,
@@ -898,6 +912,7 @@ mod tests {
             total_tokens: 150,
             cost: Some(1e-10),
             prompt_tokens_details: None,
+            completion_tokens_details: None,
             cost_details: Some(CostDetails {
                 upstream_inference_cost: Some(0.005),
                 upstream_inference_prompt_cost: None,
@@ -907,6 +922,54 @@ mod tests {
 
         let actual: Usage = fixture.into();
         assert_eq!(actual.cost, Some(0.005));
+    }
+
+    #[test]
+    fn test_response_usage_prefers_total_minus_prompt_for_reasoning_models() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 50,
+            total_tokens: 180,
+            cost: None,
+            prompt_tokens_details: None,
+            completion_tokens_details: Some(CompletionTokenDetails { reasoning_tokens: 30 }),
+            cost_details: None,
+        };
+
+        let actual: Usage = fixture.into();
+        let expected = Usage {
+            prompt_tokens: TokenCount::Actual(100),
+            completion_tokens: TokenCount::Actual(80),
+            total_tokens: TokenCount::Actual(180),
+            cached_tokens: TokenCount::Actual(0),
+            cost: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_response_usage_does_not_double_count_reasoning_subset() {
+        let fixture = ResponseUsage {
+            prompt_tokens: 100,
+            completion_tokens: 80,
+            total_tokens: 180,
+            cost: None,
+            prompt_tokens_details: None,
+            completion_tokens_details: Some(CompletionTokenDetails { reasoning_tokens: 30 }),
+            cost_details: None,
+        };
+
+        let actual: Usage = fixture.into();
+        let expected = Usage {
+            prompt_tokens: TokenCount::Actual(100),
+            completion_tokens: TokenCount::Actual(80),
+            total_tokens: TokenCount::Actual(180),
+            cached_tokens: TokenCount::Actual(0),
+            cost: None,
+        };
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
