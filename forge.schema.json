@@ -215,6 +215,17 @@
       "default": 0,
       "minimum": 0
     },
+    "reasoning": {
+      "description": "Reasoning configuration applied to all agents; controls effort level,\ntoken budget, and visibility of the model's thinking process.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReasoningConfig"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "restricted": {
       "description": "Whether restricted mode is active; when enabled, tool execution requires\nexplicit permission grants.",
       "type": "boolean",
@@ -404,6 +415,46 @@
         }
       }
     },
+    "Effort": {
+      "description": "Effort level for model reasoning.",
+      "oneOf": [
+        {
+          "description": "No reasoning; skips the thinking step entirely.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "Minimal reasoning; fastest and cheapest.",
+          "type": "string",
+          "const": "minimal"
+        },
+        {
+          "description": "Low reasoning effort.",
+          "type": "string",
+          "const": "low"
+        },
+        {
+          "description": "Medium reasoning effort; the default for most providers.",
+          "type": "string",
+          "const": "medium"
+        },
+        {
+          "description": "High reasoning effort.",
+          "type": "string",
+          "const": "high"
+        },
+        {
+          "description": "Extra-high reasoning effort (OpenAI / OpenRouter).",
+          "type": "string",
+          "const": "xhigh"
+        },
+        {
+          "description": "Maximum reasoning effort; only available on select Anthropic models.",
+          "type": "string",
+          "const": "max"
+        }
+      ]
+    },
     "HttpConfig": {
       "description": "HTTP client configuration.",
       "type": "object",
@@ -530,6 +581,46 @@
             "string",
             "null"
           ]
+        }
+      }
+    },
+    "ReasoningConfig": {
+      "description": "Controls the reasoning behaviour of a model, including effort level, token\nbudget, and visibility of the thinking process.",
+      "type": "object",
+      "properties": {
+        "effort": {
+          "description": "Controls the effort level of the model's reasoning.\nSupported by openrouter and forge provider.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effort"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "enabled": {
+          "description": "Enables reasoning at the \"medium\" effort level with no exclusions.\nSupported by openrouter, anthropic, and forge provider.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "exclude": {
+          "description": "When true, the model thinks deeply but the reasoning is hidden from the\ncaller. Supported by openrouter and forge provider.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_tokens": {
+          "description": "Controls how many tokens the model can spend thinking.\nShould be greater than 1024 but less than the overall max_tokens.\nSupported by openrouter, anthropic, and forge provider.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0
         }
       }
     },

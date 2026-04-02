@@ -19,6 +19,7 @@ mod policy;
 mod provider_auth;
 mod provider_service;
 mod range;
+mod sync;
 mod template;
 mod tool_services;
 mod user_hook_config;

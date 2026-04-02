@@ -227,6 +227,12 @@ pub trait AppConfigService: Send + Sync {
     /// Sets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
+
+    /// Gets the current reasoning effort setting.
+    async fn get_reasoning_effort(&self) -> anyhow::Result<Option<forge_domain::Effort>>;
+
+    /// Sets the reasoning effort level applied to all agents.
+    async fn set_reasoning_effort(&self, effort: forge_domain::Effort) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1035,6 +1041,14 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
         self.config_service().set_suggest_config(config).await
+    }
+
+    async fn get_reasoning_effort(&self) -> anyhow::Result<Option<forge_domain::Effort>> {
+        self.config_service().get_reasoning_effort().await
+    }
+
+    async fn set_reasoning_effort(&self, effort: forge_domain::Effort) -> anyhow::Result<()> {
+        self.config_service().set_reasoning_effort(effort).await
     }
 }
 
