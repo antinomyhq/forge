@@ -1681,9 +1681,10 @@ mod tests {
             .iter()
             .find_map(|entry| {
                 if let ContextMessage::Text(msg) = &**entry
-                    && msg.role == Role::Assistant {
-                        return msg.reasoning_details.as_ref();
-                    }
+                    && msg.role == Role::Assistant
+                {
+                    return msg.reasoning_details.as_ref();
+                }
                 None
             })
             .expect("Assistant message should have reasoning_details");
