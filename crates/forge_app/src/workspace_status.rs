@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
-use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
+use forge_domain::{FileHash, FileStatus, SyncProgress, SyncStatus};
 
 /// Result of comparing local and server files
 ///
@@ -91,38 +91,26 @@ impl WorkspaceStatus {
             .collect()
     }
 
-    /// Returns the sync operations needed based on file statuses.
+    /// Returns the sync operation paths based on local file hashes.
+    ///
+    /// Unlike `get_operations`, this method only requires file hashes (not full
+    /// content) and returns path lists suitable for driving a two-pass sync
+    /// where content is read on-demand during upload.
     ///
     /// # Returns
     ///
-    /// A tuple of (files_to_delete, files_to_upload) where:
+    /// A tuple of (files_to_delete, paths_to_upload) where:
     /// - `files_to_delete`: Vector of absolute file paths to delete from remote
-    /// - `files_to_upload`: Vector of `FileNode`s to upload to remote
-    pub fn get_operations(&self, local_files: Vec<FileNode>) -> (Vec<String>, Vec<FileNode>) {
-        // Build a lookup map from absolute path to FileNode for resolving uploads.
-        let local_map: HashMap<String, FileNode> = local_files
-            .into_iter()
-            .map(|f| (absolutize(&self.base_dir, &f.file_path), f))
-            .collect();
-
-        let local_hashes: Vec<FileHash> = local_map
-            .keys()
-            .map(|abs_path| {
-                let hash = local_map[abs_path].hash.clone();
-                FileHash { path: abs_path.clone(), hash }
-            })
-            .collect();
-
+    /// - `paths_to_upload`: Vector of absolute local file paths to upload
+    pub fn get_sync_paths(&self, local_hashes: Vec<FileHash>) -> (Vec<String>, Vec<String>) {
         let statuses = self.file_statuses(local_hashes);
         let mut files_to_delete = Vec::new();
-        let mut files_to_upload = Vec::new();
+        let mut paths_to_upload = Vec::new();
 
         for status in statuses {
             match status.status {
                 SyncStatus::Modified | SyncStatus::New => {
-                    if let Some(node) = local_map.get(&status.path).cloned() {
-                        files_to_upload.push(node);
-                    }
+                    paths_to_upload.push(status.path);
                 }
                 SyncStatus::Deleted => {
                     files_to_delete.push(status.path);
@@ -133,7 +121,7 @@ impl WorkspaceStatus {
             }
         }
 
-        (files_to_delete, files_to_upload)
+        (files_to_delete, paths_to_upload)
     }
 }
 
