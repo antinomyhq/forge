@@ -2287,12 +2287,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Resolve API key: helper command takes precedence, then existing key,
         // then interactive prompt.
         let api_key_str = if let Some(helper_cmd) = api_key_helper {
-            // Execute the helper command and use its stdout as the API key
-            let output = std::process::Command::new("sh")
-                .arg("-c")
-                .arg(helper_cmd)
-                .output()
-                .with_context(|| format!("Failed to execute api-key-helper: {helper_cmd}"))?;
+            // Execute the helper command asynchronously and use its stdout as the API key.
+            // A 10-second timeout prevents forge from hanging if the helper blocks
+            // (e.g. unreachable vault, interactive prompt, etc.).
+            const HELPER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+            let output = tokio::time::timeout(
+                HELPER_TIMEOUT,
+                tokio::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(helper_cmd)
+                    .output(),
+            )
+            .await
+            .with_context(|| {
+                format!(
+                    "api-key-helper timed out after {}s: {helper_cmd}",
+                    HELPER_TIMEOUT.as_secs()
+                )
+            })?
+            .with_context(|| format!("Failed to execute api-key-helper: {helper_cmd}"))?;
 
             anyhow::ensure!(
                 output.status.success(),
