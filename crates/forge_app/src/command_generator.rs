@@ -32,8 +32,16 @@ where
         Self { services }
     }
 
-    /// Generates a shell command from a natural language prompt
-    pub async fn generate(&self, prompt: UserPrompt) -> Result<String> {
+    /// Generates a shell command from a natural language prompt.
+    ///
+    /// When `shell_context` is provided (from the zsh plugin's terminal context
+    /// capture), it is included in the user prompt so the LLM can reference
+    /// recent commands, exit codes, and terminal output.
+    pub async fn generate(
+        &self,
+        prompt: UserPrompt,
+        shell_context: Option<String>,
+    ) -> Result<String> {
         // Get system information for context
         let env = self.services.get_environment();
 
@@ -59,8 +67,15 @@ where
             }
         };
 
-        // Build user prompt with task and recent commands
-        let user_content = format!("<task>{}</task>", prompt.as_str());
+        // Build user prompt with task, optionally including terminal context
+        let user_content = match shell_context {
+            Some(ctx) => format!(
+                "<terminal_context>\n{}\n</terminal_context>\n\n<task>{}</task>",
+                ctx,
+                prompt.as_str()
+            ),
+            None => format!("<task>{}</task>", prompt.as_str()),
+        };
 
         // Create context with system and user prompts
         let ctx = self.create_context(rendered_system_prompt, user_content, &model);
@@ -288,7 +303,7 @@ mod tests {
         let generator = CommandGenerator::new(fixture.clone());
 
         let actual = generator
-            .generate(UserPrompt::from("list all files".to_string()))
+            .generate(UserPrompt::from("list all files".to_string()), None)
             .await
             .unwrap();
 
@@ -303,7 +318,7 @@ mod tests {
         let generator = CommandGenerator::new(fixture.clone());
 
         let actual = generator
-            .generate(UserPrompt::from("show current directory".to_string()))
+            .generate(UserPrompt::from("show current directory".to_string()), None)
             .await
             .unwrap();
 
@@ -318,7 +333,7 @@ mod tests {
         let generator = CommandGenerator::new(fixture);
 
         let actual = generator
-            .generate(UserPrompt::from("do something".to_string()))
+            .generate(UserPrompt::from("do something".to_string()), None)
             .await;
 
         assert!(actual.is_err());
