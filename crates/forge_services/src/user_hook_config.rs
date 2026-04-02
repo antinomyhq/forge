@@ -24,8 +24,8 @@ impl<F: FileInfoInfra + FileReaderInfra + EnvironmentInfra> ForgeUserHookConfigS
     /// Loads a single settings file and extracts hook configuration.
     ///
     /// Returns `Ok(None)` if the file does not exist or cannot be read.
-    /// Returns `Err` if the file exists but fails to deserialize, including the file path in the
-    /// error message.
+    /// Returns `Err` if the file exists but fails to deserialize, including the
+    /// file path in the error message.
     async fn load_file(&self, path: &Path) -> anyhow::Result<Option<UserHookConfig>> {
         if !self.0.exists(path).await? {
             return Ok(None);
