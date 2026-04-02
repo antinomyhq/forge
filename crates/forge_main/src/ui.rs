@@ -1348,14 +1348,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
+        let reasoning_effort = self
+            .api
+            .get_reasoning_effort()
+            .await
+            .ok()
+            .flatten()
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
         let info = Info::new()
             .add_title("CONFIGURATION")
-            .add_key_value("Default Model", model)
-            .add_key_value("Default Provider", provider)
-            .add_key_value("Commit Provider", commit_provider)
+            .add_key_value("Session Model", model)
+            .add_key_value("Session Provider", provider)
             .add_key_value("Commit Model", commit_model)
+            .add_key_value("Commit Provider", commit_provider)
+            .add_key_value("Suggest Model", suggest_model)
             .add_key_value("Suggest Provider", suggest_provider)
-            .add_key_value("Suggest Model", suggest_model);
+            .add_key_value("Reasoning Effort", reasoning_effort);
 
         if porcelain {
             self.writeln(
