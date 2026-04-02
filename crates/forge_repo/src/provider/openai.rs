@@ -120,8 +120,9 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         }
 
         // Add x-initiator header for GitHub Copilot to indicate user vs agent request.
-        // GitHub Copilot uses request-based quota, so only user-initiated requests
-        // count against the quota.
+        // GitHub Copilot uses request-based quota: only user prompts count as premium requests,
+        // autonomous actions (like tool calls) do not.
+        // See: https://docs.github.com/en/copilot/concepts/billing/copilot-requests
         // - User-initiated: last message is from User (new user input)
         // - Agent-initiated: last message is from Assistant or Tool (continuing
         //   conversation)
