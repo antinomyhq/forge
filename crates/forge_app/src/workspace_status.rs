@@ -96,24 +96,18 @@ impl WorkspaceStatus {
     /// Unlike `get_operations`, this method only requires file hashes (not full
     /// content) and returns path lists suitable for driving a two-pass sync
     /// where content is read on-demand during upload.
-    ///
-    /// # Returns
-    ///
-    /// A tuple of (files_to_delete, paths_to_upload) where:
-    /// - `files_to_delete`: Vector of absolute file paths to delete from remote
-    /// - `paths_to_upload`: Vector of absolute local file paths to upload
-    pub fn get_sync_paths(&self, local_hashes: Vec<FileHash>) -> (Vec<String>, Vec<String>) {
+    pub fn get_sync_paths(&self, local_hashes: Vec<FileHash>) -> SyncPaths {
         let statuses = self.file_statuses(local_hashes);
-        let mut files_to_delete = Vec::new();
-        let mut paths_to_upload = Vec::new();
+        let mut delete = Vec::new();
+        let mut upload = Vec::new();
 
         for status in statuses {
             match status.status {
                 SyncStatus::Modified | SyncStatus::New => {
-                    paths_to_upload.push(status.path);
+                    upload.push(PathBuf::from(status.path));
                 }
                 SyncStatus::Deleted => {
-                    files_to_delete.push(status.path);
+                    delete.push(PathBuf::from(status.path));
                 }
                 SyncStatus::InSync | SyncStatus::Failed => {
                     // No action needed
@@ -121,8 +115,18 @@ impl WorkspaceStatus {
             }
         }
 
-        (files_to_delete, paths_to_upload)
+        SyncPaths { delete, upload }
     }
+}
+
+/// The set of file-system operations to perform during a workspace sync.
+///
+/// All paths are absolute and resolved against the workspace root.
+pub struct SyncPaths {
+    /// Absolute paths to delete from the remote workspace.
+    pub delete: Vec<PathBuf>,
+    /// Absolute local file paths to upload to the remote workspace.
+    pub upload: Vec<PathBuf>,
 }
 
 /// Joins `base_dir` with `path` if `path` is relative, returning an absolute
