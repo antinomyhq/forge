@@ -194,6 +194,9 @@ fn wrap_pasted_text(pasted: &str) -> String {
 /// Strips surrounding single or double quotes that some terminals add
 /// when dragging files with spaces in their names.
 fn strip_surrounding_quotes(s: &str) -> &str {
+    if s.len() < 2 {
+        return s;
+    }
     if (s.starts_with('\'') && s.ends_with('\''))
         || (s.starts_with('"') && s.ends_with('"'))
     {
@@ -381,6 +384,13 @@ mod tests {
     fn test_strip_surrounding_quotes_none() {
         let actual = strip_surrounding_quotes("/some/path");
         let expected = "/some/path";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_strip_surrounding_quotes_single_char() {
+        let actual = strip_surrounding_quotes("'");
+        let expected = "'";
         assert_eq!(actual, expected);
     }
 }
