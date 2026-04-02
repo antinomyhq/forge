@@ -1640,14 +1640,15 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-
-    /// Regression test: when both `reasoning` (raw text) and `reasoning_details`
-    /// (structured, with a cryptographic signature) are present, `append_message`
-    /// must NOT create a duplicate thinking block with a null signature.
+    /// Regression test: when both `reasoning` (raw text) and
+    /// `reasoning_details` (structured, with a cryptographic signature) are
+    /// present, `append_message` must NOT create a duplicate thinking block
+    /// with a null signature.
     ///
-    /// The Anthropic API rejects messages where any thinking block carries a null
-    /// or missing signature, so the stored `reasoning_details` must contain exactly
-    /// the structured entries that were passed in — no extras.
+    /// The Anthropic API rejects messages where any thinking block carries a
+    /// null or missing signature, so the stored `reasoning_details` must
+    /// contain exactly the structured entries that were passed in — no
+    /// extras.
     #[test]
     fn test_append_message_does_not_duplicate_reasoning_when_details_present() {
         // Fixture: a structured reasoning detail with a valid signature, as would
@@ -1668,7 +1669,7 @@ mod tests {
             "Answer",
             None,
             Some("Let me think about this.".to_string()), // raw reasoning string
-            Some(fixture_details.clone()),                 // structured reasoning_details
+            Some(fixture_details.clone()),                // structured reasoning_details
             Usage::default(),
             vec![],
             None,
@@ -1679,11 +1680,10 @@ mod tests {
             .messages
             .iter()
             .find_map(|entry| {
-                if let ContextMessage::Text(msg) = &**entry {
-                    if msg.role == Role::Assistant {
+                if let ContextMessage::Text(msg) = &**entry
+                    && msg.role == Role::Assistant {
                         return msg.reasoning_details.as_ref();
                     }
-                }
                 None
             })
             .expect("Assistant message should have reasoning_details");
