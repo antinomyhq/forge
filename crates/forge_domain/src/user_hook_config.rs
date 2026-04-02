@@ -62,8 +62,8 @@ pub enum UserHookEventName {
     PostToolUseFailure,
     /// Fired when the agent finishes responding. Can block stop to continue.
     Stop,
-    /// FIXME: Fired when a notification is sent; no lifecycle point fires this event and no
-    /// handler exists yet.
+    /// FIXME: Fired when a notification is sent; no lifecycle point fires this
+    /// event and no handler exists yet.
     Notification,
     /// Fired when a session starts or resumes.
     SessionStart,
@@ -71,11 +71,11 @@ pub enum UserHookEventName {
     SessionEnd,
     /// Fired when a user prompt is submitted.
     UserPromptSubmit,
-    /// FIXME: Fired before context compaction; no lifecycle point fires this event and no
-    /// handler exists yet.
+    /// FIXME: Fired before context compaction; no lifecycle point fires this
+    /// event and no handler exists yet.
     PreCompact,
-    /// FIXME: Fired after context compaction; no lifecycle point fires this event and no
-    /// handler exists yet.
+    /// FIXME: Fired after context compaction; no lifecycle point fires this
+    /// event and no handler exists yet.
     PostCompact,
 }
 
