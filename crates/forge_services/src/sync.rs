@@ -21,7 +21,7 @@ struct FileReadError {
 
 /// Canonicalizes `path`, attaching a context message that includes the original
 /// path on failure.
-pub(crate) fn canonicalize_path(path: PathBuf) -> Result<PathBuf> {
+pub fn canonicalize_path(path: PathBuf) -> Result<PathBuf> {
     path.canonicalize()
         .with_context(|| format!("Failed to resolve path: {}", path.display()))
 }
@@ -29,7 +29,7 @@ pub(crate) fn canonicalize_path(path: PathBuf) -> Result<PathBuf> {
 /// Extracts [`forge_domain::FileStatus`] entries with
 /// [`forge_domain::SyncStatus::Failed`] from a slice of file-read results by
 /// downcasting errors to [`FileReadError`].
-pub(crate) fn extract_failed_statuses<T>(results: &[Result<T>]) -> Vec<forge_domain::FileStatus> {
+fn extract_failed_statuses<T>(results: &[Result<T>]) -> Vec<forge_domain::FileStatus> {
     results
         .iter()
         .filter_map(|r| r.as_ref().err())
@@ -47,7 +47,7 @@ pub(crate) fn extract_failed_statuses<T>(results: &[Result<T>]) -> Vec<forge_dom
 ///
 /// `F` provides infrastructure capabilities (file I/O, workspace index) and
 /// `D` is the file-discovery strategy used to enumerate workspace files.
-pub(crate) struct WorkspaceSyncEngine<F, D> {
+pub struct WorkspaceSyncEngine<F, D> {
     infra: Arc<F>,
     discovery: Arc<D>,
     workspace_root: PathBuf,
@@ -60,7 +60,7 @@ pub(crate) struct WorkspaceSyncEngine<F, D> {
 impl<F, D> WorkspaceSyncEngine<F, D> {
     /// Creates a new workspace sync engine with the provided infrastructure,
     /// file-discovery strategy, and workspace context shared by all operations.
-    pub(crate) fn new(
+    pub fn new(
         infra: Arc<F>,
         discovery: Arc<D>,
         workspace_root: PathBuf,
@@ -88,7 +88,7 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
     ///
     /// Reads local file hashes, compares them against remote, then deletes
     /// stale files and uploads new or modified ones.
-    pub(crate) async fn run<E, Fut>(&self, emit: E) -> Result<()>
+    pub async fn run<E, Fut>(&self, emit: E) -> Result<()>
     where
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
@@ -211,7 +211,7 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
     ///
     /// Reads local file hashes and compares them against the remote server to
     /// produce a per-file status report.
-    pub(crate) async fn compute_status(&self) -> Result<Vec<forge_domain::FileStatus>> {
+    pub async fn compute_status(&self) -> Result<Vec<forge_domain::FileStatus>> {
         let results: Vec<Result<FileHash>> = self.read_hashes().collect().await;
 
         let mut failed_statuses = extract_failed_statuses(&results);
