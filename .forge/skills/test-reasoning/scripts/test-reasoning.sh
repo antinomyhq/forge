@@ -2,8 +2,7 @@
 # scripts/test-reasoning.sh
 #
 # Validates that reasoning parameters are correctly serialized for each
-# provider. Runs all entries in docs/reasoning-test.md plus Chat Completions
-# (GitHub Copilot) and Responses API (Codex) paths.
+# provider across all supported effort levels.
 #
 # Usage: ./scripts/test-reasoning.sh
 
@@ -96,49 +95,100 @@ if ! cargo build 2>&1 | grep -E "^error|Finished|^   Compiling forge_main"; then
     exit 1
 fi
 
-# ─── test 1: OpenRouter + OpenAI o4-mini ──────────────────────────────────────
-# Expected: reasoning.effort = "high", no max_tokens/enabled bleed-through
+# ─── OpenRouter · openai/o4-mini — effort levels ─────────────────────────────
+# OpenRouter passes reasoning.effort straight through.
+# Valid effort values: none · minimal · low · medium · high · xhigh
+# Ref: https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
 
-log_header "OpenRouter · openai/o4-mini · effort: high"
-OUT="$WORK_DIR/openrouter-openai.json"
-if run_test "$OUT" open_router "openai/o4-mini" FORGE_REASONING__EFFORT=high; then
-    assert_field "$OUT" "reasoning.effort"     '"high"' "openrouter/openai"
-    assert_field "$OUT" "reasoning.max_tokens" "null"   "openrouter/openai"
-    assert_field "$OUT" "reasoning.enabled"    "null"   "openrouter/openai"
+for effort in none minimal low medium high xhigh; do
+    log_header "OpenRouter · openai/o4-mini · effort: $effort"
+    OUT="$WORK_DIR/openrouter-openai-effort-$effort.json"
+    if run_test "$OUT" open_router "openai/o4-mini" "FORGE_REASONING__EFFORT=$effort"; then
+        assert_field "$OUT" "reasoning.effort"     "\"$effort\"" "openrouter/openai"
+        assert_field "$OUT" "reasoning.max_tokens" "null"        "openrouter/openai"
+        assert_field "$OUT" "reasoning.enabled"    "null"        "openrouter/openai"
+        assert_field "$OUT" "reasoning.exclude"    "null"        "openrouter/openai"
+    else
+        log_skip "open_router not configured — skipping"
+    fi
+done
+
+# ─── OpenRouter · openai/o4-mini — max_tokens ────────────────────────────────
+# When max_tokens is set, reasoning.max_tokens should appear; no effort/enabled bleed-through.
+
+log_header "OpenRouter · openai/o4-mini · max_tokens: 4000"
+OUT="$WORK_DIR/openrouter-openai-max-tokens.json"
+if run_test "$OUT" open_router "openai/o4-mini" FORGE_REASONING__MAX_TOKENS=4000; then
+    assert_field "$OUT" "reasoning.max_tokens" "4000" "openrouter/openai"
+    assert_field "$OUT" "reasoning.effort"     "null" "openrouter/openai"
+    assert_field "$OUT" "reasoning.enabled"    "null" "openrouter/openai"
 else
     log_skip "open_router not configured — skipping"
 fi
 
-# ─── test 2: OpenRouter + Anthropic claude-opus-4-5 ──────────────────────────
-# Expected: reasoning.max_tokens = 4000, no effort/enabled bleed-through
+# ─── OpenRouter · openai/o4-mini — exclude ───────────────────────────────────
+# When exclude=true, reasoning runs internally but is omitted from the response.
+
+log_header "OpenRouter · openai/o4-mini · effort: high + exclude: true"
+OUT="$WORK_DIR/openrouter-openai-exclude.json"
+if run_test "$OUT" open_router "openai/o4-mini" \
+        FORGE_REASONING__EFFORT=high FORGE_REASONING__EXCLUDE=true; then
+    assert_field "$OUT" "reasoning.effort"  '"high"' "openrouter/openai"
+    assert_field "$OUT" "reasoning.exclude" "true"   "openrouter/openai"
+else
+    log_skip "open_router not configured — skipping"
+fi
+
+# ─── OpenRouter · openai/o4-mini — enabled ───────────────────────────────────
+# enabled=true activates reasoning at medium effort with no exclusions.
+
+log_header "OpenRouter · openai/o4-mini · enabled: true"
+OUT="$WORK_DIR/openrouter-openai-enabled.json"
+if run_test "$OUT" open_router "openai/o4-mini" FORGE_REASONING__ENABLED=true; then
+    assert_field "$OUT" "reasoning.enabled" "true"  "openrouter/openai"
+    assert_field "$OUT" "reasoning.effort"  "null"  "openrouter/openai"
+    assert_field "$OUT" "reasoning.exclude" "null"  "openrouter/openai"
+else
+    log_skip "open_router not configured — skipping"
+fi
+
+# ─── OpenRouter · anthropic/claude-opus-4-5 — max_tokens ─────────────────────
+# For Anthropic models via OpenRouter, max_tokens maps to budget_tokens.
+# Valid range: integer >= 1024
 
 log_header "OpenRouter · anthropic/claude-opus-4-5 · max_tokens: 4000"
-OUT="$WORK_DIR/openrouter-anthropic.json"
+OUT="$WORK_DIR/openrouter-anthropic-max-tokens.json"
 if run_test "$OUT" open_router "anthropic/claude-opus-4-5" FORGE_REASONING__MAX_TOKENS=4000; then
-    assert_field "$OUT" "reasoning.max_tokens" "4000"  "openrouter/anthropic"
-    assert_field "$OUT" "reasoning.effort"     "null"  "openrouter/anthropic"
-    assert_field "$OUT" "reasoning.enabled"    "null"  "openrouter/anthropic"
+    assert_field "$OUT" "reasoning.max_tokens" "4000" "openrouter/anthropic"
+    assert_field "$OUT" "reasoning.effort"     "null" "openrouter/anthropic"
+    assert_field "$OUT" "reasoning.enabled"    "null" "openrouter/anthropic"
 else
     log_skip "open_router not configured — skipping"
 fi
 
-# ─── test 3: Anthropic claude-opus-4-6 (newer model → output_config.effort) ──
-# Expected: output_config.effort = "medium", no thinking object
+# ─── Anthropic · claude-opus-4-6 — effort levels ─────────────────────────────
+# Newer models use output_config.effort instead of the thinking object.
+# Valid effort values: low · medium · high · max  (max is opus-4-6 only)
+# Ref: https://platform.claude.com/docs/en/build-with-claude/effort
 
-log_header "Anthropic · claude-opus-4-6 · effort: medium"
-OUT="$WORK_DIR/anthropic-opus46.json"
-if run_test "$OUT" anthropic "claude-opus-4-6" FORGE_REASONING__EFFORT=medium; then
-    assert_field "$OUT" "output_config.effort" '"medium"' "anthropic/opus4.6"
-    assert_field "$OUT" "thinking"             "null"     "anthropic/opus4.6"
-else
-    log_skip "anthropic not configured — skipping"
-fi
+for effort in low medium high max; do
+    log_header "Anthropic · claude-opus-4-6 · effort: $effort"
+    OUT="$WORK_DIR/anthropic-opus46-effort-$effort.json"
+    if run_test "$OUT" anthropic "claude-opus-4-6" "FORGE_REASONING__EFFORT=$effort"; then
+        assert_field "$OUT" "output_config.effort" "\"$effort\"" "anthropic/opus4.6"
+        assert_field "$OUT" "thinking"             "null"        "anthropic/opus4.6"
+    else
+        log_skip "anthropic not configured — skipping"
+    fi
+done
 
-# ─── test 4: Anthropic claude-3-7-sonnet (older model → thinking object) ─────
-# Expected: thinking.type = "enabled", thinking.budget_tokens = 8000, no output_config
+# ─── Anthropic · claude-3-7-sonnet-20250219 — thinking object ────────────────
+# Older models use the thinking object with budget_tokens instead of effort.
+# budget_tokens must be > 1024 and < max_tokens.
+# Ref: https://platform.claude.com/docs/en/build-with-claude/effort
 
 log_header "Anthropic · claude-3-7-sonnet-20250219 · enabled: true + max_tokens: 8000"
-OUT="$WORK_DIR/anthropic-sonnet37.json"
+OUT="$WORK_DIR/anthropic-sonnet37-thinking.json"
 if run_test "$OUT" anthropic "claude-3-7-sonnet-20250219" \
         FORGE_REASONING__ENABLED=true FORGE_REASONING__MAX_TOKENS=8000; then
     assert_field "$OUT" "thinking.type"          '"enabled"' "anthropic/sonnet3.7"
@@ -148,27 +198,49 @@ else
     log_skip "anthropic not configured — skipping"
 fi
 
-# ─── test 5: GitHub Copilot + o4-mini (Chat Completions → reasoning_effort) ───
-# Expected: top-level reasoning_effort = "medium", no reasoning object
+# ─── GitHub Copilot · o4-mini — effort levels ────────────────────────────────
+# Chat Completions API serializes reasoning as a top-level reasoning_effort string.
+# Valid effort values: none · minimal · low · medium · high · xhigh
+# Ref: https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
 
-log_header "GitHub Copilot · o4-mini · effort: medium"
-OUT="$WORK_DIR/github-copilot-o4mini.json"
-if run_test "$OUT" github_copilot "o4-mini" FORGE_REASONING__EFFORT=medium; then
-    assert_field "$OUT" "reasoning_effort" '"medium"' "github_copilot/o4-mini"
-    assert_field "$OUT" "reasoning"        "null"     "github_copilot/o4-mini"
-else
-    log_skip "github_copilot not configured — skipping"
-fi
+for effort in none minimal low medium high xhigh; do
+    log_header "GitHub Copilot · o4-mini · effort: $effort"
+    OUT="$WORK_DIR/github-copilot-effort-$effort.json"
+    if run_test "$OUT" github_copilot "o4-mini" "FORGE_REASONING__EFFORT=$effort"; then
+        assert_field "$OUT" "reasoning_effort" "\"$effort\"" "github_copilot/o4-mini"
+        assert_field "$OUT" "reasoning"        "null"        "github_copilot/o4-mini"
+    else
+        log_skip "github_copilot not configured — skipping"
+    fi
+done
 
-# ─── test 6: Codex + gpt-5.1-codex (Responses API → reasoning object) ────────
-# Expected: reasoning.effort = "medium" (user-specified), reasoning.summary = "auto" (default)
+# ─── Codex · gpt-5.1-codex — effort levels ───────────────────────────────────
+# Responses API uses a nested reasoning object with effort + summary fields.
+# Valid effort values: none · minimal · low · medium · high · xhigh
+# Note: xhigh and max both map to "xhigh" in the Responses API.
+# Ref: https://developers.openai.com/api/docs/guides/reasoning
 
-log_header "Codex · gpt-5.1-codex · effort: medium"
-OUT="$WORK_DIR/codex-gpt51.json"
-if run_test "$OUT" codex "gpt-5.1-codex" FORGE_REASONING__EFFORT=medium; then
-    assert_field "$OUT" "reasoning.effort"  '"medium"' "codex/gpt-5.1-codex"
-    assert_field "$OUT" "reasoning.summary" '"auto"'   "codex/gpt-5.1-codex"
-    assert_field "$OUT" "reasoning_effort"  "null"     "codex/gpt-5.1-codex"
+for effort in none minimal low medium high xhigh; do
+    log_header "Codex · gpt-5.1-codex · effort: $effort"
+    OUT="$WORK_DIR/codex-effort-$effort.json"
+    if run_test "$OUT" codex "gpt-5.1-codex" "FORGE_REASONING__EFFORT=$effort"; then
+        assert_field "$OUT" "reasoning.effort"  "\"$effort\"" "codex/gpt-5.1-codex"
+        assert_field "$OUT" "reasoning.summary" '"auto"'      "codex/gpt-5.1-codex"
+        assert_field "$OUT" "reasoning_effort"  "null"        "codex/gpt-5.1-codex"
+    else
+        log_skip "codex not configured — skipping"
+    fi
+done
+
+# ─── Codex · gpt-5.1-codex — exclude → summary: concise ─────────────────────
+# When exclude=true the reasoning is hidden; maps to summary: "concise".
+
+log_header "Codex · gpt-5.1-codex · effort: medium + exclude: true"
+OUT="$WORK_DIR/codex-exclude.json"
+if run_test "$OUT" codex "gpt-5.1-codex" \
+        FORGE_REASONING__EFFORT=medium FORGE_REASONING__EXCLUDE=true; then
+    assert_field "$OUT" "reasoning.effort"  '"medium"'   "codex/gpt-5.1-codex"
+    assert_field "$OUT" "reasoning.summary" '"concise"'  "codex/gpt-5.1-codex"
 else
     log_skip "codex not configured — skipping"
 fi

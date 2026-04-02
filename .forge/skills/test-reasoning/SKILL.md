@@ -33,14 +33,18 @@ Then inspect `.forge/forge.request.json` for the expected fields.
 
 ## Test Coverage
 
-| #   | Provider         | Model                        | Config fields                        | Expected JSON field               |
-| --- | ---------------- | ---------------------------- | ------------------------------------ | --------------------------------- |
-| 1   | `open_router`    | `openai/o4-mini`             | `effort: high`                       | `reasoning.effort`                |
-| 2   | `open_router`    | `anthropic/claude-opus-4-5`  | `max_tokens: 4000`                   | `reasoning.max_tokens`            |
-| 3   | `anthropic`      | `claude-opus-4-6`            | `effort: medium`                     | `output_config.effort`            |
-| 4   | `anthropic`      | `claude-3-7-sonnet-20250219` | `enabled: true` + `max_tokens: 8000` | `thinking.type` + `budget_tokens` |
-| 5   | `github_copilot` | `o4-mini`                    | `effort: medium`                     | `reasoning_effort` (top-level)    |
-| 6   | `codex`          | `gpt-5.1-codex`              | `effort: medium`                     | `reasoning.effort` + `.summary`   |
+| Provider         | Model                        | Config fields                                     | Expected JSON field               |
+| ---------------- | ---------------------------- | ------------------------------------------------- | --------------------------------- |
+| `open_router`    | `openai/o4-mini`             | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning.effort`                |
+| `open_router`    | `openai/o4-mini`             | `max_tokens: 4000`                                | `reasoning.max_tokens`            |
+| `open_router`    | `openai/o4-mini`             | `effort: high` + `exclude: true`                  | `reasoning.effort` + `.exclude`   |
+| `open_router`    | `openai/o4-mini`             | `enabled: true`                                   | `reasoning.enabled`               |
+| `open_router`    | `anthropic/claude-opus-4-5`  | `max_tokens: 4000`                                | `reasoning.max_tokens`            |
+| `anthropic`      | `claude-opus-4-6`            | `effort: low\|medium\|high\|max`                  | `output_config.effort`            |
+| `anthropic`      | `claude-3-7-sonnet-20250219` | `enabled: true` + `max_tokens: 8000`              | `thinking.type` + `budget_tokens` |
+| `github_copilot` | `o4-mini`                    | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning_effort` (top-level)    |
+| `codex`          | `gpt-5.1-codex`              | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning.effort` + `.summary`   |
+| `codex`          | `gpt-5.1-codex`              | `effort: medium` + `exclude: true`                | `reasoning.summary = "concise"`   |
 
 Tests for unconfigured providers are skipped automatically.
 
