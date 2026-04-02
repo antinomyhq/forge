@@ -165,6 +165,7 @@ impl<S: Services> ForgeApp<S> {
         let hook = if !user_hook_config.is_empty() {
             let user_handler = UserHookHandler::new(
                 services.hook_command_service().clone(),
+                services.get_env_vars(),
                 user_hook_config,
                 environment.cwd.clone(),
                 conversation.id.to_string(),

@@ -1,8 +1,5 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
-
+use super::user_hook_executor::UserHookExecutor;
+use crate::services::HookCommandService;
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
@@ -11,10 +8,11 @@ use forge_domain::{
     UserHookEventName, UserHookMatcherGroup,
 };
 use regex::Regex;
+use std::collections::{BTreeMap, HashMap};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tracing::{debug, warn};
-
-use super::user_hook_executor::UserHookExecutor;
-use crate::services::HookCommandService;
 
 /// Default timeout for hook commands (10 minutes).
 const DEFAULT_HOOK_TIMEOUT: Duration = Duration::from_secs(600);
@@ -47,8 +45,13 @@ impl<I> UserHookHandler<I> {
     /// * `session_id` - Current session/conversation ID.
     /// * `default_hook_timeout` - Default timeout in milliseconds for hook
     ///   commands.
-    pub fn new(service: I, config: UserHookConfig, cwd: PathBuf, session_id: String) -> Self {
-        let mut env_vars = HashMap::new();
+    pub fn new(
+        service: I,
+        mut env_vars: BTreeMap<String, String>,
+        config: UserHookConfig,
+        cwd: PathBuf,
+        session_id: String,
+    ) -> Self {
         env_vars.insert(
             "FORGE_PROJECT_DIR".to_string(),
             cwd.to_string_lossy().to_string(),
@@ -60,7 +63,7 @@ impl<I> UserHookHandler<I> {
             executor: UserHookExecutor::new(service),
             config,
             cwd,
-            env_vars,
+            env_vars: env_vars.into_iter().collect(),
             stop_hook_active: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
@@ -625,6 +628,7 @@ mod tests {
     fn null_handler(config: UserHookConfig) -> UserHookHandler<NullInfra> {
         UserHookHandler::new(
             NullInfra,
+            BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
             "sess-1".to_string(),
