@@ -1348,14 +1348,27 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
+        let reasoning_effort = self
+            .api
+            .get_reasoning_effort()
+            .await
+            .ok()
+            .flatten()
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
         let info = Info::new()
-            .add_title("CONFIGURATION")
-            .add_key_value("Default Model", model)
-            .add_key_value("Default Provider", provider)
-            .add_key_value("Commit Provider", commit_provider)
-            .add_key_value("Commit Model", commit_model)
-            .add_key_value("Suggest Provider", suggest_provider)
-            .add_key_value("Suggest Model", suggest_model);
+            .add_title("SESSION")
+            .add_key_value("Model", model)
+            .add_key_value("Provider", provider)
+            .add_title("COMMIT")
+            .add_key_value("Model", commit_model)
+            .add_key_value("Provider", commit_provider)
+            .add_title("SUGGEST")
+            .add_key_value("Model", suggest_model)
+            .add_key_value("Provider", suggest_provider)
+            .add_title("REASONING")
+            .add_key_value("Effort", reasoning_effort);
 
         if porcelain {
             self.writeln(
@@ -3488,6 +3501,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::ReasoningEffort { effort } => {
+                self.api.set_reasoning_effort(effort.clone()).await?;
+                self.writeln_title(
+                    TitleFormat::action(effort.to_string())
+                        .sub_title("is now the reasoning effort"),
+                )?;
+            }
         }
 
         Ok(())
@@ -3547,6 +3567,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::ReasoningEffort => {
+                let effort = self.api.get_reasoning_effort().await?;
+                match effort {
+                    Some(e) => self.writeln(e.to_string())?,
+                    None => self.writeln("ReasoningEffort: Not set")?,
                 }
             }
         }
