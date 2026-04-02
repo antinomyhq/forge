@@ -75,7 +75,8 @@ pub enum HookEventInput {
 /// exit 0 with empty stdout.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HookOutput {
-    /// Whether execution should continue. `false` halts processing.
+    /// FIXME: Whether execution should continue; deserialized from hook stdout but never
+    /// checked in any decision logic (`process_results`, `is_blocking()`).
     #[serde(default, rename = "continue", skip_serializing_if = "Option::is_none")]
     pub continue_execution: Option<bool>,
 
@@ -111,7 +112,8 @@ pub struct HookOutput {
     )]
     pub additional_context: Option<String>,
 
-    /// Reason for stopping (for Stop hooks).
+    /// FIXME: Reason for stopping (for Stop hooks); deserialized from hook stdout but never
+    /// consumed anywhere in decision logic.
     #[serde(
         default,
         rename = "stopReason",

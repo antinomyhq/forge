@@ -286,7 +286,8 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
 
         let results = self.execute_hooks(&hooks, &input).await;
 
-        // SessionStart hooks can provide additional context but not block
+        // FIXME: SessionStart hooks can provide additional context but not block;
+        // additional_context is detected here but never injected into the conversation.
         for result in &results {
             if let Some(output) = result.parse_output()
                 && let Some(context) = &output.additional_context
@@ -377,7 +378,7 @@ impl<I: HookCommandService> EventHandle<EventData<ResponsePayload>> for UserHook
         _event: &EventData<ResponsePayload>,
         _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        // No user hook events map to Response currently
+        // FIXME: No user hook events map to Response currently
         Ok(())
     }
 }
@@ -394,7 +395,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
         }
 
         let tool_name = event.payload.tool_call.name.as_str();
-        // TODO: Add a tool name transformer to map tool names to Forge
+        // FIXME: Add a tool name transformer to map tool names to Forge
         // equivalents (e.g. "Bash" → "shell") so that hook configs written
         let groups = self.config.get_groups(&UserHookEventName::PreToolUse);
         let hooks = Self::find_matching_hooks(groups, Some(tool_name));
@@ -419,7 +420,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
         match decision {
             PreToolUseDecision::Allow => Ok(()),
             PreToolUseDecision::AllowWithUpdate(_output) => {
-                // Note: Updating tool call input would require modifying the tool call
+                // FIXME: Updating tool call input would require modifying the tool call
                 // in-flight, which would need changes to the orchestrator.
                 // For now, we log and proceed.
                 debug!(
