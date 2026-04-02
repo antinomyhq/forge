@@ -5,7 +5,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display as StrumDisplay;
+use strum_macros::{Display as StrumDisplay, EnumString};
 
 use crate::{
     Compact, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
@@ -71,29 +71,24 @@ pub struct ReasoningConfig {
     pub enabled: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay, EnumString)]
 #[serde(rename_all = "lowercase")]
-#[strum(serialize_all = "lowercase")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum Effort {
-    High,
-    Medium,
+    /// No reasoning; skips the thinking step entirely.
+    None,
+    /// Minimal reasoning; fastest and cheapest.
+    Minimal,
+    /// Low reasoning effort.
     Low,
-}
-
-/// Converts a thinking budget (max_tokens) to Effort
-/// - 0-1024 → Low
-/// - 1025-8192 → Medium
-/// - 8193+ → High
-impl From<usize> for Effort {
-    fn from(budget: usize) -> Self {
-        if budget <= 1024 {
-            Effort::Low
-        } else if budget <= 8192 {
-            Effort::Medium
-        } else {
-            Effort::High
-        }
-    }
+    /// Medium reasoning effort; the default for most providers.
+    Medium,
+    /// High reasoning effort.
+    High,
+    /// Extra-high reasoning effort (OpenAI / OpenRouter).
+    XHigh,
+    /// Maximum reasoning effort; only available on select Anthropic models.
+    Max,
 }
 
 /// Estimates the token count from a string representation
@@ -238,31 +233,5 @@ impl From<Agent> for ToolDefinition {
             description,
             input_schema: schemars::schema_for!(crate::AgentInput),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_effort_from_budget_low() {
-        assert_eq!(Effort::from(0), Effort::Low);
-        assert_eq!(Effort::from(1), Effort::Low);
-        assert_eq!(Effort::from(1024), Effort::Low);
-    }
-
-    #[test]
-    fn test_effort_from_budget_medium() {
-        assert_eq!(Effort::from(1025), Effort::Medium);
-        assert_eq!(Effort::from(5000), Effort::Medium);
-        assert_eq!(Effort::from(8192), Effort::Medium);
-    }
-
-    #[test]
-    fn test_effort_from_budget_high() {
-        assert_eq!(Effort::from(8193), Effort::High);
-        assert_eq!(Effort::from(10000), Effort::High);
-        assert_eq!(Effort::from(100000), Effort::High);
     }
 }
