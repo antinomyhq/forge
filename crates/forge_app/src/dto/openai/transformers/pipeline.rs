@@ -54,8 +54,9 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
-        let set_reasoning_effort =
-            SetReasoningEffort.when(move |_| provider.id == ProviderId::REQUESTY);
+        let set_reasoning_effort = SetReasoningEffort.when(move |_| {
+            provider.id == ProviderId::REQUESTY || provider.id == ProviderId::GITHUB_COPILOT
+        });
 
         let github_copilot_reasoning =
             GitHubCopilotReasoning.when(move |_| provider.id == ProviderId::GITHUB_COPILOT);

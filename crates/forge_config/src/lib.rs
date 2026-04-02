@@ -8,6 +8,7 @@ mod legacy;
 mod model;
 mod percentage;
 mod reader;
+mod reasoning;
 mod retry;
 mod writer;
 
@@ -20,6 +21,7 @@ pub use http::*;
 pub use model::*;
 pub use percentage::*;
 pub use reader::*;
+pub use reasoning::*;
 pub use retry::*;
 pub use writer::*;
 

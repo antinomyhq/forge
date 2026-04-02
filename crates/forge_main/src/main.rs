@@ -8,11 +8,53 @@ use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
 use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
+/// Enables ENABLE_VIRTUAL_TERMINAL_PROCESSING on the stdout console handle.
+///
+/// The `enable_ansi_support` crate sets VT processing on the `CONOUT$` handle,
+/// but console mode flags are **per-handle** on Windows. The `CONOUT$` flag may
+/// not propagate to the individual `STD_OUTPUT_HANDLE` handle on all Windows
+/// configurations (e.g. older builds, cmd.exe launched in certain ways, or
+/// when handles have been duplicated).
+///
+/// Without VT processing on stdout, ANSI escape codes from forge's markdown
+/// renderer (bold, colors, inline code styling) are displayed as raw text
+/// like `←[33m` instead of being interpreted as formatting.
+///
+/// We intentionally do NOT set VT processing on stderr. The `console` crate
+/// (used by `indicatif`) uses `GetConsoleMode` to detect VT support and
+/// switches between Win32 Console APIs and ANSI escapes accordingly. The
+/// Win32 Console API path (`FillConsoleOutputCharacterA` /
+/// `SetConsoleCursorPosition`) modifies the screen buffer in-place, which
+/// produces clean scrollback when clearing spinner lines. Enabling VT
+/// processing on stderr would cause `console` to use ANSI escapes instead,
+/// leaving spinner artifacts in the terminal scrollback buffer.
+#[cfg(windows)]
+fn enable_stdout_vt_processing() {
+    use windows_sys::Win32::System::Console::{
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_OUTPUT_HANDLE,
+        SetConsoleMode,
+    };
+    unsafe {
+        let handle = GetStdHandle(STD_OUTPUT_HANDLE);
+        let mut mode = 0;
+        if GetConsoleMode(handle, &mut mode) != 0 {
+            let _ = SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Enable ANSI color support on Windows console
+    // Enable ANSI escape code support on Windows console.
+    // `enable_ansi_support` sets VT processing on the `CONOUT$` screen buffer
+    // handle. We additionally set it on `STD_OUTPUT_HANDLE` directly, since
+    // console mode flags are per-handle and `CONOUT$` may not propagate to
+    // individual handles on all Windows configurations.
     #[cfg(windows)]
-    let _ = enable_ansi_support::enable_ansi_support();
+    {
+        let _ = enable_ansi_support::enable_ansi_support();
+        enable_stdout_vt_processing();
+    }
 
     // Install default rustls crypto provider (ring) before any TLS connections
     // This is required for rustls 0.23+ when multiple crypto providers are

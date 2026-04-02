@@ -1950,6 +1950,7 @@ dependencies = [
  "schemars 1.2.1",
  "serde",
  "serde_json",
+ "strum_macros 0.28.0",
  "thiserror 2.0.18",
  "tokio",
  "toml_edit",
@@ -2154,6 +2155,7 @@ dependencies = [
  "tracing",
  "update-informer",
  "url",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
