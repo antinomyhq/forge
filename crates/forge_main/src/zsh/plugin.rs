@@ -56,7 +56,8 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = normalize_line_endings(include_str!("../../../../shell-plugin/forge.theme.zsh"));
+    let mut content =
+        normalize_line_endings(include_str!("../../../../shell-plugin/forge.theme.zsh"));
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\n_FORGE_THEME_LOADED=$(date +%s)\n");
@@ -148,7 +149,8 @@ fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) ->
 ///
 /// Returns error if the doctor script cannot be executed
 pub fn run_zsh_doctor() -> Result<()> {
-    let script_content = normalize_line_endings(include_str!("../../../../shell-plugin/doctor.zsh"));
+    let script_content =
+        normalize_line_endings(include_str!("../../../../shell-plugin/doctor.zsh"));
     execute_zsh_script_with_streaming(&script_content, "doctor")
 }
 
@@ -158,7 +160,8 @@ pub fn run_zsh_doctor() -> Result<()> {
 ///
 /// Returns error if the keyboard script cannot be executed
 pub fn run_zsh_keyboard() -> Result<()> {
-    let script_content = normalize_line_endings(include_str!("../../../../shell-plugin/keyboard.zsh"));
+    let script_content =
+        normalize_line_endings(include_str!("../../../../shell-plugin/keyboard.zsh"));
     execute_zsh_script_with_streaming(&script_content, "keyboard")
 }
 
