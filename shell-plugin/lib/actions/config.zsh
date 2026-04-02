@@ -375,6 +375,82 @@ function _forge_action_model_reset() {
     _forge_log success "Session model reset to global config"
 }
 
+# Action handler: Select reasoning effort for the current session only.
+# Sets _FORGE_SESSION_REASONING_EFFORT in the shell environment so that
+# every subsequent forge invocation uses the selected value via the
+# FORGE_REASONING__EFFORT env var without modifying the permanent config.
+function _forge_action_reasoning_effort() {
+    local input_text="$1"
+    echo
+
+    local efforts
+    efforts=$'EFFORT\nnone\nminimal\nlow\nmedium\nhigh\nxhigh\nmax'
+
+    local current_effort
+    if [[ -n "$_FORGE_SESSION_REASONING_EFFORT" ]]; then
+        current_effort="$_FORGE_SESSION_REASONING_EFFORT"
+    else
+        current_effort=$($_FORGE_BIN config get reasoning-effort 2>/dev/null)
+    fi
+
+    local fzf_args=(
+        --prompt="Reasoning Effort ❯ "
+    )
+
+    if [[ -n "$input_text" ]]; then
+        fzf_args+=(--query="$input_text")
+    fi
+
+    if [[ -n "$current_effort" ]]; then
+        local index=$(_forge_find_index "$efforts" "$current_effort" 1)
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    local selected
+    selected=$(echo "$efforts" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+    if [[ -n "$selected" ]]; then
+        _FORGE_SESSION_REASONING_EFFORT="$selected"
+        _forge_log success "Session reasoning effort set to \033[1m${selected}\033[0m"
+    fi
+}
+
+# Action handler: Set reasoning effort in global config.
+# Calls `forge config set reasoning-effort <effort>` on selection,
+# writing the chosen effort level permanently to ~/forge/.forge.toml.
+function _forge_action_config_reasoning_effort() {
+    local input_text="$1"
+    (
+        echo
+
+        local efforts
+        efforts=$'EFFORT\nnone\nminimal\nlow\nmedium\nhigh\nxhigh\nmax'
+
+        local current_effort
+        current_effort=$($_FORGE_BIN config get reasoning-effort 2>/dev/null)
+
+        local fzf_args=(
+            --prompt="Config Reasoning Effort ❯ "
+        )
+
+        if [[ -n "$input_text" ]]; then
+            fzf_args+=(--query="$input_text")
+        fi
+
+        if [[ -n "$current_effort" ]]; then
+            local index=$(_forge_find_index "$efforts" "$current_effort" 1)
+            fzf_args+=(--bind="start:pos($index)")
+        fi
+
+        local selected
+        selected=$(echo "$efforts" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+
+        if [[ -n "$selected" ]]; then
+            _forge_exec config set reasoning-effort "$selected"
+        fi
+    )
+}
+
 # Action handler: Show config list
 function _forge_action_config() {
     echo
