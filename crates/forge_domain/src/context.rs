@@ -567,21 +567,19 @@ impl Context {
         tool_records: Vec<(ToolCallFull, ToolResult)>,
         phase: Option<MessagePhase>,
     ) -> Self {
-        // Convert flat reasoning string to reasoning_details if present
-        let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
-            let reasoning_entry = ReasoningFull {
+        // Convert flat reasoning string to reasoning_details only when no structured
+        // reasoning_details are present. When reasoning_details already exists it
+        // already contains the text (with its cryptographic signature), so adding
+        // another entry from the raw `reasoning` string would produce a duplicate
+        // thinking block with a null signature, which Anthropic rejects.
+        let merged_reasoning_details = match (reasoning, reasoning_details) {
+            (_, Some(details)) => Some(details),
+            (Some(reasoning_text), None) => Some(vec![ReasoningFull {
                 text: Some(reasoning_text),
                 type_of: Some("reasoning.text".to_string()),
                 ..Default::default()
-            };
-            if let Some(mut existing_details) = reasoning_details {
-                existing_details.push(reasoning_entry);
-                Some(existing_details)
-            } else {
-                Some(vec![reasoning_entry])
-            }
-        } else {
-            reasoning_details
+            }]),
+            (None, None) => None,
         };
 
         // Adding tool calls
