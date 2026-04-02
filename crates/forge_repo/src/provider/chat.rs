@@ -14,6 +14,7 @@ use crate::provider::bedrock::BedrockResponseRepository;
 use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
+use crate::provider::opencode_go::OpenCodeGoResponseRepository;
 use crate::provider::opencode_zen::OpenCodeZenResponseRepository;
 
 /// Repository responsible for routing chat requests to the appropriate provider
@@ -44,6 +45,8 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let bedrock_repo = BedrockResponseRepository::new(retry_config.clone());
         let google_repo =
             GoogleResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+        let opencode_go_repo =
+            OpenCodeGoResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
         let opencode_zen_repo =
             OpenCodeZenResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
@@ -59,6 +62,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
                 anthropic_repo,
                 bedrock_repo,
                 google_repo,
+                opencode_go_repo,
                 opencode_zen_repo,
             }),
             model_cache,
@@ -129,6 +133,7 @@ struct ProviderRouter<F> {
     anthropic_repo: AnthropicResponseRepository<F>,
     bedrock_repo: BedrockResponseRepository,
     google_repo: GoogleResponseRepository<F>,
+    opencode_go_repo: OpenCodeGoResponseRepository<F>,
     opencode_zen_repo: OpenCodeZenResponseRepository<F>,
 }
 
@@ -167,6 +172,11 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
             Some(ProviderResponse::Google) => {
                 self.google_repo.chat(model_id, context, provider).await
             }
+            Some(ProviderResponse::OpenCodeGo) => {
+                self.opencode_go_repo
+                    .chat(model_id, context, provider)
+                    .await
+            }
             Some(ProviderResponse::OpenCode) => {
                 self.opencode_zen_repo
                     .chat(model_id, context, provider)
@@ -186,6 +196,7 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
             Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
             Some(ProviderResponse::Google) => self.google_repo.models(provider).await,
+            Some(ProviderResponse::OpenCodeGo) => self.opencode_go_repo.models(provider).await,
             Some(ProviderResponse::OpenCode) => self.opencode_zen_repo.models(provider).await,
             None => Err(anyhow::anyhow!(
                 "Provider response type not configured for provider: {}",

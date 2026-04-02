@@ -2427,6 +2427,56 @@
     "auth_methods": ["api_key"]
   },
   {
+    "id": "opencode_go",
+    "api_key_vars": "OPENCODE_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenCodeGo",
+    "url": "https://opencode.ai/zen/go/v1/chat/completions",
+    "models": [
+      {
+        "id": "glm-5",
+        "name": "GLM-5",
+        "description": "Zhipu AI's GLM-5 model for coding, tool use, and reasoning tasks through OpenCode Go",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "kimi-k2.5",
+        "name": "Kimi K2.5",
+        "description": "Moonshot AI's Kimi K2.5 model for agentic coding and reasoning through OpenCode Go",
+        "context_length": 262144,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "minimax-m2.5",
+        "name": "MiniMax M2.5",
+        "description": "MiniMax M2.5 model served through the Anthropic-compatible OpenCode Go messages endpoint",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "minimax-m2.7",
+        "name": "MiniMax M2.7",
+        "description": "MiniMax M2.7 model served through the Anthropic-compatible OpenCode Go messages endpoint",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      }
+    ],
+    "auth_methods": ["api_key"]
+  },
+  {
     "id": "alibaba_coding",
     "provider_type": "llm",
     "api_key_vars": "ALIBABA_CODING_API_KEY",

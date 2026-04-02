@@ -681,6 +681,35 @@ mod tests {
             "https://api.intelligence.io.solutions/api/v1/chat/completions"
         );
     }
+
+    #[test]
+    fn test_opencode_go_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::OPENCODE_GO)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::OPENCODE_GO);
+        assert_eq!(config.api_key_vars, Some("OPENCODE_API_KEY".to_string()));
+        assert!(config.url_param_vars.is_empty());
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenCodeGo));
+        assert_eq!(
+            config.url.as_str(),
+            "https://opencode.ai/zen/go/v1/chat/completions"
+        );
+
+        match config.models.as_ref().unwrap() {
+            Models::Hardcoded(models) => {
+                let actual = models
+                    .iter()
+                    .map(|model| model.id.as_str())
+                    .collect::<Vec<_>>();
+                let expected = vec!["glm-5", "kimi-k2.5", "minimax-m2.5", "minimax-m2.7"];
+                assert_eq!(actual, expected);
+            }
+            Models::Url(_) => panic!("Expected Models::Hardcoded variant"),
+        }
+    }
 }
 
 #[cfg(test)]

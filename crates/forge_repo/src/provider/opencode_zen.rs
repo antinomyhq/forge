@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderResponse,
@@ -21,14 +20,11 @@ use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 /// - GPT-5 models (gpt-5*) -> OpenAIResponses endpoint
 /// - Gemini models (gemini-*) -> Google endpoint
 /// - Others (GLM, MiniMax, Kimi, etc.) -> OpenAI endpoint
-#[derive(Setters)]
-#[setters(strip_option, into)]
 pub struct OpenCodeZenResponseRepository<F> {
     openai_repo: OpenAIResponseRepository<F>,
     codex_repo: OpenAIResponsesResponseRepository<F>,
     anthropic_repo: AnthropicResponseRepository<F>,
     google_repo: GoogleResponseRepository<F>,
-    retry_config: Arc<RetryConfig>,
 }
 
 impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
@@ -38,8 +34,18 @@ impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
             codex_repo: OpenAIResponsesResponseRepository::new(infra.clone()),
             anthropic_repo: AnthropicResponseRepository::new(infra.clone()),
             google_repo: GoogleResponseRepository::new(infra.clone()),
-            retry_config: Arc::new(RetryConfig::default()),
         }
+    }
+
+    /// Pushes the shared retry policy into each delegated upstream repository.
+    pub fn retry_config(mut self, retry_config: Arc<RetryConfig>) -> Self {
+        // Keep wrapper and delegate behavior aligned so model-family routing
+        // does not silently bypass configured retry policy.
+        self.openai_repo = self.openai_repo.retry_config(retry_config.clone());
+        self.codex_repo = self.codex_repo.retry_config(retry_config.clone());
+        self.anthropic_repo = self.anthropic_repo.retry_config(retry_config.clone());
+        self.google_repo = self.google_repo.retry_config(retry_config);
+        self
     }
 
     /// Determines which backend to use based on the model ID

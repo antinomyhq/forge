@@ -3,11 +3,13 @@
 This document contains guidelines and best practices for AI agents working with this codebase.
 
 ## Local and Origin Remote Git Branch Organization
-- `main` tracks upstream `main` and must not be used for our work.
-- `release/v2.4.1`, `release/v2.4.2`, etc. are snapshot branches cut from upstream release tags. They exist only as reference points for updating `dev` when a new upstream release arrives.
-- `dev` is our long-lived fork branch. All ongoing fork development and integrations land in `dev`.
-- For normal work, create short-lived branches from `dev` and merge them back into `dev`.
-- When running `$prm`, always target `dev`, never `main`.
+- `main` is our fork's real long-lived integration branch. All ongoing fork development and integrations land in `main`.
+- `upstream-main` is a local reference branch that mirrors upstream `main`. Do not do normal development work on it.
+- `release/v2.4.1`, `release/v2.4.2`, etc. are upstream release snapshot branches cut from upstream release tags. They exist to make upstream release intake explicit and reviewable before those changes are merged back into our `main`. They are not release branches for this fork.
+- For normal work, create short-lived branches from `main` and merge them back into `main`.
+- When incorporating upstream changes, fetch `upstream`, refresh `upstream-main` from `upstream/main`, then merge or rebase that into local `main`.
+- When running `$prm`, target `main`.
+- When bootstrapping the session make sure that we are on the correct feature branch or on `main`, and that local and remote `main` are in sync before starting new work.
 
 ## Error Management
 
@@ -111,6 +113,8 @@ Always verify changes by running tests and linting the codebase
 2. **Build Guidelines**:
    - **NEVER** run `cargo build --release` unless absolutely necessary (e.g., performance testing, creating binaries for distribution)
    - For verification, use `cargo check` (fastest), `cargo insta test`, or `cargo build` (debug mode)
+   - Build the local debug binary with `cargo build -p forge_main --bin forge`
+   - Run the local debug binary with `cargo run -p forge_main --bin forge` or `./target/debug/forge`
    - Release builds take significantly longer and are rarely needed for development verification
 
 ## Writing Domain Types
