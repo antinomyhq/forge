@@ -66,11 +66,24 @@ pub struct Thinking {
     pub budget_tokens: u64,
 }
 
+/// Effort level for Anthropic's `output_config` API.
+///
+/// Only the variants officially supported by Anthropic's `output_config.effort`
+/// field. Mutually exclusive with the `thinking` object.
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OutputEffort {
+    Low,
+    Medium,
+    High,
+    Max,
+}
+
 /// Output configuration for newer Anthropic models that support effort-based
 /// reasoning (e.g. `claude-opus-4-6`).  Mutually exclusive with `thinking`.
-#[derive(Serialize, Default, Debug, PartialEq, Eq)]
+#[derive(Serialize, Debug, PartialEq, Eq)]
 pub struct OutputConfig {
-    pub effort: String,
+    pub effort: OutputEffort,
 }
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -132,7 +145,17 @@ impl TryFrom<forge_domain::Context> for Request {
                     )
                 } else if let Some(effort) = reasoning.effort {
                     // Effort without budget → newer output_config API.
-                    (None, Some(OutputConfig { effort: effort.to_string() }))
+                    let output_effort = match effort {
+                        forge_domain::Effort::Low => OutputEffort::Low,
+                        forge_domain::Effort::High => OutputEffort::High,
+                        forge_domain::Effort::Max => OutputEffort::Max,
+                        // Map unsupported variants to the nearest Anthropic-valid effort.
+                        forge_domain::Effort::None
+                        | forge_domain::Effort::Minimal => OutputEffort::Low,
+                        forge_domain::Effort::Medium => OutputEffort::Medium,
+                        forge_domain::Effort::XHigh => OutputEffort::Max,
+                    };
+                    (None, Some(OutputConfig { effort: output_effort }))
                 } else {
                     // Enabled-only → thinking with default budget.
                     (
@@ -597,7 +620,7 @@ mod tests {
 
         assert_eq!(
             actual.output_config,
-            Some(OutputConfig { effort: "low".to_string() })
+            Some(OutputConfig { effort: OutputEffort::Low })
         );
         assert_eq!(actual.thinking, None);
     }

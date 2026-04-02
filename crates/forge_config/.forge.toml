@@ -62,4 +62,4 @@ frequency = "daily"
 
 [reasoning]
 enabled = true
-effort = "medium"
+effort = "high"

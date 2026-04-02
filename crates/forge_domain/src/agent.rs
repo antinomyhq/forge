@@ -91,35 +91,6 @@ pub enum Effort {
     Max,
 }
 
-/// Converts a thinking budget (max_tokens) to the closest [`Effort`] level.
-///
-/// - 0 → None
-/// - 1–512 → Minimal
-/// - 513–1024 → Low
-/// - 1025–8192 → Medium
-/// - 8193–32768 → High
-/// - 32769–65536 → XHigh
-/// - 65537+ → Max
-impl From<usize> for Effort {
-    fn from(budget: usize) -> Self {
-        if budget == 0 {
-            Effort::None
-        } else if budget <= 512 {
-            Effort::Minimal
-        } else if budget <= 1024 {
-            Effort::Low
-        } else if budget <= 8192 {
-            Effort::Medium
-        } else if budget <= 32768 {
-            Effort::High
-        } else if budget <= 65536 {
-            Effort::XHigh
-        } else {
-            Effort::Max
-        }
-    }
-}
-
 /// Estimates the token count from a string representation
 /// This is a simple estimation that should be replaced with a more accurate
 /// tokenizer
@@ -265,51 +236,3 @@ impl From<Agent> for ToolDefinition {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_effort_from_budget_none() {
-        assert_eq!(Effort::from(0), Effort::None);
-    }
-
-    #[test]
-    fn test_effort_from_budget_minimal() {
-        assert_eq!(Effort::from(1), Effort::Minimal);
-        assert_eq!(Effort::from(512), Effort::Minimal);
-    }
-
-    #[test]
-    fn test_effort_from_budget_low() {
-        assert_eq!(Effort::from(513), Effort::Low);
-        assert_eq!(Effort::from(1024), Effort::Low);
-    }
-
-    #[test]
-    fn test_effort_from_budget_medium() {
-        assert_eq!(Effort::from(1025), Effort::Medium);
-        assert_eq!(Effort::from(5000), Effort::Medium);
-        assert_eq!(Effort::from(8192), Effort::Medium);
-    }
-
-    #[test]
-    fn test_effort_from_budget_high() {
-        assert_eq!(Effort::from(8193), Effort::High);
-        assert_eq!(Effort::from(20000), Effort::High);
-        assert_eq!(Effort::from(32768), Effort::High);
-    }
-
-    #[test]
-    fn test_effort_from_budget_xhigh() {
-        assert_eq!(Effort::from(32769), Effort::XHigh);
-        assert_eq!(Effort::from(50000), Effort::XHigh);
-        assert_eq!(Effort::from(65536), Effort::XHigh);
-    }
-
-    #[test]
-    fn test_effort_from_budget_max() {
-        assert_eq!(Effort::from(65537), Effort::Max);
-        assert_eq!(Effort::from(100000), Effort::Max);
-    }
-}
