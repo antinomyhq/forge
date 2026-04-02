@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
@@ -10,10 +6,17 @@ use forge_domain::{
     UserHookEventName, UserHookMatcherGroup,
 };
 use regex::Regex;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use tracing::{debug, warn};
 
 use super::user_hook_executor::UserHookExecutor;
 use crate::services::HookCommandService;
+
+/// Default timeout for hook commands (10 minutes).
+const DEFAULT_HOOK_TIMEOUT: Duration = Duration::from_secs(600);
 
 /// EventHandle implementation that bridges user-configured hooks with the
 /// existing lifecycle event system.
@@ -21,28 +24,14 @@ use crate::services::HookCommandService;
 /// This handler is constructed from a `UserHookConfig` and executes matching
 /// hook commands at each lifecycle event point. It wires into the existing
 /// `Hook` system via `Hook::zip()`.
+#[derive(Clone)]
 pub struct UserHookHandler<I> {
     executor: UserHookExecutor<I>,
     config: UserHookConfig,
     cwd: PathBuf,
     env_vars: HashMap<String, String>,
-    /// Default timeout in milliseconds for hook commands from the environment.
-    default_hook_timeout: u64,
     /// Tracks whether a Stop hook has already fired to prevent infinite loops.
     stop_hook_active: std::sync::Arc<AtomicBool>,
-}
-
-impl<I: Clone> Clone for UserHookHandler<I> {
-    fn clone(&self) -> Self {
-        Self {
-            executor: self.executor.clone(),
-            config: self.config.clone(),
-            cwd: self.cwd.clone(),
-            env_vars: self.env_vars.clone(),
-            default_hook_timeout: self.default_hook_timeout,
-            stop_hook_active: self.stop_hook_active.clone(),
-        }
-    }
 }
 
 impl<I> UserHookHandler<I> {
@@ -61,14 +50,12 @@ impl<I> UserHookHandler<I> {
         service: I,
         config: UserHookConfig,
         cwd: PathBuf,
-        project_dir: PathBuf,
         session_id: String,
-        default_hook_timeout: u64,
     ) -> Self {
         let mut env_vars = HashMap::new();
         env_vars.insert(
             "FORGE_PROJECT_DIR".to_string(),
-            project_dir.to_string_lossy().to_string(),
+            cwd.to_string_lossy().to_string(),
         );
         env_vars.insert("FORGE_SESSION_ID".to_string(), session_id);
         env_vars.insert("FORGE_CWD".to_string(), cwd.to_string_lossy().to_string());
@@ -78,7 +65,6 @@ impl<I> UserHookHandler<I> {
             config,
             cwd,
             env_vars,
-            default_hook_timeout,
             stop_hook_active: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
@@ -152,8 +138,9 @@ impl<I> UserHookHandler<I> {
                     .execute(
                         command,
                         &input_json,
-                        hook.timeout,
-                        self.default_hook_timeout,
+                        hook.timeout
+                            .map(Duration::from_millis)
+                            .unwrap_or(DEFAULT_HOOK_TIMEOUT),
                         &self.cwd,
                         &self.env_vars,
                     )
@@ -395,9 +382,7 @@ impl<I: HookCommandService> EventHandle<EventData<ResponsePayload>> for UserHook
 }
 
 #[async_trait]
-impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>>
-    for UserHookHandler<I>
-{
+impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
         event: &EventData<ToolcallStartPayload>,
@@ -462,9 +447,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>>
 }
 
 #[async_trait]
-impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>>
-    for UserHookHandler<I>
-{
+impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
         event: &EventData<ToolcallEndPayload>,
@@ -648,9 +631,7 @@ mod tests {
             NullInfra,
             config,
             PathBuf::from("/tmp"),
-            PathBuf::from("/tmp"),
             "sess-1".to_string(),
-            0,
         )
     }
 

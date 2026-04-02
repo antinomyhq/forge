@@ -7,9 +7,6 @@ use tracing::debug;
 
 use crate::services::HookCommandService;
 
-/// Default timeout for hook commands (10 minutes).
-const DEFAULT_HOOK_TIMEOUT: Duration = Duration::from_secs(600);
-
 /// Executes user hook commands by delegating to a [`HookCommandService`].
 ///
 /// Holds the service by value; the service itself is responsible for any
@@ -32,9 +29,7 @@ impl<S: HookCommandService> UserHookExecutor<S> {
     /// # Arguments
     /// * `command` - The shell command string to execute.
     /// * `input_json` - JSON string to pipe to the command's stdin.
-    /// * `timeout` - Optional per-hook timeout in milliseconds. Falls back to
-    ///   `default_timeout_ms` when `None`.
-    /// * `default_timeout_ms` - Default timeout in milliseconds from the
+    /// * `timeout` - per-hook timeout in milliseconds. Falls back to
     ///   environment configuration. Uses the built-in default (10 min) when
     ///   zero.
     /// * `cwd` - Working directory for the command.
@@ -46,19 +41,10 @@ impl<S: HookCommandService> UserHookExecutor<S> {
         &self,
         command: &str,
         input_json: &str,
-        timeout: Option<u64>,
-        default_timeout_ms: u64,
+        timeout_duration: Duration,
         cwd: &PathBuf,
         env_vars: &HashMap<String, String>,
     ) -> anyhow::Result<HookExecutionResult> {
-        let timeout_duration = timeout.map(Duration::from_millis).unwrap_or_else(|| {
-            if default_timeout_ms > 0 {
-                Duration::from_millis(default_timeout_ms)
-            } else {
-                DEFAULT_HOOK_TIMEOUT
-            }
-        });
-
         debug!(
             command = command,
             cwd = %cwd.display(),
@@ -168,8 +154,7 @@ mod tests {
             .execute(
                 "echo hello",
                 "{}",
-                None,
-                0,
+                Duration::from_secs(0),
                 &std::env::current_dir().unwrap(),
                 &HashMap::new(),
             )
@@ -188,8 +173,7 @@ mod tests {
             .execute(
                 "exit 2",
                 "{}",
-                None,
-                0,
+                Duration::from_secs(0),
                 &std::env::current_dir().unwrap(),
                 &HashMap::new(),
             )
@@ -208,8 +192,7 @@ mod tests {
             .execute(
                 "exit 1",
                 "{}",
-                None,
-                0,
+                Duration::from_secs(0),
                 &std::env::current_dir().unwrap(),
                 &HashMap::new(),
             )
@@ -227,8 +210,7 @@ mod tests {
             .execute(
                 "sleep 10",
                 "{}",
-                Some(100),
-                0,
+                Duration::from_millis(100),
                 &std::env::current_dir().unwrap(),
                 &HashMap::new(),
             )

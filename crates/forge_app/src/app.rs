@@ -167,9 +167,7 @@ impl<S: Services> ForgeApp<S> {
                 services.hook_command_service().clone(),
                 user_hook_config,
                 environment.cwd.clone(),
-                environment.cwd.clone(),
                 conversation.id.to_string(),
-                environment.hook_timeout,
             );
             let user_hook = Hook::default()
                 .on_start(user_handler.clone())
