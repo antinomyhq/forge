@@ -3,10 +3,11 @@
 This document contains guidelines and best practices for AI agents working with this codebase.
 
 ## Local and Origin Remote Git Branch Organization
-- main is upstream main (includes pre-release commits) and should never be touched 
-- v2.4.1 etc is the checkout from release tagged upstream commits
-- dev is our own fork with modifications. When running $prm always merge into dev instead of main!
-- for dev work use short-lived branches branched from dev
+- `main` tracks upstream `main` and must not be used for our work.
+- `release/v2.4.1`, `release/v2.4.2`, etc. are snapshot branches cut from upstream release tags. They exist only as reference points for updating `dev` when a new upstream release arrives.
+- `dev` is our long-lived fork branch. All ongoing fork development and integrations land in `dev`.
+- For normal work, create short-lived branches from `dev` and merge them back into `dev`.
+- When running `$prm`, always target `dev`, never `main`.
 
 ## Error Management
 
