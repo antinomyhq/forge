@@ -45,8 +45,9 @@ Then inspect `.forge/forge.request.json` for the expected fields.
 | `github_copilot` | `o4-mini`                    | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning_effort` (top-level)    |
 | `codex`          | `gpt-5.1-codex`              | `effort: none\|minimal\|low\|medium\|high\|xhigh` | `reasoning.effort` + `.summary`   |
 | `codex`          | `gpt-5.1-codex`              | `effort: medium` + `exclude: true`                | `reasoning.summary = "concise"`   |
+| all providers    | one model each               | `effort: invalid`                                 | non-zero exit, no request written |
 
-Tests for unconfigured providers are skipped automatically.
+Tests for unconfigured providers are skipped automatically. Invalid-effort tests run regardless of credentials — the rejection happens at config parse time before any provider interaction.
 
 ## References
 

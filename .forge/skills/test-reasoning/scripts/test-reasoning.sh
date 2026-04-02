@@ -86,6 +86,25 @@ run_test() {
     [ -f "$out" ]
 }
 
+# run_test_expect_failure <outfile> <provider_id> <model_id> [KEY=VALUE ...]
+# Like run_test, but expects forge to exit non-zero and NOT write the request file.
+# Invalid config values (e.g. unknown Effort variant) are rejected at startup,
+# before any provider interaction, so this check is independent of credentials.
+# Returns 0 if forge exited non-zero and wrote no file, 1 otherwise.
+run_test_expect_failure() {
+    local out="$1" provider="$2" model="$3"
+    shift 3
+
+    env FORGE_DEBUG_REQUESTS="$out" \
+        FORGE_SESSION__PROVIDER_ID="$provider" \
+        FORGE_SESSION__MODEL_ID="$model" \
+        "$@" \
+        "$BINARY" -p "Hello!" >/dev/null 2>&1
+    local status=$?
+
+    [ "$status" -ne 0 ] && [ ! -f "$out" ]
+}
+
 # ─── build ────────────────────────────────────────────────────────────────────
 
 printf "${BOLD}Reasoning Serialization Tests${RESET}\n"
@@ -244,6 +263,28 @@ if run_test "$OUT" codex "gpt-5.1-codex" \
 else
     log_skip "codex not configured — skipping"
 fi
+
+# ─── Invalid effort — config parse error (one per provider) ──────────────────
+# "invalid" is not a recognised Effort variant. Forge must reject it at config
+# parse time, exit non-zero, and never write a debug request file.
+# This check runs regardless of provider credentials.
+
+log_header "Invalid effort · config parse error"
+for entry in \
+    "open_router:openai/o4-mini" \
+    "anthropic:claude-opus-4-6" \
+    "github_copilot:o4-mini" \
+    "codex:gpt-5.1-codex"
+do
+    provider="${entry%%:*}"
+    model="${entry##*:}"
+    OUT="$WORK_DIR/invalid-effort-${provider}.json"
+    if run_test_expect_failure "$OUT" "$provider" "$model" FORGE_REASONING__EFFORT=invalid; then
+        log_pass "$provider/$model  invalid effort → non-zero exit, no request written"
+    else
+        log_fail "$provider/$model  invalid effort was not rejected"
+    fi
+done
 
 # ─── summary ──────────────────────────────────────────────────────────────────
 
