@@ -1639,4 +1639,58 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+
+    /// Regression test: when both `reasoning` (raw text) and `reasoning_details`
+    /// (structured, with a cryptographic signature) are present, `append_message`
+    /// must NOT create a duplicate thinking block with a null signature.
+    ///
+    /// The Anthropic API rejects messages where any thinking block carries a null
+    /// or missing signature, so the stored `reasoning_details` must contain exactly
+    /// the structured entries that were passed in — no extras.
+    #[test]
+    fn test_append_message_does_not_duplicate_reasoning_when_details_present() {
+        // Fixture: a structured reasoning detail with a valid signature, as would
+        // arrive after aggregating an Anthropic streaming response.
+        let fixture_details = vec![ReasoningFull {
+            text: Some("Let me think about this.".to_string()),
+            signature: Some("EpwFvalidSignatureABC123".to_string()),
+            type_of: Some("reasoning.text".to_string()),
+            format: Some("anthropic-claude-v1".to_string()),
+            index: Some(0),
+            ..Default::default()
+        }];
+
+        // Both reasoning (raw string) and reasoning_details (structured) are provided,
+        // mirroring what orch.rs passes after collecting a streamed Anthropic response.
+        let fixture = Context::default().add_message(ContextMessage::user("Hello", None));
+        let actual = fixture.append_message(
+            "Answer",
+            None,
+            Some("Let me think about this.".to_string()), // raw reasoning string
+            Some(fixture_details.clone()),                 // structured reasoning_details
+            Usage::default(),
+            vec![],
+            None,
+        );
+
+        // Extract the stored reasoning_details from the assistant message.
+        let stored = actual
+            .messages
+            .iter()
+            .find_map(|entry| {
+                if let ContextMessage::Text(msg) = &**entry {
+                    if msg.role == Role::Assistant {
+                        return msg.reasoning_details.as_ref();
+                    }
+                }
+                None
+            })
+            .expect("Assistant message should have reasoning_details");
+
+        // Expected: exactly the one structured entry that was passed in.
+        // No duplicate null-signature entry should have been appended.
+        let expected = fixture_details;
+        assert_eq!(stored, &expected);
+    }
 }
