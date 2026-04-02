@@ -3,7 +3,7 @@ use std::time::Duration;
 use forge_app::{AuthStrategy, OAuthHttpProvider, StrategyFactory};
 use forge_domain::{
     ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential, CodeRequest,
-    DeviceCodeRequest, OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
+    DeviceCodeRequest, OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId, URLParamSpec,
 };
 use google_cloud_auth::credentials::Builder;
 use oauth2::basic::BasicClient;
@@ -18,11 +18,11 @@ use crate::auth::util::*;
 /// API Key Strategy - Simple static key authentication
 pub struct ApiKeyStrategy {
     provider_id: ProviderId,
-    required_params: Vec<URLParam>,
+    required_params: Vec<URLParamSpec>,
 }
 
 impl ApiKeyStrategy {
-    pub fn new(provider_id: ProviderId, required_params: Vec<URLParam>) -> Self {
+    pub fn new(provider_id: ProviderId, required_params: Vec<URLParamSpec>) -> Self {
         Self { provider_id, required_params }
     }
 }
@@ -348,11 +348,11 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
 /// Uses Google Cloud SDK's ADC mechanism with automatic token refresh
 pub struct GoogleAdcStrategy {
     provider_id: ProviderId,
-    required_params: Vec<URLParam>,
+    required_params: Vec<URLParamSpec>,
 }
 
 impl GoogleAdcStrategy {
-    pub fn new(provider_id: ProviderId, required_params: Vec<URLParam>) -> Self {
+    pub fn new(provider_id: ProviderId, required_params: Vec<URLParamSpec>) -> Self {
         Self { provider_id, required_params }
     }
 }
@@ -1036,7 +1036,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
         &self,
         provider_id: ProviderId,
         auth_method: forge_domain::AuthMethod,
-        required_params: Vec<URLParam>,
+        required_params: Vec<URLParamSpec>,
     ) -> anyhow::Result<Self::Strategy> {
         match auth_method {
             forge_domain::AuthMethod::ApiKey => Ok(AnyAuthStrategy::ApiKey(ApiKeyStrategy::new(
@@ -1093,6 +1093,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
 mod tests {
     use std::collections::HashMap;
 
+    use forge_domain::URLParam;
     use pretty_assertions::assert_eq;
 
     use super::*;

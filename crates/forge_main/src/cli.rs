@@ -54,37 +54,13 @@ pub struct Cli {
     #[arg(long, default_value_t = false)]
     pub verbose: bool,
 
-    /// Use restricted shell (rbash) for enhanced security.
-    #[arg(long, default_value_t = false, short = 'r')]
-    pub restricted: bool,
-
     /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
 
-    /// Override the model to use for this session.
-    ///
-    /// When provided, uses this model instead of the configured default.
-    /// This is a runtime override and does not change the permanent
-    /// configuration.
-    #[arg(long)]
-    pub model: Option<ModelId>,
-
-    /// Override the provider to use for this session.
-    ///
-    /// When provided, uses this provider instead of the configured default.
-    /// This is a runtime override and does not change the permanent
-    /// configuration.
-    #[arg(long)]
-    pub provider: Option<ProviderId>,
-
     /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
-
-    /// Path to a file containing the workflow to execute.
-    #[arg(long, short = 'w')]
-    pub workflow: Option<PathBuf>,
 
     /// Event to dispatch to the workflow in JSON format.
     #[arg(long, short = 'e')]
@@ -242,9 +218,10 @@ pub enum WorkspaceCommand {
         #[arg(default_value = ".")]
         path: PathBuf,
 
-        /// Number of files to process concurrently
-        #[arg(long, default_value = "100")]
-        batch_size: usize,
+        /// Automatically initialize the workspace before syncing if it has not
+        /// been initialized yet.
+        #[arg(long)]
+        init: bool,
     },
     /// List all workspaces.
     List {
@@ -667,6 +644,15 @@ pub enum ConversationCommand {
     Delete {
         /// Conversation ID to delete.
         id: String,
+    },
+
+    /// Rename a conversation.
+    Rename {
+        /// Conversation ID to rename.
+        id: ConversationId,
+
+        /// New name for the conversation.
+        name: String,
     },
 }
 

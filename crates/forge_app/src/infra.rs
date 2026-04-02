@@ -4,9 +4,10 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
+use forge_config::ForgeConfig;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
-    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
+    OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -16,21 +17,37 @@ use url::Url;
 
 use crate::{WalkedFile, Walker};
 
-/// Infrastructure trait for accessing environment configuration and system
-/// variables.
-///
-/// This trait provides access to the application environment which includes
-/// configuration for both global and project-local agent directories. The
-/// Environment exposes:
-/// - Global agent directory via `agent_path()` (typically ~/.forge/agents)
-/// - Project-local agent directory via `agent_cwd_path()` (typically
-///   .forge/agents)
+/// Infrastructure trait for accessing environment configuration, system
+/// variables, and persisted application configuration.
 pub trait EnvironmentInfra: Send + Sync {
-    fn get_environment(&self) -> Environment;
+    /// The fully-resolved configuration type returned by
+    /// [`EnvironmentInfra::get_config`].
+    type Config: Clone + Send + Sync;
+
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
-    /// Returns whether the application is running in restricted mode.
-    fn is_restricted(&self) -> bool;
+
+    /// Retrieves the current application configuration as an [`Environment`].
+    fn get_environment(&self) -> Environment;
+
+    /// Returns the full [`ForgeConfig`] for the current session.
+    ///
+    /// Callers that need configuration values previously carried on
+    /// [`Environment`] (e.g. `retry_config`, `tool_timeout_secs`,
+    /// `session`, etc.) must call this method instead.
+    fn get_config(&self) -> ForgeConfig;
+
+    /// Applies a list of configuration operations to the persisted config.
+    ///
+    /// Implementations should load the current config, apply each operation in
+    /// order, and persist the result atomically.
+    ///
+    /// # Errors
+    /// Returns an error if the configuration cannot be read or written.
+    fn update_environment(
+        &self,
+        ops: Vec<ConfigOperation>,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;
 }
 
 /// Repository for accessing system environment information
@@ -349,13 +366,14 @@ pub trait StrategyFactory: Send + Sync {
         &self,
         provider_id: forge_domain::ProviderId,
         auth_method: forge_domain::AuthMethod,
-        required_params: Vec<forge_domain::URLParam>,
+        required_params: Vec<forge_domain::URLParamSpec>,
     ) -> anyhow::Result<Self::Strategy>;
 }
 
-/// Repository for loading agent definitions from multiple sources.
+/// Repository for loading agents from multiple sources.
 ///
-/// This trait provides access to agent definitions from:
+/// This trait provides access to fully-resolved domain [`forge_domain::Agent`]
+/// values from:
 /// 1. Built-in agents (embedded in the application)
 /// 2. Global custom agents (from ~/.forge/agents/ directory)
 /// 3. Project-local agents (from .forge/agents/ directory in current working
@@ -369,9 +387,18 @@ pub trait StrategyFactory: Send + Sync {
 /// override built-in agents.
 #[async_trait::async_trait]
 pub trait AgentRepository: Send + Sync {
-    /// Load all agent definitions from all available sources with conflict
-    /// resolution.
-    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
+    /// Load all agents from all available sources with conflict resolution.
+    ///
+    /// # Arguments
+    ///
+    /// * `provider_id` - Default provider applied to agents that do not specify
+    ///   one
+    /// * `model_id` - Default model applied to agents that do not specify one
+    async fn get_agents(
+        &self,
+        provider_id: forge_domain::ProviderId,
+        model_id: forge_domain::ModelId,
+    ) -> anyhow::Result<Vec<forge_domain::Agent>>;
 }
 
 /// Infrastructure trait for providing shared gRPC channel

@@ -7,11 +7,12 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use colored::Colorize;
+use console::style;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -24,7 +25,6 @@ use forge_select::ForgeWidget;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use futures::future;
-use merge::Merge;
 use tokio_stream::StreamExt;
 use url::Url;
 
@@ -212,13 +212,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
+        let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), command.clone()),
+            console: Console::new(env.clone(), config.custom_history_path, command.clone()),
             cli,
             command,
             spinner,
@@ -290,6 +291,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Handle direct prompt or piped input if provided (raw text messages)
         let input = self.cli.prompt.clone().or(self.cli.piped_input.clone());
         if let Some(input) = input {
+            tracker::prompt(input.clone());
             self.spinner.start(None)?;
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
@@ -529,8 +531,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
-                // Make sure to init model
-                self.on_new().await?;
+                // Only initialize state (agent/provider/model resolution).
+                // Avoid on_new() which also spawns fire-and-forget background
+                // tasks via hydrate_caches() that race with process exit and
+                // cause "JoinHandle polled after completion" panics.
+                self.init_state(false).await?;
 
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
@@ -599,8 +604,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
-                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
-                        self.on_index(path, batch_size).await?;
+                    crate::cli::WorkspaceCommand::Sync { path, init } => {
+                        self.on_index(path, init).await?;
                     }
                     crate::cli::WorkspaceCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
@@ -670,7 +675,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Update(args) => {
-                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                let update = forge_config::Update::default().auto_update(args.no_confirm);
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
@@ -766,6 +771,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.spinner.start(Some("Cloning"))?;
                 self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
+            }
+            ConversationCommand::Rename { id, name } => {
+                self.validate_conversation_exists(&id).await?;
+
+                let name = name.trim().to_string();
+                if name.is_empty() {
+                    return Err(anyhow::anyhow!(
+                        "Please provide a name for the conversation."
+                    ));
+                }
+                self.api.rename_conversation(&id, name.clone()).await?;
+                self.writeln_title(TitleFormat::info(format!(
+                    "Conversation renamed to '{}'",
+                    name.bold()
+                )))?;
             }
         }
 
@@ -1213,6 +1233,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
+                .sort_by(&[1, 0])
                 .to_case(&[1], Case::UpperSnake)
                 .map_col(0, |col| {
                     if col.as_deref() == Some(headers::ID) {
@@ -1420,24 +1441,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Show failed MCP servers
-        if !all_tools.mcp.get_failures().is_empty() {
-            info = info.add_title("FAILED");
-            for (server_name, error) in all_tools.mcp.get_failures().iter() {
-                // Truncate error message for readability
-                let truncated_error = if error.len() > 80 {
-                    format!("{}...", &error[..77])
-                } else {
-                    error.clone()
-                };
-                info = info.add_value(format!("[✗] {server_name} - {truncated_error}"));
-            }
-        }
-
         if porcelain {
             self.writeln(Porcelain::from(&info).uppercase_headers().truncate(3, 60))?;
         } else {
             self.writeln(info)?;
+        }
+
+        // Show failed MCP servers
+        if !porcelain && !all_tools.mcp.get_failures().is_empty() {
+            self.writeln("MCP FAILURES\n".dimmed().bold())?;
+            for (_, error) in all_tools.mcp.get_failures().iter() {
+                let error = style(error).red();
+                self.writeln(error)?;
+            }
         }
 
         Ok(())
@@ -1456,7 +1472,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => None,
         };
 
-        let key_info = self.api.get_login_info().await;
         // Fetch agent
         let agent = self.api.get_active_agent().await;
 
@@ -1506,11 +1521,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Add user information if available
-        if let Some(login_info) = key_info? {
-            info = info.extend(Info::from(&login_info));
-        }
-
         // Add conversation information if available
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
@@ -1529,7 +1539,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_env(&mut self) -> anyhow::Result<()> {
         let env = self.api.environment();
-        let info = Info::from(&env);
+        let config = self.api.get_config();
+        let info = Info::from(&env).extend(Info::from(&config));
         self.writeln(info)?;
         Ok(())
     }
@@ -1724,7 +1735,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let max_conversations = self.api.environment().max_conversations;
+        let max_conversations = self.api.get_config().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
@@ -1758,7 +1769,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let max_conversations = self.api.environment().max_conversations;
+        let max_conversations = self.api.get_config().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
@@ -1823,6 +1834,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Delete => {
                 self.handle_delete_conversation().await?;
             }
+            SlashCommand::Rename(ref name) => {
+                self.handle_rename_conversation(name.clone()).await?;
+            }
             SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(html).await?;
@@ -1872,7 +1886,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_custom_event(event.into()).await?;
             }
             SlashCommand::Model => {
-                self.on_model_selection().await?;
+                self.on_model_selection(None).await?;
             }
             SlashCommand::Provider => {
                 self.on_provider_selection().await?;
@@ -1979,8 +1993,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 100 for slash command
-                self.on_index(working_dir, 100).await?;
+                self.on_index(working_dir, false).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -2017,17 +2030,36 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    async fn handle_rename_conversation(&mut self, name: String) -> anyhow::Result<()> {
+        let conversation_id = self.init_conversation().await?;
+        self.api
+            .rename_conversation(&conversation_id, name.clone())
+            .await?;
+        self.writeln_title(TitleFormat::info(format!(
+            "Conversation renamed to '{}'",
+            name.bold()
+        )))?;
+        Ok(())
+    }
+
     /// Select a model from all configured providers using porcelain-style
     /// tabular display matching the shell plugin's `:model` UI.
     ///
     /// Shows columns: MODEL, PROVIDER, CONTEXT WINDOW, TOOL SUPPORTED, IMAGE
     /// with a non-selectable header row.
     ///
+    /// When `provider_filter` is `Some`, only models belonging to that provider
+    /// are shown. This is used during onboarding so that after a provider is
+    /// selected the model list is scoped to that provider only.
+    ///
     /// # Returns
     /// - `Ok(Some(ModelId))` if a model was selected
     /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
-    async fn select_model(&mut self) -> Result<Option<ModelId>> {
+    async fn select_model(
+        &mut self,
+        provider_filter: Option<ProviderId>,
+    ) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
         if self.api.get_default_provider().await.is_err() {
             self.on_provider_selection().await?;
@@ -2041,10 +2073,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Fetch models from ALL configured providers (matches shell plugin's
-        // `forge list models --porcelain`)
+        // `forge list models --porcelain`), then optionally filter by provider.
         self.spinner.start(Some("Loading"))?;
         let mut all_provider_models = self.api.get_all_provider_models().await?;
         self.spinner.stop(None)?;
+
+        // When a provider filter is specified (e.g. during onboarding after a
+        // provider was just selected), restrict the list to that provider's
+        // models so the user cannot accidentally pick a model from a different
+        // provider.
+        if let Some(ref filter_id) = provider_filter {
+            all_provider_models.retain(|pm| &pm.provider_id == filter_id);
+        }
 
         if all_provider_models.is_empty() {
             return Ok(None);
@@ -2188,20 +2228,39 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .required_params
             .iter()
             .map(|param| {
-                let mut input = ForgeWidget::input(format!("Enter {param}"));
+                let param_value = if let Some(options) = &param.options {
+                    // Dropdown path: user selects from preset options
+                    let starting = existing_url_params
+                        .and_then(|p| p.get(&param.name))
+                        .and_then(|v| options.iter().position(|o| o.as_str() == v.as_str()))
+                        .unwrap_or(0);
+                    ForgeWidget::select(format!("Select {}", param.name), options.clone())
+                        .with_starting_cursor(starting)
+                        .prompt()?
+                        .context("Parameter selection cancelled")?
+                } else {
+                    // Free-text path (existing behavior)
+                    let mut input = ForgeWidget::input(format!("Enter {}", param.name));
 
-                // Add default value if it exists in the credential
-                if let Some(params) = existing_url_params
-                    && let Some(default_value) = params.get(param)
-                {
-                    input = input.with_default(default_value.as_str());
-                }
+                    // Add default value if it exists in the credential
+                    if let Some(params) = existing_url_params
+                        && let Some(default_value) = params.get(&param.name)
+                    {
+                        input = input.with_default(default_value.as_str());
+                    }
 
-                let param_value = input.prompt()?.context("Parameter input cancelled")?;
+                    let param_value = input.prompt()?.context("Parameter input cancelled")?;
 
-                anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
+                    anyhow::ensure!(
+                        !param_value.trim().is_empty(),
+                        "{} cannot be empty",
+                        param.name
+                    );
 
-                Ok((param.to_string(), param_value))
+                    param_value.trim_end_matches('/').to_string()
+                };
+
+                Ok((param.name.to_string(), param_value))
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
@@ -2635,11 +2694,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.select_provider_from_list(providers, "Provider", current_provider_id)
     }
 
-    // Helper method to handle model selection and update the conversation
+    // Helper method to handle model selection and update the conversation.
+    // When `provider_filter` is `Some`, only models from that provider are shown.
     #[async_recursion::async_recursion]
-    async fn on_model_selection(&mut self) -> Result<Option<ModelId>> {
+    async fn on_model_selection(
+        &mut self,
+        provider_filter: Option<ProviderId>,
+    ) -> Result<Option<ModelId>> {
         // Select a model
-        let model_option = self.select_model().await?;
+        let model_option = self.select_model(provider_filter).await?;
 
         // If no model was selected (user canceled), return early
         let model = match model_option {
@@ -2741,13 +2804,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let model_available = models.iter().any(|m| m.id == current_model);
 
             if !model_available {
-                // Prompt user to select a new model
+                // Prompt user to select a new model, scoped to the activated provider
                 self.writeln_title(TitleFormat::info("Please select a new model"))?;
-                self.on_model_selection().await?;
+                self.on_model_selection(Some(provider.id.clone())).await?;
             }
         } else {
-            // No model set, select one now
-            self.on_model_selection().await?;
+            // No model set, select one now scoped to the activated provider
+            self.on_model_selection(Some(provider.id.clone())).await?;
         }
 
         Ok(())
@@ -2849,10 +2912,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Initialize the state of the UI
-    async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        // Run the independent initialization tasks in parallel for better performance
-        let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
-
+    async fn init_state(&mut self, first: bool) -> Result<()> {
         let _ = self.handle_migrate_credentials().await;
 
         // Ensure we have a model selected before proceeding with initialization
@@ -2861,7 +2921,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut operating_model = self.get_agent_model(active_agent.clone()).await;
         if operating_model.is_none() {
             // Use the model returned from selection instead of re-fetching
-            operating_model = self.on_model_selection().await?;
+            operating_model = self.on_model_selection(None).await?;
         }
 
         // Validate provider is configured before loading agents
@@ -2872,9 +2932,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if first {
-            // Create base workflow and trigger updates if this is the first initialization
-            let mut base_workflow = Workflow::default();
-            base_workflow.merge(workflow.clone());
             // For chat, we are trying to get active agent or setting it to default.
             // So for default values, `/info` doesn't show active provider, model, etc.
             // So my default, on new, we should set the active agent.
@@ -2882,10 +2939,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
-            if !workflow.commands.is_empty() {
-                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead"))?;
-            }
+            on_update(self.api.clone(), self.api.get_config().updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -2917,7 +2971,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
-        Ok(workflow)
+        Ok(())
     }
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
@@ -3044,7 +3098,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.environment().auto_open_dump {
+                    if self.api.get_config().auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 } else {
@@ -3068,7 +3122,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.environment().auto_open_dump {
+                    if self.api.get_config().auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 };
@@ -3148,7 +3202,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
-                if !self.api.environment().retry_config.suppress_retry_errors {
+                if !self
+                    .api
+                    .get_config()
+                    .retry
+                    .as_ref()
+                    .is_some_and(|r| r.suppress_errors)
+                {
                     writer.finish()?;
                     self.spinner.start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
@@ -3185,8 +3245,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if let Some(format) = self.api.environment().auto_dump {
-                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                if let Some(format) = self.api.get_config().auto_dump {
+                    let html = matches!(format, forge_config::AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }
             }
@@ -3633,11 +3693,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_index(
-        &mut self,
-        path: std::path::PathBuf,
-        batch_size: usize,
-    ) -> anyhow::Result<()> {
+    async fn on_index(&mut self, path: std::path::PathBuf, init: bool) -> anyhow::Result<()> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
@@ -3646,7 +3702,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.init_forge_services().await?;
         }
 
-        let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
+        // When init is set, check if the workspace is already initialized
+        // via get_workspace_info before calling init, so we only initialize
+        // when a workspace does not yet exist for the given path.
+        if init {
+            let workspace_info = self.api.get_workspace_info(path.clone()).await?;
+            if workspace_info.is_none() {
+                self.on_workspace_init(path.clone()).await?;
+            }
+        }
+
+        let mut stream = self.api.sync_workspace(path.clone()).await?;
         let mut progress_bar = ProgressBarManager::default();
 
         while let Some(event) = stream.next().await {
@@ -3997,19 +4063,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            self.init_forge_services().await?;
+        }
+
         self.spinner.start(Some("Initializing workspace"))?;
 
         let workspace_id = self.api.init_workspace(path.clone()).await?;
 
         self.spinner.stop(None)?;
 
-        // Resolve and display the path
-        let canonical_path = path.canonicalize().unwrap_or_else(|_| path.clone());
-
         self.writeln_title(
             TitleFormat::info("Workspace initialized successfully")
-                .sub_title(format!("Path: {}", canonical_path.display()))
-                .sub_title(format!("Workspace ID: {}", workspace_id)),
+                .sub_title(format!("{}", workspace_id)),
         )?;
 
         Ok(())

@@ -6,9 +6,8 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
-    ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
-    WorkspaceIndexRepository,
+    ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -19,7 +18,7 @@ use crate::auth::ForgeAuthService;
 use crate::command::CommandLoaderService as ForgeCommandLoaderService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
-use crate::env::ForgeEnvironmentService;
+use crate::fd::FdDefault;
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
@@ -29,7 +28,6 @@ use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
     ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
-use crate::workflow::ForgeWorkflowService;
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
@@ -49,7 +47,7 @@ pub struct ForgeServices<
         + WalkerInfra
         + SnapshotRepository
         + ConversationRepository
-        + AppConfigRepository
+        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -63,7 +61,6 @@ pub struct ForgeServices<
     conversation_service: Arc<ForgeConversationService<F>>,
     template_service: Arc<ForgeTemplateService<F>>,
     attachment_service: Arc<ForgeChatRequest<F>>,
-    workflow_service: Arc<ForgeWorkflowService<F>>,
     discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsWrite<F>>,
@@ -78,15 +75,15 @@ pub struct ForgeServices<
     fetch_service: Arc<ForgeFetch>,
     followup_service: Arc<ForgeFollowup<F>>,
     mcp_service: Arc<McpService<F>>,
-    env_service: Arc<ForgeEnvironmentService<F>>,
     custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     auth_service: Arc<AuthService<F>>,
     agent_registry_service: Arc<ForgeAgentRegistryService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
-    workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F>>,
+    workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
+    infra: Arc<F>,
 }
 
 impl<
@@ -102,7 +99,7 @@ impl<
         + UserInfra
         + SnapshotRepository
         + ConversationRepository
-        + AppConfigRepository
+        + EnvironmentInfra
         + ChatRepository
         + ProviderRepository
         + KVStore
@@ -117,7 +114,6 @@ impl<
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
-        let workflow_service = Arc::new(ForgeWorkflowService::new(infra.clone()));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
@@ -134,15 +130,16 @@ impl<
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
-        let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(infra.clone()));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let discovery = Arc::new(FdDefault::new(infra.clone()));
         let workspace_service = Arc::new(crate::context_engine::ForgeWorkspaceService::new(
             infra.clone(),
+            discovery,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
 
@@ -150,7 +147,6 @@ impl<
             conversation_service,
             attachment_service,
             template_service,
-            workflow_service,
             discovery_service: suggestion_service,
             mcp_manager,
             file_create_service,
@@ -165,7 +161,6 @@ impl<
             fetch_service,
             followup_service,
             mcp_service,
-            env_service,
             custom_instructions_service,
             auth_service,
             config_service,
@@ -176,6 +171,7 @@ impl<
             workspace_service,
             skill_service,
             chat_service,
+            infra,
         }
     }
 }
@@ -196,7 +192,7 @@ impl<
         + Clone
         + SnapshotRepository
         + ConversationRepository
-        + AppConfigRepository
+        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -219,9 +215,7 @@ impl<
         &self.provider_auth_service
     }
     type AttachmentService = ForgeChatRequest<F>;
-    type EnvironmentService = ForgeEnvironmentService<F>;
     type CustomInstructionsService = ForgeCustomInstructionsService<F>;
-    type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
     type FsWriteService = ForgeFsWrite<F>;
@@ -241,7 +235,7 @@ impl<
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
     type ProviderService = ForgeProviderService<F>;
-    type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F>;
+    type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>;
     type SkillFetchService = ForgeSkillFetch<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
@@ -260,15 +254,8 @@ impl<
         &self.attachment_service
     }
 
-    fn environment_service(&self) -> &Self::EnvironmentService {
-        &self.env_service
-    }
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService {
         &self.custom_instructions_service
-    }
-
-    fn workflow_service(&self) -> &Self::WorkflowService {
-        self.workflow_service.as_ref()
     }
 
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService {
@@ -352,5 +339,49 @@ impl<
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
+    }
+}
+
+impl<
+    F: EnvironmentInfra
+        + HttpInfra
+        + McpServerInfra
+        + WalkerInfra
+        + SnapshotRepository
+        + ConversationRepository
+        + KVStore
+        + ChatRepository
+        + ProviderRepository
+        + WorkspaceIndexRepository
+        + AgentRepository
+        + SkillRepository
+        + ValidationRepository
+        + Send
+        + Sync,
+> forge_app::EnvironmentInfra for ForgeServices<F>
+{
+    type Config = forge_config::ForgeConfig;
+
+    fn get_environment(&self) -> forge_domain::Environment {
+        self.infra.get_environment()
+    }
+
+    fn get_config(&self) -> forge_config::ForgeConfig {
+        self.infra.get_config()
+    }
+
+    fn update_environment(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send {
+        self.infra.update_environment(ops)
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.infra.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+        self.infra.get_env_vars()
     }
 }

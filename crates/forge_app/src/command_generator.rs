@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
-    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
+    AppConfigService, EnvironmentInfra, FileDiscoveryService, ProviderService, TemplateEngine,
 };
 
 /// Response struct for shell command generation using JSON format
@@ -25,7 +25,7 @@ pub struct CommandGenerator<S> {
 
 impl<S> CommandGenerator<S>
 where
-    S: EnvironmentService + FileDiscoveryService + ProviderService + AppConfigService,
+    S: EnvironmentInfra + FileDiscoveryService + ProviderService + AppConfigService,
 {
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
@@ -137,13 +137,33 @@ mod tests {
         }
     }
 
-    impl EnvironmentService for MockServices {
+    impl EnvironmentInfra for MockServices {
+        type Config = forge_config::ForgeConfig;
+
         fn get_environment(&self) -> Environment {
             self.environment.clone()
         }
 
-        fn is_restricted(&self) -> bool {
-            false
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
+        }
+
+        async fn update_environment(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
         }
     }
 

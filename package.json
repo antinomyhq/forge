@@ -7,7 +7,11 @@
   "author": "Tushar Mathur <tusharmath@gmail.com>",
   "type": "module",
   "scripts": {
-    "eval": "tsx benchmarks/cli.ts"
+    "eval": "tsx benchmarks/cli.ts",
+    "test:bounty": "tsx --test .github/scripts/bounty/tests/*.test.ts",
+    "bounty:sync-issue": "tsx .github/scripts/bounty/src/sync-issue.ts",
+    "bounty:sync-pr": "tsx .github/scripts/bounty/src/sync-pr.ts",
+    "bounty:sync-all-issues": "tsx .github/scripts/bounty/src/sync-all-issues.ts"
   },
   "dependencies": {
     "@ai-sdk/google-vertex": "^4.0.47",
@@ -16,8 +20,9 @@
     "@types/tmp": "^0.2.6",
     "@types/yargs": "^17.0.35",
     "ai": "^6.0.77",
+    "chalk": "^5.6.2",
     "csv-parse": "^6.1.0",
-    "handlebars": "^4.7.8",
+    "handlebars": "^4.7.9",
     "p-limit": "^7.2.0",
     "pino": "^10.1.0",
     "pino-pretty": "^13.1.2",
@@ -25,7 +30,7 @@
     "tmp": "^0.2.5",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",
-    "yaml": "^2.8.1",
+    "yaml": "^2.8.3",
     "yargs": "^18.0.0",
     "zod": "^3.24.1"
   }

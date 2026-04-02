@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
 use colored::Colorize;
-use forge_api::{API, Update};
+use forge_api::API;
+use forge_config::Update;
 use forge_select::ForgeWidget;
 use forge_tracker::VERSION;
 use update_informer::{Check, Version, registry};

@@ -245,6 +245,9 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .rev()
             .find_map(|message| message.thought_signature.clone());
 
+        // Get phase from the last message that has one
+        let phase = messages.iter().rev().find_map(|message| message.phase);
+
         // Check for empty completion - map to retryable error for retry
         if content.trim().is_empty()
             && tool_calls.is_empty()
@@ -263,6 +266,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             reasoning_details: (!total_reasoning_details.is_empty())
                 .then_some(total_reasoning_details),
             finish_reason,
+            phase,
         })
     }
 }
@@ -315,6 +319,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -368,6 +373,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -419,6 +425,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -471,6 +478,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -525,6 +533,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: Some(FinishReason::Stop),
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -652,6 +661,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -718,6 +728,7 @@ mod tests {
             reasoning: Some("First reasoning: thinking deeply about this...".to_string()),
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -773,6 +784,7 @@ mod tests {
             reasoning: None,
             reasoning_details: Some(expected_reasoning_details),
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -803,6 +815,7 @@ mod tests {
             reasoning: None, // Empty reasoning should be None
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -891,6 +904,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -933,6 +947,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -973,6 +988,7 @@ mod tests {
             reasoning_details: None,
             finish_reason: Some(FinishReason::Stop), /* Should be from the last message with a
                                                       * finish reason */
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -1002,6 +1018,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: Some(FinishReason::ToolCalls),
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -1030,6 +1047,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -1121,6 +1139,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: Some(FinishReason::Stop),
+            phase: None,
         };
 
         assert_eq!(actual, expected);
@@ -1155,6 +1174,7 @@ mod tests {
             reasoning: None,
             reasoning_details: None,
             finish_reason: None,
+            phase: None,
         };
 
         assert_eq!(actual, expected);

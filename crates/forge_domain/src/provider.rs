@@ -70,6 +70,8 @@ impl ProviderId {
     pub const MINIMAX: ProviderId = ProviderId(Cow::Borrowed("minimax"));
     pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
     pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
+    pub const FIREWORKS_AI: ProviderId = ProviderId(Cow::Borrowed("fireworks-ai"));
+    pub const NOVITA: ProviderId = ProviderId(Cow::Borrowed("novita"));
 
     /// Returns all built-in provider IDs
     ///
@@ -100,6 +102,8 @@ impl ProviderId {
             ProviderId::MINIMAX,
             ProviderId::CODEX,
             ProviderId::OPENCODE_ZEN,
+            ProviderId::FIREWORKS_AI,
+            ProviderId::NOVITA,
         ]
     }
 
@@ -123,6 +127,8 @@ impl ProviderId {
             "io_intelligence" => "IOIntelligence".to_string(),
             "minimax" => "MiniMax".to_string(),
             "codex" => "Codex".to_string(),
+            "fireworks-ai" => "FireworksAI".to_string(),
+            "novita" => "Novita".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -165,6 +171,8 @@ impl std::str::FromStr for ProviderId {
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
             "minimax" => ProviderId::MINIMAX,
             "codex" => ProviderId::CODEX,
+            "fireworks-ai" => ProviderId::FIREWORKS_AI,
+            "novita" => ProviderId::NOVITA,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -207,7 +215,7 @@ pub struct Provider<T> {
     pub models: Option<ModelSource<T>>,
     pub auth_methods: Vec<crate::AuthMethod>,
     #[serde(default)]
-    pub url_params: Vec<crate::URLParam>,
+    pub url_params: Vec<crate::URLParamSpec>,
     pub credential: Option<AuthCredential>,
     /// Custom HTTP headers to include in API requests for this provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -294,7 +302,7 @@ impl AnyProvider {
             AnyProvider::Template(_) => None,
         }
     }
-    pub fn url_params(&self) -> &[crate::URLParam] {
+    pub fn url_params(&self) -> &[crate::URLParamSpec] {
         match self {
             AnyProvider::Url(p) => &p.url_params,
             AnyProvider::Template(p) => &p.url_params,
@@ -535,6 +543,7 @@ mod tests {
         );
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
         assert_eq!(ProviderId::CODEX.to_string(), "Codex");
+        assert_eq!(ProviderId::FIREWORKS_AI.to_string(), "FireworksAI");
     }
 
     #[test]
@@ -545,10 +554,18 @@ mod tests {
     }
 
     #[test]
+    fn test_fireworks_ai_from_str() {
+        let actual = ProviderId::from_str("fireworks-ai").unwrap();
+        let expected = ProviderId::FIREWORKS_AI;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_codex_in_built_in_providers() {
         let built_in = ProviderId::built_in_providers();
         assert!(built_in.contains(&ProviderId::CODEX));
         assert!(built_in.contains(&ProviderId::OPENAI_RESPONSES_COMPATIBLE));
+        assert!(built_in.contains(&ProviderId::FIREWORKS_AI));
     }
 
     #[test]

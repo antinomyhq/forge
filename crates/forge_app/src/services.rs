@@ -5,19 +5,18 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileInfo, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
-    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
-    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
+    FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
+    ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
+    ToolOutput, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
-use merge::Merge;
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
-use crate::Walker;
 use crate::user::{User, UserUsage};
+use crate::{EnvironmentInfra, Walker};
 
 #[derive(Debug, Clone)]
 pub struct ShellOutput {
@@ -288,11 +287,6 @@ pub trait AttachmentService {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>>;
 }
 
-pub trait EnvironmentService: Send + Sync {
-    fn get_environment(&self) -> Environment;
-    /// Returns whether the application is running in restricted mode.
-    fn is_restricted(&self) -> bool;
-}
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
@@ -305,7 +299,6 @@ pub trait WorkspaceService: Send + Sync {
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>>;
 
     /// Query the indexed workspace with semantic search
@@ -341,28 +334,6 @@ pub trait WorkspaceService: Send + Sync {
 
     /// Initialize a workspace without syncing files
     async fn init_workspace(&self, path: PathBuf) -> anyhow::Result<WorkspaceId>;
-}
-
-#[async_trait::async_trait]
-pub trait WorkflowService {
-    /// Find a forge.yaml config file by traversing parent directories.
-    /// Returns the path to the first found config file, or the original path if
-    /// none is found.
-    async fn resolve(&self, path: Option<std::path::PathBuf>) -> std::path::PathBuf;
-
-    /// Reads the workflow from the given path.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow>;
-
-    /// Reads the workflow from the given path and merges it with an default
-    /// workflow.
-    async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        let workflow = self.read_workflow(path).await?;
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow);
-        Ok(base_workflow)
-    }
 }
 
 #[async_trait::async_trait]
@@ -488,12 +459,8 @@ pub trait ShellService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth>;
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User>;
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage>;
-    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>>;
-    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -575,18 +542,13 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-/// Core app trait providing access to services and repositories.
-/// This trait follows clean architecture principles for dependency management
-/// and service/repository composition.
-pub trait Services: Send + Sync + 'static + Clone {
+pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
-    type EnvironmentService: EnvironmentService;
     type CustomInstructionsService: CustomInstructionsService;
-    type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
     type FsWriteService: FsWriteService;
@@ -614,7 +576,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn conversation_service(&self) -> &Self::ConversationService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
-    fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
     fn fs_create_service(&self) -> &Self::FsWriteService;
@@ -629,7 +590,6 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn net_fetch_service(&self) -> &Self::NetFetchService;
     fn shell_service(&self) -> &Self::ShellService;
     fn mcp_service(&self) -> &Self::McpService;
-    fn environment_service(&self) -> &Self::EnvironmentService;
     fn custom_instructions_service(&self) -> &Self::CustomInstructionsService;
     fn auth_service(&self) -> &Self::AuthService;
     fn agent_registry(&self) -> &Self::AgentRegistry;
@@ -773,17 +733,6 @@ impl<I: Services> AttachmentService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> WorkflowService for I {
-    async fn resolve(&self, path: Option<std::path::PathBuf>) -> std::path::PathBuf {
-        self.workflow_service().resolve(path).await
-    }
-
-    async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
-        self.workflow_service().read_workflow(path).await
-    }
-}
-
-#[async_trait::async_trait]
 impl<I: Services> FileDiscoveryService for I {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>> {
         self.file_discovery_service().collect_files(config).await
@@ -916,16 +865,6 @@ impl<I: Services> ShellService for I {
     }
 }
 
-impl<I: Services> EnvironmentService for I {
-    fn get_environment(&self) -> Environment {
-        self.environment_service().get_environment()
-    }
-
-    fn is_restricted(&self) -> bool {
-        self.environment_service().is_restricted()
-    }
-}
-
 #[async_trait::async_trait]
 impl<I: Services> CustomInstructionsService for I {
     async fn get_custom_instructions(&self) -> Vec<String> {
@@ -937,28 +876,12 @@ impl<I: Services> CustomInstructionsService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AuthService for I {
-    async fn init_auth(&self) -> anyhow::Result<InitAuth> {
-        self.auth_service().init_auth().await
-    }
-
-    async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo> {
-        self.auth_service().login(auth).await
-    }
-
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         self.auth_service().user_info(api_key).await
     }
 
     async fn user_usage(&self, api_key: &str) -> anyhow::Result<UserUsage> {
         self.auth_service().user_usage(api_key).await
-    }
-
-    async fn get_auth_token(&self) -> anyhow::Result<Option<LoginInfo>> {
-        self.auth_service().get_auth_token().await
-    }
-
-    async fn set_auth_token(&self, token: Option<LoginInfo>) -> anyhow::Result<()> {
-        self.auth_service().set_auth_token(token).await
     }
 }
 
@@ -1110,11 +1033,8 @@ impl<I: Services> WorkspaceService for I {
     async fn sync_workspace(
         &self,
         path: PathBuf,
-        batch_size: usize,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
-        self.workspace_service()
-            .sync_workspace(path, batch_size)
-            .await
+        self.workspace_service().sync_workspace(path).await
     }
 
     async fn query_workspace(

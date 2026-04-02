@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
+use forge_config::RetryConfig;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::sync::Notify;
@@ -18,7 +19,7 @@ pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
-    environment: Environment,
+    retry_config: RetryConfig,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
@@ -29,13 +30,13 @@ pub struct Orchestrator<S> {
 impl<S: AgentService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
-        environment: Environment,
+        retry_config: RetryConfig,
         conversation: Conversation,
         agent: Agent,
     ) -> Self {
         Self {
             conversation,
-            environment,
+            retry_config,
             services,
             agent,
             sender: Default::default(),
@@ -160,8 +161,11 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
+            // Drop ALL reasoning (including config) when reasoning is not supported by the model
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            // Strip all reasoning from messages when the model has changed (signatures are
+            // model-specific and invalid across models). No-op when model is unchanged.
+            .pipe(ReasoningNormalizer::new(model_id.clone()));
         let response = self
             .services
             .chat_agent(
@@ -222,7 +226,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
 
             let message = crate::retry::retry_with_config(
-                &self.environment.retry_config,
+                &self.retry_config,
                 || {
                     self.execute_chat_turn(
                         &model_id,
@@ -308,6 +312,7 @@ impl<S: AgentService> Orchestrator<S> {
                 message.reasoning_details.clone(),
                 message.usage,
                 tool_call_records,
+                message.phase,
             );
 
             if self.error_tracker.limit_reached() {
