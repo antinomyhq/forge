@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use forge_config::ForgeConfig;
 use forge_domain::{
-    Agent, ChatCompletionMessage, Compact, Context, Conversation, MaxTokens, ModelId, ProviderId,
-    ResultStream, Temperature, ToolCallContext, ToolCallFull, ToolResult, TopK, TopP,
+    Agent, ChatCompletionMessage, Compact, Context, Conversation, Effort, MaxTokens, ModelId,
+    ProviderId, ReasoningConfig, ResultStream, Temperature, ToolCallContext, ToolCallFull,
+    ToolResult, TopK, TopP,
 };
 use merge::Merge;
 
@@ -142,6 +143,94 @@ impl AgentExt for Agent {
             agent.compact = merged_compact;
         }
 
+        // Apply workflow reasoning configuration to agents.
+        // Agent-level fields take priority; config fills in any unset fields.
+        if let Some(ref config_reasoning) = config.reasoning {
+            use forge_config::Effort as ConfigEffort;
+            let config_as_domain = ReasoningConfig {
+                effort: config_reasoning.effort.as_ref().map(|e| match e {
+                    ConfigEffort::None => Effort::None,
+                    ConfigEffort::Minimal => Effort::Minimal,
+                    ConfigEffort::Low => Effort::Low,
+                    ConfigEffort::Medium => Effort::Medium,
+                    ConfigEffort::High => Effort::High,
+                    ConfigEffort::XHigh => Effort::XHigh,
+                    ConfigEffort::Max => Effort::Max,
+                }),
+                max_tokens: config_reasoning.max_tokens,
+                exclude: config_reasoning.exclude,
+                enabled: config_reasoning.enabled,
+            };
+            // Start from the agent's own settings and fill unset fields from config.
+            let mut merged = agent.reasoning.clone().unwrap_or_default();
+            merged.merge(config_as_domain);
+            agent.reasoning = Some(merged);
+        }
+
         agent
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forge_config::{Effort as ConfigEffort, ReasoningConfig as ConfigReasoningConfig};
+    use forge_domain::{AgentId, Effort, ModelId, ProviderId, ReasoningConfig};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    fn fixture_agent() -> Agent {
+        Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+    }
+
+    /// When the agent has no reasoning config, the config's reasoning is
+    /// applied in full.
+    #[test]
+    fn test_reasoning_applied_from_config_when_agent_has_none() {
+        let config = ForgeConfig::default().reasoning(
+            ConfigReasoningConfig::default()
+                .enabled(true)
+                .effort(ConfigEffort::Medium),
+        );
+
+        let actual = fixture_agent().apply_config(&config).reasoning;
+
+        let expected = Some(
+            ReasoningConfig::default()
+                .enabled(true)
+                .effort(Effort::Medium),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    /// When the agent already has reasoning fields set, those fields take
+    /// priority; config only fills in fields the agent left unset.
+    #[test]
+    fn test_reasoning_agent_fields_take_priority_over_config() {
+        let config = ForgeConfig::default().reasoning(
+            ConfigReasoningConfig::default()
+                .enabled(true)
+                .effort(ConfigEffort::Low)
+                .max_tokens(1024_usize),
+        );
+
+        // Agent overrides effort but leaves enabled and max_tokens unset.
+        let agent = fixture_agent().reasoning(ReasoningConfig::default().effort(Effort::High));
+
+        let actual = agent.apply_config(&config).reasoning;
+
+        let expected = Some(
+            ReasoningConfig::default()
+                .effort(Effort::High) // agent's value wins
+                .enabled(true) // filled in from config
+                .max_tokens(1024_usize), // filled in from config
+        );
+
+        assert_eq!(actual, expected);
     }
 }

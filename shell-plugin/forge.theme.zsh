@@ -1,7 +1,8 @@
 #!/usr/bin/env zsh
 
 # Enable prompt substitution for RPROMPT
-setopt PROMPT_SUBST
+# Use emulate to ensure setopt applies globally even when sourced from a function
+emulate -R zsh -c 'setopt PROMPT_SUBST'
 
 # Model and agent info with token count
 # Fully formatted output directly from Rust
@@ -17,11 +18,13 @@ function _forge_prompt_info() {
     forge_cmd+=(zsh rprompt)
     [[ -n "$_FORGE_SESSION_MODEL" ]] && local -x FORGE_SESSION__MODEL_ID="$_FORGE_SESSION_MODEL"
     [[ -n "$_FORGE_SESSION_PROVIDER" ]] && local -x FORGE_SESSION__PROVIDER_ID="$_FORGE_SESSION_PROVIDER"
+    [[ -n "$_FORGE_SESSION_REASONING_EFFORT" ]] && local -x FORGE_REASONING__EFFORT="$_FORGE_SESSION_REASONING_EFFORT"
     _FORGE_CONVERSATION_ID=$_FORGE_CONVERSATION_ID _FORGE_ACTIVE_AGENT=$_FORGE_ACTIVE_AGENT "${forge_cmd[@]}"
 }
 
 # Right prompt: agent and model with token count (uses single forge prompt command)
 # Set RPROMPT if empty, otherwise append to existing value
+# Use typeset -g to ensure RPROMPT is set globally even when sourced from a function
 if [[ -z "$_FORGE_THEME_LOADED" ]]; then
-    RPROMPT='$(_forge_prompt_info)'"${RPROMPT:+ ${RPROMPT}}"
+    typeset -g RPROMPT='$(_forge_prompt_info)'"${RPROMPT:+ ${RPROMPT}}"
 fi

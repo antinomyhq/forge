@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
-use crate::{AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, RetryConfig, Update};
+use crate::{
+    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
+};
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
@@ -159,6 +161,11 @@ pub struct ForgeConfig {
     /// all tool calls are disabled.
     #[serde(default)]
     pub tool_supported: bool,
+
+    /// Reasoning configuration applied to all agents; controls effort level,
+    /// token budget, and visibility of the model's thinking process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ReasoningConfig>,
 }
 
 impl ForgeConfig {

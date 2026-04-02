@@ -288,6 +288,14 @@ mod tests {
         async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
             Ok(())
         }
+
+        async fn get_reasoning_effort(&self) -> Result<Option<forge_domain::Effort>> {
+            Ok(None)
+        }
+
+        async fn set_reasoning_effort(&self, _effort: forge_domain::Effort) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
