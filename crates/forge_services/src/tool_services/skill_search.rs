@@ -5,9 +5,9 @@ use forge_app::SkillSearchService;
 use forge_domain::Skill;
 use tokio::sync::OnceCell;
 
-/// Service for searching and recommending relevant skills based on a user query.
-/// Takes all available local skills, sends them to the forge backend via gRPC,
-/// and returns skills ranked by relevance to the task at hand.
+/// Service for searching and recommending relevant skills based on a user
+/// query. Takes all available local skills, sends them to the forge backend via
+/// gRPC, and returns skills ranked by relevance to the task at hand.
 pub struct ForgeSkillSearch<R, S> {
     skill_repository: Arc<R>,
     search_repository: Arc<S>,
@@ -21,11 +21,7 @@ impl<R, S> ForgeSkillSearch<R, S> {
     /// * `skill_repository` - Repository for loading available skills
     /// * `search_repository` - Repository for searching/ranking skills via gRPC
     pub fn new(skill_repository: Arc<R>, search_repository: Arc<S>) -> Self {
-        Self {
-            skill_repository,
-            search_repository,
-            cache: OnceCell::new(),
-        }
+        Self { skill_repository, search_repository, cache: OnceCell::new() }
     }
 }
 
@@ -53,7 +49,9 @@ impl<R: forge_domain::SkillRepository, S: forge_domain::SkillSearchRepository> S
     }
 }
 
-impl<R: forge_domain::SkillRepository, S: forge_domain::SkillSearchRepository> ForgeSkillSearch<R, S> {
+impl<R: forge_domain::SkillRepository, S: forge_domain::SkillSearchRepository>
+    ForgeSkillSearch<R, S>
+{
     /// Gets skills from cache or loads them from repository if not cached
     async fn get_or_load_skills(&self) -> anyhow::Result<&Vec<Skill>> {
         self.cache
@@ -111,20 +109,21 @@ mod tests {
         let expected_skill = Skill::new(
             "semantic-search",
             "Find code semantically",
-            "Semantic code search"
+            "Semantic code search",
         );
 
-        let mock_skill_repo = Arc::new(MockSkillRepository {
-            skills: vec![expected_skill.clone()],
-        });
-        let mock_search_repo = Arc::new(MockSkillSearchRepository {
-            return_skills: vec![expected_skill.clone()],
-        });
+        let mock_skill_repo =
+            Arc::new(MockSkillRepository { skills: vec![expected_skill.clone()] });
+        let mock_search_repo =
+            Arc::new(MockSkillSearchRepository { return_skills: vec![expected_skill.clone()] });
 
         let service = ForgeSkillSearch::new(mock_skill_repo, mock_search_repo);
 
         // Actual
-        let actual = service.search_skills("code search".to_string(), None).await.unwrap();
+        let actual = service
+            .search_skills("code search".to_string(), None)
+            .await
+            .unwrap();
 
         // Expected
         assert_eq!(actual, vec![expected_skill]);
@@ -147,7 +146,10 @@ mod tests {
         let service = ForgeSkillSearch::new(mock_skill_repo, mock_search_repo);
 
         // Actual - apply limit of 2
-        let actual = service.search_skills("test".to_string(), Some(2)).await.unwrap();
+        let actual = service
+            .search_skills("test".to_string(), Some(2))
+            .await
+            .unwrap();
 
         // Expected - only 2 skills returned
         assert_eq!(actual.len(), 2);
@@ -163,7 +165,10 @@ mod tests {
         let service = ForgeSkillSearch::new(mock_skill_repo, mock_search_repo);
 
         // Actual
-        let actual = service.search_skills("code search".to_string(), None).await.unwrap();
+        let actual = service
+            .search_skills("code search".to_string(), None)
+            .await
+            .unwrap();
 
         // Expected - empty result
         assert!(actual.is_empty());

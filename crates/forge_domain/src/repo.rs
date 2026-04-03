@@ -197,7 +197,8 @@ pub trait SkillSearchRepository: Send + Sync {
     /// forge backend, and returns skills ranked by relevance.
     ///
     /// # Arguments
-    /// * `query` - Natural language description of what the agent wants to achieve
+    /// * `query` - Natural language description of what the agent wants to
+    ///   achieve
     /// * `skills` - All available skills to search through
     /// * `limit` - Maximum number of skills to return
     ///

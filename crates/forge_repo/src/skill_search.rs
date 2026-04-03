@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use forge_app::GrpcInfra;
 use forge_domain::{Skill, SkillSearchRepository};
 
-use crate::proto_generated::{SelectSkillRequest, Skill as ProtoSkill};
 use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::proto_generated::{SelectSkillRequest, Skill as ProtoSkill};
 
 /// gRPC implementation of SkillSearchRepository
 ///
@@ -66,10 +66,7 @@ impl<I: GrpcInfra> SkillSearchRepository for ForgeSkillSearchRepository<I> {
         let user_prompt = Self::build_user_prompt(query);
 
         // Create gRPC request
-        let request = tonic::Request::new(SelectSkillRequest {
-            skills: proto_skills,
-            user_prompt,
-        });
+        let request = tonic::Request::new(SelectSkillRequest { skills: proto_skills, user_prompt });
 
         // Call gRPC API
         let channel = self.infra.channel();

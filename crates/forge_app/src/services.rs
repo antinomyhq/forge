@@ -1041,7 +1041,9 @@ impl<I: Services> SkillSearchService for I {
         query: String,
         limit: Option<u32>,
     ) -> anyhow::Result<Vec<forge_domain::Skill>> {
-        self.skill_search_service().search_skills(query, limit).await
+        self.skill_search_service()
+            .search_skills(query, limit)
+            .await
     }
 }
 
