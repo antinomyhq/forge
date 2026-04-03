@@ -157,7 +157,9 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
                     // All Codex provider models use the Responses API
                     self.codex_repo.chat(model_id, context, provider).await
                 } else if provider.id == ProviderId::OPENCODE_GO {
-                    self.opencode_go_repo.chat(model_id, context, provider).await
+                    self.opencode_go_repo
+                        .chat(model_id, context, provider)
+                        .await
                 } else {
                     self.openai_repo.chat(model_id, context, provider).await
                 }

@@ -56,9 +56,7 @@ impl<F: HttpInfra + Sync> OpenCodeGoResponseRepository<F> {
         if let Some(models) = provider.models() {
             match models {
                 forge_domain::ModelSource::Hardcoded(models) => Ok(models.clone()),
-                forge_domain::ModelSource::Url(_) => {
-                    Ok(vec![])
-                }
+                forge_domain::ModelSource::Url(_) => Ok(vec![]),
             }
         } else {
             Ok(vec![])
@@ -68,17 +66,20 @@ impl<F: HttpInfra + Sync> OpenCodeGoResponseRepository<F> {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use std::str::FromStr;
-    use url::Url;
 
     use forge_app::domain::ProviderResponse;
     use forge_domain::ProviderId;
+    use pretty_assertions::assert_eq;
+    use url::Url;
 
     #[test]
     fn test_opencode_go_provider_url() {
         let url = Url::parse("https://opencode.ai/zen/go/v1/chat/completions").unwrap();
-        assert_eq!(url.as_str(), "https://opencode.ai/zen/go/v1/chat/completions");
+        assert_eq!(
+            url.as_str(),
+            "https://opencode.ai/zen/go/v1/chat/completions"
+        );
     }
 
     #[test]
