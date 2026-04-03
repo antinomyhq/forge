@@ -421,7 +421,7 @@ function _forge_action_reasoning_effort() {
 
 # Action handler: Set reasoning effort in global config.
 # Calls `forge config set reasoning-effort <effort>` on selection,
-# writing the chosen effort level permanently to ~/.forge/.forge.toml.
+# writing the chosen effort level permanently to ~/.forge/config.toml.
 function _forge_action_config_reasoning_effort() {
     local input_text="$1"
     (
@@ -474,7 +474,7 @@ function _forge_action_config_edit() {
         return 1
     fi
 
-    local config_file="${HOME}/.forge/.forge.toml"
+    local config_file="${HOME}/.forge/config.toml"
 
     # Ensure the config directory exists
     if [[ ! -d "${HOME}/.forge" ]]; then

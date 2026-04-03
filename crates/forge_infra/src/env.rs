@@ -14,6 +14,8 @@ use tracing::{debug, error};
 /// configuration values are now accessed through
 /// `EnvironmentInfra::get_config()`.
 fn to_environment(cwd: PathBuf) -> Environment {
+    let base_path = ConfigReader::base_path();
+
     Environment {
         os: std::env::consts::OS.to_string(),
         pid: std::process::id(),
@@ -24,9 +26,7 @@ fn to_environment(cwd: PathBuf) -> Environment {
         } else {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
         },
-        base_path: dirs::home_dir()
-            .map(|h| h.join(".forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join(".forge")),
+        base_path,
     }
 }
 
@@ -109,7 +109,7 @@ impl ForgeEnvironmentInfra {
     fn read_from_disk() -> ForgeConfig {
         match ForgeConfig::read() {
             Ok(config) => {
-                debug!(config = ?config, "read .forge.toml");
+                debug!(config = ?config, "read config.toml");
                 config
             }
             Err(e) => {
@@ -167,7 +167,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         }
 
         fc.write()?;
-        debug!(config = ?fc, "written .forge.toml");
+        debug!(config = ?fc, "written config.toml");
 
         // Reset cache
         *self.cache.lock().expect("cache mutex poisoned") = None;
@@ -196,9 +196,7 @@ mod tests {
     fn test_to_environment_uses_forge_base_path() {
         let fixture = PathBuf::from("/test/cwd");
         let actual = to_environment(fixture);
-        let expected = dirs::home_dir()
-            .map(|h| h.join(".forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join(".forge"));
+        let expected = ConfigReader::base_path();
         assert_eq!(actual.base_path, expected);
     }
 
