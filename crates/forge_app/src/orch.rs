@@ -182,6 +182,7 @@ impl<S: AgentService> Orchestrator<S> {
         let tool_supported = self.is_tool_supported()?;
         let mut transformers = DefaultTransformation::default()
             .pipe(SortTools::new(self.agent.tool_order()))
+            .pipe(NormalizeToolCallArguments::new())
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             // Drop ALL reasoning (including config) when reasoning is not supported by the model
