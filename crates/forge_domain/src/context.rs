@@ -402,6 +402,10 @@ impl std::ops::DerefMut for MessageEntry {
 pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<ConversationId>,
+    /// Indicates who initiated the conversation: "user" or "agent".
+    /// Used for GitHub Copilot billing optimization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<MessageEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
