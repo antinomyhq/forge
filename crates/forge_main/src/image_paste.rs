@@ -4,13 +4,10 @@ use chrono::Utc;
 use url::Url;
 
 fn get_images_dir() -> Option<PathBuf> {
-    let home_dir = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let images_dir = PathBuf::from(home_dir).join(".local/share/forge/images");
-    if std::fs::create_dir_all(&images_dir).is_ok() {
-        Some(images_dir)
-    } else {
-        None
-    }
+    let base_dir = dirs::data_local_dir()?;
+    let images_dir = base_dir.join("forge/images");
+    std::fs::create_dir_all(&images_dir).ok()?;
+    Some(images_dir)
 }
 
 pub fn paste_image() -> Vec<PathBuf> {

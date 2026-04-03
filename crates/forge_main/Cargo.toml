@@ -66,6 +66,7 @@ strip-ansi-escapes.workspace = true
 terminal_size = "0.4"
 rustls.workspace = true
 tempfile.workspace = true
+dirs.workspace = true
 image = "0.25.10"
 
 [target.'cfg(windows)'.dependencies]

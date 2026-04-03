@@ -2278,6 +2278,7 @@ dependencies = [
  "console",
  "convert_case 0.11.0",
  "derive_setters",
+ "dirs",
  "enable-ansi-support",
  "fake",
  "forge_api",
