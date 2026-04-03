@@ -11,13 +11,13 @@ static BASE_PATH_MIGRATION: OnceLock<()> = OnceLock::new();
 
 /// Returns the XDG config directory path, falling back to home directory.
 fn xdg_config_dir() -> PathBuf {
-    dirs::config_dir().unwrap_or_else(|| {
-        dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
-    })
+    dirs::config_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
 }
 
 fn old_base_path() -> PathBuf {
-    dirs::home_dir().unwrap_or_else(|| xdg_config_dir()).join("forge")
+    dirs::home_dir()
+        .unwrap_or_else(xdg_config_dir)
+        .join("forge")
 }
 
 fn new_base_path() -> PathBuf {
