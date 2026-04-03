@@ -4,6 +4,8 @@ use std::sync::{LazyLock, OnceLock};
 use config::ConfigBuilder;
 use config::builder::DefaultState;
 
+use tracing::warn;
+
 use crate::ForgeConfig;
 use crate::legacy::LegacyConfig;
 
@@ -67,8 +69,25 @@ fn migrate_paths() {
         let old_base = old_base_path();
         let new_base = new_base_path();
 
-        let _ = migrate_base_dir(&old_base, &new_base);
-        let _ = migrate_file(&new_base.join(".forge.toml"), &new_base.join("config.toml"));
+        if let Err(error) = migrate_base_dir(&old_base, &new_base) {
+            warn!(
+                error = ?error,
+                old_base = %old_base.display(),
+                new_base = %new_base.display(),
+                "Failed to migrate Forge base directory"
+            );
+        }
+
+        let old_config = new_base.join(".forge.toml");
+        let new_config = new_base.join("config.toml");
+        if let Err(error) = migrate_file(&old_config, &new_config) {
+            warn!(
+                error = ?error,
+                old_config = %old_config.display(),
+                new_config = %new_config.display(),
+                "Failed to migrate Forge config file"
+            );
+        }
     });
 }
 
