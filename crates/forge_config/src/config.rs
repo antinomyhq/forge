@@ -118,6 +118,15 @@ pub struct ForgeConfig {
     /// generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<ModelConfig>,
+    /// Model and provider configuration used for the Forge agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_forge: Option<ModelConfig>,
+    /// Model and provider configuration used for the Muse agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_muse: Option<ModelConfig>,
+    /// Model and provider configuration used for the Sage agent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_sage: Option<ModelConfig>,
 
     // --- Workflow fields ---
     /// Configuration for automatic Forge updates.
