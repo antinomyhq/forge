@@ -48,7 +48,7 @@ fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
                 session.model_id = Some(mid_str);
             } else {
                 fc.session =
-                    Some(ModelConfig { provider_id: Some(pid_str), model_id: Some(mid_str) });
+                    Some(ModelConfig { provider_id: Some(pid_str), model_id: Some(mid_str), preset_id: None });
             }
         }
         ConfigOperation::SetCommitConfig(commit) => {
@@ -59,12 +59,14 @@ fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
                 .map(|(pid, mid)| ModelConfig {
                     provider_id: Some(pid.as_ref().to_string()),
                     model_id: Some(mid.to_string()),
+                    preset_id: None,
                 });
         }
         ConfigOperation::SetSuggestConfig(suggest) => {
             fc.suggest = Some(ModelConfig {
                 provider_id: Some(suggest.provider.as_ref().to_string()),
                 model_id: Some(suggest.model.to_string()),
+                preset_id: None,
             });
         }
         ConfigOperation::SetReasoningEffort(effort) => {

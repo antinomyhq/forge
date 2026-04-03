@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use forge_config::ForgeConfig;
+use forge_config::{ForgeConfig, ModelConfig, Preset};
 use forge_domain::{
-    Agent, ChatCompletionMessage, Compact, Context, Conversation, Effort, MaxTokens, ModelId,
-    ProviderId, ReasoningConfig, ResultStream, Temperature, ToolCallContext, ToolCallFull,
-    ToolResult, TopK, TopP,
+    Agent, ChatCompletionMessage, Compact, Context, Conversation, Effort, MaxTokens,
+    ModelId, ProviderId, ReasoningConfig, ResultStream, Temperature, ToolCallContext,
+    ToolCallFull, ToolResult, TopK, TopP,
 };
 use merge::Merge;
 
@@ -92,43 +92,123 @@ impl AgentExt for Agent {
     fn apply_config(self, config: &ForgeConfig) -> Agent {
         let mut agent = self;
 
-        if let Some(temperature) = config
-            .temperature
-            .and_then(|d| Temperature::new(d.0 as f32).ok())
-        {
-            agent.temperature = Some(temperature);
+        // Resolve the agent-specific ModelConfig from ForgeConfig.
+        let agent_model_config: Option<&ModelConfig> = match agent.id.as_str() {
+            "forge" => config.agent_forge.as_ref(),
+            "muse" => config.agent_muse.as_ref(),
+            "sage" => config.agent_sage.as_ref(),
+            _ => None,
+        };
+
+        // Apply model/provider from agent-specific config.
+        if let Some(mc) = agent_model_config {
+            if let Some(ref model_id) = mc.model_id {
+                agent.model = ModelId::new(model_id);
+            }
+            if let Some(ref provider_id) = mc.provider_id {
+                agent.provider = ProviderId::from(provider_id.clone());
+            }
         }
 
-        if let Some(top_p) = config.top_p.and_then(|d| TopP::new(d.0 as f32).ok()) {
-            agent.top_p = Some(top_p);
+        // Resolve the preset: agent-specific preset_id takes priority over
+        // nothing (there is no global preset_id on ForgeConfig).
+        let preset: Option<&Preset> = agent_model_config
+            .and_then(|mc| mc.preset_id.as_deref())
+            .and_then(|id| config.presets.get(id));
+
+        // Helper: convert a config ReasoningConfig to a domain ReasoningConfig.
+        let to_domain_reasoning =
+            |r: &forge_config::ReasoningConfig| -> ReasoningConfig {
+                use forge_config::Effort as ConfigEffort;
+                ReasoningConfig {
+                    effort: r.effort.as_ref().map(|e| match e {
+                        ConfigEffort::None => Effort::None,
+                        ConfigEffort::Minimal => Effort::Minimal,
+                        ConfigEffort::Low => Effort::Low,
+                        ConfigEffort::Medium => Effort::Medium,
+                        ConfigEffort::High => Effort::High,
+                        ConfigEffort::XHigh => Effort::XHigh,
+                        ConfigEffort::Max => Effort::Max,
+                    }),
+                    max_tokens: r.max_tokens,
+                    exclude: r.exclude,
+                    enabled: r.enabled,
+                }
+            };
+
+        // --- Apply LLM settings in priority order (lowest → highest) ---
+        // 1. Config global settings
+        // 2. Preset settings (from agent-specific ModelConfig's preset_id)
+        // 3. Agent's own values (never overwritten)
+
+        // temperature
+        if agent.temperature.is_none() {
+            let value = preset
+                .map(|p| p.temperature)
+                .or(config.temperature)
+                .and_then(|d| Temperature::new(d.0 as f32).ok());
+            if let Some(v) = value {
+                agent.temperature = Some(v);
+            }
         }
 
-        if let Some(top_k) = config.top_k.and_then(|k| TopK::new(k).ok()) {
-            agent.top_k = Some(top_k);
+        // top_p
+        if agent.top_p.is_none() {
+            let value = preset
+                .map(|p| p.top_p)
+                .or(config.top_p)
+                .and_then(|d| TopP::new(d.0 as f32).ok());
+            if let Some(v) = value {
+                agent.top_p = Some(v);
+            }
         }
 
-        if let Some(max_tokens) = config.max_tokens.and_then(|m| MaxTokens::new(m).ok()) {
-            agent.max_tokens = Some(max_tokens);
+        // top_k
+        if agent.top_k.is_none() {
+            let value = preset
+                .map(|p| Some(p.top_k))
+                .unwrap_or(config.top_k)
+                .and_then(|k| TopK::new(k).ok());
+            if let Some(v) = value {
+                agent.top_k = Some(v);
+            }
         }
 
-        if agent.max_tool_failure_per_turn.is_none()
-            && let Some(max_tool_failure_per_turn) = config.max_tool_failure_per_turn
-        {
-            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
+        // max_tokens
+        if agent.max_tokens.is_none() {
+            let value = preset
+                .and_then(|p| p.max_tokens)
+                .or(config.max_tokens)
+                .and_then(|m| MaxTokens::new(m).ok());
+            if let Some(v) = value {
+                agent.max_tokens = Some(v);
+            }
         }
 
-        agent.tool_supported = Some(config.tool_supported);
-
-        if agent.max_requests_per_turn.is_none()
-            && let Some(max_requests_per_turn) = config.max_requests_per_turn
-        {
-            agent.max_requests_per_turn = Some(max_requests_per_turn);
+        // tool_supported: preset > config global; agent's own value wins when set
+        if agent.tool_supported.is_none() {
+            let value = preset
+                .map(|p| p.tool_supported)
+                .unwrap_or(config.tool_supported);
+            agent.tool_supported = Some(value);
         }
 
-        // Apply workflow compact configuration to agents
+        // max_tool_failure_per_turn: agent's own value wins
+        if agent.max_tool_failure_per_turn.is_none() {
+            if let Some(v) = config.max_tool_failure_per_turn {
+                agent.max_tool_failure_per_turn = Some(v);
+            }
+        }
+
+        // max_requests_per_turn: agent's own value wins
+        if agent.max_requests_per_turn.is_none() {
+            if let Some(v) = config.max_requests_per_turn {
+                agent.max_requests_per_turn = Some(v);
+            }
+        }
+
+        // compact: merge workflow config into agent (agent fields take priority)
         if let Some(ref workflow_compact) = config.compact {
-            // Convert forge_config::Compact to forge_domain::Compact, then merge.
-            // Agent settings take priority over workflow settings.
             let mut merged_compact = Compact {
                 retention_window: workflow_compact.retention_window,
                 eviction_window: workflow_compact.eviction_window.value(),
@@ -143,27 +223,15 @@ impl AgentExt for Agent {
             agent.compact = merged_compact;
         }
 
-        // Apply workflow reasoning configuration to agents.
-        // Agent-level fields take priority; config fills in any unset fields.
-        if let Some(ref config_reasoning) = config.reasoning {
-            use forge_config::Effort as ConfigEffort;
-            let config_as_domain = ReasoningConfig {
-                effort: config_reasoning.effort.as_ref().map(|e| match e {
-                    ConfigEffort::None => Effort::None,
-                    ConfigEffort::Minimal => Effort::Minimal,
-                    ConfigEffort::Low => Effort::Low,
-                    ConfigEffort::Medium => Effort::Medium,
-                    ConfigEffort::High => Effort::High,
-                    ConfigEffort::XHigh => Effort::XHigh,
-                    ConfigEffort::Max => Effort::Max,
-                }),
-                max_tokens: config_reasoning.max_tokens,
-                exclude: config_reasoning.exclude,
-                enabled: config_reasoning.enabled,
-            };
-            // Start from the agent's own settings and fill unset fields from config.
+        // reasoning: preset > config global; agent fields take highest priority
+        let base_reasoning = preset
+            .and_then(|p| p.reasoning.as_ref())
+            .or(config.reasoning.as_ref())
+            .map(to_domain_reasoning);
+
+        if let Some(base) = base_reasoning {
             let mut merged = agent.reasoning.clone().unwrap_or_default();
-            merged.merge(config_as_domain);
+            merged.merge(base);
             agent.reasoning = Some(merged);
         }
 
@@ -173,8 +241,10 @@ impl AgentExt for Agent {
 
 #[cfg(test)]
 mod tests {
-    use forge_config::{Effort as ConfigEffort, ReasoningConfig as ConfigReasoningConfig};
-    use forge_domain::{AgentId, Effort, ModelId, ProviderId, ReasoningConfig};
+    use forge_config::{
+        Decimal, Effort as ConfigEffort, ModelConfig, Preset, ReasoningConfig as ConfigReasoningConfig,
+    };
+    use forge_domain::{AgentId, Effort, ModelId, ProviderId, ReasoningConfig, Temperature, TopP};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -182,6 +252,14 @@ mod tests {
     fn fixture_agent() -> Agent {
         Agent::new(
             AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+    }
+
+    fn fixture_forge_agent() -> Agent {
+        Agent::new(
+            AgentId::FORGE,
             ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
@@ -232,5 +310,104 @@ mod tests {
         );
 
         assert_eq!(actual, expected);
+    }
+
+    /// agent_forge config overrides model and provider on a FORGE agent.
+    #[test]
+    fn test_agent_specific_model_and_provider_applied() {
+        let config = ForgeConfig::default().agent_forge(
+            ModelConfig::default()
+                .model_id("gpt-4o")
+                .provider_id("openai"),
+        );
+
+        let actual = fixture_forge_agent().apply_config(&config);
+
+        assert_eq!(actual.model, ModelId::new("gpt-4o"));
+        assert_eq!(actual.provider, ProviderId::from("openai".to_string()));
+    }
+
+    /// agent_forge config does not affect a non-FORGE agent.
+    #[test]
+    fn test_agent_specific_config_not_applied_to_other_agents() {
+        let config = ForgeConfig::default().agent_forge(
+            ModelConfig::default()
+                .model_id("gpt-4o")
+                .provider_id("openai"),
+        );
+
+        let actual = fixture_agent().apply_config(&config);
+
+        // Model and provider remain unchanged.
+        assert_eq!(actual.model, ModelId::new("claude-3-5-sonnet-20241022"));
+        assert_eq!(actual.provider, ProviderId::ANTHROPIC);
+    }
+
+    /// Preset LLM settings are applied when the agent-specific ModelConfig
+    /// references a preset_id that exists in config.presets.
+    #[test]
+    fn test_preset_settings_applied_via_agent_model_config() {
+        let mut presets = std::collections::HashMap::new();
+        presets.insert(
+            "fast".to_string(),
+            Preset { temperature: Decimal(0.2), top_p: Decimal(0.8), ..Default::default() },
+        );
+
+        let config = ForgeConfig {
+            presets,
+            agent_forge: Some(ModelConfig::default().preset_id("fast")),
+            ..Default::default()
+        };
+
+        let actual = fixture_forge_agent().apply_config(&config);
+
+        assert_eq!(actual.temperature, Temperature::new(0.2).ok());
+        assert_eq!(actual.top_p, TopP::new(0.8).ok());
+    }
+
+    /// Preset settings take priority over config global settings.
+    #[test]
+    fn test_preset_takes_priority_over_global_config() {
+        let mut presets = std::collections::HashMap::new();
+        presets.insert(
+            "precise".to_string(),
+            Preset { temperature: Decimal(0.1), ..Default::default() },
+        );
+
+        let config = ForgeConfig {
+            presets,
+            // Global temperature is higher; preset should win.
+            temperature: Some(Decimal(1.0)),
+            agent_forge: Some(ModelConfig::default().preset_id("precise")),
+            ..Default::default()
+        };
+
+        let actual = fixture_forge_agent().apply_config(&config);
+
+        assert_eq!(actual.temperature, Temperature::new(0.1).ok());
+    }
+
+    /// Agent's own temperature takes priority over both preset and global config.
+    #[test]
+    fn test_agent_temperature_takes_priority_over_preset_and_global() {
+        let mut presets = std::collections::HashMap::new();
+        presets.insert(
+            "fast".to_string(),
+            Preset { temperature: Decimal(0.2), ..Default::default() },
+        );
+
+        let config = ForgeConfig {
+            presets,
+            temperature: Some(Decimal(1.0)),
+            agent_forge: Some(ModelConfig::default().preset_id("fast")),
+            ..Default::default()
+        };
+
+        let agent =
+            fixture_forge_agent().temperature(Temperature::new(0.5).unwrap());
+
+        let actual = agent.apply_config(&config);
+
+        assert_eq!(actual.temperature, Temperature::new(0.5).ok());
     }
 }
