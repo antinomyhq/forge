@@ -58,15 +58,15 @@ where
         {
             api_key_request.existing_params = Some(existing_credential.url_params.into());
 
-            // Only prefill API key if it's not the internal Google ADC marker when asking
-            // for regular API Key This allows switching from ADC -> API Key
-            // without prefilling the marker
-            if let Some(key) = existing_credential.auth_details.api_key() {
-                let is_adc_marker = key.as_ref() == "google_adc_marker";
-                let requesting_adc = matches!(auth_method, AuthMethod::GoogleAdc);
-
-                if (requesting_adc && is_adc_marker) || (!requesting_adc && !is_adc_marker) {
-                    api_key_request.api_key = Some(key.clone());
+            // Only prefill API key for regular API Key flow
+            // Don't overwrite markers (google_adc_marker, aws_profile_marker)
+            // used by non-API-key auth methods
+            if !matches!(auth_method, AuthMethod::GoogleAdc | AuthMethod::AwsProfile) {
+                if let Some(key) = existing_credential.auth_details.api_key() {
+                    let is_adc_marker = key.as_ref() == "google_adc_marker";
+                    if !is_adc_marker {
+                        api_key_request.api_key = Some(key.clone());
+                    }
                 }
             }
         }

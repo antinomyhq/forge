@@ -1823,4 +1823,98 @@ mod tests {
             _ => panic!("Expected array document"),
         }
     }
+
+    fn aws_profile_fixture(profile: &str, region: Option<&str>) -> Provider<Url> {
+        use forge_domain::{
+            ApiKey, AuthCredential, AuthDetails, ProviderId, ProviderResponse, ProviderType,
+            URLParam, URLParamValue,
+        };
+
+        let mut url_params = std::collections::HashMap::new();
+        if let Some(r) = region {
+            url_params.insert(
+                URLParam::from("AWS_REGION".to_string()),
+                URLParamValue::from(r.to_string()),
+            );
+        }
+        url_params.insert(
+            URLParam::from("AWS_PROFILE".to_string()),
+            URLParamValue::from(profile.to_string()),
+        );
+
+        Provider {
+            id: ProviderId::from("bedrock".to_string()),
+            provider_type: ProviderType::Llm,
+            response: Some(ProviderResponse::Bedrock),
+            url: Url::parse("https://bedrock-runtime.us-east-1.amazonaws.com").unwrap(),
+            models: None,
+            auth_methods: vec![],
+            url_params: vec![],
+            credential: Some(AuthCredential {
+                id: ProviderId::from("bedrock".to_string()),
+                auth_details: AuthDetails::AwsProfile(ApiKey::from(profile.to_string())),
+                url_params,
+            }),
+            custom_headers: None,
+        }
+    }
+
+    #[test]
+    fn test_new_with_aws_profile_credentials() {
+        let provider = aws_profile_fixture("my-profile", Some("us-west-2"));
+        let bedrock = BedrockProvider::new(provider).unwrap();
+        assert_eq!(bedrock.region, "us-west-2");
+        assert!(matches!(bedrock.auth_mode, BedrockAuthMode::AwsProfile(ref p) if p == "my-profile"));
+    }
+
+    #[test]
+    fn test_new_with_empty_aws_profile_fails() {
+        let provider = aws_profile_fixture("", Some("us-east-1"));
+        let result = BedrockProvider::new(provider);
+        assert!(result.is_err());
+    }
+
+    /// Integration test: validates real SSO profile can create a client and call Bedrock.
+    /// Run with: cargo test -p forge_repo test_real_sso_profile -- --ignored
+    #[tokio::test]
+    #[ignore]
+    async fn test_real_sso_profile_converse() {
+        let provider = aws_profile_fixture("core-test-bedrock", Some("us-east-1"));
+        let bedrock = BedrockProvider::new(provider).unwrap();
+        let client = bedrock.init().await.expect("Failed to init client with SSO profile");
+
+        // Make a minimal converse_stream call
+        let result = client
+            .converse_stream()
+            .model_id("us.anthropic.claude-haiku-4-5-20251001-v1:0")
+            .messages(
+                aws_sdk_bedrockruntime::types::Message::builder()
+                    .role(aws_sdk_bedrockruntime::types::ConversationRole::User)
+                    .content(aws_sdk_bedrockruntime::types::ContentBlock::Text(
+                        "Say 'hello' and nothing else.".to_string(),
+                    ))
+                    .build()
+                    .unwrap(),
+            )
+            .send()
+            .await;
+
+        assert!(result.is_ok(), "converse_stream failed: {:?}", result.err());
+
+        // Consume stream to verify it works
+        let mut event_stream = result.unwrap().stream;
+        let mut got_text = false;
+        while let Ok(Some(event)) = event_stream.recv().await {
+            if let aws_sdk_bedrockruntime::types::ConverseStreamOutput::ContentBlockDelta(delta) =
+                event
+            {
+                if let Some(aws_sdk_bedrockruntime::types::ContentBlockDelta::Text(_)) =
+                    delta.delta()
+                {
+                    got_text = true;
+                }
+            }
+        }
+        assert!(got_text, "Expected text content in stream response");
+    }
 }

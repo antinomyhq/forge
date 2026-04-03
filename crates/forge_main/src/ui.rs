@@ -2283,8 +2283,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let api_key_str = if let Some(default_key) = &request.api_key {
             let key_str = default_key.as_ref();
 
-            // Skip prompting only for Google ADC marker
-            if key_str == "google_adc_marker" {
+            // Skip prompting for markers that indicate non-API-key auth
+            if key_str == "google_adc_marker" || key_str == "aws_profile_marker" {
                 key_str.to_string()
             } else {
                 // For other providers, show the existing key as default (autofill)
