@@ -299,8 +299,10 @@ function _forge_build_shell_context() {
 # Hook registration
 # ---------------------------------------------------------------------------
 
-# Register using standard zsh hook arrays for coexistence with other plugins
+# Register using standard zsh hook arrays for coexistence with other plugins.
+# precmd is prepended so it runs first and captures the real $? from the
+# command, before other plugins (powerlevel10k, starship, etc.) overwrite it.
 if [[ "$_FORGE_CTX_ENABLED" == "true" ]]; then
     preexec_functions+=(_forge_context_preexec)
-    precmd_functions+=(_forge_context_precmd)
+    precmd_functions=(_forge_context_precmd "${precmd_functions[@]}")
 fi
