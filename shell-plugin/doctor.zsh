@@ -533,6 +533,7 @@ if [[ -n "$NERD_FONT" ]]; then
         print_result info "NERD_FONT: disabled by user preference (${NERD_FONT})"
     else
         print_result warn "NERD_FONT: unrecognised value '${NERD_FONT}' — expected 1, 0, true, or false"
+        print_result instruction "Enable Nerd Font by setting:"
         print_result code "export NERD_FONT=1"
     fi
 elif [[ -n "$USE_NERD_FONT" ]]; then
@@ -542,6 +543,7 @@ elif [[ -n "$USE_NERD_FONT" ]]; then
         print_result info "USE_NERD_FONT: disabled by user preference (${USE_NERD_FONT})"
     else
         print_result warn "USE_NERD_FONT: unrecognised value '${USE_NERD_FONT}' — expected 1, 0, true, or false"
+        print_result instruction "Enable Nerd Font by setting:"
         print_result code "export NERD_FONT=1"
     fi
 else
