@@ -29,13 +29,14 @@ impl Transformer for NormalizeToolCallArguments {
         // Iterate through all messages and normalize tool call arguments
         for entry in &mut value.messages {
             if let ContextMessage::Text(text_msg) = &mut entry.message
-                && let Some(ref mut tool_calls) = text_msg.tool_calls {
-                    for tool_call in tool_calls.iter_mut() {
-                        // Normalize the arguments - converts Unparsed JSON strings to Parsed
-                        let args = std::mem::take(&mut tool_call.arguments);
-                        tool_call.arguments = args.normalize();
-                    }
+                && let Some(ref mut tool_calls) = text_msg.tool_calls
+            {
+                for tool_call in tool_calls.iter_mut() {
+                    // Normalize the arguments - converts Unparsed JSON strings to Parsed
+                    let args = std::mem::take(&mut tool_call.arguments);
+                    tool_call.arguments = args.normalize();
                 }
+            }
         }
         value
     }

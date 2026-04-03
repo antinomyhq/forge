@@ -40,38 +40,39 @@ async fn test_kimi_k2p5_turbo_dump_normalization() {
 
     for entry in &normalized.messages {
         if let ContextMessage::Text(text_msg) = &entry.message
-            && let Some(tool_calls) = &text_msg.tool_calls {
-                for tool_call in tool_calls {
-                    if tool_call.name.as_str() == "patch" {
-                        patch_tool_calls_found += 1;
+            && let Some(tool_calls) = &text_msg.tool_calls
+        {
+            for tool_call in tool_calls {
+                if tool_call.name.as_str() == "patch" {
+                    patch_tool_calls_found += 1;
 
-                        // Check the arguments
-                        match &tool_call.arguments {
-                            ToolCallArguments::Parsed(value) => {
-                                // Verify it's a JSON object, not a string
-                                if !value.is_object() {
-                                    errors.push(format!(
+                    // Check the arguments
+                    match &tool_call.arguments {
+                        ToolCallArguments::Parsed(value) => {
+                            // Verify it's a JSON object, not a string
+                            if !value.is_object() {
+                                errors.push(format!(
                                         "Patch tool call {} has Parsed arguments that are not an object: {:?}",
                                         tool_call.call_id.as_ref().map(|c| c.as_str()).unwrap_or("unknown"),
                                         value
                                     ));
-                                }
                             }
-                            ToolCallArguments::Unparsed(str) => {
-                                errors.push(format!(
-                                    "Patch tool call {} still has Unparsed arguments: {}",
-                                    tool_call
-                                        .call_id
-                                        .as_ref()
-                                        .map(|c| c.as_str())
-                                        .unwrap_or("unknown"),
-                                    str
-                                ));
-                            }
+                        }
+                        ToolCallArguments::Unparsed(str) => {
+                            errors.push(format!(
+                                "Patch tool call {} still has Unparsed arguments: {}",
+                                tool_call
+                                    .call_id
+                                    .as_ref()
+                                    .map(|c| c.as_str())
+                                    .unwrap_or("unknown"),
+                                str
+                            ));
                         }
                     }
                 }
             }
+        }
     }
 
     // Print diagnostics
@@ -143,31 +144,32 @@ async fn test_kimi_k2p5_turbo_dump_serialization() {
     if let Some(messages) = json_value.get("messages").and_then(|m| m.as_array()) {
         for (msg_idx, msg) in messages.iter().enumerate() {
             if let Some(text) = msg.get("text")
-                && let Some(tool_calls) = text.get("tool_calls").and_then(|t| t.as_array()) {
-                    for (tool_idx, tool_call) in tool_calls.iter().enumerate() {
-                        if let Some(arguments) = tool_call.get("arguments") {
-                            // Arguments should be an object, not a string
-                            if arguments.is_string() {
-                                let tool_name = tool_call
-                                    .get("name")
-                                    .and_then(|n| n.as_str())
-                                    .unwrap_or("unknown");
-                                errors.push(format!(
-                                    "Message {} tool_call {} ({}): arguments is still a string: {}",
-                                    msg_idx,
-                                    tool_idx,
-                                    tool_name,
-                                    arguments.as_str().unwrap_or("")
-                                ));
-                            } else if !arguments.is_object() {
-                                errors.push(format!(
+                && let Some(tool_calls) = text.get("tool_calls").and_then(|t| t.as_array())
+            {
+                for (tool_idx, tool_call) in tool_calls.iter().enumerate() {
+                    if let Some(arguments) = tool_call.get("arguments") {
+                        // Arguments should be an object, not a string
+                        if arguments.is_string() {
+                            let tool_name = tool_call
+                                .get("name")
+                                .and_then(|n| n.as_str())
+                                .unwrap_or("unknown");
+                            errors.push(format!(
+                                "Message {} tool_call {} ({}): arguments is still a string: {}",
+                                msg_idx,
+                                tool_idx,
+                                tool_name,
+                                arguments.as_str().unwrap_or("")
+                            ));
+                        } else if !arguments.is_object() {
+                            errors.push(format!(
                                     "Message {} tool_call {}: arguments is neither string nor object: {:?}",
                                     msg_idx, tool_idx, arguments
                                 ));
-                            }
                         }
                     }
                 }
+            }
         }
     }
 
