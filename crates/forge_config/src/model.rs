@@ -18,4 +18,8 @@ pub struct ModelConfig {
     pub provider_id: Option<String>,
     /// The model to use for this operation.
     pub model_id: Option<String>,
+    /// The id of a preset defined in [`ForgeConfig::presets`] whose LLM
+    /// settings are applied to this operation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub preset_id: Option<String>,
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use derive_setters::Setters;
@@ -8,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
 use crate::{
-    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
+    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, Preset, ReasoningConfig, RetryConfig,
+    Update,
 };
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
@@ -170,6 +172,11 @@ pub struct ForgeConfig {
     /// token budget, and visibility of the model's thinking process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ReasoningConfig>,
+
+    /// Named LLM inference presets that can be referenced by id from a model
+    /// configuration.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub presets: HashMap<String, Preset>,
 }
 
 impl ForgeConfig {

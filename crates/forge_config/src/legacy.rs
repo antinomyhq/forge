@@ -59,16 +59,16 @@ impl LegacyConfig {
     fn into_forge_config(self) -> ForgeConfig {
         let session = self.provider.as_deref().map(|provider_id| {
             let model_id = self.model.get(provider_id).cloned();
-            ModelConfig { provider_id: Some(provider_id.to_string()), model_id }
+            ModelConfig { provider_id: Some(provider_id.to_string()), model_id, preset_id: None }
         });
 
         let commit = self
             .commit
-            .map(|c| ModelConfig { provider_id: c.provider, model_id: c.model });
+            .map(|c| ModelConfig { provider_id: c.provider, model_id: c.model, preset_id: None });
 
         let suggest = self
             .suggest
-            .map(|s| ModelConfig { provider_id: s.provider, model_id: s.model });
+            .map(|s| ModelConfig { provider_id: s.provider, model_id: s.model, preset_id: None });
 
         ForgeConfig { session, commit, suggest, ..Default::default() }
     }
