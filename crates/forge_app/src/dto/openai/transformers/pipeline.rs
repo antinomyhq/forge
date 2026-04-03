@@ -277,6 +277,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     fn opencode_go(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OPENCODE_GO,
