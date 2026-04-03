@@ -123,32 +123,36 @@ impl<H: HttpInfra> OpenAIProvider<H> {
 
         // Add GitHub Copilot optimization headers only for github_copilot provider
         if self.provider.id == ProviderId::GITHUB_COPILOT {
-            // Determine initiator: use request.initiator if available, otherwise detect from messages
-            let initiator = request.initiator.as_ref().map(|i| i.as_str()).unwrap_or_else(|| {
-                // Fall back to detecting from last message role
-                let is_agent_initiated = request.messages.as_ref().map_or(false, |messages| {
-                    messages.last().map_or(false, |msg| {
-                        // If last message role is not User, it's agent-initiated
-                        !matches!(msg.role, forge_app::dto::openai::Role::User)
-                    })
+            // Determine initiator: use request.initiator if available, otherwise detect
+            // from messages
+            let initiator = request
+                .initiator.as_deref()
+                .unwrap_or_else(|| {
+                    // Fall back to detecting from last message role
+                    let is_agent_initiated = request.messages.as_ref().is_some_and(|messages| {
+                        messages.last().is_some_and(|msg| {
+                            // If last message role is not User, it's agent-initiated
+                            !matches!(msg.role, forge_app::dto::openai::Role::User)
+                        })
+                    });
+                    if is_agent_initiated { "agent" } else { "user" }
                 });
-                if is_agent_initiated { "agent" } else { "user" }
-            });
 
             headers.push(("x-initiator".to_string(), initiator.to_string()));
-            headers.push(("Openai-Intent".to_string(), "conversation-edits".to_string()));
+            headers.push((
+                "Openai-Intent".to_string(),
+                "conversation-edits".to_string(),
+            ));
 
             // Detect if request contains vision/image content
-            let has_vision_content = request.messages.as_ref().map_or(false, |messages| {
+            let has_vision_content = request.messages.as_ref().is_some_and(|messages| {
                 messages.iter().any(|msg| {
-                    msg.content.as_ref().map_or(false, |content| {
-                        match content {
-                            forge_app::dto::openai::MessageContent::Text(_) => false,
-                            forge_app::dto::openai::MessageContent::Parts(parts) => {
-                                parts.iter().any(|part| {
-                                    matches!(part, forge_app::dto::openai::ContentPart::ImageUrl { .. })
-                                })
-                            }
+                    msg.content.as_ref().is_some_and(|content| match content {
+                        forge_app::dto::openai::MessageContent::Text(_) => false,
+                        forge_app::dto::openai::MessageContent::Parts(parts) => {
+                            parts.iter().any(|part| {
+                                matches!(part, forge_app::dto::openai::ContentPart::ImageUrl { .. })
+                            })
                         }
                     })
                 })
@@ -162,7 +166,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
             let is_anthropic_model = request
                 .model
                 .as_ref()
-                .map_or(false, |m| m.as_str().contains("claude"));
+                .is_some_and(|m| m.as_str().contains("claude"));
 
             if is_anthropic_model {
                 headers.push((
@@ -836,29 +840,39 @@ mod tests {
 
         // Create a request with last message from user
         let request = Request {
-            messages: Some(vec![
-                Message {
-                    role: Role::User,
-                    content: Some(MessageContent::Text("Hello".to_string())),
-                    name: None,
-                    tool_call_id: None,
-                    tool_calls: None,
-                    reasoning_details: None,
-                    reasoning_text: None,
-                    reasoning_opaque: None,
-                    reasoning_content: None,
-                    extra_content: None,
-                },
-            ]),
+            messages: Some(vec![Message {
+                role: Role::User,
+                content: Some(MessageContent::Text("Hello".to_string())),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                reasoning_content: None,
+                extra_content: None,
+            }]),
             ..Default::default()
         };
 
         let headers = openai_provider.get_headers_with_request(&request);
 
         // Should have Authorization, x-initiator (user), and Openai-Intent headers
-        assert!(headers.iter().any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
-        assert!(headers.iter().any(|(k, v)| k == "x-initiator" && v == "user"));
-        assert!(headers.iter().any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "user")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits")
+        );
         // Should NOT have Copilot-Vision-Request header (no vision content)
         assert!(!headers.iter().any(|(k, _)| k == "Copilot-Vision-Request"));
         Ok(())
@@ -904,9 +918,21 @@ mod tests {
         let headers = openai_provider.get_headers_with_request(&request);
 
         // Should have Authorization and x-initiator (agent) headers
-        assert!(headers.iter().any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
-        assert!(headers.iter().any(|(k, v)| k == "x-initiator" && v == "agent"));
-        assert!(headers.iter().any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "agent")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits")
+        );
         Ok(())
     }
 
@@ -918,63 +944,74 @@ mod tests {
 
         // Create a request with image content
         let request = Request {
-            messages: Some(vec![
-                Message {
-                    role: Role::User,
-                    content: Some(MessageContent::Parts(vec![
-                        ContentPart::ImageUrl {
-                            image_url: ImageUrl {
-                                url: "https://example.com/image.png".to_string(),
-                                detail: None,
-                            },
-                            cache_control: None,
-                        },
-                    ])),
-                    name: None,
-                    tool_call_id: None,
-                    tool_calls: None,
-                    reasoning_details: None,
-                    reasoning_text: None,
-                    reasoning_opaque: None,
-                    reasoning_content: None,
-                    extra_content: None,
-                },
-            ]),
+            messages: Some(vec![Message {
+                role: Role::User,
+                content: Some(MessageContent::Parts(vec![ContentPart::ImageUrl {
+                    image_url: ImageUrl {
+                        url: "https://example.com/image.png".to_string(),
+                        detail: None,
+                    },
+                    cache_control: None,
+                }])),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                reasoning_content: None,
+                extra_content: None,
+            }]),
             ..Default::default()
         };
 
         let headers = openai_provider.get_headers_with_request(&request);
 
         // Should have all GitHub Copilot headers including vision
-        assert!(headers.iter().any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
-        assert!(headers.iter().any(|(k, v)| k == "x-initiator" && v == "user"));
-        assert!(headers.iter().any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits"));
-        assert!(headers.iter().any(|(k, v)| k == "Copilot-Vision-Request" && v == "true"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "user")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Copilot-Vision-Request" && v == "true")
+        );
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_headers_with_request_non_github_copilot_no_extra_headers() -> anyhow::Result<()> {
+    async fn test_get_headers_with_request_non_github_copilot_no_extra_headers()
+    -> anyhow::Result<()> {
         // Verify that non-GitHub Copilot providers don't get the optimization headers
         let provider = openai("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
 
         let request = Request {
-            messages: Some(vec![
-                Message {
-                    role: Role::User,
-                    content: Some(MessageContent::Text("Hello".to_string())),
-                    name: None,
-                    tool_call_id: None,
-                    tool_calls: None,
-                    reasoning_details: None,
-                    reasoning_text: None,
-                    reasoning_opaque: None,
-                    reasoning_content: None,
-                    extra_content: None,
-                },
-            ]),
+            messages: Some(vec![Message {
+                role: Role::User,
+                content: Some(MessageContent::Text("Hello".to_string())),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                reasoning_content: None,
+                extra_content: None,
+            }]),
             ..Default::default()
         };
 
@@ -982,7 +1019,11 @@ mod tests {
 
         // Should only have Authorization header (no GitHub Copilot headers)
         assert_eq!(headers.len(), 1);
-        assert!(headers.iter().any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
+        );
         assert!(!headers.iter().any(|(k, _)| k == "x-initiator"));
         assert!(!headers.iter().any(|(k, _)| k == "Openai-Intent"));
         assert!(!headers.iter().any(|(k, _)| k == "Copilot-Vision-Request"));
@@ -990,8 +1031,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_headers_with_request_github_copilot_claude_model_adds_anthropic_beta(
-    ) -> anyhow::Result<()> {
+    async fn test_get_headers_with_request_github_copilot_claude_model_adds_anthropic_beta()
+    -> anyhow::Result<()> {
         let provider = github_copilot("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
@@ -1023,14 +1064,22 @@ mod tests {
                 .any(|(k, v)| k == "anthropic-beta" && v == "interleaved-thinking-2025-05-14")
         );
         // Standard Copilot headers must also be present
-        assert!(headers.iter().any(|(k, v)| k == "x-initiator" && v == "user"));
-        assert!(headers.iter().any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "user")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits")
+        );
         Ok(())
     }
 
     #[tokio::test]
-    async fn test_get_headers_with_request_github_copilot_non_claude_model_no_anthropic_beta(
-    ) -> anyhow::Result<()> {
+    async fn test_get_headers_with_request_github_copilot_non_claude_model_no_anthropic_beta()
+    -> anyhow::Result<()> {
         let provider = github_copilot("test-key");
         let http_client = Arc::new(MockHttpClient::new());
         let openai_provider = OpenAIProvider::new(provider, http_client);
@@ -1058,8 +1107,16 @@ mod tests {
         // anthropic-beta must NOT be present for non-Claude models
         assert!(!headers.iter().any(|(k, _)| k == "anthropic-beta"));
         // Standard Copilot headers must still be present
-        assert!(headers.iter().any(|(k, v)| k == "x-initiator" && v == "user"));
-        assert!(headers.iter().any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits"));
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-initiator" && v == "user")
+        );
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Openai-Intent" && v == "conversation-edits")
+        );
         Ok(())
     }
 }
