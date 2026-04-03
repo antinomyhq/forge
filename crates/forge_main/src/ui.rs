@@ -1848,7 +1848,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let img_paths = crate::image_paste::paste_image();
 
                 if !img_paths.is_empty() {
-                    let text = img_paths.iter().map(|p| format!(" @[{}] ", p.display())).collect::<Vec<_>>().join("");
+                    let text = img_paths
+                        .iter()
+                        .map(|p| format!(" @[{}] ", p.display()))
+                        .collect::<Vec<_>>()
+                        .join("");
                     self.console.set_buffer(text);
                 }
             }
