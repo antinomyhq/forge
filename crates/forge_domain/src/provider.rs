@@ -72,6 +72,7 @@ impl ProviderId {
     pub const OPENCODE_ZEN: ProviderId = ProviderId(Cow::Borrowed("opencode_zen"));
     pub const FIREWORKS_AI: ProviderId = ProviderId(Cow::Borrowed("fireworks-ai"));
     pub const NOVITA: ProviderId = ProviderId(Cow::Borrowed("novita"));
+    pub const VIVGRID: ProviderId = ProviderId(Cow::Borrowed("vivgrid"));
 
     /// Returns all built-in provider IDs
     ///
@@ -104,6 +105,7 @@ impl ProviderId {
             ProviderId::OPENCODE_ZEN,
             ProviderId::FIREWORKS_AI,
             ProviderId::NOVITA,
+            ProviderId::VIVGRID,
         ]
     }
 
@@ -129,6 +131,7 @@ impl ProviderId {
             "codex" => "Codex".to_string(),
             "fireworks-ai" => "FireworksAI".to_string(),
             "novita" => "Novita".to_string(),
+            "vivgrid" => "Vivgrid".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -173,6 +176,7 @@ impl std::str::FromStr for ProviderId {
             "codex" => ProviderId::CODEX,
             "fireworks-ai" => ProviderId::FIREWORKS_AI,
             "novita" => ProviderId::NOVITA,
+            "vivgrid" => ProviderId::VIVGRID,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -544,6 +548,7 @@ mod tests {
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
         assert_eq!(ProviderId::CODEX.to_string(), "Codex");
         assert_eq!(ProviderId::FIREWORKS_AI.to_string(), "FireworksAI");
+        assert_eq!(ProviderId::VIVGRID.to_string(), "Vivgrid");
     }
 
     #[test]
@@ -561,11 +566,19 @@ mod tests {
     }
 
     #[test]
+    fn test_vivgrid_from_str() {
+        let actual = ProviderId::from_str("vivgrid").unwrap();
+        let expected = ProviderId::VIVGRID;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_codex_in_built_in_providers() {
         let built_in = ProviderId::built_in_providers();
         assert!(built_in.contains(&ProviderId::CODEX));
         assert!(built_in.contains(&ProviderId::OPENAI_RESPONSES_COMPATIBLE));
         assert!(built_in.contains(&ProviderId::FIREWORKS_AI));
+        assert!(built_in.contains(&ProviderId::VIVGRID));
     }
 
     #[test]
