@@ -5,7 +5,7 @@ use serde::Deserialize;
 
 use crate::{ForgeConfig, ModelConfig};
 
-/// Intermediate representation of the legacy `~/forge/.config.json` format.
+/// Intermediate representation of the legacy `~/.forge/.config.json` format.
 ///
 /// This format stores the active provider as a top-level string and models as
 /// a map from provider ID to model ID, which differs from the TOML config's
@@ -35,7 +35,7 @@ struct LegacyModelRef {
 }
 
 impl LegacyConfig {
-    /// Reads the legacy `~/forge/.config.json` file at `path`, parses it, and
+    /// Reads the legacy `~/.forge/.config.json` file at `path`, parses it, and
     /// returns the equivalent TOML representation as a [`String`].
     ///
     /// Because every field in [`ForgeConfig`] is `Option`, fields not covered

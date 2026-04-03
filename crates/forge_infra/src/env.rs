@@ -1,11 +1,70 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{ConfigOperation, Environment};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
+
+static BASE_PATH_MIGRATION: OnceLock<()> = OnceLock::new();
+
+fn old_base_path() -> PathBuf {
+    dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+}
+
+fn new_base_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join(".forge")
+}
+
+fn migrate_base_path_paths(old_path: &PathBuf, new_path: &PathBuf) -> std::io::Result<bool> {
+    if new_path.exists() {
+        if old_path.exists() {
+            warn!(
+                old_path = %old_path.display(),
+                new_path = %new_path.display(),
+                "Both legacy and current Forge base directories exist; using current path"
+            );
+        }
+        return Ok(false);
+    }
+
+    if !old_path.exists() {
+        return Ok(false);
+    }
+
+    std::fs::rename(old_path, new_path)?;
+    Ok(true)
+}
+
+fn migrate_base_path() {
+    BASE_PATH_MIGRATION.get_or_init(|| {
+        let old_path = old_base_path();
+        let new_path = new_base_path();
+
+        match migrate_base_path_paths(&old_path, &new_path) {
+            Ok(true) => {
+                debug!(
+                    old_path = %old_path.display(),
+                    new_path = %new_path.display(),
+                    "Migrated Forge base directory to hidden home path"
+                );
+            }
+            Ok(false) => {}
+            Err(error) => {
+                error!(
+                    error = ?error,
+                    old_path = %old_path.display(),
+                    new_path = %new_path.display(),
+                    "Failed to migrate Forge base directory; continuing with current path"
+                );
+            }
+        }
+    });
+}
 
 /// Builds a [`forge_domain::Environment`] from runtime context only.
 ///
@@ -14,6 +73,8 @@ use tracing::{debug, error};
 /// configuration values are now accessed through
 /// `EnvironmentInfra::get_config()`.
 fn to_environment(cwd: PathBuf) -> Environment {
+    migrate_base_path();
+
     Environment {
         os: std::env::consts::OS.to_string(),
         pid: std::process::id(),
@@ -24,9 +85,7 @@ fn to_environment(cwd: PathBuf) -> Environment {
         } else {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
         },
-        base_path: dirs::home_dir()
-            .map(|h| h.join("forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join("forge")),
+        base_path: new_base_path(),
     }
 }
 
@@ -178,6 +237,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::path::PathBuf;
 
     use forge_config::ForgeConfig;
@@ -190,6 +250,55 @@ mod tests {
         let fixture_cwd = PathBuf::from("/test/cwd");
         let actual = to_environment(fixture_cwd.clone());
         assert_eq!(actual.cwd, fixture_cwd);
+    }
+
+    #[test]
+    fn test_to_environment_uses_hidden_base_path() {
+        let fixture = PathBuf::from("/test/cwd");
+
+        let actual = to_environment(fixture);
+        let expected = dirs::home_dir()
+            .unwrap_or(PathBuf::from("."))
+            .join(".forge");
+
+        assert_eq!(actual.base_path, expected);
+    }
+
+    #[test]
+    fn test_migrate_base_path_moves_legacy_directory() {
+        let fixture = tempfile::tempdir().unwrap();
+        let old_home = fixture.path().join("forge");
+        let new_home = fixture.path().join(".forge");
+        fs::create_dir_all(&old_home).unwrap();
+        fs::write(old_home.join("marker.txt"), "migrated").unwrap();
+
+        let actual = migrate_base_path_paths(&old_home, &new_home).unwrap();
+        let expected = true;
+
+        assert_eq!(actual, expected);
+        assert!(!old_home.exists());
+        assert_eq!(
+            fs::read_to_string(new_home.join("marker.txt")).unwrap(),
+            "migrated"
+        );
+    }
+
+    #[test]
+    fn test_migrate_base_path_keeps_current_directory_when_both_exist() {
+        let fixture = tempfile::tempdir().unwrap();
+        let old_home = fixture.path().join("forge");
+        let new_home = fixture.path().join(".forge");
+        fs::create_dir_all(&old_home).unwrap();
+        fs::create_dir_all(&new_home).unwrap();
+        fs::write(old_home.join("old.txt"), "old").unwrap();
+        fs::write(new_home.join("new.txt"), "new").unwrap();
+
+        let actual = migrate_base_path_paths(&old_home, &new_home).unwrap();
+        let expected = false;
+
+        assert_eq!(actual, expected);
+        assert!(old_home.exists());
+        assert_eq!(fs::read_to_string(new_home.join("new.txt")).unwrap(), "new");
     }
 
     #[test]

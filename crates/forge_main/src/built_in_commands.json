@@ -45,7 +45,7 @@
   },
   {
     "command": "config-edit",
-    "description": "Open the global forge config file (~/forge/.forge.toml) in an editor [alias: ce]"
+    "description": "Open the global forge config file (~/.forge/.forge.toml) in an editor [alias: ce]"
   },
   {
     "command": "new",

@@ -11,7 +11,7 @@ use serde::Deserialize;
 
 /// Repository implementation for loading skills from multiple sources:
 /// 1. Built-in skills (embedded in the application)
-/// 2. Global custom skills (from ~/forge/skills/ directory)
+/// 2. Global custom skills (from ~/.forge/skills/ directory)
 /// 3. Project-local skills (from .forge/skills/ directory in current working
 ///    directory)
 ///
@@ -24,7 +24,7 @@ use serde::Deserialize;
 ///
 /// ## Directory Resolution
 /// - **Built-in skills**: Embedded in application binary
-/// - **Global skills**: `~/forge/skills/<skill-name>/SKILL.md`
+/// - **Global skills**: `~/.forge/skills/<skill-name>/SKILL.md`
 /// - **CWD skills**: `./.forge/skills/<skill-name>/SKILL.md` (relative to
 ///   current working directory)
 ///
