@@ -58,11 +58,8 @@ impl Display for ZshRPrompt {
         // Add agent
         let agent_id = self.agent.clone().unwrap_or_default();
         let agent_id = if self.use_nerd_font {
-            // %{...%} marks the icon as zero-width to ZSH's cursor math, preventing
-            // RPROMPT width miscalculation when the terminal renders PUA glyphs wider
-            // than wcwidth() returns (common on Windows/mintty with nerd fonts).
             format!(
-                "%{{{AGENT_SYMBOL}%}} {}",
+                "{AGENT_SYMBOL} {}",
                 agent_id.to_string().to_case(Case::UpperSnake)
             )
         } else {
@@ -101,7 +98,7 @@ impl Display for ZshRPrompt {
         // Add model
         if let Some(ref model_id) = self.model {
             let model_id = if self.use_nerd_font {
-                format!("%{{{MODEL_SYMBOL}%}} {}", model_id)
+                format!("{MODEL_SYMBOL} {}", model_id)
             } else {
                 model_id.to_string()
             };
@@ -129,7 +126,7 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .to_string();
 
-        let expected = " %B%F{240}%{\u{f167a}%} FORGE%f%b %F{240}%{\u{ec19}%} gpt-4%f";
+        let expected = " %B%F{240}\u{f167a} FORGE%f%b %F{240}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
@@ -142,7 +139,7 @@ mod tests {
             .token_count(Some(TokenCount::Actual(1500)))
             .to_string();
 
-        let expected = " %B%F{15}%{\u{f167a}%} FORGE%f%b %B%F{15}1.5k%f%b %F{134}%{\u{ec19}%} gpt-4%f";
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
@@ -157,7 +154,7 @@ mod tests {
             .currency_symbol("\u{f155}")
             .to_string();
 
-        let expected = " %B%F{15}%{\u{f167a}%} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}%{\u{ec19}%} gpt-4%f";
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
@@ -187,7 +184,7 @@ mod tests {
             .conversion_ratio(83.5)
             .to_string();
 
-        let expected = " %B%F{15}%{\u{f167a}%} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}INR0.83%f%b %F{134}%{\u{ec19}%} gpt-4%f";
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}INR0.83%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
     #[test]
@@ -202,7 +199,7 @@ mod tests {
             .conversion_ratio(0.92)
             .to_string();
 
-        let expected = " %B%F{15}%{\u{f167a}%} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}€0.01%f%b %F{134}%{\u{ec19}%} gpt-4%f";
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}€0.01%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 }
