@@ -4191,3 +4191,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    // Note: Tests for confirm_delete_conversation are disabled because
+    // ForgeSelect::confirm is not easily mockable in the current
+    // architecture. The functionality is tested through integration tests
+    // instead.
+}
