@@ -51,9 +51,7 @@ impl ConfigReader {
 
     /// Returns the base directory for all Forge config files (`~/.forge`).
     pub fn base_path() -> PathBuf {
-        dirs::config_dir()
-            .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
-            .join("forge")
+        dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
     }
 
     /// Adds the provided TOML string as a config source without touching the
