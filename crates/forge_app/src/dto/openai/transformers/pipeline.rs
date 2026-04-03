@@ -277,21 +277,6 @@ mod tests {
         }
     }
 
-    #[allow(dead_code)]
-    fn opencode_go(key: &str) -> Provider<Url> {
-        Provider {
-            id: ProviderId::OPENCODE_GO,
-            provider_type: Default::default(),
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://opencode.ai/zen/go/v1/chat/completions").unwrap(),
-            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
-            url_params: vec![],
-            credential: make_credential(ProviderId::OPENCODE_GO, key),
-            custom_headers: None,
-            models: Some(ModelSource::Hardcoded(vec![])),
-        }
-    }
-
     fn fireworks_ai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::FIREWORKS_AI,
