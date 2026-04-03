@@ -189,9 +189,7 @@ fn strip_surrounding_quotes(s: &str) -> &str {
     if s.len() < 2 {
         return s;
     }
-    if (s.starts_with('\'') && s.ends_with('\''))
-        || (s.starts_with('"') && s.ends_with('"'))
-    {
+    if (s.starts_with('\'') && s.ends_with('\'')) || (s.starts_with('"') && s.ends_with('"')) {
         &s[1..s.len() - 1]
     } else {
         s
@@ -216,13 +214,12 @@ fn wrap_tokens(input: &str) -> String {
         }
 
         // Skip already-wrapped @[...] references
-        if remaining.starts_with("@[") {
-            if let Some(close) = remaining.find(']') {
+        if remaining.starts_with("@[")
+            && let Some(close) = remaining.find(']') {
                 result.push_str(&remaining[..=close]);
                 remaining = &remaining[close + 1..];
                 continue;
             }
-        }
 
         // Extract the next whitespace-delimited token
         let token_end = remaining
