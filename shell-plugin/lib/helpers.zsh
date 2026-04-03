@@ -55,6 +55,144 @@ function _forge_reset() {
   zle reset-prompt
 }
 
+# Removes backslash escapes from a string (e.g. '\ ' becomes ' ').
+# Many terminals backslash-escape spaces when drag-and-dropping file paths.
+# If no backslashes are found, outputs the original string unchanged.
+function _forge_unescape_backslashes() {
+    local input="$1"
+    if [[ "$input" != *\\* ]]; then
+        echo -n "$input"
+        return
+    fi
+    local out=""
+    local i=1
+    while (( i <= ${#input} )); do
+        if [[ "${input[$i]}" == "\\" && $i -lt ${#input} ]]; then
+            (( i++ ))
+            out+="${input[$i]}"
+        else
+            out+="${input[$i]}"
+        fi
+        (( i++ ))
+    done
+    echo -n "$out"
+}
+
+# Wraps bare absolute file paths in @[...] syntax inside user input text.
+# Acts as a fallback for terminals that do not support bracketed paste
+# (e.g. JetBrains integrated terminals for drag-and-drop) so that paths
+# pasted or dropped into a :command still get tagged before dispatch.
+#
+# Handles bare paths (/path/to/file), quoted paths ('/path/to/file' or
+# "/path/to/file"), and backslash-escaped paths (/path/my\ file.txt) that
+# may contain spaces.  Already-wrapped @[...] references are left untouched.
+#
+# Usage: result=$(_forge_wrap_file_paths "some text /path/to/file more text")
+function _forge_wrap_file_paths() {
+    local input="$1"
+    local result=""
+    local remaining="$input"
+
+    while [[ -n "$remaining" ]]; do
+        # Skip already-wrapped @[...] references
+        if [[ "$remaining" == @\[* ]]; then
+            local close="${remaining#*]}"
+            local ref="${remaining%"$close"}"
+            result+="$ref"
+            remaining="$close"
+            continue
+        fi
+
+        # Check for quoted paths (single or double quotes)
+        local sq="'"
+        local dq='"'
+        if [[ "$remaining" == ${sq}/* ]]; then
+            # Single-quoted token starting with /
+            local after_open="${remaining#${sq}}"
+            if [[ "$after_open" == *${sq}* ]]; then
+                local inner="${after_open%%${sq}*}"
+                local rest="${after_open#*${sq}}"
+                if [[ -f "$inner" ]]; then
+                    result+="@[${inner}]"
+                else
+                    result+="${sq}${inner}${sq}"
+                fi
+                remaining="$rest"
+                continue
+            fi
+        elif [[ "$remaining" == ${dq}/* ]]; then
+            # Double-quoted token starting with /
+            local after_open="${remaining#${dq}}"
+            if [[ "$after_open" == *${dq}* ]]; then
+                local inner="${after_open%%${dq}*}"
+                local rest="${after_open#*${dq}}"
+                if [[ -f "$inner" ]]; then
+                    result+="@[${inner}]"
+                else
+                    result+="${dq}${inner}${dq}"
+                fi
+                remaining="$rest"
+                continue
+            fi
+        fi
+
+        # Check for an unquoted absolute path token
+        if [[ "$remaining" == /* ]]; then
+            # Extract up to the next whitespace (or end)
+            local token="${remaining%%[[:space:]]*}"
+            local rest="${remaining#"$token"}"
+            if [[ -f "$token" ]]; then
+                result+="@[${token}]"
+                remaining="$rest"
+                continue
+            fi
+            # Try un-escaping backslashes (Ghostty sends /path/my\ file.txt)
+            local unesc=$(_forge_unescape_backslashes "$token")
+            if [[ "$unesc" != "$token" && -f "$unesc" ]]; then
+                result+="@[${unesc}]"
+                remaining="$rest"
+                continue
+            fi
+            # If the simple token wasn't a file, the path may contain
+            # spaces (or backslash-escaped spaces).  Try progressively
+            # longer prefixes.
+            local candidate="$token"
+            local scan="$rest"
+            local found=0
+            while [[ "$scan" == " "* ]]; do
+                # Consume the space and the next non-space token
+                scan="${scan# }"
+                local next="${scan%%[[:space:]]*}"
+                candidate="${candidate} ${next}"
+                scan="${scan#"$next"}"
+                if [[ -f "$candidate" ]]; then
+                    result+="@[${candidate}]"
+                    remaining="$scan"
+                    found=1
+                    break
+                fi
+                # Also try the un-escaped version of the growing candidate
+                local unesc_cand=$(_forge_unescape_backslashes "$candidate")
+                if [[ "$unesc_cand" != "$candidate" && -f "$unesc_cand" ]]; then
+                    result+="@[${unesc_cand}]"
+                    remaining="$scan"
+                    found=1
+                    break
+                fi
+            done
+            if (( found )); then
+                continue
+            fi
+        fi
+
+        # No special pattern -- consume one character and move on
+        result+="${remaining[1]}"
+        remaining="${remaining[2,-1]}"
+    done
+
+    echo -n "$result"
+}
+
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise

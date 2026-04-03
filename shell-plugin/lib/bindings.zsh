@@ -19,11 +19,11 @@ function forge-bracketed-paste() {
     # Extract the text that was actually pasted by comparing before/after state
     local pasted="${LBUFFER#$pre_lbuffer}"
     
-    # Strip surrounding whitespace and quotes that terminals may add when
-    # dragging and dropping file paths
-    local trimmed="${pasted##[[:space:]]}"
-    trimmed="${trimmed%%[[:space:]]}"
-    # Remove surrounding single or double quotes (e.g. iTerm2 wraps paths with spaces)
+    # Strip all surrounding whitespace that terminals may add
+    local trimmed="${pasted##[[:space:]]#}"
+    trimmed="${trimmed%%[[:space:]]#}"
+    # Remove surrounding single or double quotes (e.g. iTerm2 wraps paths
+    # with spaces in quotes when dragging and dropping)
     local sq="'"
     local dq='"'
     if [[ "$trimmed" == ${sq}*${sq} ]]; then
@@ -33,12 +33,39 @@ function forge-bracketed-paste() {
         trimmed="${trimmed#${dq}}"
         trimmed="${trimmed%${dq}}"
     fi
+    # Un-escape backslash-escaped characters (e.g. Ghostty sends
+    # /path/my\ folder/file.txt for paths with spaces).
+    # Process character by character to remove escaping backslashes.
+    local unescaped="$trimmed"
+    if [[ "$unescaped" == *\\* ]]; then
+        # Use printf to interpret backslash escapes, but we only want to
+        # remove the escaping backslash before literal chars (especially
+        # spaces).  Process character by character via parameter expansion.
+        local tmp=""
+        local i=1
+        while (( i <= ${#unescaped} )); do
+            if [[ "${unescaped[$i]}" == "\\" && $i -lt ${#unescaped} ]]; then
+                (( i++ ))
+                tmp+="${unescaped[$i]}"
+            else
+                tmp+="${unescaped[$i]}"
+            fi
+            (( i++ ))
+        done
+        unescaped="$tmp"
+    fi
     
-    # Check if the pasted text looks like a single file path that exists on disk
-    # and is not already wrapped in @[...]
-    if [[ -n "$trimmed" && -f "$trimmed" && "$pre_lbuffer" != *"@[" ]]; then
-        # Replace the pasted text with the @[...] wrapped version
-        LBUFFER="${pre_lbuffer}@[${trimmed}]"
+    # Only auto-wrap when the line is a forge command (starts with ':').
+    # This avoids mangling paths pasted into normal shell commands like
+    # 'vim /some/path' or 'cat /some/path'.
+    # Try the cleaned path first, then fall back to the un-escaped version
+    # for terminals that backslash-escape spaces in drag-and-drop.
+    if [[ "$BUFFER" == :* && -n "$trimmed" && "$pre_lbuffer" != *"@[" ]]; then
+        if [[ -f "$trimmed" ]]; then
+            LBUFFER="${pre_lbuffer}@[${trimmed}]"
+        elif [[ "$unescaped" != "$trimmed" && -f "$unescaped" ]]; then
+            LBUFFER="${pre_lbuffer}@[${unescaped}]"
+        fi
     fi
     
     # Explicitly redisplay the buffer to ensure paste content is visible

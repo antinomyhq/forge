@@ -118,6 +118,12 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
+    # Wrap any bare file paths in @[...] as a fallback for terminals that
+    # did not trigger bracketed-paste (e.g. JetBrains drag-and-drop).
+    if [[ -n "$input_text" ]]; then
+        input_text=$(_forge_wrap_file_paths "$input_text")
+    fi
+    
     # CRITICAL: Move cursor to end so output doesn't overwrite
     # Don't clear BUFFER yet - let _forge_reset do that after action completes
     # This keeps buffer state consistent if Ctrl+C is pressed
