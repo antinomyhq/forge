@@ -3,6 +3,14 @@
 //! This crate provides common utilities for testing, including fixture loading
 //! helpers that reduce boilerplate in test code.
 
+/// PTY-based test harness for spawning and driving interactive processes.
+///
+/// Re-exported from `forge_shell_smoke` when the `pty` feature is enabled.
+#[cfg(feature = "pty")]
+pub mod pty {
+    pub use forge_shell_smoke::pty::*;
+}
+
 /// Loads a fixture file from the calling crate's directory
 ///
 /// # Arguments
