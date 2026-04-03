@@ -2476,7 +2476,7 @@
       {
         "id": "minimax-m2.7",
         "name": "MiniMax M2.7",
-        "description": "MiniMax's latest model with enhanced reasoning and 200K context",
+        "description": "MiniMax's latest model with enhanced reasoning and 204K context",
         "context_length": 204800,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
