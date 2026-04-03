@@ -1892,8 +1892,8 @@
     "id": "google_ai_studio",
     "api_key_vars": "GEMINI_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
-    "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    "response_type": "Google",
+    "url": "https://generativelanguage.googleapis.com/v1beta",
     "models": [
       {
         "id": "gemini-3.1-pro-preview",
