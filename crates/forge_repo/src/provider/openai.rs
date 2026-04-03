@@ -125,18 +125,16 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         if self.provider.id == ProviderId::GITHUB_COPILOT {
             // Determine initiator: use request.initiator if available, otherwise detect
             // from messages
-            let initiator = request
-                .initiator.as_deref()
-                .unwrap_or_else(|| {
-                    // Fall back to detecting from last message role
-                    let is_agent_initiated = request.messages.as_ref().is_some_and(|messages| {
-                        messages.last().is_some_and(|msg| {
-                            // If last message role is not User, it's agent-initiated
-                            !matches!(msg.role, forge_app::dto::openai::Role::User)
-                        })
-                    });
-                    if is_agent_initiated { "agent" } else { "user" }
+            let initiator = request.initiator.as_deref().unwrap_or_else(|| {
+                // Fall back to detecting from last message role
+                let is_agent_initiated = request.messages.as_ref().is_some_and(|messages| {
+                    messages.last().is_some_and(|msg| {
+                        // If last message role is not User, it's agent-initiated
+                        !matches!(msg.role, forge_app::dto::openai::Role::User)
+                    })
                 });
+                if is_agent_initiated { "agent" } else { "user" }
+            });
 
             headers.push(("x-initiator".to_string(), initiator.to_string()));
             headers.push((
