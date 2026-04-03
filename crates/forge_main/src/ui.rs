@@ -2433,21 +2433,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
-        let callback_server = match crate::oauth_callback::LocalhostOAuthCallbackServer::start(request) {
-            Ok(Some(server)) => {
-                self.writeln(format!(
-                    "{} Waiting for browser callback on {}",
-                    "→".blue(),
-                    server.redirect_uri().as_str().blue().underline()
-                ))?;
-                Some(server)
-            }
-            Ok(None) | Err(_) => {
-                // Not a localhost callback flow, or the listener could not be
-                // started — fall back to manual code paste.
-                None
-            }
-        };
+        let callback_server =
+            match crate::oauth_callback::LocalhostOAuthCallbackServer::start(request) {
+                Ok(Some(server)) => {
+                    self.writeln(format!(
+                        "{} Waiting for browser callback on {}",
+                        "→".blue(),
+                        server.redirect_uri().as_str().blue().underline()
+                    ))?;
+                    Some(server)
+                }
+                Ok(None) | Err(_) => {
+                    // Not a localhost callback flow, or the listener could not be
+                    // started — fall back to manual code paste.
+                    None
+                }
+            };
 
         // Display authorization URL
         self.writeln(format!(
