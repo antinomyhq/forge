@@ -37,7 +37,6 @@ use crate::editor::ReadLineError;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{ForgeCommandManager, SlashCommand};
-use crate::oauth_callback::LocalhostOAuthCallbackServer;
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
@@ -2434,7 +2433,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
-        let callback_server = match LocalhostOAuthCallbackServer::start(request) {
+        let callback_server = match crate::oauth_callback::LocalhostOAuthCallbackServer::start(request) {
             Ok(Some(server)) => {
                 self.writeln(format!(
                     "{} Waiting for browser callback on {}",
