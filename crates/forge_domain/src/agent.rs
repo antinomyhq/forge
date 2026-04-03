@@ -1,14 +1,108 @@
+use std::borrow::Cow;
+
+use derive_more::derive::Display;
 use derive_setters::Setters;
 use merge::Merge;
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+use strum_macros::{Display as StrumDisplay, EnumString};
 
 use crate::{
-    AgentDefinition, AgentId, Compact, Environment, Error, EventContext, MaxTokens, ModelId,
-    ProviderId, ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition,
-    ToolName, TopK, TopP,
+    Compact, Error, EventContext, MaxTokens, ModelId, ProviderId, Result, SystemContext,
+    Temperature, Template, ToolDefinition, ToolName, TopK, TopP,
 };
 
+// Unique identifier for an agent
+#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(transparent)]
+pub struct AgentId(Cow<'static, str>);
+
+impl From<&str> for AgentId {
+    fn from(value: &str) -> Self {
+        AgentId(Cow::Owned(value.to_string()))
+    }
+}
+
+impl AgentId {
+    // Creates a new agent ID from a string-like value
+    pub fn new(id: impl ToString) -> Self {
+        Self(Cow::Owned(id.to_string()))
+    }
+
+    // Returns the agent ID as a string reference
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
+    }
+
+    pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
+    pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
+    pub const SAGE: AgentId = AgentId(Cow::Borrowed("sage"));
+}
+
+impl Default for AgentId {
+    fn default() -> Self {
+        AgentId::FORGE
+    }
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, PartialEq)]
+#[setters(strip_option)]
+#[merge(strategy = merge::option::overwrite_none)]
+pub struct ReasoningConfig {
+    /// Controls the effort level of the agent's reasoning
+    /// supported by openrouter and forge provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<Effort>,
+
+    /// Controls how many tokens the model can spend thinking.
+    /// supported by openrouter, anthropic and forge provider
+    /// should be greater then 1024 but less than overall max_tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_tokens: Option<usize>,
+
+    /// Model thinks deeply, but the reasoning is hidden from you.
+    /// supported by openrouter and forge provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exclude: Option<bool>,
+
+    /// Enables reasoning at the "medium" effort level with no exclusions.
+    /// supported by openrouter, anthropic and forge provider
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, StrumDisplay, EnumString)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
+pub enum Effort {
+    /// No reasoning; skips the thinking step entirely.
+    None,
+    /// Minimal reasoning; fastest and cheapest.
+    Minimal,
+    /// Low reasoning effort.
+    Low,
+    /// Medium reasoning effort; the default for most providers.
+    Medium,
+    /// High reasoning effort.
+    High,
+    /// Extra-high reasoning effort (OpenAI / OpenRouter).
+    XHigh,
+    /// Maximum reasoning effort; only available on select Anthropic models.
+    Max,
+}
+
+/// Estimates the token count from a string representation
+/// This is a simple estimation that should be replaced with a more accurate
+/// tokenizer
+/// Estimates token count from a string representation
+/// Re-exported for compaction reporting
+pub fn estimate_token_count(count: usize) -> usize {
+    // A very rough estimation that assumes ~4 characters per token on average
+    // In a real implementation, this should use a proper LLM-specific tokenizer
+    count / 4
+}
+
 /// Runtime agent representation with required model and provider
-/// Created by converting AgentDefinition with resolved defaults
 #[derive(Debug, Clone, PartialEq, Setters)]
 #[setters(strip_option, into)]
 pub struct Agent {
@@ -113,96 +207,12 @@ impl Agent {
             .description(self.description.clone().unwrap()))
     }
 
-    /// Helper to prepare agents with workflow settings
-    pub fn apply_env(self, env: &Environment) -> Agent {
-        let mut agent = self;
-
-        if let Some(temperature) = env.temperature {
-            agent.temperature = Some(temperature);
-        }
-
-        if let Some(top_p) = env.top_p {
-            agent.top_p = Some(top_p);
-        }
-
-        if let Some(top_k) = env.top_k {
-            agent.top_k = Some(top_k);
-        }
-
-        if let Some(max_tokens) = env.max_tokens {
-            agent.max_tokens = Some(max_tokens);
-        }
-
-        if agent.max_tool_failure_per_turn.is_none()
-            && let Some(max_tool_failure_per_turn) = env.max_tool_failure_per_turn
-        {
-            agent.max_tool_failure_per_turn = Some(max_tool_failure_per_turn);
-        }
-
-        agent.tool_supported = Some(env.tool_supported);
-
-        if agent.max_requests_per_turn.is_none()
-            && let Some(max_requests_per_turn) = env.max_requests_per_turn
-        {
-            agent.max_requests_per_turn = Some(max_requests_per_turn);
-        }
-
-        // Apply workflow compact configuration to agents
-        if let Some(ref workflow_compact) = env.compact {
-            // Merge workflow config into agent config
-            // Agent settings take priority over workflow settings
-            let mut merged_compact = workflow_compact.clone();
-            merged_compact.merge(agent.compact.clone());
-            agent.compact = merged_compact;
-        }
-
-        agent
-    }
-
     /// Sets the model in compaction config if not already set
     pub fn set_compact_model_if_none(mut self) -> Self {
         if self.compact.model.is_none() {
             self.compact.model = Some(self.model.clone());
         }
         self
-    }
-
-    /// Converts an AgentDefinition into an Agent with resolved model and
-    /// provider
-    ///
-    /// # Arguments
-    ///
-    /// * `def` - The agent definition to convert
-    /// * `provider_id` - The provider ID to use if not specified in the
-    ///   definition
-    /// * `model_id` - The model ID to use if not specified in the definition
-    pub fn from_agent_def(
-        def: AgentDefinition,
-        provider_id: ProviderId,
-        model_id: ModelId,
-    ) -> Self {
-        Agent {
-            tool_supported: def.tool_supported,
-            id: def.id,
-            title: def.title,
-            description: def.description,
-            provider: def.provider.unwrap_or(provider_id),
-            model: def.model.unwrap_or(model_id),
-            system_prompt: def.system_prompt,
-            user_prompt: def.user_prompt,
-            temperature: def.temperature,
-            max_tokens: def.max_tokens,
-            top_p: def.top_p,
-            top_k: def.top_k,
-            tools: def.tools,
-            reasoning: def.reasoning,
-            compact: def.compact.unwrap_or_default(),
-            max_turns: def.max_turns,
-            custom_rules: def.custom_rules,
-            max_tool_failure_per_turn: def.max_tool_failure_per_turn,
-            max_requests_per_turn: def.max_requests_per_turn,
-            path: def.path,
-        }
     }
 
     /// Gets the tool ordering for this agent, derived from the tools list

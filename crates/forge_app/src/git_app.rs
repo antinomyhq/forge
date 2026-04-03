@@ -55,7 +55,7 @@ pub struct CommitMessageResponse {
 }
 
 /// Context for generating a commit message from a diff
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DiffContext {
     diff_content: String,
     branch_name: String,
@@ -212,19 +212,26 @@ where
         // Truncate diff if it exceeds max size
         let (truncated_diff, _) = self.truncate_diff(diff_content, max_diff_size, original_size);
 
-        self.generate_message_from_diff(DiffContext {
+        let ctx = DiffContext {
             diff_content: truncated_diff,
             branch_name,
             recent_commits,
             has_staged_files,
             additional_context,
-        })
+        };
+
+        let retry_config = self.services.get_config().retry.unwrap_or_default();
+        crate::retry::retry_with_config(
+            &retry_config,
+            || self.generate_message_from_diff(ctx.clone()),
+            None::<fn(&anyhow::Error, std::time::Duration)>,
+        )
         .await
     }
 
     /// Fetches git context (branch name and recent commits)
     async fn fetch_git_context(&self, cwd: &Path) -> Result<(String, String)> {
-        let max_commit_count = self.services.get_environment().max_commit_count;
+        let max_commit_count = self.services.get_config().max_commit_count;
         let git_log_cmd =
             format!("git log --pretty=format:%s --abbrev-commit --max-count={max_commit_count}");
         let (recent_commits, branch_name) = tokio::join!(
@@ -384,6 +391,10 @@ where
                 message.content.trim().to_string()
             }
         };
+
+        if commit_message.is_empty() {
+            return Err(Error::Retryable(anyhow::anyhow!("Empty commit message generated")).into());
+        }
 
         Ok(CommitMessageDetails {
             message: commit_message,

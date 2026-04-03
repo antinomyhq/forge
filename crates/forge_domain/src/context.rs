@@ -402,6 +402,10 @@ impl std::ops::DerefMut for MessageEntry {
 pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<ConversationId>,
+    /// Indicates who initiated the conversation: "user" or "agent".
+    /// Used for GitHub Copilot billing optimization.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initiator: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<MessageEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -417,7 +421,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
+    pub reasoning: Option<crate::ReasoningConfig>,
     /// Controls whether responses should be streamed. When `true`, responses
     /// are delivered incrementally as they're generated. When `false`, the
     /// complete response is returned at once. Defaults to `true` if not
@@ -556,6 +560,7 @@ impl Context {
     /// are supported and uses the appropriate format. For models that don't
     /// support tools, use the TransformToolCalls transformer to convert the
     /// context afterward.
+    #[allow(clippy::too_many_arguments)]
     pub fn append_message(
         self,
         content: impl ToString,
@@ -566,21 +571,19 @@ impl Context {
         tool_records: Vec<(ToolCallFull, ToolResult)>,
         phase: Option<MessagePhase>,
     ) -> Self {
-        // Convert flat reasoning string to reasoning_details if present
-        let merged_reasoning_details = if let Some(reasoning_text) = reasoning {
-            let reasoning_entry = ReasoningFull {
+        // Convert flat reasoning string to reasoning_details only when no structured
+        // reasoning_details are present. When reasoning_details already exists it
+        // already contains the text (with its cryptographic signature), so adding
+        // another entry from the raw `reasoning` string would produce a duplicate
+        // thinking block with a null signature, which Anthropic rejects.
+        let merged_reasoning_details = match (reasoning, reasoning_details) {
+            (_, Some(details)) => Some(details),
+            (Some(reasoning_text), None) => Some(vec![ReasoningFull {
                 text: Some(reasoning_text),
                 type_of: Some("reasoning.text".to_string()),
                 ..Default::default()
-            };
-            if let Some(mut existing_details) = reasoning_details {
-                existing_details.push(reasoning_entry);
-                Some(existing_details)
-            } else {
-                Some(vec![reasoning_entry])
-            }
-        } else {
-            reasoning_details
+            }]),
+            (None, None) => None,
         };
 
         // Adding tool calls
@@ -1092,10 +1095,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_enabled() {
-        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
-            enabled: Some(true),
-            ..Default::default()
-        });
+        let fixture = Context::default()
+            .reasoning(crate::ReasoningConfig { enabled: Some(true), ..Default::default() });
 
         let actual = fixture.is_reasoning_supported();
         let expected = true;
@@ -1105,8 +1106,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_effort_set() {
-        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
-            effort: Some(crate::agent_definition::Effort::High),
+        let fixture = Context::default().reasoning(crate::ReasoningConfig {
+            effort: Some(crate::Effort::High),
             ..Default::default()
         });
 
@@ -1118,10 +1119,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_max_tokens_positive() {
-        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
-            max_tokens: Some(1024),
-            ..Default::default()
-        });
+        let fixture = Context::default()
+            .reasoning(crate::ReasoningConfig { max_tokens: Some(1024), ..Default::default() });
 
         let actual = fixture.is_reasoning_supported();
         let expected = true;
@@ -1131,10 +1130,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_max_tokens_zero() {
-        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
-            max_tokens: Some(0),
-            ..Default::default()
-        });
+        let fixture = Context::default()
+            .reasoning(crate::ReasoningConfig { max_tokens: Some(0), ..Default::default() });
 
         let actual = fixture.is_reasoning_supported();
         let expected = false;
@@ -1144,10 +1141,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_disabled() {
-        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
-            enabled: Some(false),
-            ..Default::default()
-        });
+        let fixture = Context::default()
+            .reasoning(crate::ReasoningConfig { enabled: Some(false), ..Default::default() });
 
         let actual = fixture.is_reasoning_supported();
         let expected = false;
@@ -1167,10 +1162,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_explicitly_disabled() {
-        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::ReasoningConfig {
             enabled: Some(false),
-            effort: Some(crate::agent_definition::Effort::High), /* Should be ignored when
-                                                                  * explicitly disabled */
+            effort: Some(crate::Effort::High), /* Should be ignored when
+                                                * explicitly disabled */
             ..Default::default()
         });
 
@@ -1647,5 +1642,60 @@ mod tests {
         let expected = false; // Last assistant used "model2", same as current
 
         assert_eq!(actual, expected);
+    }
+
+    /// Regression test: when both `reasoning` (raw text) and
+    /// `reasoning_details` (structured, with a cryptographic signature) are
+    /// present, `append_message` must NOT create a duplicate thinking block
+    /// with a null signature.
+    ///
+    /// The Anthropic API rejects messages where any thinking block carries a
+    /// null or missing signature, so the stored `reasoning_details` must
+    /// contain exactly the structured entries that were passed in — no
+    /// extras.
+    #[test]
+    fn test_append_message_does_not_duplicate_reasoning_when_details_present() {
+        // Fixture: a structured reasoning detail with a valid signature, as would
+        // arrive after aggregating an Anthropic streaming response.
+        let fixture_details = vec![ReasoningFull {
+            text: Some("Let me think about this.".to_string()),
+            signature: Some("EpwFvalidSignatureABC123".to_string()),
+            type_of: Some("reasoning.text".to_string()),
+            format: Some("anthropic-claude-v1".to_string()),
+            index: Some(0),
+            ..Default::default()
+        }];
+
+        // Both reasoning (raw string) and reasoning_details (structured) are provided,
+        // mirroring what orch.rs passes after collecting a streamed Anthropic response.
+        let fixture = Context::default().add_message(ContextMessage::user("Hello", None));
+        let actual = fixture.append_message(
+            "Answer",
+            None,
+            Some("Let me think about this.".to_string()), // raw reasoning string
+            Some(fixture_details.clone()),                // structured reasoning_details
+            Usage::default(),
+            vec![],
+            None,
+        );
+
+        // Extract the stored reasoning_details from the assistant message.
+        let stored = actual
+            .messages
+            .iter()
+            .find_map(|entry| {
+                if let ContextMessage::Text(msg) = &**entry
+                    && msg.role == Role::Assistant
+                {
+                    return msg.reasoning_details.as_ref();
+                }
+                None
+            })
+            .expect("Assistant message should have reasoning_details");
+
+        // Expected: exactly the one structured entry that was passed in.
+        // No duplicate null-signature entry should have been appended.
+        let expected = fixture_details;
+        assert_eq!(stored, &expected);
     }
 }

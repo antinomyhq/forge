@@ -212,13 +212,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
         let env = api.environment();
+        let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), command.clone()),
+            console: Console::new(env.clone(), config.custom_history_path, command.clone()),
             cli,
             command,
             spinner,
@@ -530,8 +531,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
-                // Make sure to init model
-                self.on_new().await?;
+                // Only initialize state (agent/provider/model resolution).
+                // Avoid on_new() which also spawns fire-and-forget background
+                // tasks via hydrate_caches() that race with process exit and
+                // cause "JoinHandle polled after completion" panics.
+                self.init_state(false).await?;
 
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
@@ -671,7 +675,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Update(args) => {
-                let update = forge_domain::Update::default().auto_update(Some(args.no_confirm));
+                let update = forge_config::Update::default().auto_update(args.no_confirm);
                 on_update(self.api.clone(), Some(&update)).await;
                 return Ok(());
             }
@@ -1344,14 +1348,27 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
+        let reasoning_effort = self
+            .api
+            .get_reasoning_effort()
+            .await
+            .ok()
+            .flatten()
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| markers::EMPTY.to_string());
+
         let info = Info::new()
-            .add_title("CONFIGURATION")
-            .add_key_value("Default Model", model)
-            .add_key_value("Default Provider", provider)
-            .add_key_value("Commit Provider", commit_provider)
-            .add_key_value("Commit Model", commit_model)
-            .add_key_value("Suggest Provider", suggest_provider)
-            .add_key_value("Suggest Model", suggest_model);
+            .add_title("SESSION")
+            .add_key_value("Model", model)
+            .add_key_value("Provider", provider)
+            .add_title("COMMIT")
+            .add_key_value("Model", commit_model)
+            .add_key_value("Provider", commit_provider)
+            .add_title("SUGGEST")
+            .add_key_value("Model", suggest_model)
+            .add_key_value("Provider", suggest_provider)
+            .add_title("REASONING")
+            .add_key_value("Effort", reasoning_effort);
 
         if porcelain {
             self.writeln(
@@ -1535,7 +1552,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_env(&mut self) -> anyhow::Result<()> {
         let env = self.api.environment();
-        let info = Info::from(&env);
+        let config = self.api.get_config();
+        let info = Info::from(&env).extend(Info::from(&config));
         self.writeln(info)?;
         Ok(())
     }
@@ -1730,7 +1748,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let max_conversations = self.api.environment().max_conversations;
+        let max_conversations = self.api.get_config().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
@@ -1764,7 +1782,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let max_conversations = self.api.environment().max_conversations;
+        let max_conversations = self.api.get_config().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
@@ -2934,8 +2952,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            let env = self.api.environment();
-            on_update(self.api.clone(), env.updates.as_ref()).await;
+            on_update(self.api.clone(), self.api.get_config().updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -3094,7 +3111,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.environment().auto_open_dump {
+                    if self.api.get_config().auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 } else {
@@ -3118,7 +3135,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.environment().auto_open_dump {
+                    if self.api.get_config().auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 };
@@ -3198,7 +3215,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
-                if !self.api.environment().retry_config.suppress_retry_errors {
+                if !self
+                    .api
+                    .get_config()
+                    .retry
+                    .as_ref()
+                    .is_some_and(|r| r.suppress_errors)
+                {
                     writer.finish()?;
                     self.spinner.start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
@@ -3235,8 +3258,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if let Some(format) = self.api.environment().auto_dump {
-                    let html = matches!(format, forge_domain::AutoDumpFormat::Html);
+                if let Some(format) = self.api.get_config().auto_dump {
+                    let html = matches!(format, forge_config::AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }
             }
@@ -3478,6 +3501,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
+            ConfigSetField::ReasoningEffort { effort } => {
+                self.api.set_reasoning_effort(effort.clone()).await?;
+                self.writeln_title(
+                    TitleFormat::action(effort.to_string())
+                        .sub_title("is now the reasoning effort"),
+                )?;
+            }
         }
 
         Ok(())
@@ -3537,6 +3567,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Suggest: Not set")?,
+                }
+            }
+            ConfigGetField::ReasoningEffort => {
+                let effort = self.api.get_reasoning_effort().await?;
+                match effort {
+                    Some(e) => self.writeln(e.to_string())?,
+                    None => self.writeln("ReasoningEffort: Not set")?,
                 }
             }
         }

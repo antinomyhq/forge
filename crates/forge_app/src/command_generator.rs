@@ -138,8 +138,17 @@ mod tests {
     }
 
     impl EnvironmentInfra for MockServices {
+        type Config = forge_config::ForgeConfig;
+
         fn get_environment(&self) -> Environment {
             self.environment.clone()
+        }
+
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
 
         async fn update_environment(
@@ -277,6 +286,14 @@ mod tests {
         }
 
         async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_reasoning_effort(&self) -> Result<Option<forge_domain::Effort>> {
+            Ok(None)
+        }
+
+        async fn set_reasoning_effort(&self, _effort: forge_domain::Effort) -> Result<()> {
             Ok(())
         }
     }

@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use aws_sdk_bedrockruntime::config::Token;
-use forge_app::domain::RetryConfig;
+use forge_config::RetryConfig;
 use forge_domain::{
     AuthDetails, ChatCompletionMessage, ChatRepository, Context, Model, ModelId, Provider,
     ResultStream, Transformer,
@@ -1669,6 +1669,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![
                 ContextMessage::system("You are a helpful assistant").into(),
                 ContextMessage::Text(TextMessage::new(Role::User, "Hello!")).into(),
@@ -1701,6 +1702,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![],
             tools: vec![],
             tool_choice: None,
@@ -1726,6 +1728,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![],
             tools: vec![],
             tool_choice: None,
@@ -1759,6 +1762,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![],
             tools: vec![],
             tool_choice: None,

@@ -185,8 +185,9 @@ mod tests {
         let legacy_toml = toml_edit::ser::to_string_pretty(&legacy).unwrap();
 
         let actual = ConfigReader::default()
-            .read_defaults()
+            // Read legacy first and then defaults
             .read_toml(&legacy_toml)
+            .read_defaults()
             .build()
             .unwrap();
 
@@ -200,11 +201,11 @@ mod tests {
         );
 
         // Default values from .forge.toml must be retained, not reset to zero
-        assert_eq!(actual.max_parallel_file_reads, Some(64));
-        assert_eq!(actual.max_read_lines, Some(2000));
-        assert_eq!(actual.tool_timeout_secs, Some(300));
-        assert_eq!(actual.max_search_lines, Some(1000));
-        assert_eq!(actual.tool_supported, Some(true));
+        assert_eq!(actual.max_parallel_file_reads, 64);
+        assert_eq!(actual.max_read_lines, 2000);
+        assert_eq!(actual.tool_timeout_secs, 300);
+        assert_eq!(actual.max_search_lines, 1000);
+        assert_eq!(actual.tool_supported, true);
     }
 
     #[test]

@@ -43,7 +43,7 @@ impl std::fmt::Debug for Percentage {
 
 impl Clone for Percentage {
     fn clone(&self) -> Self {
-        Self(self.0)
+        *self
     }
 }
 
