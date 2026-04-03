@@ -7,10 +7,11 @@ use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
     HookExecutionResult, HookInput, HookOutput, RequestPayload, ResponsePayload, Role,
-    StartPayload, ToolcallEndPayload, ToolcallStartPayload, UserHookConfig, UserHookEntry,
-    UserHookEventName, UserHookMatcherGroup,
+    StartPayload, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload, UserHookConfig,
+    UserHookEntry, UserHookEventName, UserHookMatcherGroup,
 };
 use regex::Regex;
+use serde_json::Value;
 use tracing::{debug, warn};
 
 use super::user_hook_executor::UserHookExecutor;
@@ -263,7 +264,7 @@ enum PreToolUseDecision {
 impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        _event: &EventData<StartPayload>,
+        _event: &mut EventData<StartPayload>,
         _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if !self.has_hooks(&UserHookEventName::SessionStart) {
@@ -307,7 +308,7 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
 impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        event: &EventData<RequestPayload>,
+        event: &mut EventData<RequestPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         // Only fire on the first request of a turn (user-submitted prompt).
@@ -375,7 +376,7 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
 impl<I: HookCommandService> EventHandle<EventData<ResponsePayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        _event: &EventData<ResponsePayload>,
+        _event: &mut EventData<ResponsePayload>,
         _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         // FIXME: No user hook events map to Response currently
@@ -387,18 +388,19 @@ impl<I: HookCommandService> EventHandle<EventData<ResponsePayload>> for UserHook
 impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        event: &EventData<ToolcallStartPayload>,
+        event: &mut EventData<ToolcallStartPayload>,
         _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if !self.has_hooks(&UserHookEventName::PreToolUse) {
             return Ok(());
         }
 
-        let tool_name = event.payload.tool_call.name.as_str();
+        // Use owned String to avoid borrow conflicts when mutating event later.
+        let tool_name = event.payload.tool_call.name.as_str().to_string();
         // FIXME: Add a tool name transformer to map tool names to Forge
         // equivalents (e.g. "Bash" → "shell") so that hook configs written
         let groups = self.config.get_groups(&UserHookEventName::PreToolUse);
-        let hooks = Self::find_matching_hooks(groups, Some(tool_name));
+        let hooks = Self::find_matching_hooks(groups, Some(tool_name.as_str()));
 
         if hooks.is_empty() {
             return Ok(());
@@ -411,7 +413,10 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
             hook_event_name: "PreToolUse".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::PreToolUse { tool_name: tool_name.to_string(), tool_input },
+            event_data: HookEventInput::PreToolUse {
+                tool_name: tool_name.clone(),
+                tool_input,
+            },
         };
 
         let results = self.execute_hooks(&hooks, &input).await;
@@ -419,19 +424,20 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
 
         match decision {
             PreToolUseDecision::Allow => Ok(()),
-            PreToolUseDecision::AllowWithUpdate(_output) => {
-                // FIXME: Updating tool call input would require modifying the tool call
-                // in-flight, which would need changes to the orchestrator.
-                // For now, we log and proceed.
-                debug!(
-                    tool_name = tool_name,
-                    "PreToolUse hook returned updatedInput (not yet supported for modification)"
-                );
+            PreToolUseDecision::AllowWithUpdate(output) => {
+                if let Some(updated_input) = output.updated_input {
+                    event.payload.tool_call.arguments =
+                        ToolCallArguments::Parsed(Value::Object(updated_input));
+                    debug!(
+                        tool_name = tool_name.as_str(),
+                        "PreToolUse hook updated tool input"
+                    );
+                }
                 Ok(())
             }
             PreToolUseDecision::Block(reason) => {
                 debug!(
-                    tool_name = tool_name,
+                    tool_name = tool_name.as_str(),
                     reason = reason.as_str(),
                     "PreToolUse hook blocked tool call"
                 );
@@ -452,7 +458,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
 impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        event: &EventData<ToolcallEndPayload>,
+        event: &mut EventData<ToolcallEndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         let is_error = event.payload.result.is_error();
@@ -519,7 +525,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
 impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        _event: &EventData<EndPayload>,
+        _event: &mut EventData<EndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         // Fire SessionEnd hooks
@@ -816,5 +822,412 @@ mod tests {
         let handler = null_handler(config);
         assert!(handler.has_hooks(&UserHookEventName::PreToolUse));
         assert!(!handler.has_hooks(&UserHookEventName::Stop));
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_allow_with_update_detected() {
+        // A hook that returns updatedInput should produce AllowWithUpdate with the
+        // correct updated_input value.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        let expected_map = serde_json::Map::from_iter([("command".to_string(), serde_json::json!("echo safe"))]);
+        assert!(
+            matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_allow_with_update_modifies_tool_call_arguments() {
+        // When a PreToolUse hook returns updatedInput, the handler must
+        // overwrite event.payload.tool_call.arguments with the new value.
+        use forge_domain::{
+            Agent, EventData, ModelId, ProviderId, ToolCallArguments, ToolCallFull,
+            ToolcallStartPayload,
+        };
+
+        let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+
+        // NullInfra returns exit_code=0 with empty stdout (Allow), so we need a custom
+        // infra that returns updatedInput JSON.
+        #[derive(Clone)]
+        struct UpdateInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for UpdateInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _working_dir: PathBuf,
+                _stdin_input: String,
+                _env_vars: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let handler = UserHookHandler::new(
+            UpdateInfra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
+        );
+
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        let original_args = ToolCallArguments::from_json(r#"{"command": "rm -rf /"}"#);
+        let tool_call = ToolCallFull::new("shell").arguments(original_args);
+        let mut event = EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            ToolcallStartPayload::new(tool_call),
+        );
+        let mut conversation = forge_domain::Conversation::generate();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        let actual_args = event.payload.tool_call.arguments.parse().unwrap();
+        let expected_args = serde_json::json!({"command": "echo safe"});
+        assert_eq!(actual_args, expected_args);
+    }
+
+    #[test]
+    fn test_allow_with_update_none_updated_input_leaves_args_unchanged() {
+        // When HookOutput has updated_input = None (e.g. only
+        // `{"permissionDecision": "allow"}`), AllowWithUpdate should not
+        // overwrite the original arguments.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"permissionDecision": "allow"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        // permissionDecision "allow" with no updatedInput => plain Allow
+        assert!(matches!(actual, PreToolUseDecision::Allow));
+    }
+
+    #[test]
+    fn test_allow_with_update_empty_object() {
+        // updatedInput is an empty object — still a valid update.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"updatedInput": {}}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        let expected_map = serde_json::Map::new();
+        assert!(
+            matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
+        );
+    }
+
+    #[test]
+    fn test_allow_with_update_complex_nested_input() {
+        // updatedInput with nested objects and arrays.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"updatedInput": {"file_path": "/safe/path", "options": {"recursive": true, "depth": 3}, "tags": ["a", "b"]}}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        let expected_map = serde_json::Map::from_iter([
+            ("file_path".to_string(), serde_json::json!("/safe/path")),
+            ("options".to_string(), serde_json::json!({"recursive": true, "depth": 3})),
+            ("tags".to_string(), serde_json::json!(["a", "b"])),
+        ]);
+        assert!(
+            matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
+        );
+    }
+
+    #[test]
+    fn test_block_takes_priority_over_updated_input() {
+        // If a hook returns both decision=block AND updatedInput, the block
+        // must win because blocking is checked before updatedInput.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"decision": "block", "reason": "nope", "updatedInput": {"command": "echo safe"}}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "nope"));
+    }
+
+    #[test]
+    fn test_deny_takes_priority_over_updated_input() {
+        // permissionDecision=deny should block even if updatedInput is present.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"permissionDecision": "deny", "reason": "forbidden", "updatedInput": {"command": "echo safe"}}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "forbidden"));
+    }
+
+    #[test]
+    fn test_exit_code_2_blocks_even_with_updated_input_in_stdout() {
+        // Exit code 2 is a hard block regardless of stdout content.
+        let results = vec![HookExecutionResult {
+            exit_code: Some(2),
+            stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
+            stderr: "hard block".to_string(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("hard block")));
+    }
+
+    #[test]
+    fn test_multiple_results_first_update_wins() {
+        // When multiple hooks run and the first returns updatedInput, that
+        // result is used (iteration stops at first non-Allow decision).
+        let results = vec![
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"updatedInput": {"command": "first"}}"#.to_string(),
+                stderr: String::new(),
+            },
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"updatedInput": {"command": "second"}}"#.to_string(),
+                stderr: String::new(),
+            },
+        ];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        let expected_map = serde_json::Map::from_iter([("command".to_string(), serde_json::json!("first"))]);
+        assert!(
+            matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
+        );
+    }
+
+    #[test]
+    fn test_multiple_results_block_before_update() {
+        // A block from an earlier hook prevents a later hook's updatedInput
+        // from being applied.
+        let results = vec![
+            HookExecutionResult {
+                exit_code: Some(2),
+                stdout: String::new(),
+                stderr: "blocked first".to_string(),
+            },
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
+                stderr: String::new(),
+            },
+        ];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("blocked first")));
+    }
+
+    #[test]
+    fn test_non_blocking_error_then_update() {
+        // A non-blocking error (exit 1) from the first hook is logged but
+        // doesn't prevent a subsequent hook from returning updatedInput.
+        let results = vec![
+            HookExecutionResult {
+                exit_code: Some(1),
+                stdout: String::new(),
+                stderr: "warning".to_string(),
+            },
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
+                stderr: String::new(),
+            },
+        ];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        let expected_map = serde_json::Map::from_iter([("command".to_string(), serde_json::json!("safe"))]);
+        assert!(
+            matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_allow_with_update_no_updated_input_preserves_original() {
+        // When the hook returns exit 0 with empty stdout (no updatedInput),
+        // the original tool call arguments must remain untouched.
+        use forge_domain::{
+            Agent, EventData, ModelId, ProviderId, ToolCallArguments, ToolCallFull,
+            ToolcallStartPayload,
+        };
+
+        let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        // NullInfra returns exit 0 + empty stdout => Allow
+        let handler = null_handler(config);
+
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        let original_args = ToolCallArguments::from_json(r#"{"command": "ls"}"#);
+        let tool_call = ToolCallFull::new("shell").arguments(original_args);
+        let mut event = EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            ToolcallStartPayload::new(tool_call),
+        );
+        let mut conversation = forge_domain::Conversation::generate();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        // Arguments must still be the original value
+        let actual_args = event.payload.tool_call.arguments.parse().unwrap();
+        let expected_args = serde_json::json!({"command": "ls"});
+        assert_eq!(actual_args, expected_args);
+    }
+
+    #[tokio::test]
+    async fn test_allow_with_update_replaces_unparsed_with_parsed() {
+        // Original arguments are Unparsed (raw string from LLM). After
+        // AllowWithUpdate, they should become Parsed(Value).
+        use forge_domain::{
+            Agent, EventData, ModelId, ProviderId, ToolCallArguments, ToolCallFull,
+            ToolcallStartPayload,
+        };
+
+        let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+
+        #[derive(Clone)]
+        struct UpdateInfra2;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for UpdateInfra2 {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _working_dir: PathBuf,
+                _stdin_input: String,
+                _env_vars: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#.to_string(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let handler = UserHookHandler::new(
+            UpdateInfra2,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test2".to_string(),
+        );
+
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        // Start with Unparsed arguments
+        let original_args = ToolCallArguments::from_json(r#"{"file_path": "/etc/passwd", "content": "evil"}"#);
+        assert!(matches!(original_args, ToolCallArguments::Unparsed(_)));
+
+        let tool_call = ToolCallFull::new("write").arguments(original_args);
+        let mut event = EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            ToolcallStartPayload::new(tool_call),
+        );
+        let mut conversation = forge_domain::Conversation::generate();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        // After update, arguments should be Parsed
+        assert!(matches!(
+            event.payload.tool_call.arguments,
+            ToolCallArguments::Parsed(_)
+        ));
+        let actual_args = event.payload.tool_call.arguments.parse().unwrap();
+        let expected_args = serde_json::json!({"file_path": "/safe/file.txt", "content": "hello"});
+        assert_eq!(actual_args, expected_args);
+    }
+
+    #[tokio::test]
+    async fn test_block_returns_error_and_preserves_original_args() {
+        // When a hook blocks, handle() returns Err and the event arguments
+        // remain unchanged.
+        use forge_domain::{
+            Agent, EventData, ModelId, ProviderId, ToolCallArguments, ToolCallFull,
+            ToolcallStartPayload,
+        };
+
+        let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+
+        #[derive(Clone)]
+        struct BlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for BlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _working_dir: PathBuf,
+                _stdin_input: String,
+                _env_vars: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "dangerous operation".to_string(),
+                })
+            }
+        }
+
+        let handler = UserHookHandler::new(
+            BlockInfra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-block".to_string(),
+        );
+
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        let original_args = ToolCallArguments::from_json(r#"{"command": "rm -rf /"}"#);
+        let tool_call = ToolCallFull::new("shell").arguments(original_args);
+        let mut event = EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            ToolcallStartPayload::new(tool_call),
+        );
+        let mut conversation = forge_domain::Conversation::generate();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        // Should be an error
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("blocked by PreToolUse hook"));
+        assert!(err_msg.contains("dangerous operation"));
+
+        // Arguments must still be the original value (not modified)
+        let actual_args = event.payload.tool_call.arguments.parse().unwrap();
+        let expected_args = serde_json::json!({"command": "rm -rf /"});
+        assert_eq!(actual_args, expected_args);
     }
 }

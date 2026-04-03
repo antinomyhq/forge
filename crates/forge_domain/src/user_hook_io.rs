@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 /// Exit code constants for hook script results.
 pub mod exit_codes {
@@ -103,7 +103,7 @@ pub struct HookOutput {
         rename = "updatedInput",
         skip_serializing_if = "Option::is_none"
     )]
-    pub updated_input: Option<Value>,
+    pub updated_input: Option<Map<String, Value>>,
 
     /// Additional context to inject into the conversation.
     #[serde(
@@ -331,5 +331,75 @@ mod tests {
         assert!(!fixture.is_success());
         assert!(!fixture.is_blocking_exit());
         assert!(fixture.blocking_message().is_none());
+    }
+
+    // --- Schema validation tests for updatedInput ---
+
+    #[test]
+    fn test_updated_input_valid_object_parsed() {
+        let stdout = r#"{"updatedInput": {"command": "echo safe"}}"#;
+        let actual = HookOutput::parse(stdout);
+        let expected_map = Map::from_iter([("command".to_string(), Value::String("echo safe".to_string()))]);
+        assert_eq!(actual.updated_input, Some(expected_map));
+    }
+
+    #[test]
+    fn test_updated_input_string_rejected_falls_back_to_default() {
+        // updatedInput is a string, not an object => serde rejects it,
+        // entire parse falls back to default (updated_input = None).
+        let stdout = r#"{"updatedInput": "not an object"}"#;
+        let actual = HookOutput::parse(stdout);
+        assert_eq!(actual.updated_input, None);
+    }
+
+    #[test]
+    fn test_updated_input_number_rejected_falls_back_to_default() {
+        let stdout = r#"{"updatedInput": 42}"#;
+        let actual = HookOutput::parse(stdout);
+        assert_eq!(actual.updated_input, None);
+    }
+
+    #[test]
+    fn test_updated_input_array_rejected_falls_back_to_default() {
+        let stdout = r#"{"updatedInput": [1, 2, 3]}"#;
+        let actual = HookOutput::parse(stdout);
+        assert_eq!(actual.updated_input, None);
+    }
+
+    #[test]
+    fn test_updated_input_bool_rejected_falls_back_to_default() {
+        let stdout = r#"{"updatedInput": true}"#;
+        let actual = HookOutput::parse(stdout);
+        assert_eq!(actual.updated_input, None);
+    }
+
+    #[test]
+    fn test_updated_input_null_treated_as_none() {
+        // JSON null for an Option<Map> field => None (not Some(empty map))
+        let stdout = r#"{"updatedInput": null}"#;
+        let actual = HookOutput::parse(stdout);
+        assert_eq!(actual.updated_input, None);
+    }
+
+    #[test]
+    fn test_updated_input_nested_object_accepted() {
+        let stdout = r#"{"updatedInput": {"a": {"b": [1, 2]}, "c": true}}"#;
+        let actual = HookOutput::parse(stdout);
+        let expected_map = Map::from_iter([
+            ("a".to_string(), serde_json::json!({"b": [1, 2]})),
+            ("c".to_string(), Value::Bool(true)),
+        ]);
+        assert_eq!(actual.updated_input, Some(expected_map));
+    }
+
+    #[test]
+    fn test_malformed_updated_input_preserves_other_fields() {
+        // When updatedInput is invalid, the entire HookOutput parse fails
+        // and falls back to default. This means other fields like `decision`
+        // are also lost. This is the expected behavior — a malformed hook
+        // output is treated as if the hook returned nothing.
+        let stdout = r#"{"decision": "block", "updatedInput": "bad"}"#;
+        let actual = HookOutput::parse(stdout);
+        assert_eq!(actual, HookOutput::default());
     }
 }

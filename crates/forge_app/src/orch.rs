@@ -87,17 +87,19 @@ impl<S: AgentService> Orchestrator<S> {
             // Fire the ToolcallStart lifecycle event.
             // If a hook returns an error (e.g., PreToolUse hook blocked the
             // call), skip execution and record an error result instead.
-            let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
+            // A PreToolUse hook may also modify the tool call arguments in-flight
+            // via the AllowWithUpdate path.
+            let mut toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
                 ToolcallStartPayload::new(tool_call.clone()),
             ));
             let hook_result = self
                 .hook
-                .handle(&toolcall_start_event, &mut self.conversation)
+                .handle(&mut toolcall_start_event, &mut self.conversation)
                 .await;
 
-            let tool_result = if let Err(hook_err) = hook_result {
+            let (effective_tool_call, tool_result) = if let Err(hook_err) = hook_result {
                 // Hook blocked this tool call — notify the UI and produce an
                 // error ToolResult so the model sees feedback without aborting.
                 self.send(ChatResponse::HookError {
@@ -105,22 +107,30 @@ impl<S: AgentService> Orchestrator<S> {
                     reason: hook_err.to_string(),
                 })
                 .await?;
-                ToolResult::from(tool_call.clone()).failure(hook_err)
+                let result = ToolResult::from(tool_call.clone()).failure(hook_err);
+                (tool_call.clone(), result)
             } else {
-                // Execute the tool normally
-                self.services
-                    .call(&self.agent, tool_context, tool_call.clone())
-                    .await
+                // Extract the (possibly modified) tool call from the event.
+                // A PreToolUse hook may have updated the tool call arguments.
+                let effective = match toolcall_start_event {
+                    LifecycleEvent::ToolcallStart(data) => data.payload.tool_call,
+                    _ => unreachable!("ToolcallStart event cannot change variant"),
+                };
+                let result = self
+                    .services
+                    .call(&self.agent, tool_context, effective.clone())
+                    .await;
+                (effective, result)
             };
 
             // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
-            let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
+            let mut toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
-                ToolcallEndPayload::new(tool_call.clone(), tool_result.clone()),
+                ToolcallEndPayload::new(effective_tool_call.clone(), tool_result.clone()),
             ));
             self.hook
-                .handle(&toolcall_end_event, &mut self.conversation)
+                .handle(&mut toolcall_end_event, &mut self.conversation)
                 .await?;
 
             // Send the end notification for system tools and not agent as a tool
@@ -130,7 +140,7 @@ impl<S: AgentService> Orchestrator<S> {
             }
             // Ensure all tool calls and results are recorded
             // Adding task completion records is critical for compaction to work correctly
-            tool_call_records.push((tool_call.clone(), tool_result));
+            tool_call_records.push((effective_tool_call, tool_result));
         }
 
         Ok(tool_call_records)
@@ -201,13 +211,13 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Fire the Start lifecycle event
-        let start_event = LifecycleEvent::Start(EventData::new(
+        let mut start_event = LifecycleEvent::Start(EventData::new(
             self.agent.clone(),
             model_id.clone(),
             StartPayload,
         ));
         self.hook
-            .handle(&start_event, &mut self.conversation)
+            .handle(&mut start_event, &mut self.conversation)
             .await?;
 
         // Signals that the loop should suspend (task may or may not be completed)
@@ -229,13 +239,13 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             // Fire the Request lifecycle event
-            let request_event = LifecycleEvent::Request(EventData::new(
+            let mut request_event = LifecycleEvent::Request(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
                 RequestPayload::new(request_count),
             ));
             self.hook
-                .handle(&request_event, &mut self.conversation)
+                .handle(&mut request_event, &mut self.conversation)
                 .await?;
 
             let message = crate::retry::retry_with_config(
@@ -269,13 +279,13 @@ impl<S: AgentService> Orchestrator<S> {
             .await?;
 
             // Fire the Response lifecycle event
-            let response_event = LifecycleEvent::Response(EventData::new(
+            let mut response_event = LifecycleEvent::Response(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
                 ResponsePayload::new(message.clone()),
             ));
             self.hook
-                .handle(&response_event, &mut self.conversation)
+                .handle(&mut response_event, &mut self.conversation)
                 .await?;
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
@@ -378,7 +388,7 @@ impl<S: AgentService> Orchestrator<S> {
         // Fire the End lifecycle event (title will be set here by the hook)
         self.hook
             .handle(
-                &LifecycleEvent::End(EventData::new(
+                &mut LifecycleEvent::End(EventData::new(
                     self.agent.clone(),
                     model_id.clone(),
                     EndPayload,

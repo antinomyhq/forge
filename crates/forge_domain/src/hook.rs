@@ -126,12 +126,12 @@ pub trait EventHandle<T: Send + Sync>: Send + Sync {
     /// Handles a lifecycle event and potentially modifies the conversation
     ///
     /// # Arguments
-    /// * `event` - The lifecycle event that occurred
+    /// * `event` - The lifecycle event that occurred (mutable to allow in-flight modification)
     /// * `conversation` - The current conversation state (mutable)
     ///
     /// # Errors
     /// Returns an error if the event handling fails
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()>;
+    async fn handle(&self, event: &mut T, conversation: &mut Conversation) -> anyhow::Result<()>;
 }
 
 /// Extension trait for combining event handlers
@@ -166,7 +166,7 @@ impl<T: Send + Sync + 'static, A: EventHandle<T> + 'static> EventHandleExt<T> fo
 // Implement EventHandle for Box<dyn EventHandle> to allow using boxed handlers
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for Box<dyn EventHandle<T>> {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, event: &mut T, conversation: &mut Conversation) -> anyhow::Result<()> {
         (**self).handle(event, conversation).await
     }
 }
@@ -326,10 +326,10 @@ impl Hook {
 impl EventHandle<LifecycleEvent> for Hook {
     async fn handle(
         &self,
-        event: &LifecycleEvent,
+        event: &mut LifecycleEvent,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        match &event {
+        match event {
             LifecycleEvent::Start(data) => self.on_start.handle(data, conversation).await,
             LifecycleEvent::End(data) => self.on_end.handle(data, conversation).await,
             LifecycleEvent::Request(data) => self.on_request.handle(data, conversation).await,
@@ -354,7 +354,7 @@ struct CombinedHandler<T: Send + Sync>(Box<dyn EventHandle<T>>, Box<dyn EventHan
 
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for CombinedHandler<T> {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, event: &mut T, conversation: &mut Conversation) -> anyhow::Result<()> {
         // Run the first handler
         self.0.handle(event, conversation).await?;
         // Run the second handler with the cloned event
@@ -371,7 +371,7 @@ pub struct NoOpHandler;
 
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for NoOpHandler {
-    async fn handle(&self, _: &T, _: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, _: &mut T, _: &mut Conversation) -> anyhow::Result<()> {
         Ok(())
     }
 }
@@ -379,17 +379,17 @@ impl<T: Send + Sync> EventHandle<T> for NoOpHandler {
 #[async_trait]
 impl<T: Send + Sync, F, Fut> EventHandle<T> for F
 where
-    F: Fn(&T, &mut Conversation) -> Fut + Send + Sync,
+    F: Fn(&mut T, &mut Conversation) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = anyhow::Result<()>> + Send,
 {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, event: &mut T, conversation: &mut Conversation) -> anyhow::Result<()> {
         (self)(event, conversation).await
     }
 }
 
 impl<T: Send + Sync, F, Fut> From<F> for Box<dyn EventHandle<T>>
 where
-    F: Fn(&T, &mut Conversation) -> Fut + Send + Sync + 'static,
+    F: Fn(&mut T, &mut Conversation) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = anyhow::Result<()>> + Send + 'static,
 {
     fn from(handler: F) -> Self {
@@ -432,7 +432,7 @@ mod tests {
         let events_clone = events.clone();
 
         let hook = Hook::default().on_start(
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events_clone.clone();
                 let event = event.clone();
                 async move {
@@ -445,7 +445,7 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         hook.handle(
-            &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+            &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
             &mut conversation,
         )
         .await
@@ -466,7 +466,7 @@ mod tests {
         let hook = Hook::default()
             .on_start({
                 let events = events.clone();
-                move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::Start(event.clone());
                     async move {
@@ -477,7 +477,7 @@ mod tests {
             })
             .on_end({
                 let events = events.clone();
-                move |event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<EndPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::End(event.clone());
                     async move {
@@ -488,7 +488,7 @@ mod tests {
             })
             .on_request({
                 let events = events.clone();
-                move |event: &EventData<RequestPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<RequestPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::Request(event.clone());
                     async move {
@@ -502,21 +502,21 @@ mod tests {
 
         // Test Start event
         hook.handle(
-            &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+            &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
             &mut conversation,
         )
         .await
         .unwrap();
         // Test End event
         hook.handle(
-            &LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+            &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
             &mut conversation,
         )
         .await
         .unwrap();
         // Test Request event
         hook.handle(
-            &LifecycleEvent::Request(EventData::new(
+            &mut LifecycleEvent::Request(EventData::new(
                 test_agent(),
                 test_model_id(),
                 RequestPayload::new(1),
@@ -553,7 +553,7 @@ mod tests {
         let hook = Hook::new(
             {
                 let events = events.clone();
-                move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::Start(event.clone());
                     async move {
@@ -564,7 +564,7 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<EndPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::End(event.clone());
                     async move {
@@ -575,7 +575,7 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &EventData<RequestPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<RequestPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::Request(event.clone());
                     async move {
@@ -586,7 +586,7 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &EventData<ResponsePayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<ResponsePayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::Response(event.clone());
                     async move {
@@ -597,7 +597,7 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &EventData<ToolcallStartPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<ToolcallStartPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::ToolcallStart(event.clone());
                     async move {
@@ -608,7 +608,7 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::ToolcallEnd(event.clone());
                     async move {
@@ -658,8 +658,8 @@ mod tests {
             )),
         ];
 
-        for event in all_events {
-            hook.handle(&event, &mut conversation).await.unwrap();
+        for mut event in all_events {
+            hook.handle(&mut event, &mut conversation).await.unwrap();
         }
 
         let handled = events.lock().unwrap();
@@ -671,7 +671,7 @@ mod tests {
         let title = std::sync::Arc::new(std::sync::Mutex::new(None));
         let hook = Hook::default().on_start({
             let title = title.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let title = title.clone();
                 async move {
                     *title.lock().unwrap() = Some("Modified title".to_string());
@@ -684,7 +684,7 @@ mod tests {
         assert!(title.lock().unwrap().is_none());
 
         hook.handle(
-            &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+            &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
             &mut conversation,
         )
         .await
@@ -708,7 +708,7 @@ mod tests {
 
         let hook1 = Hook::default().on_start({
             let counter = counter1.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -719,7 +719,7 @@ mod tests {
 
         let hook2 = Hook::default().on_start({
             let counter = counter2.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -732,7 +732,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+                &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
                 &mut conversation,
             )
             .await
@@ -749,7 +749,7 @@ mod tests {
 
         let hook1 = Hook::default().on_start({
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -761,7 +761,7 @@ mod tests {
 
         let hook2 = Hook::default().on_start({
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -773,7 +773,7 @@ mod tests {
 
         let hook3 = Hook::default().on_start({
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -787,7 +787,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+                &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
                 &mut conversation,
             )
             .await
@@ -808,7 +808,7 @@ mod tests {
         let hook1 = Hook::default()
             .on_start({
                 let start_title = start_title.clone();
-                move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Start".to_string());
@@ -818,7 +818,7 @@ mod tests {
             })
             .on_end({
                 let end_title = end_title.clone();
-                move |_event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |_event: &mut EventData<EndPayload>, _conversation: &mut Conversation| {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("End".to_string());
@@ -835,7 +835,7 @@ mod tests {
         // Test Start event
         combined
             .handle(
-                &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+                &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
                 &mut conversation,
             )
             .await
@@ -845,7 +845,7 @@ mod tests {
         // Test End event
         combined
             .handle(
-                &LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+                &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
                 &mut conversation,
             )
             .await
@@ -860,7 +860,7 @@ mod tests {
 
         let handler1 = {
             let counter = counter1.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -871,7 +871,7 @@ mod tests {
 
         let handler2 = {
             let counter = counter2.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -885,7 +885,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &EventData::new(test_agent(), test_model_id(), StartPayload),
+                &mut EventData::new(test_agent(), test_model_id(), StartPayload),
                 &mut conversation,
             )
             .await
@@ -903,7 +903,7 @@ mod tests {
 
         let handler1 = {
             let counter = counter1.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -914,7 +914,7 @@ mod tests {
 
         let handler2 = {
             let counter = counter2.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -928,7 +928,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &EventData::new(test_agent(), test_model_id(), StartPayload),
+                &mut EventData::new(test_agent(), test_model_id(), StartPayload),
                 &mut conversation,
             )
             .await
@@ -938,14 +938,13 @@ mod tests {
         assert_eq!(*counter1.lock().unwrap(), 1);
         assert_eq!(*counter2.lock().unwrap(), 1);
     }
-
     #[tokio::test]
     async fn test_event_handle_ext_chain() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let handler1 = {
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -957,7 +956,7 @@ mod tests {
 
         let handler2 = {
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -969,7 +968,7 @@ mod tests {
 
         let handler3 = {
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -986,7 +985,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &EventData::new(test_agent(), test_model_id(), StartPayload),
+                &mut EventData::new(test_agent(), test_model_id(), StartPayload),
                 &mut conversation,
             )
             .await
@@ -1006,7 +1005,7 @@ mod tests {
 
         let start_handler = {
             let start_title = start_title.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let start_title = start_title.clone();
                 async move {
                     *start_title.lock().unwrap() = Some("Started".to_string());
@@ -1017,7 +1016,7 @@ mod tests {
 
         let logging_handler = {
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -1035,7 +1034,7 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         hook.handle(
-            &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+            &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
             &mut conversation,
         )
         .await
@@ -1053,7 +1052,7 @@ mod tests {
         let hook = Hook::default()
             .on_start({
                 let start_title = start_title.clone();
-                move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Started".to_string());
@@ -1063,7 +1062,7 @@ mod tests {
             })
             .on_end({
                 let end_title = end_title.clone();
-                move |_event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |_event: &mut EventData<EndPayload>, _conversation: &mut Conversation| {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("Ended".to_string());
@@ -1075,7 +1074,7 @@ mod tests {
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
         hook.handle(
-            &LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+            &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
             &mut conversation,
         )
         .await
@@ -1083,7 +1082,7 @@ mod tests {
         assert_eq!(*start_title.lock().unwrap(), Some("Started".to_string()));
 
         hook.handle(
-            &LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+            &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
             &mut conversation,
         )
         .await
@@ -1098,7 +1097,7 @@ mod tests {
 
         let handler1 = {
             let hook1_title = hook1_title.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let hook1_title = hook1_title.clone();
                 async move {
                     *hook1_title.lock().unwrap() = Some("Started".to_string());
@@ -1108,7 +1107,7 @@ mod tests {
         };
         let handler2 = {
             let hook2_title = hook2_title.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_event: &mut EventData<StartPayload>, _conversation: &mut Conversation| {
                 let hook2_title = hook2_title.clone();
                 async move {
                     *hook2_title.lock().unwrap() = Some("Ended".to_string());
@@ -1123,7 +1122,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &EventData::new(test_agent(), test_model_id(), StartPayload),
+                &mut EventData::new(test_agent(), test_model_id(), StartPayload),
                 &mut conversation,
             )
             .await
