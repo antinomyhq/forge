@@ -12,6 +12,40 @@ use crate::{
     AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
 };
 
+/// Wire protocol a provider uses for chat completions.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+pub enum ProviderResponseType {
+    OpenAI,
+    OpenAIResponses,
+    Anthropic,
+    Bedrock,
+    Google,
+    OpenCode,
+}
+
+/// Category of a provider.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderTypeEntry {
+    /// LLM provider for chat completions.
+    #[default]
+    Llm,
+    /// Context engine provider for code indexing and search.
+    ContextEngine,
+}
+
+/// Authentication method supported by a provider.
+///
+/// Only the simple (non-OAuth) methods are available here; providers that
+/// require OAuth device or authorization-code flows must be configured via the
+/// file-based `provider.json` override instead.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderAuthMethod {
+    ApiKey,
+    GoogleAdc,
+}
+
 /// A URL parameter variable for a provider, used to substitute template
 /// variables in URL strings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
@@ -45,10 +79,9 @@ pub struct ProviderEntry {
     /// placeholders.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub models: Option<String>,
-    /// Wire protocol used by this provider. Accepted values: `"OpenAI"`,
-    /// `"Anthropic"`, `"Google"`, `"Bedrock"`, `"OpenAIResponses"`.
+    /// Wire protocol used by this provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub response_type: Option<String>,
+    pub response_type: Option<ProviderResponseType>,
     /// Environment variables whose values are substituted into `{{VAR}}`
     /// placeholders in the `url` and `models` templates.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -56,6 +89,13 @@ pub struct ProviderEntry {
     /// Additional HTTP headers sent with every request to this provider.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_headers: Option<HashMap<String, String>>,
+    /// Provider category; defaults to `llm` when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_type: Option<ProviderTypeEntry>,
+    /// Authentication methods supported by this provider; defaults to
+    /// `["api_key"]` when omitted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auth_methods: Vec<ProviderAuthMethod>,
 }
 
 /// Top-level Forge configuration merged from all sources (defaults, file,

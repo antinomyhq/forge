@@ -589,6 +589,14 @@
         }
       }
     },
+    "ProviderAuthMethod": {
+      "description": "Authentication method supported by a provider.\n\nOnly the simple (non-OAuth) methods are available here; providers that\nrequire OAuth device or authorization-code flows must be configured via the\nfile-based `provider.json` override instead.",
+      "type": "string",
+      "enum": [
+        "api_key",
+        "google_adc"
+      ]
+    },
     "ProviderEntry": {
       "description": "A single provider entry defined inline in `forge.toml`.\n\nInline providers are merged with the built-in provider list; entries with\nthe same `id` override the corresponding built-in entry field-by-field,\nwhile entries with a new `id` are appended to the list.",
       "type": "object",
@@ -599,6 +607,13 @@
             "string",
             "null"
           ]
+        },
+        "auth_methods": {
+          "description": "Authentication methods supported by this provider; defaults to\n`[\"api_key\"]` when omitted.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderAuthMethod"
+          }
         },
         "custom_headers": {
           "description": "Additional HTTP headers sent with every request to this provider.",
@@ -621,11 +636,26 @@
             "null"
           ]
         },
+        "provider_type": {
+          "description": "Provider category; defaults to `llm` when omitted.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderTypeEntry"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "response_type": {
-          "description": "Wire protocol used by this provider. Accepted values: `\"OpenAI\"`,\n`\"Anthropic\"`, `\"Google\"`, `\"Bedrock\"`, `\"OpenAIResponses\"`.",
-          "type": [
-            "string",
-            "null"
+          "description": "Wire protocol used by this provider.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProviderResponseType"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "url": {
@@ -643,6 +673,33 @@
       "required": [
         "id",
         "url"
+      ]
+    },
+    "ProviderResponseType": {
+      "description": "Wire protocol a provider uses for chat completions.",
+      "type": "string",
+      "enum": [
+        "OpenAI",
+        "OpenAIResponses",
+        "Anthropic",
+        "Bedrock",
+        "Google",
+        "OpenCode"
+      ]
+    },
+    "ProviderTypeEntry": {
+      "description": "Category of a provider.",
+      "oneOf": [
+        {
+          "description": "LLM provider for chat completions.",
+          "type": "string",
+          "const": "llm"
+        },
+        {
+          "description": "Context engine provider for code indexing and search.",
+          "type": "string",
+          "const": "context_engine"
+        }
       ]
     },
     "ProviderUrlParam": {

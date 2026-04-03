@@ -115,17 +115,48 @@ impl From<forge_config::ProviderUrlParam> for UrlParamVarConfig {
 
 impl From<forge_config::ProviderEntry> for ProviderConfig {
     fn from(entry: forge_config::ProviderEntry) -> Self {
+        let provider_type = match entry.provider_type {
+            Some(forge_config::ProviderTypeEntry::ContextEngine) => {
+                forge_domain::ProviderType::ContextEngine
+            }
+            Some(forge_config::ProviderTypeEntry::Llm) | None => forge_domain::ProviderType::Llm,
+        };
+
+        let auth_methods = if entry.auth_methods.is_empty() {
+            vec![forge_domain::AuthMethod::ApiKey]
+        } else {
+            entry
+                .auth_methods
+                .into_iter()
+                .map(|m| match m {
+                    forge_config::ProviderAuthMethod::ApiKey => forge_domain::AuthMethod::ApiKey,
+                    forge_config::ProviderAuthMethod::GoogleAdc => {
+                        forge_domain::AuthMethod::GoogleAdc
+                    }
+                })
+                .collect()
+        };
+
+        let response_type = entry.response_type.map(|r| match r {
+            forge_config::ProviderResponseType::OpenAI => ProviderResponse::OpenAI,
+            forge_config::ProviderResponseType::OpenAIResponses => {
+                ProviderResponse::OpenAIResponses
+            }
+            forge_config::ProviderResponseType::Anthropic => ProviderResponse::Anthropic,
+            forge_config::ProviderResponseType::Bedrock => ProviderResponse::Bedrock,
+            forge_config::ProviderResponseType::Google => ProviderResponse::Google,
+            forge_config::ProviderResponseType::OpenCode => ProviderResponse::OpenCode,
+        });
+
         ProviderConfig {
             id: ProviderId::from(entry.id),
-            provider_type: forge_domain::ProviderType::Llm,
+            provider_type,
             api_key_vars: entry.api_key_var,
             url_param_vars: entry.url_param_vars.into_iter().map(Into::into).collect(),
-            response_type: entry
-                .response_type
-                .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
+            response_type,
             url: entry.url,
             models: entry.models.map(Models::Url),
-            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            auth_methods,
             custom_headers: entry.custom_headers,
         }
     }
