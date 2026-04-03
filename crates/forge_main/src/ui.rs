@@ -3610,11 +3610,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None
         };
 
-        // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1")
+        // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1" or "true")
         let use_nerd_font = std::env::var("NERD_FONT")
             .or_else(|_| std::env::var("USE_NERD_FONT"))
-            .map(|val| val == "1")
-            .unwrap_or(true); // Default to true — icons are wrapped in %{...%} for safe ZSH width tracking
+            .map(|val| val == "1" || val == "true")
+            .unwrap_or(true); // Default to true — icons render as 1 column on supported terminals
 
         // Get currency symbol from environment variable, default to "$"
         let currency_symbol =
