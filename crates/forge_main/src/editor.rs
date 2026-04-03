@@ -215,11 +215,12 @@ fn wrap_tokens(input: &str) -> String {
 
         // Skip already-wrapped @[...] references
         if remaining.starts_with("@[")
-            && let Some(close) = remaining.find(']') {
-                result.push_str(&remaining[..=close]);
-                remaining = &remaining[close + 1..];
-                continue;
-            }
+            && let Some(close) = remaining.find(']')
+        {
+            result.push_str(&remaining[..=close]);
+            remaining = &remaining[close + 1..];
+            continue;
+        }
 
         // Extract the next whitespace-delimited token
         let token_end = remaining
