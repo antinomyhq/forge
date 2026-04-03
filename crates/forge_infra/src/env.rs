@@ -9,14 +9,19 @@ use tracing::{debug, error, warn};
 
 static BASE_PATH_MIGRATION: OnceLock<()> = OnceLock::new();
 
+/// Returns the XDG config directory path, falling back to home directory.
+fn xdg_config_dir() -> PathBuf {
+    dirs::config_dir().unwrap_or_else(|| {
+        dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
+    })
+}
+
 fn old_base_path() -> PathBuf {
-    dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+    dirs::home_dir().unwrap_or_else(|| xdg_config_dir()).join("forge")
 }
 
 fn new_base_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or(PathBuf::from("."))
-        .join(".forge")
+    xdg_config_dir().join("forge")
 }
 
 fn migrate_base_path_paths(old_path: &PathBuf, new_path: &PathBuf) -> std::io::Result<bool> {
@@ -35,6 +40,11 @@ fn migrate_base_path_paths(old_path: &PathBuf, new_path: &PathBuf) -> std::io::R
         return Ok(false);
     }
 
+    // Create parent directories if they don't exist (handles XDG config_dir case)
+    if let Some(parent) = new_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
     std::fs::rename(old_path, new_path)?;
     Ok(true)
 }
@@ -49,7 +59,7 @@ fn migrate_base_path() {
                 debug!(
                     old_path = %old_path.display(),
                     new_path = %new_path.display(),
-                    "Migrated Forge base directory to hidden home path"
+                    "Migrated Forge base directory to XDG config directory"
                 );
             }
             Ok(false) => {}
@@ -252,13 +262,11 @@ mod tests {
     }
 
     #[test]
-    fn test_to_environment_uses_hidden_base_path() {
+    fn test_to_environment_uses_xdg_base_path() {
         let fixture = PathBuf::from("/test/cwd");
 
         let actual = to_environment(fixture);
-        let expected = dirs::home_dir()
-            .unwrap_or(PathBuf::from("."))
-            .join(".forge");
+        let expected = xdg_config_dir().join("forge");
 
         assert_eq!(actual.base_path, expected);
     }
@@ -266,8 +274,9 @@ mod tests {
     #[test]
     fn test_migrate_base_path_moves_legacy_directory() {
         let fixture = tempfile::tempdir().unwrap();
+        // XDG: old path is ~/forge, new path is ~/.config/forge
         let old_home = fixture.path().join("forge");
-        let new_home = fixture.path().join(".forge");
+        let new_home = fixture.path().join(".config/forge");
         fs::create_dir_all(&old_home).unwrap();
         fs::write(old_home.join("marker.txt"), "migrated").unwrap();
 
@@ -285,8 +294,9 @@ mod tests {
     #[test]
     fn test_migrate_base_path_keeps_current_directory_when_both_exist() {
         let fixture = tempfile::tempdir().unwrap();
+        // XDG: old path is ~/forge, new path is ~/.config/forge
         let old_home = fixture.path().join("forge");
-        let new_home = fixture.path().join(".forge");
+        let new_home = fixture.path().join(".config/forge");
         fs::create_dir_all(&old_home).unwrap();
         fs::create_dir_all(&new_home).unwrap();
         fs::write(old_home.join("old.txt"), "old").unwrap();
