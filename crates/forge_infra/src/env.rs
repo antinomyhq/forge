@@ -25,8 +25,8 @@ fn to_environment(cwd: PathBuf) -> Environment {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
         },
         base_path: dirs::home_dir()
-            .map(|h| h.join("forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join("forge")),
+            .map(|h| h.join(".forge"))
+            .unwrap_or_else(|| PathBuf::from(".").join(".forge")),
     }
 }
 
@@ -197,8 +197,8 @@ mod tests {
         let fixture = PathBuf::from("/test/cwd");
         let actual = to_environment(fixture);
         let expected = dirs::home_dir()
-            .map(|h| h.join("forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join("forge"));
+            .map(|h| h.join(".forge"))
+            .unwrap_or_else(|| PathBuf::from(".").join(".forge"));
         assert_eq!(actual.base_path, expected);
     }
 
