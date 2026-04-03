@@ -12,23 +12,17 @@ zle -N forge-completion
 # Path detection and wrapping is delegated to `forge zsh format` (Rust) so
 # that all parsing logic lives in one well-tested place.
 function forge-bracketed-paste() {
-    # Capture the cursor position before the paste to isolate the pasted text
-    local pre_cursor=$CURSOR
-    local pre_lbuffer="$LBUFFER"
-    
     # Call the built-in bracketed-paste widget first
     zle .$WIDGET "$@"
-    
-    # Extract the text that was actually pasted by comparing before/after state
-    local pasted="${LBUFFER#$pre_lbuffer}"
     
     # Only auto-wrap when the line is a forge command (starts with ':').
     # This avoids mangling paths pasted into normal shell commands like
     # 'vim /some/path' or 'cat /some/path'.
-    if [[ "$BUFFER" == :* && -n "$pasted" && "$pre_lbuffer" != *"@[" ]]; then
-        local formatted=$("$_FORGE_BIN" zsh format --buffer "$pasted")
-        if [[ -n "$formatted" && "$formatted" != "$pasted" ]]; then
-            LBUFFER="${pre_lbuffer}${formatted}"
+    if [[ "$BUFFER" == :* ]]; then
+        local formatted=$("$_FORGE_BIN" zsh format --buffer "$BUFFER")
+        if [[ -n "$formatted" && "$formatted" != "$BUFFER" ]]; then
+            BUFFER="$formatted"
+            CURSOR=${#BUFFER}
         fi
     fi
     
