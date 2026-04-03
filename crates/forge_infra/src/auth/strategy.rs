@@ -177,7 +177,12 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                     &ctx.request.oauth_config,
                     chrono::Duration::hours(1), // Code flow default
                 )?;
-                enrich_codex_oauth_credential(&self.provider_id, &mut credential, id_token.as_deref(), &access_token);
+                enrich_codex_oauth_credential(
+                    &self.provider_id,
+                    &mut credential,
+                    id_token.as_deref(),
+                    &access_token,
+                );
                 Ok(credential)
             }
             _ => Err(AuthError::InvalidContext("Expected Code context".to_string()).into()),
@@ -612,7 +617,12 @@ impl AuthStrategy for CodexDeviceStrategy {
 
                 // Store account_id in url_params so it's persisted and available
                 // for chat request headers.
-                enrich_codex_oauth_credential(&self.provider_id, &mut credential, id_token.as_deref(), &access_token);
+                enrich_codex_oauth_credential(
+                    &self.provider_id,
+                    &mut credential,
+                    id_token.as_deref(),
+                    &access_token,
+                );
 
                 Ok(credential)
             }
