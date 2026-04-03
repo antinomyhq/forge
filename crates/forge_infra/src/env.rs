@@ -14,7 +14,7 @@ fn old_base_path() -> PathBuf {
 }
 
 fn new_base_path() -> PathBuf {
-    dirs::home_dir()
+    dirs::config_dir()
         .unwrap_or(PathBuf::from("."))
         .join(".forge")
 }
