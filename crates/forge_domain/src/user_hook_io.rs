@@ -339,7 +339,10 @@ mod tests {
     fn test_updated_input_valid_object_parsed() {
         let stdout = r#"{"updatedInput": {"command": "echo safe"}}"#;
         let actual = HookOutput::parse(stdout);
-        let expected_map = Map::from_iter([("command".to_string(), Value::String("echo safe".to_string()))]);
+        let expected_map = Map::from_iter([(
+            "command".to_string(),
+            Value::String("echo safe".to_string()),
+        )]);
         assert_eq!(actual.updated_input, Some(expected_map));
     }
 

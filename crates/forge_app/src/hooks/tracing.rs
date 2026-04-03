@@ -206,7 +206,8 @@ mod tests {
             finish_reason: None,
             phase: None,
         };
-        let mut event = EventData::new(test_agent(), test_model_id(), ResponsePayload::new(message));
+        let mut event =
+            EventData::new(test_agent(), test_model_id(), ResponsePayload::new(message));
 
         // Should not panic
         handler.handle(&mut event, &mut conversation).await.unwrap();

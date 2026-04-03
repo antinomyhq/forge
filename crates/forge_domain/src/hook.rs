@@ -126,7 +126,8 @@ pub trait EventHandle<T: Send + Sync>: Send + Sync {
     /// Handles a lifecycle event and potentially modifies the conversation
     ///
     /// # Arguments
-    /// * `event` - The lifecycle event that occurred (mutable to allow in-flight modification)
+    /// * `event` - The lifecycle event that occurred (mutable to allow
+    ///   in-flight modification)
     /// * `conversation` - The current conversation state (mutable)
     ///
     /// # Errors
@@ -597,7 +598,8 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &mut EventData<ToolcallStartPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<ToolcallStartPayload>,
+                      _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::ToolcallStart(event.clone());
                     async move {
@@ -608,7 +610,8 @@ mod tests {
             },
             {
                 let events = events.clone();
-                move |event: &mut EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
+                move |event: &mut EventData<ToolcallEndPayload>,
+                      _conversation: &mut Conversation| {
                     let events = events.clone();
                     let event = LifecycleEvent::ToolcallEnd(event.clone());
                     async move {
@@ -732,7 +735,11 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+                &mut LifecycleEvent::Start(EventData::new(
+                    test_agent(),
+                    test_model_id(),
+                    StartPayload,
+                )),
                 &mut conversation,
             )
             .await
@@ -787,7 +794,11 @@ mod tests {
         let mut conversation = Conversation::generate();
         combined
             .handle(
-                &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+                &mut LifecycleEvent::Start(EventData::new(
+                    test_agent(),
+                    test_model_id(),
+                    StartPayload,
+                )),
                 &mut conversation,
             )
             .await
@@ -835,7 +846,11 @@ mod tests {
         // Test Start event
         combined
             .handle(
-                &mut LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
+                &mut LifecycleEvent::Start(EventData::new(
+                    test_agent(),
+                    test_model_id(),
+                    StartPayload,
+                )),
                 &mut conversation,
             )
             .await

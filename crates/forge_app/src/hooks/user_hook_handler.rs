@@ -413,10 +413,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
             hook_event_name: "PreToolUse".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::PreToolUse {
-                tool_name: tool_name.clone(),
-                tool_input,
-            },
+            event_data: HookEventInput::PreToolUse { tool_name: tool_name.clone(), tool_input },
         };
 
         let results = self.execute_hooks(&hooks, &input).await;
@@ -834,7 +831,8 @@ mod tests {
             stderr: String::new(),
         }];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
-        let expected_map = serde_json::Map::from_iter([("command".to_string(), serde_json::json!("echo safe"))]);
+        let expected_map =
+            serde_json::Map::from_iter([("command".to_string(), serde_json::json!("echo safe"))]);
         assert!(
             matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
         );
@@ -945,7 +943,10 @@ mod tests {
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map = serde_json::Map::from_iter([
             ("file_path".to_string(), serde_json::json!("/safe/path")),
-            ("options".to_string(), serde_json::json!({"recursive": true, "depth": 3})),
+            (
+                "options".to_string(),
+                serde_json::json!({"recursive": true, "depth": 3}),
+            ),
             ("tags".to_string(), serde_json::json!(["a", "b"])),
         ]);
         assert!(
@@ -1007,7 +1008,8 @@ mod tests {
             },
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
-        let expected_map = serde_json::Map::from_iter([("command".to_string(), serde_json::json!("first"))]);
+        let expected_map =
+            serde_json::Map::from_iter([("command".to_string(), serde_json::json!("first"))]);
         assert!(
             matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
         );
@@ -1050,7 +1052,8 @@ mod tests {
             },
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
-        let expected_map = serde_json::Map::from_iter([("command".to_string(), serde_json::json!("safe"))]);
+        let expected_map =
+            serde_json::Map::from_iter([("command".to_string(), serde_json::json!("safe"))]);
         assert!(
             matches!(&actual, PreToolUseDecision::AllowWithUpdate(output) if output.updated_input == Some(expected_map))
         );
@@ -1119,7 +1122,9 @@ mod tests {
                 Ok(forge_domain::CommandOutput {
                     command,
                     exit_code: Some(0),
-                    stdout: r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#.to_string(),
+                    stdout:
+                        r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#
+                            .to_string(),
                     stderr: String::new(),
                 })
             }
@@ -1139,7 +1144,8 @@ mod tests {
             ModelId::new("test-model"),
         );
         // Start with Unparsed arguments
-        let original_args = ToolCallArguments::from_json(r#"{"file_path": "/etc/passwd", "content": "evil"}"#);
+        let original_args =
+            ToolCallArguments::from_json(r#"{"file_path": "/etc/passwd", "content": "evil"}"#);
         assert!(matches!(original_args, ToolCallArguments::Unparsed(_)));
 
         let tool_call = ToolCallFull::new("write").arguments(original_args);
