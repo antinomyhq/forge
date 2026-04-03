@@ -1844,6 +1844,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
+            SlashCommand::Paste => {
+                let img_paths = crate::image_paste::paste_image();
+
+                if !img_paths.is_empty() {
+                    let text = img_paths.iter().map(|p| format!(" @[{}] ", p.display())).collect::<Vec<_>>().join("");
+                    self.console.set_buffer(text);
+                }
+            }
             SlashCommand::Delete => {
                 self.handle_delete_conversation().await?;
             }
