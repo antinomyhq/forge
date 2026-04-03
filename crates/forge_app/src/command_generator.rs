@@ -118,7 +118,7 @@ where
 mod tests {
     use forge_domain::{
         AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content, FinishReason,
-        ModelSource, ProviderId, ProviderResponse, ResultStream,
+        ModelSource, ProviderId, ProviderResponse, ResultStream, Role,
     };
     use tokio::sync::Mutex;
     use url::Url;
@@ -344,6 +344,40 @@ mod tests {
         assert_eq!(actual, "pwd");
         let captured_context = fixture.captured_context.lock().await.clone().unwrap();
         insta::assert_yaml_snapshot!(captured_context);
+    }
+
+    #[tokio::test]
+    async fn test_generate_with_shell_context() {
+        let fixture = MockServices::new(
+            r#"{"command": "cargo build --release"}"#,
+            vec![("Cargo.toml", false)],
+        );
+        let generator = CommandGenerator::new(fixture.clone());
+        let shell_context = Some(
+            "## Recent Commands\n| # | Command | Exit | Time |\n|---|---------|------|------|\n| 1 | cargo build | 101 | 12:00:00 |".to_string(),
+        );
+
+        let actual = generator
+            .generate(
+                UserPrompt::from("fix the command I just ran".to_string()),
+                shell_context,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(actual, "cargo build --release");
+        let captured_context = fixture.captured_context.lock().await.clone().unwrap();
+        let user_content = captured_context
+            .messages
+            .iter()
+            .find(|m| m.has_role(Role::User))
+            .expect("should have a user message")
+            .content()
+            .expect("user message should have content");
+        assert!(user_content.contains("<terminal_context>"));
+        assert!(user_content.contains("</terminal_context>"));
+        assert!(user_content.contains("cargo build"));
+        assert!(user_content.contains("<task>fix the command I just ran</task>"));
     }
 
     #[tokio::test]
