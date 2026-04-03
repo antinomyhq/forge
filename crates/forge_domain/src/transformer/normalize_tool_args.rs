@@ -28,15 +28,14 @@ impl Transformer for NormalizeToolCallArguments {
     fn transform(&mut self, mut value: Self::Value) -> Self::Value {
         // Iterate through all messages and normalize tool call arguments
         for entry in &mut value.messages {
-            if let ContextMessage::Text(text_msg) = &mut entry.message {
-                if let Some(ref mut tool_calls) = text_msg.tool_calls {
+            if let ContextMessage::Text(text_msg) = &mut entry.message
+                && let Some(ref mut tool_calls) = text_msg.tool_calls {
                     for tool_call in tool_calls.iter_mut() {
                         // Normalize the arguments - converts Unparsed JSON strings to Parsed
                         let args = std::mem::take(&mut tool_call.arguments);
                         tool_call.arguments = args.normalize();
                     }
                 }
-            }
         }
         value
     }
@@ -111,7 +110,9 @@ mod tests {
         let reparsed: serde_json::Value =
             serde_json::from_str(&serialized).expect("Should re-parse");
 
-        let messages = reparsed["messages"].as_array().expect("Should have messages");
+        let messages = reparsed["messages"]
+            .as_array()
+            .expect("Should have messages");
         let assistant = messages
             .iter()
             .find(|m| m["text"]["role"] == "Assistant")

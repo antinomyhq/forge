@@ -1,5 +1,5 @@
 //! Integration test for stringified tool call arguments fix
-//! 
+//!
 //! This test verifies that when the API sends tool call arguments as a string
 //! containing JSON (like kimi-k2p5-turbo does), we properly parse it and
 //! serialize it back as a JSON object when sending to the API.
@@ -7,13 +7,15 @@
 use forge_domain::{Context, ContextMessage, Role};
 
 /// Test that stringified tool call arguments from API are properly handled
-/// 
-/// This simulates the exact scenario: API sends arguments as a string containing JSON,
-/// and when we serialize the conversation back to send to API, it should be a proper object.
+///
+/// This simulates the exact scenario: API sends arguments as a string
+/// containing JSON, and when we serialize the conversation back to send to API,
+/// it should be a proper object.
 #[test]
 fn test_stringified_tool_call_arguments_roundtrip() {
     // Simulate what kimi-k2p5-turbo sends: arguments as a string containing JSON
-    // Note: This is what the API sends us - a JSON string value containing JSON object
+    // Note: This is what the API sends us - a JSON string value containing JSON
+    // object
     let conversation_json = r#"{
         "messages": [
             {
@@ -45,17 +47,23 @@ fn test_stringified_tool_call_arguments_roundtrip() {
     }"#;
 
     // Deserialize the conversation (this is what happens when we receive from API)
-    let context: Context = serde_json::from_str(conversation_json).expect("Failed to parse conversation");
+    let context: Context =
+        serde_json::from_str(conversation_json).expect("Failed to parse conversation");
 
     // Find the assistant message with tool calls
-    let assistant_msg = context.messages.iter()
+    let assistant_msg = context
+        .messages
+        .iter()
         .find_map(|entry| match &entry.message {
             ContextMessage::Text(text) if text.role == Role::Assistant => Some(text),
             _ => None,
         })
         .expect("Should have assistant message");
 
-    let tool_calls = assistant_msg.tool_calls.as_ref().expect("Should have tool calls");
+    let tool_calls = assistant_msg
+        .tool_calls
+        .as_ref()
+        .expect("Should have tool calls");
     assert_eq!(tool_calls.len(), 1);
 
     let tool_call = &tool_calls[0];
@@ -72,18 +80,22 @@ fn test_stringified_tool_call_arguments_roundtrip() {
 
     // Parse the JSON to verify structure
     let reparsed: serde_json::Value = serde_json::from_str(&serialized).expect("Should re-parse");
-    
+
     // Find the assistant message
-    let messages = reparsed["messages"].as_array().expect("Should have messages");
-    let assistant_json = messages.iter()
+    let messages = reparsed["messages"]
+        .as_array()
+        .expect("Should have messages");
+    let assistant_json = messages
+        .iter()
         .find(|m| m["text"]["role"] == "Assistant")
         .expect("Should find assistant message");
-    
-    let tool_calls_json = assistant_json["text"]["tool_calls"].as_array()
+
+    let tool_calls_json = assistant_json["text"]["tool_calls"]
+        .as_array()
         .expect("Should have tool_calls");
-    
+
     let args = &tool_calls_json[0]["arguments"];
-    
+
     // THE KEY TEST: arguments should be a JSON object, not a string
     // This is what Fireworks API expects - if it's a string, we get 400 error
     assert!(
@@ -91,12 +103,12 @@ fn test_stringified_tool_call_arguments_roundtrip() {
         "CRITICAL: arguments must be a JSON object for API, not a string. Got: {}",
         args
     );
-    
+
     // Verify the values are preserved correctly
     assert_eq!(args["file_path"], "/test/path");
     assert_eq!(args["start_line"], 1);
     assert_eq!(args["end_line"], 10);
-    
+
     println!("SUCCESS: Stringified arguments properly converted to JSON object");
 }
 
@@ -134,33 +146,41 @@ fn test_kimi_k2p5_turbo_patch_tool_scenario() {
         ]
     }"#;
 
-    let context: Context = serde_json::from_str(conversation_json).expect("Failed to parse conversation");
-    
+    let context: Context =
+        serde_json::from_str(conversation_json).expect("Failed to parse conversation");
+
     // Serialize back to what we'd send to API
     let serialized = serde_json::to_string(&context).expect("Should serialize");
     let reparsed: serde_json::Value = serde_json::from_str(&serialized).expect("Should parse");
-    
-    let messages = reparsed["messages"].as_array().expect("Should have messages");
-    let assistant = messages.iter()
+
+    let messages = reparsed["messages"]
+        .as_array()
+        .expect("Should have messages");
+    let assistant = messages
+        .iter()
         .find(|m| m["text"]["role"] == "Assistant")
         .expect("Should find assistant");
-    
-    let tool_calls = assistant["text"]["tool_calls"].as_array()
+
+    let tool_calls = assistant["text"]["tool_calls"]
+        .as_array()
         .expect("Should have tool_calls");
     let args = &tool_calls[0]["arguments"];
-    
+
     // THE CRITICAL ASSERTION for the kimi-k2p5-turbo fix
     assert!(
         args.is_object(),
         "Tool call arguments must be a JSON object when sent to API, not a string. Got: {}",
         args
     );
-    
+
     // Verify nested strings with special characters are preserved
     assert_eq!(args["file_path"], "/test/file.rs");
     assert_eq!(args["old_string"], "fn main() {\n}");
-    assert_eq!(args["new_string"], "fn main() {\n    println!(\"Hello\");\n}");
-    
+    assert_eq!(
+        args["new_string"],
+        "fn main() {\n    println!(\"Hello\");\n}"
+    );
+
     println!("SUCCESS: Patch tool with stringified args properly converted");
 }
 
@@ -202,20 +222,25 @@ fn test_multiple_stringified_tool_calls() {
         ]
     }"#;
 
-    let context: Context = serde_json::from_str(conversation_json).expect("Failed to parse conversation");
+    let context: Context =
+        serde_json::from_str(conversation_json).expect("Failed to parse conversation");
     let serialized = serde_json::to_string(&context).expect("Should serialize");
     let reparsed: serde_json::Value = serde_json::from_str(&serialized).expect("Should parse");
-    
-    let messages = reparsed["messages"].as_array().expect("Should have messages");
-    let assistant = messages.iter()
+
+    let messages = reparsed["messages"]
+        .as_array()
+        .expect("Should have messages");
+    let assistant = messages
+        .iter()
         .find(|m| m["text"]["role"] == "Assistant")
         .expect("Should find assistant");
-    
-    let tool_calls = assistant["text"]["tool_calls"].as_array()
+
+    let tool_calls = assistant["text"]["tool_calls"]
+        .as_array()
         .expect("Should have tool_calls");
-    
+
     assert_eq!(tool_calls.len(), 2);
-    
+
     // Both tool calls should have arguments as objects, not strings
     for (i, tc) in tool_calls.iter().enumerate() {
         let args = &tc["arguments"];
@@ -226,7 +251,7 @@ fn test_multiple_stringified_tool_calls() {
             args
         );
     }
-    
+
     println!("SUCCESS: Multiple stringified tool calls properly converted to JSON objects");
 }
 
@@ -258,23 +283,31 @@ fn test_regular_json_objects_unchanged() {
         ]
     }"#;
 
-    let context: Context = serde_json::from_str(conversation_json).expect("Failed to parse conversation");
+    let context: Context =
+        serde_json::from_str(conversation_json).expect("Failed to parse conversation");
     let serialized = serde_json::to_string(&context).expect("Should serialize");
     let reparsed: serde_json::Value = serde_json::from_str(&serialized).expect("Should parse");
-    
-    let messages = reparsed["messages"].as_array().expect("Should have messages");
-    let assistant = messages.iter()
+
+    let messages = reparsed["messages"]
+        .as_array()
+        .expect("Should have messages");
+    let assistant = messages
+        .iter()
         .find(|m| m["text"]["role"] == "Assistant")
         .expect("Should find assistant");
-    
-    let tool_calls = assistant["text"]["tool_calls"].as_array()
+
+    let tool_calls = assistant["text"]["tool_calls"]
+        .as_array()
         .expect("Should have tool_calls");
     let args = &tool_calls[0]["arguments"];
-    
+
     // Should still be an object
-    assert!(args.is_object(), "Regular JSON objects should remain as objects");
+    assert!(
+        args.is_object(),
+        "Regular JSON objects should remain as objects"
+    );
     assert_eq!(args["file_path"], "/test/path");
     assert_eq!(args["start_line"], 1);
-    
+
     println!("SUCCESS: Regular JSON objects work correctly");
 }

@@ -70,8 +70,9 @@ impl ToolCallArguments {
     ///
     /// This is used for persisted conversations that may contain tool call
     /// arguments saved as raw strings. If repair succeeds, the arguments become
-    /// `Parsed`. If repair fails, the raw content is preserved inside a fallback
-    /// object so downstream request builders always receive structured JSON.
+    /// `Parsed`. If repair fails, the raw content is preserved inside a
+    /// fallback object so downstream request builders always receive
+    /// structured JSON.
     pub fn normalize(self) -> Self {
         match self {
             ToolCallArguments::Unparsed(json_str) => {
@@ -238,7 +239,11 @@ mod tests {
         let reparsed: Value = serde_json::from_str(&serialized).unwrap();
 
         // Should be an object, not a string
-        assert!(reparsed.is_object(), "Should be JSON object, got: {}", serialized);
+        assert!(
+            reparsed.is_object(),
+            "Should be JSON object, got: {}",
+            serialized
+        );
         assert_eq!(reparsed["param"], "value");
         assert_eq!(reparsed["count"], 42);
     }
@@ -405,7 +410,7 @@ mod tests {
         // Test that stringified JSON gets normalized to Parsed
         let fixture = ToolCallArguments::from_json(r#"{"file_path": "/test", "content": "hello"}"#);
         let normalized = fixture.normalize();
-        
+
         // Should be converted to Parsed
         match normalized {
             ToolCallArguments::Parsed(value) => {
@@ -421,7 +426,7 @@ mod tests {
         // Test that already Parsed values stay as Parsed
         let fixture = ToolCallArguments::Parsed(json!({"key": "value"}));
         let normalized = fixture.normalize();
-        
+
         match normalized {
             ToolCallArguments::Parsed(value) => assert_eq!(value["key"], "value"),
             ToolCallArguments::Unparsed(_) => panic!("Should remain Parsed"),
@@ -433,13 +438,16 @@ mod tests {
         // Test the exact malformed JSON from the kimi dump
         let fixture = ToolCallArguments::from_json(r#"{" ,"replace_all": false}"#);
         let normalized = fixture.normalize();
-        
+
         // When JSON can't be repaired, it should create a fallback object
         match normalized {
             ToolCallArguments::Parsed(value) => {
                 // Should contain the raw content in a fallback object
-                assert!(value.get("_raw_content").is_some(), 
-                    "Expected fallback object with _raw_content, got: {:?}", value);
+                assert!(
+                    value.get("_raw_content").is_some(),
+                    "Expected fallback object with _raw_content, got: {:?}",
+                    value
+                );
             }
             ToolCallArguments::Unparsed(_) => {
                 panic!("Should be Parsed (with fallback) even for malformed JSON")
@@ -453,7 +461,7 @@ mod tests {
         let json_str = r#"{"file_path": "/home/kassie/projects/test.ts", "new_string": "import { parseArgs } from \"util\";\nimport { aiCommand } from \"./commands/ai\";", "old_string": "old", "replace_all": false}"#;
         let fixture = ToolCallArguments::from_json(json_str);
         let normalized = fixture.normalize();
-        
+
         match &normalized {
             ToolCallArguments::Parsed(value) => {
                 assert_eq!(value["file_path"], "/home/kassie/projects/test.ts");
