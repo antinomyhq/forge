@@ -5,8 +5,8 @@ use anyhow::Context;
 use console::style;
 use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
-    Model, SystemContext, TemplateConfig, ToolCallContext, ToolCallFull, ToolCatalog,
-    ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
+    Model, PermissionOperation, SystemContext, TemplateConfig, TitleFormat, ToolCallContext,
+    ToolCallFull, ToolCatalog, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -20,6 +20,7 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
+use crate::utils::format_display_path;
 use crate::{
     AgentRegistry, McpService, PolicyService, ProviderService, Services, ToolResolver,
     WorkspaceService,
@@ -61,32 +62,39 @@ impl<S: Services> ToolRegistry<S> {
             })?
     }
 
-    /// Check if a tool operation is allowed based on the workflow policies
+    /// Check if a permission operation is allowed based on workflow policies.
+    /// Returns `true` if the operation was **denied** (caller should bail out).
+    async fn check_permission_for_operation(
+        &self,
+        operation: &PermissionOperation,
+        context: &ToolCallContext,
+    ) -> anyhow::Result<bool> {
+        let decision = self.services.check_operation_permission(operation).await?;
+
+        if let Some(policy_path) = decision.path {
+            context
+                .send_tool_input(
+                    TitleFormat::debug("Permissions Update")
+                        .sub_title(format_display_path(policy_path.as_path(), operation.cwd())),
+                )
+                .await?;
+        }
+        Ok(!decision.allowed)
+    }
+
+    /// Check if a built-in tool operation is allowed based on workflow policies.
+    /// Returns `true` if the operation was **denied** (caller should bail out).
     async fn check_tool_permission(
         &self,
         tool_input: &ToolCatalog,
         context: &ToolCallContext,
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
-        let operation = tool_input.to_policy_operation(cwd.clone());
+        let operation = tool_input.to_policy_operation(cwd);
         if let Some(operation) = operation {
-            let decision = self.services.check_operation_permission(&operation).await?;
-
-            // Send custom policy message to the user when a policy file was created
-            if let Some(policy_path) = decision.path {
-                use forge_domain::TitleFormat;
-
-                use crate::utils::format_display_path;
-                context
-                    .send_tool_input(
-                        TitleFormat::debug("Permissions Update")
-                            .sub_title(format_display_path(policy_path.as_path(), &cwd)),
-                    )
-                    .await?;
-            }
-            if !decision.allowed {
-                return Ok(true);
-            }
+            return self
+                .check_permission_for_operation(&operation, context)
+                .await;
         }
         Ok(false)
     }
@@ -116,7 +124,7 @@ impl<S: Services> ToolRegistry<S> {
             if is_restricted && self.check_tool_permission(&tool_input, context).await? {
                 // Send formatted output message for policy denial
                 context
-                    .send(forge_domain::TitleFormat::error("Permission Denied"))
+                    .send(TitleFormat::error("Permission Denied"))
                     .await?;
 
                 return Ok(ToolOutput::text(
@@ -151,6 +159,50 @@ impl<S: Services> ToolRegistry<S> {
                 .collect::<anyhow::Result<Vec<_>>>()?;
             Ok(ToolOutput::from(outputs.into_iter()))
         } else if self.mcp_executor.contains_tool(&input.name).await? {
+            // Check MCP permissions before executing (only in restricted mode).
+            // This is done BEFORE the timeout to ensure permissions are never timed out.
+            let is_restricted = self.services.get_config().restricted;
+            if is_restricted {
+                let cwd = self.services.get_environment().cwd;
+                // Note: server_for_tool calls get_mcp_servers() again internally. This is a
+                // second call after contains_tool already called it, but MCP server lists are
+                // expected to be cached. If that assumption changes, consider passing the
+                // server name through from contains_tool to avoid the duplicate fetch.
+                //
+                // INVARIANT: contains_tool confirmed the tool exists, so server_for_tool should
+                // always return Some. The "unknown" fallback would cause "*/*" rules to match
+                // but named server rules (e.g. "github/*") to miss, prompting unnecessarily.
+                let server_name = self
+                    .mcp_executor
+                    .server_for_tool(&tool_name)
+                    .await?
+                    .unwrap_or_else(|| {
+                        debug_assert!(
+                            false,
+                            "server_for_tool returned None after contains_tool confirmed tool \
+                             exists: {tool_name}"
+                        );
+                        "unknown".to_string()
+                    });
+                let operation = PermissionOperation::Mcp {
+                    server_name,
+                    tool_name: tool_name.as_str().to_string(),
+                    cwd,
+                };
+                if self
+                    .check_permission_for_operation(&operation, context)
+                    .await?
+                {
+                    context
+                        .send(TitleFormat::error("Permission Denied"))
+                        .await?;
+                    return Ok(ToolOutput::text(
+                        Element::new("permission_denied")
+                            .cdata("User has denied the permission to execute this tool"),
+                    ));
+                }
+            }
+
             let output = self
                 .call_with_timeout(&tool_name, || self.mcp_executor.execute(input, context))
                 .await?;
