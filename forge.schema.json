@@ -213,6 +213,13 @@
       "default": 0,
       "minimum": 0
     },
+    "providers": {
+      "description": "Additional provider definitions merged with the built-in provider list.\n\nEntries with an `id` matching a built-in provider override its fields;\nentries with a new `id` are appended and become available for model\nselection.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ProviderEntry"
+      }
+    },
     "reasoning": {
       "description": "Reasoning configuration applied to all agents; controls effort level,\ntoken budget, and visibility of the model's thinking process.",
       "anyOf": [
@@ -581,6 +588,82 @@
           ]
         }
       }
+    },
+    "ProviderEntry": {
+      "description": "A single provider entry defined inline in `forge.toml`.\n\nInline providers are merged with the built-in provider list; entries with\nthe same `id` override the corresponding built-in entry field-by-field,\nwhile entries with a new `id` are appended to the list.",
+      "type": "object",
+      "properties": {
+        "api_key_var": {
+          "description": "Environment variable holding the API key for this provider.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "custom_headers": {
+          "description": "Additional HTTP headers sent with every request to this provider.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "id": {
+          "description": "Unique provider identifier used in model paths (e.g. `\"my_provider\"`).",
+          "type": "string"
+        },
+        "models": {
+          "description": "URL template for fetching the model list; may contain `{{VAR}}`\nplaceholders.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "response_type": {
+          "description": "Wire protocol used by this provider. Accepted values: `\"OpenAI\"`,\n`\"Anthropic\"`, `\"Google\"`, `\"Bedrock\"`, `\"OpenAIResponses\"`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "url": {
+          "description": "URL template for chat completions; may contain `{{VAR}}` placeholders\nthat are substituted from the credential's url params.",
+          "type": "string"
+        },
+        "url_param_vars": {
+          "description": "Environment variables whose values are substituted into `{{VAR}}`\nplaceholders in the `url` and `models` templates.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderUrlParam"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "url"
+      ]
+    },
+    "ProviderUrlParam": {
+      "description": "A URL parameter variable for a provider, used to substitute template\nvariables in URL strings.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "The environment variable name used as the template variable key.",
+          "type": "string"
+        },
+        "options": {
+          "description": "Optional preset values for this parameter shown as suggestions in the\nUI.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name"
+      ]
     },
     "ReasoningConfig": {
       "description": "Controls the reasoning behaviour of a model, including effort level, token\nbudget, and visibility of the thinking process.",

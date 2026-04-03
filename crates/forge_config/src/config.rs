@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use derive_setters::Setters;
@@ -10,6 +11,52 @@ use crate::writer::ConfigWriter;
 use crate::{
     AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
 };
+
+/// A URL parameter variable for a provider, used to substitute template
+/// variables in URL strings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderUrlParam {
+    /// The environment variable name used as the template variable key.
+    pub name: String,
+    /// Optional preset values for this parameter shown as suggestions in the
+    /// UI.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
+}
+
+/// A single provider entry defined inline in `forge.toml`.
+///
+/// Inline providers are merged with the built-in provider list; entries with
+/// the same `id` override the corresponding built-in entry field-by-field,
+/// while entries with a new `id` are appended to the list.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderEntry {
+    /// Unique provider identifier used in model paths (e.g. `"my_provider"`).
+    pub id: String,
+    /// Environment variable holding the API key for this provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_var: Option<String>,
+    /// URL template for chat completions; may contain `{{VAR}}` placeholders
+    /// that are substituted from the credential's url params.
+    pub url: String,
+    /// URL template for fetching the model list; may contain `{{VAR}}`
+    /// placeholders.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub models: Option<String>,
+    /// Wire protocol used by this provider. Accepted values: `"OpenAI"`,
+    /// `"Anthropic"`, `"Google"`, `"Bedrock"`, `"OpenAIResponses"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_type: Option<String>,
+    /// Environment variables whose values are substituted into `{{VAR}}`
+    /// placeholders in the `url` and `models` templates.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub url_param_vars: Vec<ProviderUrlParam>,
+    /// Additional HTTP headers sent with every request to this provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_headers: Option<HashMap<String, String>>,
+}
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
@@ -170,6 +217,14 @@ pub struct ForgeConfig {
     /// token budget, and visibility of the model's thinking process.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<ReasoningConfig>,
+
+    /// Additional provider definitions merged with the built-in provider list.
+    ///
+    /// Entries with an `id` matching a built-in provider override its fields;
+    /// entries with a new `id` are appended and become available for model
+    /// selection.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub providers: Vec<ProviderEntry>,
 }
 
 impl ForgeConfig {

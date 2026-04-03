@@ -165,6 +165,39 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         Ok(configs)
     }
 
+    /// Converts provider entries from `ForgeConfig` into `ProviderConfig`
+    /// instances that can be merged into the provider list.
+    fn get_config_provider_configs(&self) -> Vec<ProviderConfig> {
+        self.infra
+            .get_config()
+            .providers
+            .into_iter()
+            .map(|entry| ProviderConfig {
+                id: ProviderId::from(entry.id),
+                provider_type: forge_domain::ProviderType::Llm,
+                api_key_vars: entry.api_key_var,
+                url_param_vars: entry
+                    .url_param_vars
+                    .into_iter()
+                    .map(|p| {
+                        if p.options.is_empty() {
+                            UrlParamVarConfig::Plain(p.name)
+                        } else {
+                            UrlParamVarConfig::WithOptions { name: p.name, options: p.options }
+                        }
+                    })
+                    .collect(),
+                response_type: entry
+                    .response_type
+                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
+                url: entry.url,
+                models: entry.models.map(Models::Url),
+                auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+                custom_headers: entry.custom_headers,
+            })
+            .collect()
+    }
+
     async fn get_providers(&self) -> Vec<AnyProvider> {
         let configs = self.get_merged_configs().await;
 
@@ -420,10 +453,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// Returns merged provider configs (embedded + custom)
     async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = ProviderConfigs(get_provider_configs().clone());
-        // Merge custom configs into embedded configs
+        // Merge custom file configs into embedded configs
         configs.merge(ProviderConfigs(
             self.get_custom_provider_configs().await.unwrap_or_default(),
         ));
+        // Merge inline configs from ForgeConfig (forge.toml `providers` field)
+        configs.merge(ProviderConfigs(self.get_config_provider_configs()));
 
         configs.0
     }
