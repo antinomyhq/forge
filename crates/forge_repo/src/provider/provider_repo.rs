@@ -202,6 +202,16 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     &PROVIDER_CONFIGS
 }
 
+fn normalize_anthropic_base_url(base_url: &str) -> String {
+    let trimmed = base_url.trim().trim_end_matches('/');
+
+    if trimmed.ends_with("/v1") {
+        trimmed.to_string()
+    } else {
+        format!("{trimmed}/v1")
+    }
+}
+
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
 }
@@ -497,6 +507,19 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         // Merge inline configs from ForgeConfig (forge.toml `providers` field)
         configs.merge(ProviderConfigs(self.get_config_provider_configs()));
 
+        if let Some(base_url) = self.infra.get_env_var("ANTHROPIC_BASE_URL") {
+            let normalized_base_url = normalize_anthropic_base_url(&base_url);
+
+            if let Some(config) = configs
+                .0
+                .iter_mut()
+                .find(|config| config.id == ProviderId::ANTHROPIC)
+            {
+                config.url = format!("{normalized_base_url}/messages");
+                config.models = Some(Models::Url(format!("{normalized_base_url}/models")));
+            }
+        }
+
         configs.0
     }
 
@@ -732,6 +755,24 @@ mod tests {
         );
         assert_eq!(config.response_type, Some(ProviderResponse::Anthropic));
         assert!(config.url.contains("{{ANTHROPIC_URL}}"));
+    }
+
+    #[test]
+    fn test_normalize_anthropic_base_url_without_v1() {
+        let fixture = "https://custom.anthropic.com/proxy/";
+        let actual = normalize_anthropic_base_url(fixture);
+        let expected = "https://custom.anthropic.com/proxy/v1";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_normalize_anthropic_base_url_with_v1() {
+        let fixture = "https://custom.anthropic.com/proxy/v1/";
+        let actual = normalize_anthropic_base_url(fixture);
+        let expected = "https://custom.anthropic.com/proxy/v1";
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -1247,6 +1288,71 @@ mod env_tests {
         assert_eq!(
             anthropic_provider.url.template,
             "https://api.anthropic.com/v1/messages"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_anthropic_base_url_overrides_builtin_provider_urls() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
+        env_vars.insert(
+            "ANTHROPIC_BASE_URL".to_string(),
+            "https://custom.anthropic.com/proxy".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra);
+
+        registry.migrate_env_to_file().await.unwrap();
+
+        let providers = registry.get_all_providers().await.unwrap();
+
+        let anthropic_provider = providers
+            .iter()
+            .find_map(|p| match p {
+                AnyProvider::Template(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
+                _ => None,
+            })
+            .unwrap();
+
+        assert_eq!(
+            anthropic_provider.url.template,
+            "https://custom.anthropic.com/proxy/v1/messages"
+        );
+        match anthropic_provider.models.as_ref().unwrap() {
+            forge_domain::ModelSource::Url(url) => {
+                assert_eq!(url.template, "https://custom.anthropic.com/proxy/v1/models");
+            }
+            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected Models::Url variant"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_anthropic_base_url_does_not_switch_to_compatible_provider() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
+        env_vars.insert(
+            "ANTHROPIC_BASE_URL".to_string(),
+            "https://custom.anthropic.com".to_string(),
+        );
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra.clone());
+
+        registry.migrate_env_to_file().await.unwrap();
+
+        let credentials_guard = infra.credentials.lock().await;
+        let credentials = credentials_guard.as_ref().unwrap();
+
+        assert!(
+            credentials.iter().any(|c| c.id == ProviderId::ANTHROPIC),
+            "Should create Anthropic credential when ANTHROPIC_BASE_URL is set"
+        );
+        assert!(
+            !credentials
+                .iter()
+                .any(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE),
+            "Should NOT create AnthropicCompatible credential when only ANTHROPIC_BASE_URL is set"
         );
     }
 
