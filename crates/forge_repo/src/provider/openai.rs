@@ -58,11 +58,16 @@ impl<H: HttpInfra> OpenAIProvider<H> {
             .provider
             .credential
             .as_ref()
-            .map(|c| match &c.auth_details {
-                forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
-                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
-                forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
-                forge_domain::AuthDetails::GoogleAdc(token) => token.as_str(),
+            .and_then(|c| match &c.auth_details {
+                forge_domain::AuthDetails::ApiKey(key) => Some(key.as_str()),
+                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => {
+                    Some(api_key.as_str())
+                }
+                forge_domain::AuthDetails::OAuth { tokens, .. } => {
+                    Some(tokens.access_token.as_str())
+                }
+                forge_domain::AuthDetails::GoogleAdc(token) => Some(token.as_str()),
+                forge_domain::AuthDetails::AwsProfile(_) => None,
             })
         {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));
@@ -94,6 +99,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                     }
                 }
                 forge_domain::AuthMethod::GoogleAdc => {}
+                forge_domain::AuthMethod::AwsProfile => {}
             });
         // Append provider-level custom headers (from provider.json config)
         if let Some(custom_headers) = &self.provider.custom_headers {

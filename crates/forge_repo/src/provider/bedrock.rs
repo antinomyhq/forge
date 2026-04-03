@@ -16,13 +16,21 @@ use crate::provider::bedrock_cache::SetCache;
 use crate::provider::retry::into_retry;
 use crate::provider::{FromDomain, IntoDomain};
 
-/// Provider implementation for Amazon Bedrock using Bearer token authentication
+/// Authentication mode for the Bedrock provider
+enum BedrockAuthMode {
+    BearerToken(String),
+    AwsProfile(String),
+}
+
+/// Provider implementation for Amazon Bedrock
 ///
-/// This provider uses the AWS SDK with Bearer token authentication instead of
-/// AWS SigV4 signing, allowing it to work with Bedrock Access Gateway.
+/// Supports two authentication modes:
+/// - Bearer token: For use with Bedrock Access Gateway (via API key)
+/// - AWS Profile: For use with AWS SSO or IAM credentials configured in ~/.aws/config
 struct BedrockProvider {
     provider: Provider<Url>,
     region: String,
+    auth_mode: BedrockAuthMode,
     client: OnceCell<Client>,
 }
 
@@ -39,11 +47,17 @@ impl BedrockProvider {
             .as_ref()
             .context("Bedrock requires credentials")?;
 
-        // Validate API key (bearer token)
-        match &credential.auth_details {
-            AuthDetails::ApiKey(key) if !key.is_empty() => {}
-            _ => anyhow::bail!("Bearer token is required in API key field"),
-        }
+        let auth_mode = match &credential.auth_details {
+            AuthDetails::ApiKey(key) if !key.is_empty() => {
+                BedrockAuthMode::BearerToken(key.as_ref().to_string())
+            }
+            AuthDetails::AwsProfile(profile) if !profile.is_empty() => {
+                BedrockAuthMode::AwsProfile(profile.as_ref().to_string())
+            }
+            _ => anyhow::bail!(
+                "Bedrock requires either a bearer token (API key) or an AWS profile name"
+            ),
+        };
 
         // Extract region from URL params
         let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
@@ -53,7 +67,7 @@ impl BedrockProvider {
             .map(|v| v.to_string())
             .unwrap_or_else(|| "us-east-1".to_string());
 
-        Ok(Self { provider, region, client: OnceCell::new() })
+        Ok(Self { provider, region, auth_mode, client: OnceCell::new() })
     }
 
     /// Initializes and returns the AWS Bedrock client
@@ -69,28 +83,27 @@ impl BedrockProvider {
     async fn init(&self) -> Result<&Client> {
         self.client
             .get_or_try_init(|| async {
-                // Get the bearer token from provider credentials
-                let bearer_token = self
-                    .provider
-                    .credential
-                    .as_ref()
-                    .and_then(|c| match &c.auth_details {
-                        AuthDetails::ApiKey(key) if !key.is_empty() => {
-                            Some(key.as_ref().to_string())
-                        }
-                        _ => None,
-                    })
-                    .context("Bearer token is required in API key field")?;
-
-                // Configure AWS SDK client with Bearer token authentication
-                let config = aws_sdk_bedrockruntime::Config::builder()
-                    .region(aws_sdk_bedrockruntime::config::Region::new(
-                        self.region.clone(),
-                    ))
-                    .bearer_token(Token::new(bearer_token, None))
-                    .build();
-
-                Ok(aws_sdk_bedrockruntime::Client::from_conf(config))
+                match &self.auth_mode {
+                    BedrockAuthMode::BearerToken(token) => {
+                        let config = aws_sdk_bedrockruntime::Config::builder()
+                            .region(aws_sdk_bedrockruntime::config::Region::new(
+                                self.region.clone(),
+                            ))
+                            .bearer_token(Token::new(token.clone(), None))
+                            .build();
+                        Ok(aws_sdk_bedrockruntime::Client::from_conf(config))
+                    }
+                    BedrockAuthMode::AwsProfile(profile) => {
+                        let sdk_config = aws_config::from_env()
+                            .profile_name(profile)
+                            .region(aws_sdk_bedrockruntime::config::Region::new(
+                                self.region.clone(),
+                            ))
+                            .load()
+                            .await;
+                        Ok(aws_sdk_bedrockruntime::Client::new(&sdk_config))
+                    }
+                }
             })
             .await
     }
@@ -1005,6 +1018,7 @@ mod tests {
     fn bedrock_provider_fixture(region: &str) -> BedrockProvider {
         BedrockProvider {
             provider: provider_fixture("test-token", Some(region)),
+            auth_mode: BedrockAuthMode::BearerToken("test-token".to_string()),
             client: OnceCell::new(),
             region: region.to_string(),
         }
@@ -1036,7 +1050,7 @@ mod tests {
         assert!(actual.is_err());
         assert_eq!(
             actual.err().unwrap().to_string(),
-            "Bearer token is required in API key field"
+            "Bedrock requires either a bearer token (API key) or an AWS profile name"
         );
     }
 
@@ -1280,6 +1294,7 @@ mod tests {
 
         let bedrock = BedrockProvider {
             provider: fixture_provider,
+            auth_mode: BedrockAuthMode::BearerToken("token".to_string()),
             client: OnceCell::new(),
             region: "us-east-1".to_string(),
         };
@@ -1294,6 +1309,7 @@ mod tests {
         let fixture = provider_fixture("token", None);
         let bedrock = BedrockProvider {
             provider: fixture,
+            auth_mode: BedrockAuthMode::BearerToken("token".to_string()),
             client: OnceCell::new(),
             region: "us-east-1".to_string(),
         };

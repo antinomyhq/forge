@@ -31,7 +31,7 @@ where
         auth_method: AuthMethod,
     ) -> anyhow::Result<AuthContextRequest> {
         // Get required URL parameters for API key flow and Google ADC
-        let required_params = if matches!(auth_method, AuthMethod::ApiKey | AuthMethod::GoogleAdc) {
+        let required_params = if matches!(auth_method, AuthMethod::ApiKey | AuthMethod::GoogleAdc | AuthMethod::AwsProfile) {
             // Get URL params from provider entry (works for both configured and
             // unconfigured)
             let providers = self.infra.get_all_providers().await?;
@@ -91,6 +91,9 @@ where
                 if is_vertex_provider && response.response.api_key.as_ref() == "google_adc_marker" {
                     // Vertex AI uses Google ADC
                     forge_domain::AuthMethod::google_adc()
+                } else if response.response.api_key.as_ref() == "aws_profile_marker" {
+                    // AWS Profile authentication
+                    forge_domain::AuthMethod::AwsProfile
                 } else {
                     // Regular API key
                     forge_domain::AuthMethod::ApiKey
