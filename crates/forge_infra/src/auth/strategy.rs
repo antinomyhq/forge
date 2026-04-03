@@ -93,16 +93,26 @@ fn extract_chatgpt_account_id(token: &str) -> Option<String> {
 }
 
 /// Adds Codex-specific credential metadata derived from OAuth tokens.
+///
+/// Tries to extract the account ID from the `id_token` first (which typically
+/// contains the user identity claims in OpenID Connect flows), then falls back
+/// to the `access_token` if needed.
 fn enrich_codex_oauth_credential(
     provider_id: &ProviderId,
     credential: &mut AuthCredential,
+    id_token: Option<&str>,
     access_token: &str,
 ) {
     if *provider_id != ProviderId::CODEX {
         return;
     }
 
-    if let Some(account_id) = extract_chatgpt_account_id(access_token) {
+    // Try id_token first (preferred for user identity claims)
+    let account_id = id_token
+        .and_then(extract_chatgpt_account_id)
+        .or_else(|| extract_chatgpt_account_id(access_token));
+
+    if let Some(account_id) = account_id {
         credential
             .url_params
             .insert("chatgpt_account_id".to_string().into(), account_id.into());
@@ -160,13 +170,14 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                     })?;
 
                 let access_token = token_response.access_token.clone();
+                let id_token = token_response.id_token.clone();
                 let mut credential = build_oauth_credential(
                     self.provider_id.clone(),
                     token_response,
                     &ctx.request.oauth_config,
                     chrono::Duration::hours(1), // Code flow default
                 )?;
-                enrich_codex_oauth_credential(&self.provider_id, &mut credential, &access_token);
+                enrich_codex_oauth_credential(&self.provider_id, &mut credential, id_token.as_deref(), &access_token);
                 Ok(credential)
             }
             _ => Err(AuthError::InvalidContext("Expected Code context".to_string()).into()),
@@ -590,11 +601,8 @@ impl AuthStrategy for CodexDeviceStrategy {
                 // Poll for authorization code using the custom OpenAI endpoint
                 let token_response = codex_poll_for_tokens(&ctx.request, &self.config).await?;
 
-                // Extract ChatGPT account ID from the access token JWT.
-                // This is used for the optional `ChatGPT-Account-Id` request
-                // header when available.
-                let account_id = extract_chatgpt_account_id(&token_response.access_token);
-
+                let access_token = token_response.access_token.clone();
+                let id_token = token_response.id_token.clone();
                 let mut credential = build_oauth_credential(
                     self.provider_id.clone(),
                     token_response,
@@ -604,11 +612,7 @@ impl AuthStrategy for CodexDeviceStrategy {
 
                 // Store account_id in url_params so it's persisted and available
                 // for chat request headers.
-                if let Some(account_id) = account_id {
-                    credential
-                        .url_params
-                        .insert("chatgpt_account_id".to_string().into(), account_id.into());
-                }
+                enrich_codex_oauth_credential(&self.provider_id, &mut credential, id_token.as_deref(), &access_token);
 
                 Ok(credential)
             }
