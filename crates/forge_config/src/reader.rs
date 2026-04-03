@@ -3,7 +3,6 @@ use std::sync::{LazyLock, OnceLock};
 
 use config::ConfigBuilder;
 use config::builder::DefaultState;
-
 use tracing::warn;
 
 use crate::ForgeConfig;
@@ -39,7 +38,9 @@ fn old_base_path() -> PathBuf {
 }
 
 fn new_base_path() -> PathBuf {
-    dirs::home_dir().unwrap_or(PathBuf::from(".")).join(".forge")
+    dirs::home_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join(".forge")
 }
 
 fn migrate_file(old_path: &Path, new_path: &Path) -> std::io::Result<()> {
@@ -259,7 +260,10 @@ mod tests {
         let expected = "migrated";
 
         assert!(!old_base.exists());
-        assert_eq!(fs::read_to_string(new_base.join("marker.txt")).unwrap(), expected);
+        assert_eq!(
+            fs::read_to_string(new_base.join("marker.txt")).unwrap(),
+            expected
+        );
         fs::remove_dir_all(fixture).unwrap();
     }
 
