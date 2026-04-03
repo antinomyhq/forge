@@ -3977,6 +3977,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let workspace_info = self.api.get_workspace_info(path.clone()).await?;
             if workspace_info.is_none() {
                 self.on_workspace_init(path.clone()).await?;
+                // If the workspace still does not exist after init (e.g. user
+                // declined the consent prompt), abort the sync.
+                let workspace_info = self.api.get_workspace_info(path.clone()).await?;
+                if workspace_info.is_none() {
+                    return Ok(());
+                }
             }
         }
 
@@ -4331,6 +4337,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        // Ask for user consent before syncing and sharing directory contents
+        // with the ForgeCode Service.
+        let display_path = path.display().to_string();
+        let confirmed = ForgeWidget::confirm(format!(
+            "This will sync and share the contents of '{}' with ForgeCode Services. Do you wish to continue?",
+            display_path
+        ))
+        .with_default(true)
+        .prompt()?;
+
+        if !confirmed.unwrap_or(false) {
+            self.writeln_title(TitleFormat::info("Workspace initialization cancelled"))?;
+            return Ok(());
+        }
+
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             self.init_forge_services().await?;

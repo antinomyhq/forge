@@ -242,16 +242,18 @@ function _forge_action_suggest_model() {
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
-    # Execute sync with stdin redirected to prevent hanging
-    # Sync doesn't need interactive input, so close stdin immediately
+    # Use _forge_exec_interactive so that the consent prompt (and any other
+    # interactive prompts) can access /dev/tty even though ZLE owns the
+    # terminal's stdin/stdout pipes.
     # --init initializes the workspace first if it has not been set up yet
-    _forge_exec workspace sync --init </dev/null
+    _forge_exec_interactive workspace sync --init
 }
 
 # Action handler: inits workspace for codebase search
 function _forge_action_sync_init() {
     echo
-    _forge_exec workspace init </dev/null
+    # Use _forge_exec_interactive so that the consent prompt can access /dev/tty
+    _forge_exec_interactive workspace init
 }
 
 # Action handler: Show sync status of workspace files
@@ -358,21 +360,23 @@ function _forge_action_session_model() {
     fi
 }
 
-# Action handler: Reset session model and provider to defaults.
-# Clears both _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER,
-# reverting to global config for subsequent forge invocations.
-function _forge_action_model_reset() {
+# Action handler: Reload config by resetting all session-scoped overrides.
+# Clears _FORGE_SESSION_MODEL, _FORGE_SESSION_PROVIDER, and
+# _FORGE_SESSION_REASONING_EFFORT so that every subsequent forge invocation
+# falls back to the permanent global configuration.
+function _forge_action_config_reload() {
     echo
 
-    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" ]]; then
-        _forge_log info "Session model already cleared (using global config)"
+    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" && -z "$_FORGE_SESSION_REASONING_EFFORT" ]]; then
+        _forge_log info "No session overrides active (already using global config)"
         return 0
     fi
 
     _FORGE_SESSION_MODEL=""
     _FORGE_SESSION_PROVIDER=""
+    _FORGE_SESSION_REASONING_EFFORT=""
 
-    _forge_log success "Session model reset to global config"
+    _forge_log success "Session overrides cleared — using global config"
 }
 
 # Action handler: Select reasoning effort for the current session only.
