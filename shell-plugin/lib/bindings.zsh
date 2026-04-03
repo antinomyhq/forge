@@ -7,7 +7,10 @@ zle -N forge-accept-line
 zle -N forge-completion
 
 # Custom bracketed-paste handler that wraps dropped file paths in @[] syntax
-# and fixes syntax highlighting after paste
+# and fixes syntax highlighting after paste.
+#
+# Path detection and wrapping is delegated to `forge zsh format` (Rust) so
+# that all parsing logic lives in one well-tested place.
 function forge-bracketed-paste() {
     # Capture the cursor position before the paste to isolate the pasted text
     local pre_cursor=$CURSOR
@@ -19,52 +22,13 @@ function forge-bracketed-paste() {
     # Extract the text that was actually pasted by comparing before/after state
     local pasted="${LBUFFER#$pre_lbuffer}"
     
-    # Strip all surrounding whitespace that terminals may add
-    local trimmed="${pasted##[[:space:]]#}"
-    trimmed="${trimmed%%[[:space:]]#}"
-    # Remove surrounding single or double quotes (e.g. iTerm2 wraps paths
-    # with spaces in quotes when dragging and dropping)
-    local sq="'"
-    local dq='"'
-    if [[ "$trimmed" == ${sq}*${sq} ]]; then
-        trimmed="${trimmed#${sq}}"
-        trimmed="${trimmed%${sq}}"
-    elif [[ "$trimmed" == ${dq}*${dq} ]]; then
-        trimmed="${trimmed#${dq}}"
-        trimmed="${trimmed%${dq}}"
-    fi
-    # Un-escape backslash-escaped characters (e.g. Ghostty sends
-    # /path/my\ folder/file.txt for paths with spaces).
-    # Process character by character to remove escaping backslashes.
-    local unescaped="$trimmed"
-    if [[ "$unescaped" == *\\* ]]; then
-        # Use printf to interpret backslash escapes, but we only want to
-        # remove the escaping backslash before literal chars (especially
-        # spaces).  Process character by character via parameter expansion.
-        local tmp=""
-        local i=1
-        while (( i <= ${#unescaped} )); do
-            if [[ "${unescaped[$i]}" == "\\" && $i -lt ${#unescaped} ]]; then
-                (( i++ ))
-                tmp+="${unescaped[$i]}"
-            else
-                tmp+="${unescaped[$i]}"
-            fi
-            (( i++ ))
-        done
-        unescaped="$tmp"
-    fi
-    
     # Only auto-wrap when the line is a forge command (starts with ':').
     # This avoids mangling paths pasted into normal shell commands like
     # 'vim /some/path' or 'cat /some/path'.
-    # Try the cleaned path first, then fall back to the un-escaped version
-    # for terminals that backslash-escape spaces in drag-and-drop.
-    if [[ "$BUFFER" == :* && -n "$trimmed" && "$pre_lbuffer" != *"@[" ]]; then
-        if [[ -f "$trimmed" ]]; then
-            LBUFFER="${pre_lbuffer}@[${trimmed}]"
-        elif [[ "$unescaped" != "$trimmed" && -f "$unescaped" ]]; then
-            LBUFFER="${pre_lbuffer}@[${unescaped}]"
+    if [[ "$BUFFER" == :* && -n "$pasted" && "$pre_lbuffer" != *"@[" ]]; then
+        local formatted=$("$_FORGE_BIN" zsh format --buffer "$pasted")
+        if [[ -n "$formatted" && "$formatted" != "$pasted" ]]; then
+            LBUFFER="${pre_lbuffer}${formatted}"
         fi
     fi
     

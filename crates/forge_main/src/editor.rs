@@ -171,7 +171,7 @@ impl EditMode for ForgeEditMode {
 ///
 /// Already-wrapped `@[...]` references and non-existent paths are left
 /// untouched.
-fn wrap_pasted_text(pasted: &str) -> String {
+pub fn wrap_pasted_text(pasted: &str) -> String {
     let normalised = pasted.replace("\r\n", "\n").replace('\r', "\n");
     let trimmed = normalised.trim();
 

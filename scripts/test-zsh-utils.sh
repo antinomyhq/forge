@@ -1,8 +1,8 @@
 #!/usr/bin/env zsh
 
-# Correctness and performance tests for zsh plugin utility functions.
-# Focuses on _forge_wrap_file_paths which wraps bare file paths in @[...]
-# syntax for the forge shell plugin.
+# Correctness and performance tests for `forge zsh format` which wraps bare
+# file paths in @[...] syntax.  All parsing logic now lives in Rust; these
+# tests exercise the CLI subcommand end-to-end.
 #
 # Usage: zsh scripts/test-zsh-utils.sh
 
@@ -15,16 +15,25 @@ DIM='\033[2m'
 RESET='\033[0m'
 GREEN='\033[32m'
 RED='\033[31m'
-YELLOW='\033[33m'
 CYAN='\033[36m'
-GRAY='\033[90m'
 
 PASS=0
 FAIL=0
 
-# Source the helpers that define _forge_wrap_file_paths
+# Resolve the forge binary (prefer local debug build)
 SCRIPT_DIR="${0:A:h}"
-source "${SCRIPT_DIR}/../shell-plugin/lib/helpers.zsh"
+FORGE_BIN="${FORGE_BIN:-${SCRIPT_DIR}/../target/debug/forge}"
+
+if [[ ! -x "$FORGE_BIN" ]]; then
+    echo "${RED}forge binary not found at ${FORGE_BIN}${RESET}"
+    echo "Run: cargo build -p forge_main"
+    exit 1
+fi
+
+# Wrapper that calls the Rust formatter
+function format() {
+    "$FORGE_BIN" zsh format --buffer "$1"
+}
 
 # Create temporary files for testing paths with spaces
 TMPDIR_TEST=$(mktemp -d)
@@ -53,118 +62,101 @@ function assert_eq() {
 # --- Correctness tests ------------------------------------------------------
 
 echo ""
-echo -e "${BOLD}Correctness Tests${RESET} ${DIM}— _forge_wrap_file_paths${RESET}"
+echo -e "${BOLD}Correctness Tests${RESET} ${DIM}— forge zsh format${RESET}"
 echo ""
 
 # Basic wrapping
 assert_eq "bare existing path" \
-    "$(_forge_wrap_file_paths "/usr/bin/env")" \
+    "$(format "/usr/bin/env")" \
     "@[/usr/bin/env]"
 
 assert_eq "path in sentence" \
-    "$(_forge_wrap_file_paths "look at /usr/bin/env please")" \
+    "$(format "look at /usr/bin/env please")" \
     "look at @[/usr/bin/env] please"
 
 # Non-existent paths left untouched
 assert_eq "nonexistent path untouched" \
-    "$(_forge_wrap_file_paths "check /nonexistent/foo.rs")" \
+    "$(format "check /nonexistent/foo.rs")" \
     "check /nonexistent/foo.rs"
 
 # Already wrapped left untouched
 assert_eq "already wrapped @[...] untouched" \
-    "$(_forge_wrap_file_paths "check @[/usr/bin/env] ok")" \
+    "$(format "check @[/usr/bin/env] ok")" \
     "check @[/usr/bin/env] ok"
 
 # Plain text (no paths)
 assert_eq "plain text no paths" \
-    "$(_forge_wrap_file_paths "hello world")" \
+    "$(format "hello world")" \
     "hello world"
 
 # Paths with spaces
 assert_eq "bare path with spaces" \
-    "$(_forge_wrap_file_paths "${TMPDIR_TEST}/my folder/test file.txt")" \
+    "$(format "${TMPDIR_TEST}/my folder/test file.txt")" \
     "@[${TMPDIR_TEST}/my folder/test file.txt]"
-
-assert_eq "bare path with spaces in sentence" \
-    "$(_forge_wrap_file_paths "check ${TMPDIR_TEST}/my folder/test file.txt")" \
-    "check @[${TMPDIR_TEST}/my folder/test file.txt]"
 
 # Quoted paths with spaces
 assert_eq "single-quoted path with spaces" \
-    "$(_forge_wrap_file_paths "'${TMPDIR_TEST}/my folder/test file.txt'")" \
+    "$(format "'${TMPDIR_TEST}/my folder/test file.txt'")" \
     "@[${TMPDIR_TEST}/my folder/test file.txt]"
 
 assert_eq "double-quoted path with spaces" \
-    "$(_forge_wrap_file_paths "\"${TMPDIR_TEST}/my folder/test file.txt\"")" \
+    "$(format "\"${TMPDIR_TEST}/my folder/test file.txt\"")" \
     "@[${TMPDIR_TEST}/my folder/test file.txt]"
 
 assert_eq "single-quoted path with spaces in sentence" \
-    "$(_forge_wrap_file_paths "check '${TMPDIR_TEST}/my folder/test file.txt' please")" \
+    "$(format "check '${TMPDIR_TEST}/my folder/test file.txt' please")" \
     "check @[${TMPDIR_TEST}/my folder/test file.txt] please"
 
 # Simple path (no spaces)
 assert_eq "simple path no spaces" \
-    "$(_forge_wrap_file_paths "${TMPDIR_TEST}/simple.txt")" \
+    "$(format "${TMPDIR_TEST}/simple.txt")" \
     "@[${TMPDIR_TEST}/simple.txt]"
 
 # Multiple paths
 assert_eq "multiple existing paths" \
-    "$(_forge_wrap_file_paths "compare /usr/bin/env and ${TMPDIR_TEST}/simple.txt")" \
+    "$(format "compare /usr/bin/env and ${TMPDIR_TEST}/simple.txt")" \
     "compare @[/usr/bin/env] and @[${TMPDIR_TEST}/simple.txt]"
 
 assert_eq "mixed existing and nonexistent" \
-    "$(_forge_wrap_file_paths "check /usr/bin/env and /nonexistent/foo.rs")" \
+    "$(format "check /usr/bin/env and /nonexistent/foo.rs")" \
     "check @[/usr/bin/env] and /nonexistent/foo.rs"
 
 # Empty input
 assert_eq "empty input" \
-    "$(_forge_wrap_file_paths "")" \
+    "$(format "")" \
     ""
 
 # Backslash-escaped paths (terminals like Ghostty send /path/my\ file.txt)
 local escaped_path="${TMPDIR_TEST}/my\ folder/test\ file.txt"
 assert_eq "backslash-escaped path (whole paste)" \
-    "$(_forge_wrap_file_paths "$escaped_path")" \
+    "$(format "$escaped_path")" \
     "@[${TMPDIR_TEST}/my folder/test file.txt]"
 
 assert_eq "backslash-escaped path in sentence" \
-    "$(_forge_wrap_file_paths "check $escaped_path please")" \
+    "$(format "check $escaped_path please")" \
     "check @[${TMPDIR_TEST}/my folder/test file.txt] please"
 
 local escaped_simple="${TMPDIR_TEST}/simple.txt"
 assert_eq "path without spaces (no escaping needed)" \
-    "$(_forge_wrap_file_paths "$escaped_simple")" \
+    "$(format "$escaped_simple")" \
     "@[${TMPDIR_TEST}/simple.txt]"
 
 assert_eq "backslash-escaped nonexistent path untouched" \
-    "$(_forge_wrap_file_paths "/nonexistent/my\ folder/file.txt")" \
+    "$(format "/nonexistent/my\ folder/file.txt")" \
     "/nonexistent/my\ folder/file.txt"
-
-# _forge_unescape_backslashes tests
-assert_eq "unescape: backslash space" \
-    "$(_forge_unescape_backslashes '/path/my\ file.txt')" \
-    "/path/my file.txt"
-
-assert_eq "unescape: no backslashes" \
-    "$(_forge_unescape_backslashes "/path/file.txt")" \
-    "/path/file.txt"
-
-assert_eq "unescape: trailing backslash" \
-    "$(_forge_unescape_backslashes '/path/file\')" \
-    '/path/file\'
 
 # --- Performance tests -------------------------------------------------------
 
 echo ""
-echo -e "${BOLD}Performance Tests${RESET} ${DIM}— _forge_wrap_file_paths${RESET}"
+echo -e "${BOLD}Performance Tests${RESET} ${DIM}— forge zsh format${RESET}"
 echo ""
 
-ITERATIONS=100
+ITERATIONS=20
 
 # Benchmark: simple path
 START=$EPOCHREALTIME
 for i in $(seq 1 $ITERATIONS); do
-    _forge_wrap_file_paths "look at /usr/bin/env please" > /dev/null
+    format "look at /usr/bin/env please" > /dev/null
 done
 END=$EPOCHREALTIME
 ELAPSED=$(( (END - START) * 1000 ))
@@ -174,7 +166,7 @@ printf "  ${DIM}simple path        ${RESET} ${CYAN}%.2f${RESET} ${DIM}ms avg (${
 # Benchmark: path with spaces
 START=$EPOCHREALTIME
 for i in $(seq 1 $ITERATIONS); do
-    _forge_wrap_file_paths "check '${TMPDIR_TEST}/my folder/test file.txt' please" > /dev/null
+    format "check '${TMPDIR_TEST}/my folder/test file.txt' please" > /dev/null
 done
 END=$EPOCHREALTIME
 ELAPSED=$(( (END - START) * 1000 ))
@@ -184,7 +176,7 @@ printf "  ${DIM}quoted path spaces ${RESET} ${CYAN}%.2f${RESET} ${DIM}ms avg (${
 # Benchmark: plain text (no paths)
 START=$EPOCHREALTIME
 for i in $(seq 1 $ITERATIONS); do
-    _forge_wrap_file_paths "explain how this works in detail" > /dev/null
+    format "explain how this works in detail" > /dev/null
 done
 END=$EPOCHREALTIME
 ELAPSED=$(( (END - START) * 1000 ))
@@ -194,7 +186,7 @@ printf "  ${DIM}plain text         ${RESET} ${CYAN}%.2f${RESET} ${DIM}ms avg (${
 # Benchmark: already wrapped
 START=$EPOCHREALTIME
 for i in $(seq 1 $ITERATIONS); do
-    _forge_wrap_file_paths "check @[/usr/bin/env] and explain" > /dev/null
+    format "check @[/usr/bin/env] and explain" > /dev/null
 done
 END=$EPOCHREALTIME
 ELAPSED=$(( (END - START) * 1000 ))

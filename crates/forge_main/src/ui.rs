@@ -451,6 +451,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::ZshCommandGroup::Keyboard => {
                         self.on_zsh_keyboard().await?;
                     }
+                    crate::cli::ZshCommandGroup::Format { buffer } => {
+                        print!("{}", crate::editor::wrap_pasted_text(&buffer));
+                        return Ok(());
+                    }
                 }
                 return Ok(());
             }
