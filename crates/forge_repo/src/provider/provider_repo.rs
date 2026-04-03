@@ -103,6 +103,34 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
+impl From<forge_config::ProviderUrlParam> for UrlParamVarConfig {
+    fn from(param: forge_config::ProviderUrlParam) -> Self {
+        if param.options.is_empty() {
+            UrlParamVarConfig::Plain(param.name)
+        } else {
+            UrlParamVarConfig::WithOptions { name: param.name, options: param.options }
+        }
+    }
+}
+
+impl From<forge_config::ProviderEntry> for ProviderConfig {
+    fn from(entry: forge_config::ProviderEntry) -> Self {
+        ProviderConfig {
+            id: ProviderId::from(entry.id),
+            provider_type: forge_domain::ProviderType::Llm,
+            api_key_vars: entry.api_key_var,
+            url_param_vars: entry.url_param_vars.into_iter().map(Into::into).collect(),
+            response_type: entry
+                .response_type
+                .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
+            url: entry.url,
+            models: entry.models.map(Models::Url),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            custom_headers: entry.custom_headers,
+        }
+    }
+}
+
 impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     fn from(config: &ProviderConfig) -> Self {
         let models = config.models.as_ref().map(|m| match m {
@@ -172,29 +200,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             .get_config()
             .providers
             .into_iter()
-            .map(|entry| ProviderConfig {
-                id: ProviderId::from(entry.id),
-                provider_type: forge_domain::ProviderType::Llm,
-                api_key_vars: entry.api_key_var,
-                url_param_vars: entry
-                    .url_param_vars
-                    .into_iter()
-                    .map(|p| {
-                        if p.options.is_empty() {
-                            UrlParamVarConfig::Plain(p.name)
-                        } else {
-                            UrlParamVarConfig::WithOptions { name: p.name, options: p.options }
-                        }
-                    })
-                    .collect(),
-                response_type: entry
-                    .response_type
-                    .and_then(|s| serde_json::from_value(serde_json::Value::String(s)).ok()),
-                url: entry.url,
-                models: entry.models.map(Models::Url),
-                auth_methods: vec![forge_domain::AuthMethod::ApiKey],
-                custom_headers: entry.custom_headers,
-            })
+            .map(Into::into)
             .collect()
     }
 
