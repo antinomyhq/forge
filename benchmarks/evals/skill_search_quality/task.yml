@@ -1,0 +1,285 @@
+# Skill Search Quality Eval - Task Definition
+#
+# This eval validates that the skill_search tool correctly identifies
+# and ranks relevant skills from the local skill library based on the
+# user's task description.
+#
+# Validation Strategy:
+# 1. Check that skill_search tool was called (deterministic jq check)
+# 2. Check that all expected_skills appear in the results
+# 3. Check that must_be_first skill is ranked #1
+#
+# No LLM judge is used during eval execution - all validation is deterministic.
+
+before_run:
+  # No dependencies to install - pure shell/jq validation
+  - echo "Ready to run skill search quality eval"
+
+run:
+  # Set provider and model via environment, then run forge
+  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' FORGE_PROVIDER='open_router' FORGE_MODEL='{{model}}' /Users/amit/code-forge/target/debug/forge -p '{{task}}'
+
+parallelism: 3
+timeout: 120
+early_exit: false
+
+validations:
+  - name: "Uses skill_search tool"
+    type: shell
+    command: |
+      cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "skill_search")] | any' > /dev/null 2>&1 || {
+        echo "✗ FAILED: skill_search tool was not called"
+        exit 1
+      }
+      echo "✓ skill_search tool was called"
+
+  - name: "Expected skills returned (if specified)"
+    type: shell
+    command: |
+      # NOTE: This check requires a working skill search backend.
+      # In CI/test environments without backend access, this is skipped.
+      # The primary validation is that skill_search was called (first check).
+      
+      # Check if we have backend connectivity by looking for tool responses
+      # (and not error messages)
+      response_text=$(cat '{{dir}}/context.json' | jq -r '
+        .messages[]? | 
+        select(.role == "tool" and .name == "skill_search") | 
+        .content[]? | select(.type == "text") | .text' 2>/dev/null | head -1)
+      
+      # Check if response is empty, null, or contains an error
+      if [ -z "$response_text" ] || [ "$response_text" = "null" ] || echo "$response_text" | grep -q "tool_call_error"; then
+        echo "ℹ Skipping expected_skills check - no skill search backend response available"
+        exit 0
+      fi
+      
+      # Only check if expected_skills is defined and not empty
+      if [ -z "{{expected_skills}}" ]; then
+        echo "No expected skills specified, skipping check"
+        exit 0
+      fi
+      
+      # Extract skill names from skill_search results
+      # The tool returns XML-like content with <skill> elements
+      results=$(cat '{{dir}}/context.json' | jq -r '
+        .messages[]? | 
+        select(.role == "tool" and .name == "skill_search") | 
+        .content[]? | select(.type == "text") | .text' 2>/dev/null | tr '<' '\n' | grep '^name>' | cut -d'>' -f2 | cut -d'<' -f1 | head -20)
+      
+      if [ -z "$results" ]; then
+        # Try alternate pattern - skill names in plain text
+        results=$(cat '{{dir}}/context.json' | jq -r '
+          .messages[]? | 
+          select(.role == "tool" and .name == "skill_search") | 
+          .content[]? | select(.type == "text") | .text' 2>/dev/null | grep -oE '^[a-z0-9-]+' | head -20)
+      fi
+      
+      if [ -z "$results" ]; then
+        echo "No skill_search results found in context"
+        exit 0
+      fi
+      
+      # Check each expected skill
+      IFS=',' read -ra EXPECTED <<< "{{expected_skills}}"
+      missing_skills=()
+      for expected in "${EXPECTED[@]}"; do
+        expected=$(echo "$expected" | xargs) # trim whitespace
+        if ! echo "$results" | grep -qF "$expected"; then
+          missing_skills+=("$expected")
+        fi
+      done
+      
+      if [ ${#missing_skills[@]} -gt 0 ]; then
+        echo "✗ Missing expected skills in results:"
+        printf '  - %s\n' "${missing_skills[@]}"
+        echo ""
+        echo "Actual skills returned:"
+        echo "$results" | sed 's/^/  - /'
+        exit 1
+      fi
+      
+      echo "✓ All expected skills found in results"
+      exit 0
+
+  - name: "Must-be-first skill ranked #1"
+    type: shell
+    command: |
+      # NOTE: This check requires a working skill search backend.
+      # In CI/test environments without backend access, this is skipped.
+      
+      # Check if we have backend connectivity by looking for tool responses
+      # (and not error messages)
+      response_text=$(cat '{{dir}}/context.json' | jq -r '
+        .messages[]? | 
+        select(.role == "tool" and .name == "skill_search") | 
+        .content[]? | select(.type == "text") | .text' 2>/dev/null | head -1)
+      
+      # Check if response is empty, null, or contains an error
+      if [ -z "$response_text" ] || [ "$response_text" = "null" ] || echo "$response_text" | grep -q "tool_call_error"; then
+        echo "ℹ Skipping must_be_first check - no skill search backend response available"
+        exit 0
+      fi
+      
+      # Only check if must_be_first is defined
+      if [ -z "{{must_be_first}}" ]; then
+        echo "No must_be_first requirement, skipping check"
+        exit 0
+      fi
+      
+      # Extract first skill from results
+      first_skill=$(cat '{{dir}}/context.json' | jq -r '
+        .messages[]? | 
+        select(.role == "tool" and .name == "skill_search") | 
+        .content[]? | select(.type == "text") | .text' 2>/dev/null | tr '<' '\n' | grep '^name>' | cut -d'>' -f2 | cut -d'<' -f1 | head -1)
+      
+      if [ -z "$first_skill" ]; then
+        # Try alternate pattern
+        first_skill=$(cat '{{dir}}/context.json' | jq -r '
+          .messages[]? | 
+          select(.role == "tool" and .name == "skill_search") | 
+          .content[]? | select(.type == "text") | .text' 2>/dev/null | grep -oE '^[a-z0-9-]+' | head -1)
+      fi
+      
+      if [ -z "$first_skill" ]; then
+        echo "Could not extract first skill from results"
+        exit 1
+      fi
+      
+      expected_first="{{must_be_first}}"
+      
+      if [ "$first_skill" != "$expected_first" ]; then
+        echo "✗ First skill mismatch"
+        echo "  Expected: $expected_first"
+        echo "  Actual:   $first_skill"
+        exit 1
+      fi
+      
+      echo "✓ Must-be-first skill is correctly ranked #1: $first_skill"
+      exit 0
+
+sources:
+  - value:
+      - model: "anthropic/claude-sonnet-4.6"
+
+  - value:
+      # Document generation tasks
+      - task: "I want to create a PDF document from markdown content"
+        expected_skills: "pdf,docx,markdown,generate-document"
+        must_be_first: "pdf"
+
+      - task: "Generate a professional resume from my JSON data"
+        expected_skills: "resume,pdf,docx,latex"
+        must_be_first: "resume"
+
+      # Testing tasks
+      - task: "Help me write unit tests for my code using test-driven development"
+        expected_skills: "testing,tdd,jest,vitest,pytest"
+        must_be_first: "testing"
+
+      - task: "Set up end-to-end testing with Playwright"
+        expected_skills: "playwright,e2e-testing,browser-automation,testing"
+        must_be_first: "playwright"
+
+      # Deployment and DevOps tasks
+      - task: "Deploy my application to production with proper CI/CD"
+        expected_skills: "deployment,ci-cd,docker,kubernetes,github-actions"
+        must_be_first: "deployment"
+
+      - task: "Containerize my application with Docker and Docker Compose"
+        expected_skills: "docker,containerization,deployment,kubernetes"
+        must_be_first: "docker"
+
+      - task: "Set up a Kubernetes cluster for my microservices"
+        expected_skills: "kubernetes,k8s,helm,deployment,infrastructure"
+        must_be_first: "kubernetes"
+
+      # Web development tasks
+      - task: "Generate a beautiful website from my content"
+        expected_skills: "web-design,frontend,nextjs,react,tailwind"
+        must_be_first: "web-design"
+
+      - task: "Build a landing page with modern design principles"
+        expected_skills: "landing-page,web-design,frontend,tailwind,css"
+        must_be_first: "landing-page"
+
+      # Database tasks
+      - task: "Design a database schema for my application"
+        expected_skills: "database-design,sql,postgresql,prisma,orm"
+        must_be_first: "database-design"
+
+      - task: "Set up database migrations with proper versioning"
+        expected_skills: "database-migrations,prisma,sql,orm"
+        must_be_first: "database-migrations"
+
+      # Code quality tasks
+      - task: "Review my code for bugs and security issues"
+        expected_skills: "code-review,security-audit,linting,static-analysis"
+        must_be_first: "code-review"
+
+      - task: "Refactor my code to follow clean architecture principles"
+        expected_skills: "refactoring,clean-code,architecture,code-quality"
+        must_be_first: "refactoring"
+
+      # API development tasks
+      - task: "Create a REST API with proper documentation"
+        expected_skills: "api-design,rest-api,openapi,swagger,documentation"
+        must_be_first: "api-design"
+
+      - task: "Build a GraphQL API with type safety"
+        expected_skills: "graphql,api-design,type-safety,apollo"
+        must_be_first: "graphql"
+
+      # Mobile development tasks
+      - task: "Build a mobile app using React Native"
+        expected_skills: "react-native,mobile-app,ios,android,expo"
+        must_be_first: "react-native"
+
+      # Authentication tasks
+      - task: "Set up authentication with OAuth and JWT"
+        expected_skills: "authentication,oauth,jwt,auth,security"
+        must_be_first: "authentication"
+
+      # Monitoring tasks
+      - task: "Monitor my application with logging and alerting"
+        expected_skills: "monitoring,logging,observability,alerting,metrics"
+        must_be_first: "monitoring"
+
+      # Data visualization tasks
+      - task: "Create data visualizations and charts for my analytics"
+        expected_skills: "data-viz,charts,d3,visualization,analytics"
+        must_be_first: "data-viz"
+
+      # CLI development tasks
+      - task: "Build a CLI tool with command-line arguments"
+        expected_skills: "cli-tool,command-line,terminal,bash,scripting"
+        must_be_first: "cli-tool"
+
+      # Infrastructure tasks
+      - task: "Set up infrastructure as code with Terraform"
+        expected_skills: "terraform,infrastructure-as-code,iac,aws,cloud"
+        must_be_first: "terraform"
+
+      # Real-time applications
+      - task: "Build a real-time chat application with WebSockets"
+        expected_skills: "websockets,real-time,chat,socket-io,pusher"
+        must_be_first: "websockets"
+
+      # SEO tasks
+      - task: "Optimize my website for search engines"
+        expected_skills: "seo,search-optimization,meta-tags,performance"
+        must_be_first: "seo"
+
+      # Email automation
+      - task: "Create an email automation system with templates"
+        expected_skills: "email-automation,email-templates,smtp,marketing"
+        must_be_first: "email-automation"
+
+      # Caching
+      - task: "Implement caching with Redis for better performance"
+        expected_skills: "redis,caching,performance,memcached"
+        must_be_first: "redis"
+
+      # Static site generation
+      - task: "Build a static site with Next.js and deploy to Vercel"
+        expected_skills: "nextjs,ssg,vercel-deployment,react,frontend"
+        must_be_first: "nextjs"

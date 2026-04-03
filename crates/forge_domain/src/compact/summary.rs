@@ -191,6 +191,7 @@ pub enum SummaryTool {
     Followup { question: String },
     Plan { plan_name: String },
     Skill { name: String },
+    SkillSearch { query: String, limit: Option<u32> },
     Mcp { name: String },
     TodoWrite { changes: Vec<TodoChange> },
     TodoRead,
@@ -358,6 +359,9 @@ fn extract_tool_info(call: &ToolCallFull, current_todos: &[Todo]) -> Option<Summ
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+            ToolCatalog::SkillSearch(input) => {
+                Some(SummaryTool::SkillSearch { query: input.query, limit: input.limit })
+            }
             ToolCatalog::TodoWrite(input) => {
                 let before_map: HashMap<&str, &Todo> = current_todos
                     .iter()
