@@ -242,16 +242,18 @@ function _forge_action_suggest_model() {
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
-    # Execute sync with stdin redirected to prevent hanging
-    # Sync doesn't need interactive input, so close stdin immediately
+    # Use _forge_exec_interactive so that the consent prompt (and any other
+    # interactive prompts) can access /dev/tty even though ZLE owns the
+    # terminal's stdin/stdout pipes.
     # --init initializes the workspace first if it has not been set up yet
-    _forge_exec workspace sync --init </dev/null
+    _forge_exec_interactive workspace sync --init
 }
 
 # Action handler: inits workspace for codebase search
 function _forge_action_sync_init() {
     echo
-    _forge_exec workspace init </dev/null
+    # Use _forge_exec_interactive so that the consent prompt can access /dev/tty
+    _forge_exec_interactive workspace init
 }
 
 # Action handler: Show sync status of workspace files
