@@ -72,7 +72,9 @@ impl Transformer for ProviderPipeline<'_> {
         let strict_schema = EnforceStrictToolSchema
             .pipe(EnforceStrictResponseFormatSchema)
             .when(move |_| {
-                provider.id == ProviderId::FIREWORKS_AI || provider.id == ProviderId::OPENCODE_ZEN
+                provider.id == ProviderId::FIREWORKS_AI
+                    || provider.id == ProviderId::OPENCODE_ZEN
+                    || provider.id == ProviderId::OPENCODE_GO
             });
 
         let mut combined = zai_thinking
@@ -270,6 +272,20 @@ mod tests {
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPENCODE_ZEN, key),
+            custom_headers: None,
+            models: Some(ModelSource::Hardcoded(vec![])),
+        }
+    }
+
+    fn opencode_go(key: &str) -> Provider<Url> {
+        Provider {
+            id: ProviderId::OPENCODE_GO,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://opencode.ai/zen/go/v1/chat/completions").unwrap(),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: make_credential(ProviderId::OPENCODE_GO, key),
             custom_headers: None,
             models: Some(ModelSource::Hardcoded(vec![])),
         }

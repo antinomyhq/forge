@@ -2427,6 +2427,76 @@
     "auth_methods": ["api_key"]
   },
   {
+    "id": "opencode_go",
+    "api_key_vars": "OPENCODE_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://opencode.ai/zen/go/v1/chat/completions",
+    "models": [
+      {
+        "id": "glm-5",
+        "name": "GLM 5",
+        "description": "Zhipu AI's flagship model with 204K context, reasoning, and tool calling capabilities",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "kimi-k2.5",
+        "name": "Kimi K2.5",
+        "description": "Moonshot AI's flagship model with 262K context, vision, and reasoning capabilities",
+        "context_length": 262144,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "mimo-v2-pro",
+        "name": "MiMo V2 Pro",
+        "description": "Xiaomi's flagship foundation model with 1M context, reasoning, and tool calling capabilities",
+        "context_length": 1000000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "mimo-v2-omni",
+        "name": "MiMo V2 Omni",
+        "description": "Xiaomi's omni-modal model that natively processes image, video, and audio inputs",
+        "context_length": 262100,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "minimax-m2.7",
+        "name": "MiniMax M2.7",
+        "description": "MiniMax's latest model with enhanced reasoning and 200K context",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      },
+      {
+        "id": "minimax-m2.5",
+        "name": "MiniMax M2.5",
+        "description": "MiniMax's model with 204K context and reasoning capabilities",
+        "context_length": 204800,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
+      }
+    ],
+    "auth_methods": ["api_key"]
+  },
+  {
     "id": "alibaba_coding",
     "provider_type": "llm",
     "api_key_vars": "ALIBABA_CODING_API_KEY",
