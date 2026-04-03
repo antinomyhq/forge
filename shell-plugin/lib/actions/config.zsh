@@ -358,21 +358,23 @@ function _forge_action_session_model() {
     fi
 }
 
-# Action handler: Reset session model and provider to defaults.
-# Clears both _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER,
-# reverting to global config for subsequent forge invocations.
-function _forge_action_model_reset() {
+# Action handler: Reload config by resetting all session-scoped overrides.
+# Clears _FORGE_SESSION_MODEL, _FORGE_SESSION_PROVIDER, and
+# _FORGE_SESSION_REASONING_EFFORT so that every subsequent forge invocation
+# falls back to the permanent global configuration.
+function _forge_action_config_reload() {
     echo
 
-    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" ]]; then
-        _forge_log info "Session model already cleared (using global config)"
+    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" && -z "$_FORGE_SESSION_REASONING_EFFORT" ]]; then
+        _forge_log info "No session overrides active (already using global config)"
         return 0
     fi
 
     _FORGE_SESSION_MODEL=""
     _FORGE_SESSION_PROVIDER=""
+    _FORGE_SESSION_REASONING_EFFORT=""
 
-    _forge_log success "Session model reset to global config"
+    _forge_log success "Session overrides cleared — using global config"
 }
 
 # Action handler: Select reasoning effort for the current session only.

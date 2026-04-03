@@ -67,6 +67,13 @@
         }
       ]
     },
+    "max_commit_count": {
+      "description": "Maximum number of recent commits included as context for commit message\ngeneration.",
+      "type": "integer",
+      "format": "uint",
+      "default": 0,
+      "minimum": 0
+    },
     "max_conversations": {
       "description": "Maximum number of conversations shown in the conversation list.",
       "type": "integer",

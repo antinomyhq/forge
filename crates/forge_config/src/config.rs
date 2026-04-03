@@ -108,6 +108,10 @@ pub struct ForgeConfig {
     /// Model and provider configuration used for commit message generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit: Option<ModelConfig>,
+    /// Maximum number of recent commits included as context for commit message
+    /// generation.
+    #[serde(default)]
+    pub max_commit_count: usize,
     /// Model and provider configuration used for shell command suggestion
     /// generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
