@@ -530,21 +530,16 @@ if [[ -n "$NERD_FONT" ]]; then
     if [[ "$NERD_FONT" == "1" || "$NERD_FONT" == "true" ]]; then
         print_result pass "NERD_FONT: enabled"
     else
-        print_result warn "NERD_FONT: disabled (${NERD_FONT})"
-        print_result instruction "Enable Nerd Font by setting:"
-        print_result code "export NERD_FONT=1"
+        print_result info "NERD_FONT: disabled by user preference (${NERD_FONT})"
     fi
 elif [[ -n "$USE_NERD_FONT" ]]; then
     if [[ "$USE_NERD_FONT" == "1" || "$USE_NERD_FONT" == "true" ]]; then
         print_result pass "USE_NERD_FONT: enabled"
     else
-        print_result warn "USE_NERD_FONT: disabled (${USE_NERD_FONT})"
-        print_result instruction "Enable Nerd Font by setting:"
-        print_result code "export NERD_FONT=1"
+        print_result info "USE_NERD_FONT: disabled by user preference (${USE_NERD_FONT})"
     fi
 else
     print_result pass "Nerd Font: enabled (default)"
-    print_result info "Forge will auto-detect based on terminal capabilities"
 fi
 
 # Show actual icons used in Forge theme for manual verification (skip if explicitly disabled)
