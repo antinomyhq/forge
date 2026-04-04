@@ -116,7 +116,10 @@ mod tests {
 
     #[test]
     fn test_create_with_nonexistent_absolute_path() {
-        // Test with a non-existent absolute path
+        // Test with a non-existent absolute path (platform-appropriate)
+        #[cfg(windows)]
+        let nonexistent_path = PathBuf::from(r"C:\this\path\does\not\exist\file.txt");
+        #[cfg(not(windows))]
         let nonexistent_path = PathBuf::from("/this/path/does/not/exist/file.txt");
         let snapshot = Snapshot::create(nonexistent_path.clone()).unwrap();
 

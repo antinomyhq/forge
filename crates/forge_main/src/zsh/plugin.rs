@@ -193,36 +193,6 @@ pub fn run_zsh_keyboard() -> Result<()> {
 }
 
 /// Represents the state of markers in a file
-enum MarkerState {
-    /// No markers found
-    NotFound,
-    /// Valid markers with correct positions
-    Valid { start: usize, end: usize },
-    /// Invalid markers (incorrect order or incomplete)
-    Invalid {
-        start: Option<usize>,
-        end: Option<usize>,
-    },
-}
-
-/// Parses the file content to find and validate marker positions
-///
-/// # Arguments
-///
-/// * `lines` - The lines of the file to parse
-/// * `start_marker` - The start marker to look for
-/// * `end_marker` - The end marker to look for
-fn parse_markers(lines: &[String], start_marker: &str, end_marker: &str) -> MarkerState {
-    let start_idx = lines.iter().position(|line| line.trim() == start_marker);
-    let end_idx = lines.iter().position(|line| line.trim() == end_marker);
-
-    match (start_idx, end_idx) {
-        (Some(start), Some(end)) if start < end => MarkerState::Valid { start, end },
-        (None, None) => MarkerState::NotFound,
-        (start, end) => MarkerState::Invalid { start, end },
-    }
-}
-
 /// Result of ZSH setup operation
 #[derive(Debug)]
 pub struct ZshSetupResult {
@@ -230,6 +200,10 @@ pub struct ZshSetupResult {
     pub message: String,
     /// Path to backup file if one was created
     pub backup_path: Option<PathBuf>,
+}
+
+fn zsh_format_export(key: &str, value: &str) -> String {
+    format!("export {}=\"{}\"", key, value)
 }
 
 /// Sets up ZSH integration with optional nerd font and editor configuration
@@ -250,8 +224,6 @@ pub fn setup_zsh_integration(
     disable_nerd_font: bool,
     forge_editor: Option<&str>,
 ) -> Result<ZshSetupResult> {
-    const START_MARKER: &str = "# >>> forge initialize >>>";
-    const END_MARKER: &str = "# <<< forge initialize <<<";
     const FORGE_INIT_CONFIG_RAW: &str = include_str!("../../../../shell-plugin/forge.setup.zsh");
     let forge_init_config = super::normalize_script(FORGE_INIT_CONFIG_RAW);
 
@@ -259,109 +231,21 @@ pub fn setup_zsh_integration(
     let zdotdir = std::env::var("ZDOTDIR").unwrap_or_else(|_| home.clone());
     let zshrc_path = PathBuf::from(&zdotdir).join(".zshrc");
 
-    // Read existing .zshrc or create new one
-    let content = if zshrc_path.exists() {
-        fs::read_to_string(&zshrc_path)
-            .context(format!("Failed to read {}", zshrc_path.display()))?
-    } else {
-        String::new()
+    let config = crate::shell::setup::ShellSetupConfig {
+        start_marker: "# >>> forge initialize >>>",
+        end_marker: "# <<< forge initialize <<<",
+        profile_path: &zshrc_path,
+        init_content: &forge_init_config,
+        disable_nerd_font,
+        forge_editor,
+        format_export: zsh_format_export,
     };
 
-    let mut lines: Vec<String> = content.lines().map(String::from).collect();
-
-    // Parse markers to determine their state
-    let marker_state = parse_markers(&lines, START_MARKER, END_MARKER);
-
-    // Build the forge config block with markers
-    let mut forge_config: Vec<String> = vec![START_MARKER.to_string()];
-    forge_config.extend(forge_init_config.lines().map(String::from));
-
-    // Add nerd font configuration if requested
-    if disable_nerd_font {
-        forge_config.push(String::new()); // Add blank line before comment
-        forge_config.push(
-            "# Disable Nerd Fonts (set during setup - icons not displaying correctly)".to_string(),
-        );
-        forge_config.push("# To re-enable: remove this line and install a Nerd Font from https://www.nerdfonts.com/".to_string());
-        forge_config.push("export NERD_FONT=0".to_string());
-    }
-
-    // Add editor configuration if requested
-    if let Some(editor) = forge_editor {
-        forge_config.push(String::new()); // Add blank line before comment
-        forge_config.push("# Editor for editing prompts (set during setup)".to_string());
-        forge_config.push("# To change: update FORGE_EDITOR or remove to use $EDITOR".to_string());
-        forge_config.push(format!("export FORGE_EDITOR=\"{}\"", editor));
-    }
-
-    forge_config.push(END_MARKER.to_string());
-
-    // Add or update forge configuration block based on marker state
-    let (new_content, config_action) = match marker_state {
-        MarkerState::Valid { start, end } => {
-            // Markers exist - replace content between them
-            lines.splice(start..=end, forge_config.iter().cloned());
-            (lines.join("\n") + "\n", "updated")
-        }
-        MarkerState::Invalid { start, end } => {
-            let location = match (start, end) {
-                (Some(s), Some(e)) => Some(format!("{}:{}-{}", zshrc_path.display(), s + 1, e + 1)),
-                (Some(s), None) => Some(format!("{}:{}", zshrc_path.display(), s + 1)),
-                (None, Some(e)) => Some(format!("{}:{}", zshrc_path.display(), e + 1)),
-                (None, None) => None,
-            };
-
-            let mut error =
-                anyhow::anyhow!("Invalid forge markers found in {}", zshrc_path.display());
-            if let Some(loc) = location {
-                error = error.context(format!("Markers found at {}", loc));
-            }
-            return Err(error);
-        }
-        MarkerState::NotFound => {
-            // No markers - add them at the end
-            // Add blank line before markers if file is not empty and doesn't end with blank
-            // line
-            if !lines.is_empty() && !lines[lines.len() - 1].trim().is_empty() {
-                lines.push(String::new());
-            }
-
-            lines.extend(forge_config.iter().cloned());
-            (lines.join("\n") + "\n", "added")
-        }
-    };
-
-    // Create backup of existing .zshrc if it exists
-    let backup_path = if zshrc_path.exists() {
-        // Generate timestamp for backup filename
-        let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-
-        // Safe to unwrap: zshrc_path was constructed from a valid HOME/ZDOTDIR path
-        let parent = zshrc_path
-            .parent()
-            .context("zshrc path has no parent directory")?;
-        let filename = zshrc_path
-            .file_name()
-            .context("zshrc path has no filename")?;
-        let filename_str = filename
-            .to_str()
-            .context("zshrc filename is not valid UTF-8")?;
-
-        let backup = parent.join(format!("{}.bak.{}", filename_str, timestamp));
-        fs::copy(&zshrc_path, &backup)
-            .context(format!("Failed to create backup at {}", backup.display()))?;
-        Some(backup)
-    } else {
-        None
-    };
-
-    // Write back to .zshrc
-    fs::write(&zshrc_path, &new_content)
-        .context(format!("Failed to write to {}", zshrc_path.display()))?;
+    let result = crate::shell::setup::setup_shell_integration(&config)?;
 
     Ok(ZshSetupResult {
-        message: format!("forge plugins {}", config_action),
-        backup_path,
+        message: result.message,
+        backup_path: result.backup_path,
     })
 }
 
@@ -500,7 +384,7 @@ mod tests {
 
         // Should contain NERD_FONT=0 with explanatory comments
         assert!(
-            content.contains("export NERD_FONT=0"),
+            content.contains("export NERD_FONT=\"0\""),
             "Content should contain NERD_FONT=0:\n{}",
             content
         );
@@ -624,7 +508,7 @@ mod tests {
 
         // Should contain both configurations
         assert!(
-            content.contains("export NERD_FONT=0"),
+            content.contains("export NERD_FONT=\"0\""),
             "Content should contain NERD_FONT=0:\n{}",
             content
         );
@@ -683,7 +567,7 @@ mod tests {
 
         let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
         assert!(
-            content.contains("export NERD_FONT=0"),
+            content.contains("export NERD_FONT=\"0\""),
             "Should contain NERD_FONT=0 after first setup"
         );
         assert!(
@@ -718,7 +602,7 @@ mod tests {
 
         // Should not contain NERD_FONT=0 anymore
         assert!(
-            !content.contains("export NERD_FONT=0"),
+            !content.contains("export NERD_FONT=\"0\""),
             "Should not contain NERD_FONT=0 after update:\n{}",
             content
         );

@@ -22,6 +22,7 @@ function _forge_prompt_info() {
 }
 
 # Right prompt: agent and model with token count (uses single forge prompt command)
+# Glyphs are now raw (no hardcoded %G width escapes). ZSH + terminal handles width dynamically.
 # Set RPROMPT if empty, otherwise append to existing value
 if [[ -z "$_FORGE_THEME_LOADED" ]]; then
     RPROMPT='$(_forge_prompt_info)'"${RPROMPT:+ ${RPROMPT}}"

@@ -86,6 +86,10 @@ pub enum TopLevelCommand {
     #[command(subcommand, alias = "extension")]
     Zsh(ZshCommandGroup),
 
+    /// PowerShell integration (native on Windows).
+    #[command(subcommand, alias = "pwsh")]
+    Powershell(PowershellCommandGroup),
+
     /// List agents, models, providers, tools, or MCP servers.
     List(ListCommandGroup),
 
@@ -385,6 +389,28 @@ pub enum ZshCommandGroup {
     Setup,
 
     /// Show keyboard shortcuts for ZSH line editor
+    Keyboard,
+}
+
+/// PowerShell integration commands (native on Windows).
+#[derive(Subcommand, Debug, Clone)]
+pub enum PowershellCommandGroup {
+    /// Generate shell plugin script for eval.
+    Plugin,
+
+    /// Generate shell theme script for eval.
+    Theme,
+
+    /// Run diagnostics on PowerShell environment.
+    Doctor,
+
+    /// Get rprompt information (ANSI colors for PowerShell prompt).
+    Rprompt,
+
+    /// Setup PowerShell integration by updating $PROFILE.
+    Setup,
+
+    /// Show keyboard shortcuts for PowerShell.
     Keyboard,
 }
 

@@ -269,7 +269,8 @@ mod tests {
         };
 
         if cfg!(target_os = "windows") {
-            expected.stdout = format!("'{}'", expected.stdout);
+            // cmd.exe does not strip single quotes, so they appear in the output
+            expected.stdout = "'hello world'\n".to_string();
         }
 
         assert_eq!(actual.stdout.trim(), expected.stdout.trim());
@@ -411,7 +412,8 @@ mod tests {
         };
 
         if cfg!(target_os = "windows") {
-            expected.stdout = format!("'{}'", expected.stdout);
+            // cmd.exe does not strip single quotes, so they appear in the output
+            expected.stdout = "'silent test'\n".to_string();
         }
 
         // The output should still be captured in the CommandOutput

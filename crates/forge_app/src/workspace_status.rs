@@ -136,7 +136,10 @@ fn absolutize(base_dir: &Path, path: &str) -> String {
     if p.is_absolute() {
         path.to_owned()
     } else {
-        base_dir.join(p).to_string_lossy().into_owned()
+        // Use forward slashes for joined paths to ensure consistent path
+        // separators across platforms (workspace paths are not OS-specific).
+        let joined = base_dir.join(p).to_string_lossy().into_owned();
+        joined.replace('\\', "/")
     }
 }
 

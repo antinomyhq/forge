@@ -176,7 +176,8 @@ impl Walker {
             let relative_path = path
                 .strip_prefix(&self.cwd)
                 .with_context(|| format!("Failed to strip prefix from path: {}", path.display()))?;
-            let path_string = relative_path.to_string_lossy().to_string();
+            // Normalize to forward slashes for consistent cross-platform paths
+            let path_string = relative_path.to_string_lossy().replace('\\', "/");
 
             let file_name = path
                 .file_name()

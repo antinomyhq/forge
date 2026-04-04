@@ -19,6 +19,8 @@ pub mod tracker;
 mod ui;
 mod utils;
 mod vscode;
+mod powershell;
+mod shell;
 mod zsh;
 
 mod update;

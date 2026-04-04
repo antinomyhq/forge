@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::PathBuf;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -450,6 +449,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                     crate::cli::ZshCommandGroup::Keyboard => {
                         self.on_zsh_keyboard().await?;
+                    }
+                }
+                return Ok(());
+            }
+            TopLevelCommand::Powershell(powershell_group) => {
+                match powershell_group {
+                    crate::cli::PowershellCommandGroup::Plugin => {
+                        let output = crate::powershell::generate_powershell_plugin()?;
+                        print!("{}", output);
+                    }
+                    crate::cli::PowershellCommandGroup::Theme => {
+                        let output = crate::powershell::generate_powershell_theme()?;
+                        print!("{}", output);
+                    }
+                    crate::cli::PowershellCommandGroup::Doctor => {
+                        self.spinner.stop(None)?;
+                        crate::powershell::run_powershell_doctor()?;
+                    }
+                    crate::cli::PowershellCommandGroup::Rprompt => {
+                        if let Some(text) = self.handle_powershell_rprompt_command().await {
+                            print!("{}", text)
+                        }
+                    }
+                    crate::cli::PowershellCommandGroup::Setup => {
+                        self.on_powershell_setup().await?;
+                    }
+                    crate::cli::PowershellCommandGroup::Keyboard => {
+                        self.spinner.stop(None)?;
+                        crate::powershell::run_powershell_keyboard()?;
                     }
                 }
                 return Ok(());
@@ -3581,66 +3609,61 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Handle prompt command - returns model and conversation stats for shell
-    /// integration
     async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
-        let cid = std::env::var("_FORGE_CONVERSATION_ID")
-            .ok()
-            .filter(|text| !text.trim().is_empty())
-            .and_then(|str| ConversationId::from_str(str.as_str()).ok());
+        let data = crate::shell::prompt::fetch_prompt_data(&*self.api).await;
+        let rprompt = ZshRPrompt::from_prompt_data(&data);
+        Some(rprompt.to_string())
+    }
 
-        // Make IO calls in parallel
-        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
-            if let Some(cid) = cid {
-                self.api.conversation(&cid).await.ok().flatten()
-            } else {
-                None
-            }
-        });
+    /// Handle PowerShell rprompt command - returns ANSI colored prompt for
+    /// native Windows PowerShell integration.
+    async fn handle_powershell_rprompt_command(&mut self) -> Option<String> {
+        let data = crate::shell::prompt::fetch_prompt_data(&*self.api).await;
+        let rprompt = crate::powershell::PowerShellRPrompt::from_prompt_data(data);
+        Some(rprompt.to_string())
+    }
 
-        // Calculate total cost including related conversations
-        let cost = if let Some(ref conv) = conversation {
-            let related_conversations = self.fetch_related_conversations(conv).await;
-            let all_conversations: Vec<_> = std::iter::once(conv)
-                .chain(related_conversations.iter())
-                .cloned()
-                .collect();
-            Conversation::total_cost(&all_conversations)
-        } else {
+    /// Interactive PowerShell setup wizard.
+    async fn on_powershell_setup(&mut self) -> Result<()> {
+        self.spinner.stop(None)?;
+
+        // Ask about nerd fonts
+        println!("Do you see these icons correctly?  \u{f167a}  \u{ec19}  \u{f155}");
+        println!("(They should appear as small symbols, not boxes or question marks)");
+        print!("[y/N] ");
+        std::io::Write::flush(&mut std::io::stdout())?;
+
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        let disable_nerd_font = !input.trim().eq_ignore_ascii_case("y");
+
+        // Ask about editor
+        println!("\nWould you like to configure an editor for :edit command?");
+        println!("Examples: code --wait, vim, nvim, nano");
+        print!("Editor (leave empty to skip): ");
+        std::io::Write::flush(&mut std::io::stdout())?;
+
+        let mut editor_input = String::new();
+        std::io::stdin().read_line(&mut editor_input)?;
+        let forge_editor = editor_input.trim();
+        let forge_editor = if forge_editor.is_empty() {
             None
+        } else {
+            Some(forge_editor)
         };
 
-        // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1")
-        let use_nerd_font = std::env::var("NERD_FONT")
-            .or_else(|_| std::env::var("USE_NERD_FONT"))
-            .map(|val| val == "1")
-            .unwrap_or(true); // Default to true
+        let result =
+            crate::powershell::setup_powershell_integration(disable_nerd_font, forge_editor)?;
 
-        // Get currency symbol from environment variable, default to "$"
-        let currency_symbol =
-            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
+        println!("\n{}", result.message);
+        if let Some(backup) = result.backup_path {
+            println!("Backup created at: {}", backup.display());
+        }
+        println!(
+            "\nRestart PowerShell or run: . $PROFILE"
+        );
 
-        // Get conversion ratio from environment variable, default to 1.0
-        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
-            .ok()
-            .and_then(|val| val.parse::<f64>().ok())
-            .unwrap_or(1.0);
-
-        let rprompt = ZshRPrompt::default()
-            .agent(
-                std::env::var("_FORGE_ACTIVE_AGENT")
-                    .ok()
-                    .filter(|text| !text.trim().is_empty())
-                    .map(AgentId::new),
-            )
-            .model(model_id)
-            .token_count(conversation.and_then(|conversation| conversation.token_count()))
-            .cost(cost)
-            .use_nerd_font(use_nerd_font)
-            .currency_symbol(currency_symbol)
-            .conversion_ratio(conversion_ratio);
-
-        Some(rprompt.to_string())
+        Ok(())
     }
 
     /// Validates that a model exists, optionally scoped to a specific provider.
