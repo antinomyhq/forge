@@ -2434,6 +2434,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
+        let callback_server =
+            match crate::oauth_callback::LocalhostOAuthCallbackServer::start(request) {
+                Ok(Some(server)) => {
+                    self.writeln(format!(
+                        "{} Waiting for browser callback on {}",
+                        "→".blue(),
+                        server.redirect_uri().as_str().blue().underline()
+                    ))?;
+                    Some(server)
+                }
+                Ok(None) | Err(_) => {
+                    // Not a localhost callback flow, or the listener could not be
+                    // started — fall back to manual code paste.
+                    None
+                }
+            };
+
         // Display authorization URL
         self.writeln(format!(
             "{} Please visit: {}",
@@ -2448,14 +2465,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )))?;
         }
 
-        // Prompt user to paste authorization code
-        let code = ForgeWidget::input("Paste the authorization code")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+        let code = if let Some(server) = callback_server {
+            server.wait_for_code().await?
+        } else {
+            // Prompt user to paste authorization code
+            let code = ForgeWidget::input("Paste the authorization code")
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
-        }
+            if code.trim().is_empty() {
+                anyhow::bail!("Authorization code cannot be empty");
+            }
+
+            code
+        };
 
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
