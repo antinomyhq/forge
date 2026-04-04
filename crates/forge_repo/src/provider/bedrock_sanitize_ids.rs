@@ -10,7 +10,8 @@ use regex::Regex;
 /// characters (non-alphanumeric, non-underscore, non-hyphen) with underscores.
 ///
 /// This addresses the ValidationException error:
-/// "messages.1.content.0.tool_use.id: String should match pattern '^[a-zA-Z0-9_-]+$'"
+/// "messages.1.content.0.tool_use.id: String should match pattern
+/// '^[a-zA-Z0-9_-]+$'"
 ///
 /// # Example
 ///
@@ -48,8 +49,9 @@ impl Transformer for SanitizeToolIds {
                             ContentBlock::ToolUse(rebuilt)
                         }
                         ContentBlock::ToolResult(tool_result) => {
-                            let sanitized_id =
-                                regex.replace_all(tool_result.tool_use_id(), "_").to_string();
+                            let sanitized_id = regex
+                                .replace_all(tool_result.tool_use_id(), "_")
+                                .to_string();
                             // Rebuild ToolResultBlock with sanitized ID
                             let mut builder =
                                 aws_sdk_bedrockruntime::types::ToolResultBlock::builder()
@@ -63,9 +65,8 @@ impl Transformer for SanitizeToolIds {
                             if let Some(status) = tool_result.status() {
                                 builder = builder.status(status.clone());
                             }
-                            let rebuilt = builder
-                                .build()
-                                .expect("Failed to rebuild ToolResultBlock");
+                            let rebuilt =
+                                builder.build().expect("Failed to rebuild ToolResultBlock");
                             ContentBlock::ToolResult(rebuilt)
                         }
                         other => other,
@@ -83,8 +84,10 @@ impl Transformer for SanitizeToolIds {
 #[cfg(test)]
 mod tests {
     use aws_sdk_bedrockruntime::types::ContentBlock;
-    use forge_domain::{Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolResult};
-    use forge_domain::{ToolCallArguments, ToolCallId, ToolName};
+    use forge_domain::{
+        Context, ContextMessage, Role, TextMessage, ToolCallArguments, ToolCallFull, ToolCallId,
+        ToolName, ToolResult,
+    };
 
     use super::*;
     use crate::provider::FromDomain;
@@ -94,16 +97,18 @@ mod tests {
         // This is the exact error case from the issue: "functions.shell:0"
         let context = Context {
             conversation_id: None,
-            messages: vec![ContextMessage::Text(
-                TextMessage::new(Role::Assistant, "test")
-                    .tool_calls(vec![
-                        ToolCallFull::new(ToolName::new("shell"))
-                            .call_id("functions.shell:0")
-                            .arguments(ToolCallArguments::from_json("{}")),
-                    ])
-                    .model(forge_domain::ModelId::new("test")),
-            )
-            .into()],
+            messages: vec![
+                ContextMessage::Text(
+                    TextMessage::new(Role::Assistant, "test")
+                        .tool_calls(vec![
+                            ToolCallFull::new(ToolName::new("shell"))
+                                .call_id("functions.shell:0")
+                                .arguments(ToolCallArguments::from_json("{}")),
+                        ])
+                        .model(forge_domain::ModelId::new("test")),
+                )
+                .into(),
+            ],
             tools: vec![],
             tool_choice: None,
             max_tokens: None,
@@ -121,20 +126,17 @@ mod tests {
         let actual = transformer.transform(request);
 
         // Find the ToolUse content block by searching all messages and content
-        let tool_use_id = actual
-            .messages
-            .as_ref()
-            .and_then(|msgs| {
-                msgs.iter().find_map(|msg| {
-                    msg.content.iter().find_map(|block| {
-                        if let ContentBlock::ToolUse(tool_use) = block {
-                            Some(tool_use.tool_use_id().to_string())
-                        } else {
-                            None
-                        }
-                    })
+        let tool_use_id = actual.messages.as_ref().and_then(|msgs| {
+            msgs.iter().find_map(|msg| {
+                msg.content.iter().find_map(|block| {
+                    if let ContentBlock::ToolUse(tool_use) = block {
+                        Some(tool_use.tool_use_id().to_string())
+                    } else {
+                        None
+                    }
                 })
-            });
+            })
+        });
 
         assert_eq!(tool_use_id, Some("functions_shell_0".to_string()));
     }
@@ -143,12 +145,14 @@ mod tests {
     fn test_sanitizes_tool_result_id_with_invalid_chars() {
         let context = Context {
             conversation_id: None,
-            messages: vec![ContextMessage::tool_result(
-                ToolResult::new(ToolName::new("test_tool"))
-                    .call_id(ToolCallId::new("toolu_01!@#$ABC123"))
-                    .success("result"),
-            )
-            .into()],
+            messages: vec![
+                ContextMessage::tool_result(
+                    ToolResult::new(ToolName::new("test_tool"))
+                        .call_id(ToolCallId::new("toolu_01!@#$ABC123"))
+                        .success("result"),
+                )
+                .into(),
+            ],
             tools: vec![],
             tool_choice: None,
             max_tokens: None,
@@ -187,16 +191,18 @@ mod tests {
         let valid_id = "call_abc-123_XYZ";
         let context = Context {
             conversation_id: None,
-            messages: vec![ContextMessage::Text(
-                TextMessage::new(Role::Assistant, "test")
-                    .tool_calls(vec![
-                        ToolCallFull::new(ToolName::new("test_tool"))
-                            .call_id(valid_id)
-                            .arguments(ToolCallArguments::from_json("{}")),
-                    ])
-                    .model(forge_domain::ModelId::new("test")),
-            )
-            .into()],
+            messages: vec![
+                ContextMessage::Text(
+                    TextMessage::new(Role::Assistant, "test")
+                        .tool_calls(vec![
+                            ToolCallFull::new(ToolName::new("test_tool"))
+                                .call_id(valid_id)
+                                .arguments(ToolCallArguments::from_json("{}")),
+                        ])
+                        .model(forge_domain::ModelId::new("test")),
+                )
+                .into(),
+            ],
             tools: vec![],
             tool_choice: None,
             max_tokens: None,
@@ -214,20 +220,17 @@ mod tests {
         let actual = transformer.transform(request);
 
         // Find the ToolUse content block by searching all messages and content
-        let tool_use_id = actual
-            .messages
-            .as_ref()
-            .and_then(|msgs| {
-                msgs.iter().find_map(|msg| {
-                    msg.content.iter().find_map(|block| {
-                        if let ContentBlock::ToolUse(tool_use) = block {
-                            Some(tool_use.tool_use_id().to_string())
-                        } else {
-                            None
-                        }
-                    })
+        let tool_use_id = actual.messages.as_ref().and_then(|msgs| {
+            msgs.iter().find_map(|msg| {
+                msg.content.iter().find_map(|block| {
+                    if let ContentBlock::ToolUse(tool_use) = block {
+                        Some(tool_use.tool_use_id().to_string())
+                    } else {
+                        None
+                    }
                 })
-            });
+            })
+        });
 
         assert_eq!(tool_use_id, Some(valid_id.to_string()));
     }
