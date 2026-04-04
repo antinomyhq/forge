@@ -61,14 +61,13 @@ where
             // Only prefill API key for regular API Key flow
             // Don't overwrite markers (google_adc_marker, aws_profile_marker)
             // used by non-API-key auth methods
-            if !matches!(auth_method, AuthMethod::GoogleAdc | AuthMethod::AwsProfile) {
-                if let Some(key) = existing_credential.auth_details.api_key() {
+            if !matches!(auth_method, AuthMethod::GoogleAdc | AuthMethod::AwsProfile)
+                && let Some(key) = existing_credential.auth_details.api_key() {
                     let is_adc_marker = key.as_ref() == "google_adc_marker";
                     if !is_adc_marker {
                         api_key_request.api_key = Some(key.clone());
                     }
                 }
-            }
         }
 
         Ok(request)

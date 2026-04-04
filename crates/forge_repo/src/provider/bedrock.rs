@@ -1911,13 +1911,11 @@ mod tests {
         while let Ok(Some(event)) = event_stream.recv().await {
             if let aws_sdk_bedrockruntime::types::ConverseStreamOutput::ContentBlockDelta(delta) =
                 event
-            {
-                if let Some(aws_sdk_bedrockruntime::types::ContentBlockDelta::Text(_)) =
+                && let Some(aws_sdk_bedrockruntime::types::ContentBlockDelta::Text(_)) =
                     delta.delta()
                 {
                     got_text = true;
                 }
-            }
         }
         assert!(got_text, "Expected text content in stream response");
     }
