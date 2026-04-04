@@ -595,8 +595,8 @@ async fn test_not_complete_when_stop_with_tool_calls() {
 
 #[tokio::test]
 async fn test_todo_enforcement_injects_reminder() {
-    // Test: When the orchestrator receives a Stop response but there are pending todos,
-    // it should inject a reminder message into the context.
+    // Test: When the orchestrator receives a Stop response but there are pending
+    // todos, it should inject a reminder message into the context.
     // Note: This test will exhaust mock responses due to the todo enforcement loop.
     use forge_domain::{Metrics, Todo, TodoStatus};
 
@@ -606,12 +606,10 @@ async fn test_todo_enforcement_injects_reminder() {
             ChatCompletionMessage::assistant(Content::full("Task is done"))
                 .finish_reason(FinishReason::Stop),
         ])
-        .initial_metrics(
-            Metrics::default().todos(vec![
-                Todo::new("Pending task 1").status(TodoStatus::Pending),
-                Todo::new("In progress task").status(TodoStatus::InProgress),
-            ])
-        );
+        .initial_metrics(Metrics::default().todos(vec![
+            Todo::new("Pending task 1").status(TodoStatus::Pending),
+            Todo::new("In progress task").status(TodoStatus::InProgress),
+        ]));
 
     // Run in a separate task so we can check results even if it panics
     let handle = tokio::spawn(async move {
@@ -646,7 +644,8 @@ async fn test_todo_enforcement_injects_reminder() {
 
 #[tokio::test]
 async fn test_complete_when_no_pending_todos() {
-    // Test: is_complete = true when there are no pending todos (only completed/cancelled)
+    // Test: is_complete = true when there are no pending todos (only
+    // completed/cancelled)
     use forge_domain::{Metrics, Todo, TodoStatus};
 
     let mut ctx = TestContext::default()
@@ -654,11 +653,9 @@ async fn test_complete_when_no_pending_todos() {
             ChatCompletionMessage::assistant(Content::full("Task is done"))
                 .finish_reason(FinishReason::Stop),
         ])
-        .initial_metrics(
-            Metrics::default().todos(vec![
-                Todo::new("Completed task").status(TodoStatus::Completed),
-            ])
-        );
+        .initial_metrics(Metrics::default().todos(vec![
+            Todo::new("Completed task").status(TodoStatus::Completed),
+        ]));
 
     ctx.run("Complete this task").await.unwrap();
 
