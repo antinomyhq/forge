@@ -1947,6 +1947,7 @@ dependencies = [
  "futures",
  "glob",
  "handlebars",
+ "hex",
  "include_dir",
  "insta",
  "lazy_static",
@@ -2077,6 +2078,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "forge_domain",
+ "hex",
  "infer",
  "pretty_assertions",
  "sha2 0.11.0",
