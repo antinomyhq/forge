@@ -64,7 +64,7 @@ pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
 quote = "1.0"
 reedline = "0.46.0"
-rustyline = "17.0.2"
+rustyline = "18.0.0"
 regex = "1.12.3"
 reqwest = { version = "0.12.23", features = [
     "json",
@@ -80,8 +80,8 @@ schemars = "1.2"
 serde = { version = "1.0.217", features = ["derive"] }
 serde_json = "1.0.143"
 serde_yml = "0.0.12"
-sha2 = "0.10"
-similar = { version = "2.4", features = ["inline"] }
+sha2 = "0.11"
+similar = { version = "3.0", features = ["inline"] }
 strip-ansi-escapes = "0.2.1"
 strum = "0.28.0"
 strum_macros = "0.28.0"
@@ -89,9 +89,10 @@ syn = { version = "2.0.117", features = ["derive", "parsing"] }
 sysinfo = "0.38.3"
 tempfile = "3.27.0"
 termimad = "0.34.1"
+tiny_http = "0.12.0"
 syntect = { version = "5", default-features = false, features = ["default-syntaxes", "default-themes", "regex-onig"] }
 thiserror = "2.0.18"
-toml_edit = { version = "0.22", features = ["serde"] }
+toml_edit = { version = "0.25", features = ["serde"] }
 tokio = { version = "1.50.0", features = [
     "macros",
     "rt-multi-thread",
@@ -119,6 +120,7 @@ uuid = { version = "1.23.0", features = [
 whoami = "2.1.0"
 fnv_rs = "0.4.3"
 merge = { version = "0.2", features = ["derive"] }
+hex = "0.4.3"
 rmcp = { version = "0.10.0", features = [
     "client",
     "transport-sse-client-reqwest",

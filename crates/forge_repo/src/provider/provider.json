@@ -2150,6 +2150,23 @@
     ],
     "auth_methods": [
       {
+        "oauth_code": {
+          "auth_url": "https://auth.openai.com/oauth/authorize",
+          "token_url": "https://auth.openai.com/oauth/token",
+          "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+          "scopes": ["openid", "profile", "email", "offline_access"],
+          "redirect_uri": "http://localhost:1455/auth/callback",
+          "use_pkce": true,
+          "custom_headers": {
+            "originator": "forge"
+          },
+          "extra_auth_params": {
+            "id_token_add_organizations": "true",
+            "codex_cli_simplified_flow": "true"
+          }
+        }
+      },
+      {
         "codex_device": {
           "auth_url": "https://auth.openai.com/api/accounts/deviceauth/usercode",
           "token_url": "https://auth.openai.com/oauth/token",
