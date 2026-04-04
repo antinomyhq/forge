@@ -11,7 +11,8 @@ use forge_api::{API, AgentId, Conversation, ConversationId, ModelId};
 use forge_domain::TokenCount;
 use futures::future;
 
-/// Shell-agnostic prompt data, collected once and passed to any shell formatter.
+/// Shell-agnostic prompt data, collected once and passed to any shell
+/// formatter.
 pub struct ShellPromptData {
     pub agent: Option<AgentId>,
     pub model: Option<ModelId>,
@@ -45,7 +46,10 @@ pub async fn fetch_prompt_data(api: &(dyn API + Send + Sync)) -> ShellPromptData
     // Calculate total cost including related conversations
     let cost = if let Some(ref conv) = conversation {
         let related = fetch_related_conversations(api, conv).await;
-        let all: Vec<_> = std::iter::once(conv).chain(related.iter()).cloned().collect();
+        let all: Vec<_> = std::iter::once(conv)
+            .chain(related.iter())
+            .cloned()
+            .collect();
         Conversation::total_cost(&all)
     } else {
         None

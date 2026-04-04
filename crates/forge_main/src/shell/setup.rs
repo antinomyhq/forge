@@ -102,9 +102,7 @@ pub fn setup_shell_integration(config: &ShellSetupConfig<'_>) -> Result<SetupRes
     if let Some(editor) = config.forge_editor {
         forge_config.push(String::new());
         forge_config.push("# Editor for editing prompts (set during setup)".to_string());
-        forge_config.push(
-            "# To change: update FORGE_EDITOR or remove to use $EDITOR".to_string(),
-        );
+        forge_config.push("# To change: update FORGE_EDITOR or remove to use $EDITOR".to_string());
         forge_config.push((config.format_export)("FORGE_EDITOR", editor));
     }
 
@@ -161,12 +159,11 @@ pub fn setup_shell_integration(config: &ShellSetupConfig<'_>) -> Result<SetupRes
         Some(backup)
     } else {
         // Create parent directory if needed
-        if let Some(parent) = profile_path.parent() {
-            if !parent.exists() {
+        if let Some(parent) = profile_path.parent()
+            && !parent.exists() {
                 fs::create_dir_all(parent)
                     .context(format!("Failed to create directory {}", parent.display()))?;
             }
-        }
         None
     };
 
@@ -224,10 +221,7 @@ mod tests {
         let lines: Vec<String> = vec!["# >>> start >>>".into(), "content".into()];
         assert!(matches!(
             parse_markers(&lines, "# >>> start >>>", "# <<< end <<<"),
-            MarkerState::Invalid {
-                start: Some(0),
-                end: None
-            }
+            MarkerState::Invalid { start: Some(0), end: None }
         ));
     }
 }

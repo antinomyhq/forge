@@ -81,7 +81,8 @@ const CURRENCY_GLYPH: char = '\u{f155}';
 // Nerd Font glyphs wrapped with %{…%WG%} so zsh counts each as the correct
 // number of visible columns. These Private Use Area codepoints have
 // terminal-dependent rendering width (1 or 2 columns). Use the
-// NERD_FONT_GLYPH_WIDTH=1 or =2 environment variable to override (default: 2 for Windows 11).
+// NERD_FONT_GLYPH_WIDTH=1 or =2 environment variable to override (default: 2
+// for Windows 11).
 fn nerd_glyph_width() -> u8 {
     std::env::var("NERD_FONT_GLYPH_WIDTH")
         .ok()
@@ -184,7 +185,8 @@ mod tests {
             .token_count(Some(TokenCount::Actual(1500)))
             .to_string();
 
-        let expected = " %B%F{15}%{\u{f167a}%2G%} FORGE%f%b %B%F{15}1.5k%f%b %F{134}%{\u{ec19}%2G%} gpt-4%f";
+        let expected =
+            " %B%F{15}%{\u{f167a}%2G%} FORGE%f%b %B%F{15}1.5k%f%b %F{134}%{\u{ec19}%2G%} gpt-4%f";
         assert_eq!(actual, expected);
     }
 

@@ -84,8 +84,8 @@ impl Display for PowerShellRPrompt {
         }
 
         // Cost
-        if let Some(cost) = self.data.cost {
-            if active {
+        if let Some(cost) = self.data.cost
+            && active {
                 let converted = cost * self.data.conversion_ratio;
                 let currency = if self.data.use_nerd_font && self.data.currency_symbol == "$" {
                     CURRENCY_GLYPH.to_string()
@@ -95,7 +95,6 @@ impl Display for PowerShellRPrompt {
                 let cost_str = format!("{}{:.2}", currency, converted);
                 write!(f, " {}", cost_str.ansi().bold().fg(AnsiColor::GREEN))?;
             }
-        }
 
         // Model
         if let Some(ref model_id) = self.data.model {
@@ -125,8 +124,8 @@ mod tests {
         cost: Option<f64>,
     ) -> ShellPromptData {
         ShellPromptData {
-            agent: agent.map(|a| AgentId::new(a)),
-            model: model.map(|m| ModelId::new(m)),
+            agent: agent.map(AgentId::new),
+            model: model.map(ModelId::new),
             token_count,
             cost,
             use_nerd_font: true,
@@ -142,7 +141,11 @@ mod tests {
         let output = prompt.to_string();
 
         // Should use dimmed color (90 = dark gray) for both agent and model
-        assert!(output.contains("\x1b[1;90m"), "agent should be dimmed: {}", output);
+        assert!(
+            output.contains("\x1b[1;90m"),
+            "agent should be dimmed: {}",
+            output
+        );
         assert!(output.contains("FORGE"));
         assert!(output.contains("gpt-4"));
     }
@@ -159,8 +162,16 @@ mod tests {
         let output = prompt.to_string();
 
         // Should use bright white (97) for agent/tokens and cyan (36) for model
-        assert!(output.contains("\x1b[1;97m"), "agent should be bright white: {}", output);
-        assert!(output.contains("\x1b[36m"), "model should be cyan: {}", output);
+        assert!(
+            output.contains("\x1b[1;97m"),
+            "agent should be bright white: {}",
+            output
+        );
+        assert!(
+            output.contains("\x1b[36m"),
+            "model should be cyan: {}",
+            output
+        );
         assert!(output.contains("1.5k"));
     }
 
@@ -179,7 +190,11 @@ mod tests {
         let output = prompt.to_string();
 
         assert!(output.contains("$0.01"));
-        assert!(output.contains("\x1b[1;32m"), "cost should be green: {}", output);
+        assert!(
+            output.contains("\x1b[1;32m"),
+            "cost should be green: {}",
+            output
+        );
     }
 
     #[test]

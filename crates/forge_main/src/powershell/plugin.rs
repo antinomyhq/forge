@@ -34,13 +34,10 @@ pub fn generate_powershell_plugin() -> Result<String> {
 fn collect_ps1_files(dir: &Dir<'_>, output: &mut String) {
     // Process files in this directory first
     for file in dir.files() {
-        if let Some(ext) = file.path().extension() {
-            if ext == "ps1" {
-                if let Some(contents) = file.contents_utf8() {
-                    output.push_str(&format!(
-                        "\n# --- {} ---\n",
-                        file.path().display()
-                    ));
+        if let Some(ext) = file.path().extension()
+            && ext == "ps1"
+                && let Some(contents) = file.contents_utf8() {
+                    output.push_str(&format!("\n# --- {} ---\n", file.path().display()));
                     // Strip comment-only lines to reduce size
                     for line in contents.lines() {
                         let trimmed = line.trim();
@@ -51,8 +48,6 @@ fn collect_ps1_files(dir: &Dir<'_>, output: &mut String) {
                         output.push('\n');
                     }
                 }
-            }
-        }
     }
 
     // Recurse into subdirectories
@@ -102,10 +97,7 @@ pub fn setup_powershell_integration(
 
     let result = setup::setup_shell_integration(&config)?;
 
-    Ok(PowerShellSetupResult {
-        message: result.message,
-        backup_path: result.backup_path,
-    })
+    Ok(PowerShellSetupResult { message: result.message, backup_path: result.backup_path })
 }
 
 /// Finds the PowerShell profile path.
@@ -116,29 +108,24 @@ fn find_powershell_profile() -> Result<PathBuf> {
     if let Ok(output) = std::process::Command::new("pwsh")
         .args(["-NoProfile", "-Command", "$PROFILE"])
         .output()
-    {
-        if output.status.success() {
+        && output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path.is_empty() {
                 return Ok(PathBuf::from(path));
             }
         }
-    }
 
     // Fall back to Windows PowerShell
-    if cfg!(target_os = "windows") {
-        if let Ok(output) = std::process::Command::new("powershell")
+    if cfg!(target_os = "windows")
+        && let Ok(output) = std::process::Command::new("powershell")
             .args(["-NoProfile", "-Command", "$PROFILE"])
             .output()
-        {
-            if output.status.success() {
+            && output.status.success() {
                 let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
                 if !path.is_empty() {
                     return Ok(PathBuf::from(path));
                 }
             }
-        }
-    }
 
     // Final fallback: construct the standard path
     let home = if cfg!(target_os = "windows") {
@@ -149,9 +136,7 @@ fn find_powershell_profile() -> Result<PathBuf> {
     .context("Could not determine home directory")?;
 
     let profile_dir = if cfg!(target_os = "windows") {
-        PathBuf::from(&home)
-            .join("Documents")
-            .join("PowerShell")
+        PathBuf::from(&home).join("Documents").join("PowerShell")
     } else {
         PathBuf::from(&home).join(".config").join("powershell")
     };
@@ -184,7 +169,13 @@ fn execute_powershell_script(script: &str) -> Result<()> {
     };
 
     let output = std::process::Command::new(shell)
-        .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            script,
+        ])
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit())
         .status()

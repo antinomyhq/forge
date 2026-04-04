@@ -3659,9 +3659,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(backup) = result.backup_path {
             println!("Backup created at: {}", backup.display());
         }
-        println!(
-            "\nRestart PowerShell or run: . $PROFILE"
-        );
+        println!("\nRestart PowerShell or run: . $PROFILE");
 
         Ok(())
     }

@@ -243,10 +243,7 @@ pub fn setup_zsh_integration(
 
     let result = crate::shell::setup::setup_shell_integration(&config)?;
 
-    Ok(ZshSetupResult {
-        message: result.message,
-        backup_path: result.backup_path,
-    })
+    Ok(ZshSetupResult { message: result.message, backup_path: result.backup_path })
 }
 
 #[cfg(test)]
