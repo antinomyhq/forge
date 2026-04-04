@@ -91,7 +91,6 @@ impl McpCredentialStore {
 
     /// Get the path to the credential file
     ///
-    /// The file is stored at `<base_path>/mcp-credentials.json`
     /// The file is stored at `<base_path>/.mcp-credentials.json`
     pub fn credential_path(env: &Environment) -> std::path::PathBuf {
         env.base_path.join(".mcp-credentials.json")
