@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use chrono::Utc;
+use std::path::PathBuf;
 use url::Url;
 
 fn get_images_dir() -> Option<PathBuf> {
@@ -12,59 +12,148 @@ fn get_images_dir() -> Option<PathBuf> {
     }
 }
 
-pub fn paste_image() -> Vec<PathBuf> {
+pub enum ClipboardContent {
+    Images(Vec<PathBuf>),
+    Text(String),
+    None,
+}
+
+fn get_image_extension(data: &[u8]) -> Option<&'static str> {
+    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("png")
+    } else if data.starts_with(b"\xff\xd8\xff") {
+        Some("jpg")
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        Some("gif")
+    } else if data.starts_with(b"RIFF") && data.len() >= 12 && &data[8..12] == b"WEBP" {
+        Some("webp")
+    } else if data.starts_with(b"BM") {
+        Some("bmp")
+    } else {
+        None
+    }
+}
+
+fn has_image_mimetype() -> bool {
+    if let Ok(output) = std::process::Command::new("wl-paste")
+        .arg("--list-types")
+        .output()
+    {
+        if output.status.success() {
+            return String::from_utf8_lossy(&output.stdout).contains("image/");
+        }
+    }
+    if let Ok(output) = std::process::Command::new("xclip")
+        .args(&["-selection", "clipboard", "-t", "TARGETS", "-o"])
+        .output()
+    {
+        if output.status.success() {
+            return String::from_utf8_lossy(&output.stdout).contains("image/");
+        }
+    }
+    // If tools fail (e.g. on macOS/Windows), we assume true to allow arboard to try
+    true
+}
+
+pub fn paste_clipboard() -> ClipboardContent {
     let images_dir = match get_images_dir() {
         Some(d) => d,
         None => {
             eprintln!("\n[Forge] Failed to create images directory.");
-            return vec![];
+            return ClipboardContent::None;
         }
     };
 
-    let filename = format!("forge_paste_{}.png", Utc::now().timestamp_millis());
-    let path = images_dir.join(&filename);
+    let has_img = has_image_mimetype();
 
-    // 1. Try external tools for PNG dump (most reliable on Linux)
-    if let Ok(output) = std::process::Command::new("wl-paste").args(&["-t", "image/png"]).output() {
-        if output.status.success() && !output.stdout.is_empty() {
-            if std::fs::write(&path, &output.stdout).is_ok() {
-                eprintln!("\n[Forge] Successfully pasted image from clipboard (wl-paste)!");
-                return vec![path];
+    if has_img {
+        let image_types = [
+            "image/png",
+            "image/jpeg",
+            "image/webp",
+            "image/gif",
+            "image/bmp",
+        ];
+
+        // 1. Try external tools for image dump (most reliable on Linux)
+        for img_type in image_types {
+            if let Ok(output) = std::process::Command::new("wl-paste")
+                .args(&["-t", img_type])
+                .output()
+            {
+                if output.status.success() && !output.stdout.is_empty() {
+                    if let Some(ext) = get_image_extension(&output.stdout) {
+                        let filename =
+                            format!("forge_paste_{}.{}", Utc::now().timestamp_millis(), ext);
+                        let path = images_dir.join(&filename);
+                        if std::fs::write(&path, &output.stdout).is_ok() {
+                            eprintln!(
+                                "\n[Forge] Successfully pasted image from clipboard (wl-paste)!"
+                            );
+                            return ClipboardContent::Images(vec![path]);
+                        }
+                    }
+                }
             }
         }
-    }
 
-    if let Ok(output) = std::process::Command::new("xclip").args(&["-selection", "clipboard", "-t", "image/png", "-o"]).output() {
-        if output.status.success() && !output.stdout.is_empty() {
-            if std::fs::write(&path, &output.stdout).is_ok() {
-                eprintln!("\n[Forge] Successfully pasted image from clipboard (xclip)!");
-                return vec![path];
+        for img_type in image_types {
+            if let Ok(output) = std::process::Command::new("xclip")
+                .args(&["-selection", "clipboard", "-t", img_type, "-o"])
+                .output()
+            {
+                if output.status.success() && !output.stdout.is_empty() {
+                    if let Some(ext) = get_image_extension(&output.stdout) {
+                        let filename =
+                            format!("forge_paste_{}.{}", Utc::now().timestamp_millis(), ext);
+                        let path = images_dir.join(&filename);
+                        if std::fs::write(&path, &output.stdout).is_ok() {
+                            eprintln!(
+                                "\n[Forge] Successfully pasted image from clipboard (xclip)!"
+                            );
+                            return ClipboardContent::Images(vec![path]);
+                        }
+                    }
+                }
             }
         }
     }
 
     // 2. Try arboard
     if let Ok(mut clipboard) = arboard::Clipboard::new() {
-        if let Ok(image_data) = clipboard.get_image() {
-            let width = image_data.width as u32;
-            let height = image_data.height as u32;
-            if let Some(img) = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(width, height, image_data.bytes.into_owned()) {
-                if img.save(&path).is_ok() {
-                    eprintln!("\n[Forge] Successfully pasted image ({}x{}) from clipboard!", width, height);
-                    return vec![path];
+        if has_img {
+            if let Ok(image_data) = clipboard.get_image() {
+                let width = image_data.width as u32;
+                let height = image_data.height as u32;
+                if let Some(img) = image::ImageBuffer::<image::Rgba<u8>, _>::from_raw(
+                    width,
+                    height,
+                    image_data.bytes.into_owned(),
+                ) {
+                    let filename = format!("forge_paste_{}.png", Utc::now().timestamp_millis());
+                    let path = images_dir.join(&filename);
+                    if img.save(&path).is_ok() {
+                        eprintln!(
+                            "\n[Forge] Successfully pasted image ({}x{}) from clipboard!",
+                            width, height
+                        );
+                        return ClipboardContent::Images(vec![path]);
+                    }
                 }
             }
         }
-        
+
         // 3. Fallback: Check if clipboard has text that contains file URIs or paths
         if let Ok(text) = clipboard.get_text() {
             let mut paths = Vec::new();
             for line in text.lines() {
                 let line = line.trim();
-                
+
                 // Remove wrapper quotes if present
-                let line = if (line.starts_with('"') && line.ends_with('"')) || (line.starts_with('\'') && line.ends_with('\'')) {
-                    &line[1..line.len()-1]
+                let line = if (line.starts_with('"') && line.ends_with('"'))
+                    || (line.starts_with('\'') && line.ends_with('\''))
+                {
+                    &line[1..line.len() - 1]
                 } else {
                     line
                 };
@@ -82,30 +171,55 @@ pub fn paste_image() -> Vec<PathBuf> {
                     }
                 }
             }
-            
+
             // Filter paths to ensure they look like images
             let mut image_paths = Vec::new();
             for p in paths {
                 if let Some(ext) = p.extension() {
                     let ext_str = ext.to_string_lossy().to_lowercase();
-                    if matches!(ext_str.as_str(), "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp") {
+                    if matches!(
+                        ext_str.as_str(),
+                        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp"
+                    ) {
                         image_paths.push(p);
                     }
                 }
             }
-            
+
             if !image_paths.is_empty() {
-                eprintln!("\n[Forge] Successfully pasted {} image file path(s) from clipboard!", image_paths.len());
-                return image_paths;
+                eprintln!(
+                    "\n[Forge] Successfully pasted {} image file path(s) from clipboard!",
+                    image_paths.len()
+                );
+                return ClipboardContent::Images(image_paths);
             }
-            
-            eprintln!("\n[Forge] Clipboard text does not contain valid image URIs or paths.\nText snippet: {:?}", &text.chars().take(100).collect::<String>());
+
+            // If no valid image paths were found, just return the text!
+            return ClipboardContent::Text(text);
         } else {
             eprintln!("\n[Forge] Clipboard does not contain an image or valid image paths.");
         }
     } else {
+        // Try wl-paste or xclip for text if arboard fails
+        if let Ok(output) = std::process::Command::new("wl-paste").output() {
+            if output.status.success() && !output.stdout.is_empty() {
+                if let Ok(text) = String::from_utf8(output.stdout) {
+                    return ClipboardContent::Text(text);
+                }
+            }
+        }
+        if let Ok(output) = std::process::Command::new("xclip")
+            .args(&["-selection", "clipboard", "-o"])
+            .output()
+        {
+            if output.status.success() && !output.stdout.is_empty() {
+                if let Ok(text) = String::from_utf8(output.stdout) {
+                    return ClipboardContent::Text(text);
+                }
+            }
+        }
         eprintln!("\n[Forge] Could not connect to system clipboard.");
     }
-    
-    vec![]
+
+    ClipboardContent::None
 }

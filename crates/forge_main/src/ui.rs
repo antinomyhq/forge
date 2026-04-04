@@ -1845,11 +1845,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_compaction().await?;
             }
             SlashCommand::Paste => {
-                let img_paths = crate::image_paste::paste_image();
-
-                if !img_paths.is_empty() {
-                    let text = img_paths.iter().map(|p| format!(" @[{}] ", p.display())).collect::<Vec<_>>().join("");
-                    self.console.set_buffer(text);
+                let content = crate::image_paste::paste_clipboard();
+                match content {
+                    crate::image_paste::ClipboardContent::Images(img_paths) => {
+                        if !img_paths.is_empty() {
+                            let text = img_paths
+                                .iter()
+                                .map(|p| format!(" @[{}] ", p.display()))
+                                .collect::<Vec<_>>()
+                                .join("");
+                            self.console.set_buffer(text);
+                        }
+                    }
+                    crate::image_paste::ClipboardContent::Text(text) => {
+                        self.console.set_buffer(text);
+                    }
+                    crate::image_paste::ClipboardContent::None => {}
                 }
             }
             SlashCommand::Delete => {

@@ -110,19 +110,36 @@ impl ForgeEditor {
         loop {
             let signal = self.editor.read_line(prompt);
             let signal = signal.map_err(|e| anyhow::anyhow!(ReadLineError(e)))?;
-            
+
             match signal {
                 Signal::Success(buffer) => {
                     if buffer == "!forge_internal_paste_image" {
-                        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open("/tmp/forge_paste.log") {
+                        if let Ok(mut f) = std::fs::OpenOptions::new()
+                            .create(true)
+                            .append(true)
+                            .open("/tmp/forge_paste.log")
+                        {
                             let _ = writeln!(&mut f, "Received !forge_internal_paste_image");
                             use std::io::Write;
                         }
-                        let img_paths = crate::image_paste::paste_image();
-
-                        if !img_paths.is_empty() {
-                            let text = img_paths.iter().map(|p| format!(" @[{}] ", p.display())).collect::<Vec<_>>().join("");
-                            self.editor.run_edit_commands(&[EditCommand::InsertString(text)]);
+                        let content = crate::image_paste::paste_clipboard();
+                        match content {
+                            crate::image_paste::ClipboardContent::Images(img_paths) => {
+                                if !img_paths.is_empty() {
+                                    let text = img_paths
+                                        .iter()
+                                        .map(|p| format!(" @[{}] ", p.display()))
+                                        .collect::<Vec<_>>()
+                                        .join("");
+                                    self.editor
+                                        .run_edit_commands(&[EditCommand::InsertString(text)]);
+                                }
+                            }
+                            crate::image_paste::ClipboardContent::Text(text) => {
+                                self.editor
+                                    .run_edit_commands(&[EditCommand::InsertString(text)]);
+                            }
+                            crate::image_paste::ClipboardContent::None => {}
                         }
                         continue;
                     }
@@ -149,5 +166,3 @@ impl ForgeEditor {
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ReadLineError(std::io::Error);
-
-
