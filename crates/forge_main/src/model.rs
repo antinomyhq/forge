@@ -430,7 +430,6 @@ pub enum SlashCommand {
     #[strum(props(usage = "List all conversations for the active workspace"))]
     Conversations,
 
-
     /// Delete a conversation permanently
     #[strum(props(usage = "Delete a conversation permanently"))]
     Delete,
@@ -439,11 +438,12 @@ pub enum SlashCommand {
     #[strum(props(usage = "Rename the current conversation. Usage: /rename <name>"))]
     Rename(String),
 
-    /// Switch directly to a specific agent by ID
-    #[strum(props(usage = "Switch directly to a specific agent"))]
     /// Paste image from clipboard
     #[strum(props(usage = "Paste image from clipboard"))]
     Paste,
+
+    /// Switch directly to a specific agent by ID
+    #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
 
     /// Generate and optionally commit changes with AI-generated message
