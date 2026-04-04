@@ -1,7 +1,16 @@
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
 use aws_sdk_bedrockruntime::types::ContentBlock;
 use forge_domain::Transformer;
+use lazy_static::lazy_static;
 use regex::Regex;
+
+lazy_static! {
+    /// Regex for identifying characters that are invalid in Bedrock tool call IDs.
+    /// Bedrock (especially with Anthropic models) requires tool call IDs to match
+    /// the pattern `^[a-zA-Z0-9_-]+$`. This regex matches any character that is
+    /// NOT alphanumeric, underscore, or hyphen.
+    static ref INVALID_CHARS: Regex = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+}
 
 /// Transformer that sanitizes tool call IDs for Bedrock compatibility.
 ///
@@ -28,7 +37,7 @@ impl Transformer for SanitizeToolIds {
     type Value = ConverseStreamInput;
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
-        let regex = Regex::new(r"[^a-zA-Z0-9_-]").unwrap();
+        // Use the pre-compiled regex for efficient sanitization
 
         // Sanitize tool_use_id in messages
         if let Some(messages) = request.messages.as_mut() {
@@ -38,7 +47,7 @@ impl Transformer for SanitizeToolIds {
                     let new_block = match content_block {
                         ContentBlock::ToolUse(tool_use) => {
                             let sanitized_id =
-                                regex.replace_all(tool_use.tool_use_id(), "_").to_string();
+                                INVALID_CHARS.replace_all(tool_use.tool_use_id(), "_").to_string();
                             // Rebuild ToolUseBlock with sanitized ID
                             let rebuilt = aws_sdk_bedrockruntime::types::ToolUseBlock::builder()
                                 .tool_use_id(sanitized_id)
@@ -49,7 +58,7 @@ impl Transformer for SanitizeToolIds {
                             ContentBlock::ToolUse(rebuilt)
                         }
                         ContentBlock::ToolResult(tool_result) => {
-                            let sanitized_id = regex
+                            let sanitized_id = INVALID_CHARS
                                 .replace_all(tool_result.tool_use_id(), "_")
                                 .to_string();
                             // Rebuild ToolResultBlock with sanitized ID
