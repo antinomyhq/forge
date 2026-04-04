@@ -13,6 +13,7 @@ use tokio::sync::OnceCell;
 use tokio_stream::StreamExt;
 
 use crate::provider::bedrock_cache::SetCache;
+use crate::provider::bedrock_sanitize_ids::SanitizeToolIds;
 use crate::provider::retry::into_retry;
 use crate::provider::{FromDomain, IntoDomain};
 
@@ -213,6 +214,7 @@ impl BedrockProvider {
         let supports_caching = Self::supports_caching(&model_id);
         let bedrock_input = SetCache
             .when(move |_| supports_caching)
+            .pipe(SanitizeToolIds)
             .transform(bedrock_input);
 
         // Build and send the converse_stream request
