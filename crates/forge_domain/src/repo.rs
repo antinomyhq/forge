@@ -186,6 +186,7 @@ pub trait SkillRepository: Send + Sync {
 }
 
 /// Repository for searching and ranking skills
+/// Repository for searching skills
 ///
 /// This repository provides operations for searching skills based on a query
 /// and returning them ranked by relevance from the forge backend.
@@ -201,6 +202,7 @@ pub trait SkillSearchRepository: Send + Sync {
     ///   achieve
     /// * `skills` - All available skills to search through
     /// * `limit` - Maximum number of skills to return
+    /// * `auth_token` - Authentication token for the forge backend
     ///
     /// # Errors
     /// Returns an error if the search fails
@@ -209,9 +211,9 @@ pub trait SkillSearchRepository: Send + Sync {
         query: &str,
         skills: Vec<Skill>,
         limit: Option<u32>,
+        auth_token: &crate::ApiKey,
     ) -> Result<Vec<Skill>>;
 }
-
 /// Repository for validating file syntax
 ///
 /// This repository provides operations for validating the syntax of source

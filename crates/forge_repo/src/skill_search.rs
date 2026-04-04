@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::GrpcInfra;
-use forge_domain::{Skill, SkillSearchRepository};
+use forge_domain::{ApiKey, Skill, SkillSearchRepository};
 
 use crate::proto_generated::forge_service_client::ForgeServiceClient;
 use crate::proto_generated::{SelectSkillRequest, Skill as ProtoSkill};
@@ -12,7 +12,8 @@ use crate::proto_generated::{SelectSkillRequest, Skill as ProtoSkill};
 ///
 /// This repository sends all available skills and a user query to the forge
 /// backend via the SelectSkill gRPC RPC, which returns skills ranked by
-/// relevance.
+/// relevance. Authentication is provided by the caller via the `auth_token`
+/// parameter, following the same pattern as `ForgeContextEngineRepository`.
 pub struct ForgeSkillSearchRepository<I> {
     infra: Arc<I>,
 }
@@ -33,8 +34,6 @@ impl<I> ForgeSkillSearchRepository<I> {
     /// - Action verbs describing what the agent wants to accomplish
     /// - Context about the desired outcome
     fn build_user_prompt(query: &str) -> String {
-        // Start with the raw query and add intent enrichment
-        // This is the primary tuning point for skill search quality
         format!(
             "Task: {}\n\n\
             Find the most relevant skills for this task. \
@@ -42,6 +41,19 @@ impl<I> ForgeSkillSearchRepository<I> {
             would help accomplish this goal effectively.",
             query.trim()
         )
+    }
+
+    /// Add authorization header to a gRPC request
+    fn with_auth<T>(
+        &self,
+        mut request: tonic::Request<T>,
+        auth_token: &ApiKey,
+    ) -> Result<tonic::Request<T>> {
+        request.metadata_mut().insert(
+            "authorization",
+            format!("Bearer {}", &**auth_token).parse()?,
+        );
+        Ok(request)
     }
 }
 
@@ -52,6 +64,7 @@ impl<I: GrpcInfra> SkillSearchRepository for ForgeSkillSearchRepository<I> {
         query: &str,
         skills: Vec<Skill>,
         limit: Option<u32>,
+        auth_token: &ApiKey,
     ) -> Result<Vec<Skill>> {
         // Convert domain skills to proto skills
         let proto_skills: Vec<ProtoSkill> = skills
@@ -65,8 +78,10 @@ impl<I: GrpcInfra> SkillSearchRepository for ForgeSkillSearchRepository<I> {
         // Build enriched user prompt
         let user_prompt = Self::build_user_prompt(query);
 
-        // Create gRPC request
-        let request = tonic::Request::new(SelectSkillRequest { skills: proto_skills, user_prompt });
+        // Create gRPC request and attach the Bearer token
+        let request =
+            tonic::Request::new(SelectSkillRequest { skills: proto_skills, user_prompt });
+        let request = self.with_auth(request, auth_token)?;
 
         // Call gRPC API
         let channel = self.infra.channel();

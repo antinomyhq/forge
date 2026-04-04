@@ -617,9 +617,10 @@ impl<F: GrpcInfra + Send + Sync> SkillSearchRepository for ForgeRepo<F> {
         query: &str,
         skills: Vec<Skill>,
         limit: Option<u32>,
+        auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<Skill>> {
         self.skill_search_repository
-            .search_skills(query, skills, limit)
+            .search_skills(query, skills, limit, auth_token)
             .await
     }
 }
