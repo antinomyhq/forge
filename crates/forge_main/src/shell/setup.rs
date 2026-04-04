@@ -160,10 +160,11 @@ pub fn setup_shell_integration(config: &ShellSetupConfig<'_>) -> Result<SetupRes
     } else {
         // Create parent directory if needed
         if let Some(parent) = profile_path.parent()
-            && !parent.exists() {
-                fs::create_dir_all(parent)
-                    .context(format!("Failed to create directory {}", parent.display()))?;
-            }
+            && !parent.exists()
+        {
+            fs::create_dir_all(parent)
+                .context(format!("Failed to create directory {}", parent.display()))?;
+        }
         None
     };
 

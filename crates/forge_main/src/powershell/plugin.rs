@@ -36,18 +36,19 @@ fn collect_ps1_files(dir: &Dir<'_>, output: &mut String) {
     for file in dir.files() {
         if let Some(ext) = file.path().extension()
             && ext == "ps1"
-                && let Some(contents) = file.contents_utf8() {
-                    output.push_str(&format!("\n# --- {} ---\n", file.path().display()));
-                    // Strip comment-only lines to reduce size
-                    for line in contents.lines() {
-                        let trimmed = line.trim();
-                        if trimmed.is_empty() || trimmed.starts_with('#') {
-                            continue;
-                        }
-                        output.push_str(line);
-                        output.push('\n');
-                    }
+            && let Some(contents) = file.contents_utf8()
+        {
+            output.push_str(&format!("\n# --- {} ---\n", file.path().display()));
+            // Strip comment-only lines to reduce size
+            for line in contents.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
                 }
+                output.push_str(line);
+                output.push('\n');
+            }
+        }
     }
 
     // Recurse into subdirectories
@@ -108,24 +109,26 @@ fn find_powershell_profile() -> Result<PathBuf> {
     if let Ok(output) = std::process::Command::new("pwsh")
         .args(["-NoProfile", "-Command", "$PROFILE"])
         .output()
-        && output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Ok(PathBuf::from(path));
-            }
+        && output.status.success()
+    {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+            return Ok(PathBuf::from(path));
         }
+    }
 
     // Fall back to Windows PowerShell
     if cfg!(target_os = "windows")
         && let Ok(output) = std::process::Command::new("powershell")
             .args(["-NoProfile", "-Command", "$PROFILE"])
             .output()
-            && output.status.success() {
-                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                if !path.is_empty() {
-                    return Ok(PathBuf::from(path));
-                }
-            }
+        && output.status.success()
+    {
+        let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if !path.is_empty() {
+            return Ok(PathBuf::from(path));
+        }
+    }
 
     // Final fallback: construct the standard path
     let home = if cfg!(target_os = "windows") {

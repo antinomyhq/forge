@@ -85,16 +85,17 @@ impl Display for PowerShellRPrompt {
 
         // Cost
         if let Some(cost) = self.data.cost
-            && active {
-                let converted = cost * self.data.conversion_ratio;
-                let currency = if self.data.use_nerd_font && self.data.currency_symbol == "$" {
-                    CURRENCY_GLYPH.to_string()
-                } else {
-                    self.data.currency_symbol.clone()
-                };
-                let cost_str = format!("{}{:.2}", currency, converted);
-                write!(f, " {}", cost_str.ansi().bold().fg(AnsiColor::GREEN))?;
-            }
+            && active
+        {
+            let converted = cost * self.data.conversion_ratio;
+            let currency = if self.data.use_nerd_font && self.data.currency_symbol == "$" {
+                CURRENCY_GLYPH.to_string()
+            } else {
+                self.data.currency_symbol.clone()
+            };
+            let cost_str = format!("{}{:.2}", currency, converted);
+            write!(f, " {}", cost_str.ansi().bold().fg(AnsiColor::GREEN))?;
+        }
 
         // Model
         if let Some(ref model_id) = self.data.model {
