@@ -46,8 +46,9 @@ impl Transformer for SanitizeToolIds {
                 for content_block in message.content.drain(..) {
                     let new_block = match content_block {
                         ContentBlock::ToolUse(tool_use) => {
-                            let sanitized_id =
-                                INVALID_CHARS.replace_all(tool_use.tool_use_id(), "_").to_string();
+                            let sanitized_id = INVALID_CHARS
+                                .replace_all(tool_use.tool_use_id(), "_")
+                                .to_string();
                             // Rebuild ToolUseBlock with sanitized ID
                             let rebuilt = aws_sdk_bedrockruntime::types::ToolUseBlock::builder()
                                 .tool_use_id(sanitized_id)
