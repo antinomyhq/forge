@@ -144,8 +144,7 @@ impl McpHttpServer {
 /// Represents the OAuth setting for an MCP server.
 /// Supports three states: auto-detect (default), explicitly disabled, or
 /// explicitly configured.
-#[derive(Debug, Clone, PartialEq, Hash)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Hash, Default)]
 pub enum McpOAuthSetting {
     /// No explicit OAuth config - auto-detect via server 401 response
     #[default]
@@ -155,7 +154,6 @@ pub enum McpOAuthSetting {
     /// OAuth explicitly configured with parameters
     Configured(McpOAuthConfig),
 }
-
 
 impl McpOAuthSetting {
     /// Returns true if the setting is the default (AutoDetect).

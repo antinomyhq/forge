@@ -1,8 +1,8 @@
+mod auth;
 mod console;
 mod env;
-mod executor;
-mod auth;
 mod error;
+mod executor;
 mod forge_infra;
 mod fs_create_dirs;
 mod fs_meta;
