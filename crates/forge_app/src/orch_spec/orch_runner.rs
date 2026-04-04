@@ -115,6 +115,12 @@ impl Runner {
         .await?;
 
         let conversation = InitConversationMetrics::new(setup.current_time).apply(conversation);
+        // Apply initial metrics (including todos) if provided by the test
+        let conversation = if let Some(ref metrics) = setup.initial_metrics {
+            conversation.metrics(metrics.clone())
+        } else {
+            conversation
+        };
         let conversation =
             ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
         let conversation = SetConversationId.apply(conversation);
