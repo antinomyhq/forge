@@ -139,7 +139,9 @@ impl ForgeMcpClient {
                     Arc::new(self.create_standard_http_connection(http).await?)
                 } else if let Some(oauth_config) = http.oauth_config() {
                     // OAuth explicitly configured - use it directly
-                    self.create_oauth_connection(http, oauth_config).await?
+                    // Do NOT allow interactive auth during normal connection
+                    self.create_oauth_connection(http, oauth_config, false)
+                        .await?
                 } else {
                     // Auto-detect: try standard first, fall back to OAuth on auth errors
                     match self.create_standard_http_connection(http).await {
@@ -153,11 +155,14 @@ impl ForgeMcpClient {
                                 || error_str.contains("oauth")
                             {
                                 tracing::info!(
-                                    "Standard connection failed with auth error, attempting OAuth for: {}",
+                                    "Standard connection failed with auth error for: {}, trying stored credentials",
                                     http.url
                                 );
-                                let default_oauth = forge_domain::McpOAuthConfig::default();
-                                self.create_oauth_connection(http, &default_oauth).await?
+                                // Try OAuth with stored credentials (non-interactive)
+                                // If stored credentials exist, use them; otherwise error
+                                let default_config = forge_domain::McpOAuthConfig::default();
+                                self.create_oauth_connection(http, &default_config, false)
+                                    .await?
                             } else {
                                 return Err(e);
                             }
@@ -205,10 +210,16 @@ impl ForgeMcpClient {
     /// 5. Authorization code exchange for tokens
     /// 6. Token refresh via refresh_token grant
     /// 7. Token persistence via `CredentialStore` trait
+    ///
+    /// # Arguments
+    /// * `allow_interactive` - If true, will open browser for user
+    ///   authentication if no stored credentials exist. If false, returns an
+    ///   error instead.
     async fn create_oauth_connection(
         &self,
         http: &McpHttpServer,
         oauth_config: &forge_domain::McpOAuthConfig,
+        allow_interactive: bool,
     ) -> anyhow::Result<Arc<RmcpClient>> {
         use rmcp::transport::auth::{AuthorizationManager, OAuthState};
 
@@ -250,7 +261,16 @@ impl ForgeMcpClient {
             }
         }
 
-        // No valid cached token - start full OAuth authorization flow
+        // No valid cached credentials
+        if !allow_interactive {
+            // Interactive auth not allowed - return error with instructions
+            return Err(anyhow::anyhow!(
+                "MCP server '{}' requires authentication. Run 'mcp auth <name>' to authenticate.",
+                http.url
+            ));
+        }
+
+        // Interactive auth allowed - start full OAuth authorization flow
         // Create a fresh OAuthState to run the browser-based flow
         let mut oauth_state = OAuthState::new(&http.url, None)
             .await

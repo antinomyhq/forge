@@ -853,7 +853,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             name
                         )))?;
                         // Reload MCP to reconnect with new credentials
-                        let _ = self.api.reload_mcp().await;
+                        self.spinner.start(Some("Reloading MCPs"))?;
+                        match self.api.reload_mcp().await {
+                            Ok(()) => {
+                                self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+                            }
+                            Err(e) => {
+                                self.writeln_title(TitleFormat::error(format!(
+                                    "MCP reload failed: {}",
+                                    e
+                                )))?;
+                            }
+                        }
                     }
                     Err(e) => {
                         self.writeln_title(TitleFormat::error(format!(
@@ -883,6 +894,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ///
     /// Removes stored OAuth credentials for the specified MCP server
     /// or all servers if "all" is specified.
+    /// Automatically reloads MCPs after logout to reflect auth state change.
     async fn handle_mcp_logout(&mut self, name: &str) -> anyhow::Result<()> {
         if name == "all" {
             self.api.mcp_logout(None).await?;
@@ -905,15 +917,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         "MCP server '{}' is not an HTTP server",
                         name
                     )))?;
+                    return Ok(());
                 }
                 None => {
                     self.writeln_title(TitleFormat::error(format!(
                         "MCP server '{}' not found. Use 'mcp list' to see available servers.",
                         name
                     )))?;
+                    return Ok(());
                 }
             }
         }
+
+        // Reload MCPs to reflect auth state change
+        self.spinner.start(Some("Reloading MCPs"))?;
+        self.api.reload_mcp().await?;
+        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+
         Ok(())
     }
 
