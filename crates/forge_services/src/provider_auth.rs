@@ -31,7 +31,10 @@ where
         auth_method: AuthMethod,
     ) -> anyhow::Result<AuthContextRequest> {
         // Get required URL parameters for API key flow and Google ADC
-        let required_params = if matches!(auth_method, AuthMethod::ApiKey | AuthMethod::GoogleAdc | AuthMethod::AwsProfile) {
+        let required_params = if matches!(
+            auth_method,
+            AuthMethod::ApiKey | AuthMethod::GoogleAdc | AuthMethod::AwsProfile
+        ) {
             // Get URL params from provider entry (works for both configured and
             // unconfigured)
             let providers = self.infra.get_all_providers().await?;
@@ -62,12 +65,13 @@ where
             // Don't overwrite markers (google_adc_marker, aws_profile_marker)
             // used by non-API-key auth methods
             if !matches!(auth_method, AuthMethod::GoogleAdc | AuthMethod::AwsProfile)
-                && let Some(key) = existing_credential.auth_details.api_key() {
-                    let is_adc_marker = key.as_ref() == "google_adc_marker";
-                    if !is_adc_marker {
-                        api_key_request.api_key = Some(key.clone());
-                    }
+                && let Some(key) = existing_credential.auth_details.api_key()
+            {
+                let is_adc_marker = key.as_ref() == "google_adc_marker";
+                if !is_adc_marker {
+                    api_key_request.api_key = Some(key.clone());
                 }
+            }
         }
 
         Ok(request)

@@ -563,10 +563,7 @@ impl AuthStrategy for AwsProfileStrategy {
                     })?;
 
                 // Validate the profile works by attempting to load credentials
-                let aws_config = aws_config::from_env()
-                    .profile_name(&profile)
-                    .load()
-                    .await;
+                let aws_config = aws_config::from_env().profile_name(&profile).load().await;
 
                 let credentials_provider =
                     aws_config.credentials_provider().ok_or_else(|| {

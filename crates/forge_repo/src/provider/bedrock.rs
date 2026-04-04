@@ -27,7 +27,8 @@ enum BedrockAuthMode {
 ///
 /// Supports two authentication modes:
 /// - Bearer token: For use with Bedrock Access Gateway (via API key)
-/// - AWS Profile: For use with AWS SSO or IAM credentials configured in ~/.aws/config
+/// - AWS Profile: For use with AWS SSO or IAM credentials configured in
+///   ~/.aws/config
 struct BedrockProvider {
     provider: Provider<Url>,
     region: String,
@@ -1870,7 +1871,9 @@ mod tests {
         let provider = aws_profile_fixture("my-profile", Some("us-west-2"));
         let bedrock = BedrockProvider::new(provider).unwrap();
         assert_eq!(bedrock.region, "us-west-2");
-        assert!(matches!(bedrock.auth_mode, BedrockAuthMode::AwsProfile(ref p) if p == "my-profile"));
+        assert!(
+            matches!(bedrock.auth_mode, BedrockAuthMode::AwsProfile(ref p) if p == "my-profile")
+        );
     }
 
     #[test]
@@ -1880,14 +1883,18 @@ mod tests {
         assert!(result.is_err());
     }
 
-    /// Integration test: validates real SSO profile can create a client and call Bedrock.
-    /// Run with: cargo test -p forge_repo test_real_sso_profile -- --ignored
+    /// Integration test: validates real SSO profile can create a client and
+    /// call Bedrock. Run with: cargo test -p forge_repo
+    /// test_real_sso_profile -- --ignored
     #[tokio::test]
     #[ignore]
     async fn test_real_sso_profile_converse() {
         let provider = aws_profile_fixture("core-test-bedrock", Some("us-east-1"));
         let bedrock = BedrockProvider::new(provider).unwrap();
-        let client = bedrock.init().await.expect("Failed to init client with SSO profile");
+        let client = bedrock
+            .init()
+            .await
+            .expect("Failed to init client with SSO profile");
 
         // Make a minimal converse_stream call
         let result = client
@@ -1915,9 +1922,9 @@ mod tests {
                 event
                 && let Some(aws_sdk_bedrockruntime::types::ContentBlockDelta::Text(_)) =
                     delta.delta()
-                {
-                    got_text = true;
-                }
+            {
+                got_text = true;
+            }
         }
         assert!(got_text, "Expected text content in stream response");
     }
