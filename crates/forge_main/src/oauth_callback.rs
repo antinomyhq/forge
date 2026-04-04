@@ -1,9 +1,7 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, SocketAddr, TcpListener};
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use forge_domain::CodeRequest;
@@ -337,10 +335,8 @@ fn wait_for_localhost_oauth_callback(
 mod tests {
     use std::io::{Read, Write};
     use std::net::{Shutdown, SocketAddr, TcpListener, TcpStream};
-    use std::sync::{
-        Arc,
-        atomic::AtomicBool,
-    };
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
     use std::thread;
 
     use forge_domain::{OAuthConfig, PkceVerifier, State};
@@ -528,4 +524,3 @@ mod tests {
         assert!(response.contains("400 Bad Request"));
     }
 }
-
