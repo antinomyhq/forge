@@ -254,12 +254,10 @@ pub struct McpOAuthConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub token_url: Option<String>,
 
-
     /// Redirect URI for OAuth callback.
     /// Defaults to http://127.0.0.1:8765/callback.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_uri: Option<String>,
-
 }
 
 #[derive(
