@@ -2589,10 +2589,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .sub_title("Your account may be suspended or banned. Continue at your own risk."),
             )?;
 
-            let confirmed =
-                ForgeWidget::confirm("Do you want to continue with this provider?")
-                    .with_default(false)
-                    .prompt()?;
+            let confirmed = ForgeWidget::confirm("Do you want to continue with this provider?")
+                .with_default(false)
+                .prompt()?;
 
             if !confirmed.unwrap_or(false) {
                 return Ok(None);
