@@ -214,6 +214,7 @@ pub trait McpServerInfra: Send + Sync + 'static {
         &self,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
+        environment: &Environment,
     ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories

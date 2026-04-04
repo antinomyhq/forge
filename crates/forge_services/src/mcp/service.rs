@@ -86,7 +86,8 @@ where
         config: McpServerConfig,
     ) -> anyhow::Result<()> {
         let env_vars = self.infra.get_env_vars();
-        let client = self.infra.connect(config, &env_vars).await?;
+        let environment = self.infra.get_environment();
+        let client = self.infra.connect(config, &env_vars, &environment).await?;
         let client = Arc::new(C::from(client));
         self.insert_clients(server_name, client).await?;
 

@@ -529,6 +529,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.api.reload_mcp().await?;
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
+                McpCommand::Login(args) => {
+                    self.handle_mcp_login(&args.name).await?;
+                }
+                McpCommand::Logout(args) => {
+                    self.handle_mcp_logout(&args.name).await?;
+                }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
                 // Only initialize state (agent/provider/model resolution).
@@ -812,6 +818,102 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "Successfully deleted conversation '{}'",
             conversation_id
         )))?;
+        Ok(())
+    }
+
+    /// Handle `mcp auth <name>` command.
+    ///
+    /// Triggers the OAuth authentication flow for the specified MCP server.
+    /// Uses the API layer which delegates to rmcp's OAuth state machine
+    /// for metadata discovery, dynamic registration, PKCE, and token exchange.
+    async fn handle_mcp_login(&mut self, name: &str) -> anyhow::Result<()> {
+        let server_name = forge_api::ServerName::from(name.to_string());
+        let config = self.api.read_mcp_config(None).await?;
+        let server = config.mcp_servers.get(&server_name);
+
+        match server {
+            Some(forge_domain::McpServerConfig::Http(http)) => {
+                // Check auth status first
+                let status = self.api.mcp_auth_status(&http.url).await?;
+                if status == "authenticated" {
+                    self.writeln_title(TitleFormat::info(
+                        format!("MCP server '{}' is already authenticated. Use 'mcp logout {}' first to re-authenticate.", name, name)
+                    ))?;
+                    return Ok(());
+                }
+
+                // Force re-auth by removing any stale credentials
+                let _ = self.api.mcp_logout(Some(&http.url)).await;
+
+                // Run the OAuth flow (opens browser, waits for callback)
+                match self.api.mcp_auth(&http.url).await {
+                    Ok(()) => {
+                        self.writeln_title(TitleFormat::info(format!(
+                            "Successfully authenticated with MCP server '{}'",
+                            name
+                        )))?;
+                        // Reload MCP to reconnect with new credentials
+                        let _ = self.api.reload_mcp().await;
+                    }
+                    Err(e) => {
+                        self.writeln_title(TitleFormat::error(format!(
+                            "Authentication with MCP server '{}' failed: {}",
+                            name, e
+                        )))?;
+                    }
+                }
+            }
+            Some(_) => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "MCP server '{}' is not an HTTP server (OAuth only applies to HTTP servers)",
+                    name
+                )))?;
+            }
+            None => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "MCP server '{}' not found. Use 'mcp list' to see available servers.",
+                    name
+                )))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle `mcp logout <name>` command.
+    ///
+    /// Removes stored OAuth credentials for the specified MCP server
+    /// or all servers if "all" is specified.
+    async fn handle_mcp_logout(&mut self, name: &str) -> anyhow::Result<()> {
+        if name == "all" {
+            self.api.mcp_logout(None).await?;
+            self.writeln_title(TitleFormat::info("Removed all MCP OAuth credentials"))?;
+        } else {
+            let server_name = forge_api::ServerName::from(name.to_string());
+            let config = self.api.read_mcp_config(None).await?;
+            let server = config.mcp_servers.get(&server_name);
+
+            match server {
+                Some(forge_domain::McpServerConfig::Http(http)) => {
+                    self.api.mcp_logout(Some(&http.url)).await?;
+                    self.writeln_title(TitleFormat::info(format!(
+                        "Removed OAuth credentials for MCP server '{}'",
+                        name
+                    )))?;
+                }
+                Some(_) => {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "MCP server '{}' is not an HTTP server",
+                        name
+                    )))?;
+                }
+                None => {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "MCP server '{}' not found. Use 'mcp list' to see available servers.",
+                        name
+                    )))?;
+                }
+            }
+        }
         Ok(())
     }
 
