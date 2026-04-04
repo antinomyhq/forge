@@ -79,8 +79,7 @@ impl<I: GrpcInfra> SkillSearchRepository for ForgeSkillSearchRepository<I> {
         let user_prompt = Self::build_user_prompt(query);
 
         // Create gRPC request and attach the Bearer token
-        let request =
-            tonic::Request::new(SelectSkillRequest { skills: proto_skills, user_prompt });
+        let request = tonic::Request::new(SelectSkillRequest { skills: proto_skills, user_prompt });
         let request = self.with_auth(request, auth_token)?;
 
         // Call gRPC API

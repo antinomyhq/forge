@@ -117,9 +117,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl forge_domain::ProviderRepository for MockSkillRepository {
-        async fn get_all_providers(
-            &self,
-        ) -> anyhow::Result<Vec<forge_domain::AnyProvider>> {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<forge_domain::AnyProvider>> {
             Ok(vec![])
         }
 
