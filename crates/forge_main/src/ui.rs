@@ -821,7 +821,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Handle `mcp auth <name>` command.
+    /// Handle `mcp login <name>` command.
     ///
     /// Triggers the OAuth authentication flow for the specified MCP server.
     /// Uses the API layer which delegates to rmcp's OAuth state machine

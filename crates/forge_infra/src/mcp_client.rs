@@ -265,7 +265,7 @@ impl ForgeMcpClient {
         if !allow_interactive {
             // Interactive auth not allowed - return error with instructions
             return Err(anyhow::anyhow!(
-                "MCP server '{}' requires authentication. Run 'mcp auth <name>' to authenticate.",
+                "MCP server '{}' requires authentication. Run 'mcp login <name>' to authenticate.",
                 http.url
             ));
         }
