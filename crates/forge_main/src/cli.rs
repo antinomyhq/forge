@@ -547,6 +547,27 @@ pub enum ConfigSetField {
         /// Effort level: none, minimal, low, medium, high, xhigh, max.
         effort: Effort,
     },
+    /// Set the provider and model for the Forge agent.
+    AgentForge {
+        /// Provider ID to use for the Forge agent.
+        provider: ProviderId,
+        /// Model ID to use for the Forge agent.
+        model: ModelId,
+    },
+    /// Set the provider and model for the Muse agent.
+    AgentMuse {
+        /// Provider ID to use for the Muse agent.
+        provider: ProviderId,
+        /// Model ID to use for the Muse agent.
+        model: ModelId,
+    },
+    /// Set the provider and model for the Sage agent.
+    AgentSage {
+        /// Provider ID to use for the Sage agent.
+        provider: ProviderId,
+        /// Model ID to use for the Sage agent.
+        model: ModelId,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -562,6 +583,12 @@ pub enum ConfigGetField {
     Suggest,
     /// Get the reasoning effort level.
     ReasoningEffort,
+    /// Get the model configuration for the Forge agent.
+    AgentForge,
+    /// Get the model configuration for the Muse agent.
+    AgentMuse,
+    /// Get the model configuration for the Sage agent.
+    AgentSage,
 }
 
 /// Command group for conversation management.

@@ -20,6 +20,28 @@ pub struct SessionConfig {
     pub model_id: Option<String>,
 }
 
+/// Identifies which named agent an operation targets.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SystemAgent {
+    /// The Forge agent.
+    Forge,
+    /// The Muse agent.
+    Muse,
+    /// The Sage agent.
+    Sage,
+}
+
+impl SystemAgent {
+    /// Returns the lowercase string identifier for the agent.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            SystemAgent::Forge => "forge",
+            SystemAgent::Muse => "muse",
+            SystemAgent::Sage => "sage",
+        }
+    }
+}
+
 /// All discrete mutations that can be applied to the application configuration.
 ///
 /// Instead of replacing the entire config, callers describe exactly which field
@@ -37,6 +59,8 @@ pub enum ConfigOperation {
     SetSuggestConfig(crate::SuggestConfig),
     /// Set the reasoning effort level for all agents.
     SetReasoningEffort(Effort),
+    /// Set the model for a specific named agent (forge, muse, or sage).
+    SetAgentModel(SystemAgent, ProviderId, ModelId),
 }
 
 const VERSION: &str = match option_env!("APP_VERSION") {

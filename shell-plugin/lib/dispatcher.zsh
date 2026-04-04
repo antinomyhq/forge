@@ -190,6 +190,15 @@ function forge-accept-line() {
         config-suggest-model|csm)
             _forge_action_suggest_model "$input_text"
         ;;
+        config-forge-model|cfm)
+            _forge_action_forge_model "$input_text"
+        ;;
+        config-muse-model|cmm)
+            _forge_action_muse_model "$input_text"
+        ;;
+        config-sage-model|csam)
+            _forge_action_sage_model "$input_text"
+        ;;
         tools|t)
             _forge_action_tools
         ;;

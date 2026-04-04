@@ -47,8 +47,11 @@ fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
             if session.provider_id.as_deref() == Some(&pid_str) {
                 session.model_id = Some(mid_str);
             } else {
-                fc.session =
-                    Some(ModelConfig { provider_id: Some(pid_str), model_id: Some(mid_str), preset_id: None });
+                fc.session = Some(ModelConfig {
+                    provider_id: Some(pid_str),
+                    model_id: Some(mid_str),
+                    preset_id: None,
+                });
             }
         }
         ConfigOperation::SetCommitConfig(commit) => {
@@ -84,6 +87,18 @@ fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
                 .get_or_insert_with(forge_config::ReasoningConfig::default);
             reasoning.effort = Some(config_effort);
         }
+        ConfigOperation::SetAgentModel(agent, provider_id, model_id) => {
+            let mc = ModelConfig {
+                provider_id: Some(provider_id.as_ref().to_string()),
+                model_id: Some(model_id.to_string()),
+                preset_id: None,
+            };
+            match agent {
+                forge_domain::SystemAgent::Forge => fc.agent_forge = Some(mc),
+                forge_domain::SystemAgent::Muse => fc.agent_muse = Some(mc),
+                forge_domain::SystemAgent::Sage => fc.agent_sage = Some(mc),
+            }
+        }
     }
 }
 
@@ -109,6 +124,7 @@ impl ForgeEnvironmentInfra {
 
     /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
     fn read_from_disk() -> ForgeConfig {
+        // FIXME: Invalid configurations can produce errors
         match ForgeConfig::read() {
             Ok(config) => {
                 debug!(config = ?config, "read .forge.toml");

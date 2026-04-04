@@ -3508,6 +3508,48 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .sub_title("is now the reasoning effort"),
                 )?;
             }
+            ConfigSetField::AgentForge { provider, model } => {
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let config = forge_domain::SuggestConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api
+                    .set_agent_config(forge_domain::SystemAgent::Forge, config)
+                    .await?;
+                self.writeln_title(
+                    TitleFormat::action(validated_model.as_str())
+                        .sub_title(format!("is now the model for the Forge agent (provider '{provider}')")),
+                )?;
+            }
+            ConfigSetField::AgentMuse { provider, model } => {
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let config = forge_domain::SuggestConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api
+                    .set_agent_config(forge_domain::SystemAgent::Muse, config)
+                    .await?;
+                self.writeln_title(
+                    TitleFormat::action(validated_model.as_str())
+                        .sub_title(format!("is now the model for the Muse agent (provider '{provider}')")),
+                )?;
+            }
+            ConfigSetField::AgentSage { provider, model } => {
+                let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
+                let config = forge_domain::SuggestConfig {
+                    provider: provider.clone(),
+                    model: validated_model.clone(),
+                };
+                self.api
+                    .set_agent_config(forge_domain::SystemAgent::Sage, config)
+                    .await?;
+                self.writeln_title(
+                    TitleFormat::action(validated_model.as_str())
+                        .sub_title(format!("is now the model for the Sage agent (provider '{provider}')")),
+                )?;
+            }
         }
 
         Ok(())
@@ -3574,6 +3616,36 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 match effort {
                     Some(e) => self.writeln(e.to_string())?,
                     None => self.writeln("ReasoningEffort: Not set")?,
+                }
+            }
+            ConfigGetField::AgentForge => {
+                let config = self.api.get_agent_config(forge_domain::SystemAgent::Forge).await?;
+                match config {
+                    Some(c) => {
+                        self.writeln(c.provider.as_ref())?;
+                        self.writeln(c.model.as_str().to_string())?;
+                    }
+                    None => self.writeln("AgentForge: Not set")?,
+                }
+            }
+            ConfigGetField::AgentMuse => {
+                let config = self.api.get_agent_config(forge_domain::SystemAgent::Muse).await?;
+                match config {
+                    Some(c) => {
+                        self.writeln(c.provider.as_ref())?;
+                        self.writeln(c.model.as_str().to_string())?;
+                    }
+                    None => self.writeln("AgentMuse: Not set")?,
+                }
+            }
+            ConfigGetField::AgentSage => {
+                let config = self.api.get_agent_config(forge_domain::SystemAgent::Sage).await?;
+                match config {
+                    Some(c) => {
+                        self.writeln(c.provider.as_ref())?;
+                        self.writeln(c.model.as_str().to_string())?;
+                    }
+                    None => self.writeln("AgentSage: Not set")?,
                 }
             }
         }

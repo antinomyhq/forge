@@ -172,6 +172,19 @@ pub trait API: Sync + Send {
     /// Sets the reasoning effort level applied to all agents.
     async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()>;
 
+    /// Gets the model configuration for a specific named agent (forge, muse, or sage).
+    async fn get_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+    ) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
+
+    /// Sets the model configuration for a specific named agent (forge, muse, or sage).
+    async fn set_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+        config: forge_domain::SuggestConfig,
+    ) -> anyhow::Result<()>;
+
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 

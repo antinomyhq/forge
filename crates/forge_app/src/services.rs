@@ -232,6 +232,19 @@ pub trait AppConfigService: Send + Sync {
 
     /// Sets the reasoning effort level applied to all agents.
     async fn set_reasoning_effort(&self, effort: forge_domain::Effort) -> anyhow::Result<()>;
+
+    /// Gets the model configuration for a specific named agent (forge, muse, or sage).
+    async fn get_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+    ) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
+
+    /// Sets the model configuration for a specific named agent (forge, muse, or sage).
+    async fn set_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+        config: forge_domain::SuggestConfig,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -997,6 +1010,21 @@ impl<I: Services> AppConfigService for I {
 
     async fn set_reasoning_effort(&self, effort: forge_domain::Effort) -> anyhow::Result<()> {
         self.config_service().set_reasoning_effort(effort).await
+    }
+
+    async fn get_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+    ) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
+        self.config_service().get_agent_config(agent).await
+    }
+
+    async fn set_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+        config: forge_domain::SuggestConfig,
+    ) -> anyhow::Result<()> {
+        self.config_service().set_agent_config(agent, config).await
     }
 }
 

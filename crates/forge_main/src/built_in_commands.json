@@ -40,6 +40,18 @@
     "description": "Set the model used for command suggestion generation [alias: csm]"
   },
   {
+    "command": "config-forge-model",
+    "description": "Set the model used by the Forge agent [alias: cfm]"
+  },
+  {
+    "command": "config-muse-model",
+    "description": "Set the model used by the Muse agent [alias: cmm]"
+  },
+  {
+    "command": "config-sage-model",
+    "description": "Set the model used by the Sage agent [alias: csam]"
+  },
+  {
     "command": "config",
     "description": "List current configuration values"
   },

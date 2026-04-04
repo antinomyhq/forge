@@ -70,6 +70,7 @@ impl ForgeInfra {
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService::new(
             config.max_parallel_file_reads,
         ));
+
         let grpc_client = Arc::new(ForgeGrpcClient::new(
             config
                 .services_url

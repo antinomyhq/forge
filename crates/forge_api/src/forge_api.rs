@@ -302,6 +302,21 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         self.services.set_reasoning_effort(effort).await
     }
 
+    async fn get_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+    ) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
+        self.services.get_agent_config(agent).await
+    }
+
+    async fn set_agent_config(
+        &self,
+        agent: forge_domain::SystemAgent,
+        config: forge_domain::SuggestConfig,
+    ) -> anyhow::Result<()> {
+        self.services.set_agent_config(agent, config).await
+    }
+
     async fn reload_mcp(&self) -> Result<()> {
         self.services.mcp_service().reload_mcp().await
     }

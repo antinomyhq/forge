@@ -296,6 +296,21 @@ mod tests {
         async fn set_reasoning_effort(&self, _effort: forge_domain::Effort) -> Result<()> {
             Ok(())
         }
+
+        async fn get_agent_config(
+            &self,
+            _agent: forge_domain::SystemAgent,
+        ) -> Result<Option<forge_domain::SuggestConfig>> {
+            Ok(None)
+        }
+
+        async fn set_agent_config(
+            &self,
+            _agent: forge_domain::SystemAgent,
+            _config: forge_domain::SuggestConfig,
+        ) -> Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]

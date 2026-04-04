@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use forge_app::{AppConfigService, EnvironmentInfra};
 use forge_domain::{
-    CommitConfig, ConfigOperation, Effort, ModelId, ProviderId, ProviderRepository, SuggestConfig,
+    SystemAgent, CommitConfig, ConfigOperation, Effort, ModelId, ProviderId, ProviderRepository,
+    SuggestConfig,
 };
 use tracing::debug;
 
@@ -145,6 +146,39 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()> {
         self.update(ConfigOperation::SetReasoningEffort(effort))
             .await
+    }
+
+    async fn get_agent_config(
+        &self,
+        agent: SystemAgent,
+    ) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
+        let config = self.infra.get_config();
+        let mc = match agent {
+            SystemAgent::Forge => config.agent_forge,
+            SystemAgent::Muse => config.agent_muse,
+            SystemAgent::Sage => config.agent_sage,
+        };
+        Ok(mc.and_then(|mc| {
+            mc.provider_id
+                .zip(mc.model_id)
+                .map(|(pid, mid)| SuggestConfig {
+                    provider: ProviderId::from(pid),
+                    model: ModelId::new(mid),
+                })
+        }))
+    }
+
+    async fn set_agent_config(
+        &self,
+        agent: SystemAgent,
+        config: forge_domain::SuggestConfig,
+    ) -> anyhow::Result<()> {
+        self.update(ConfigOperation::SetAgentModel(
+            agent,
+            config.provider,
+            config.model,
+        ))
+        .await
     }
 }
 
@@ -297,6 +331,18 @@ mod tests {
                         }
                         ConfigOperation::SetReasoningEffort(_) => {
                             // No-op in tests
+                        }
+                        ConfigOperation::SetAgentModel(agent, provider_id, model_id) => {
+                            let mc = Some(
+                                ModelConfig::default()
+                                    .provider_id(provider_id.as_ref().to_string())
+                                    .model_id(model_id.to_string()),
+                            );
+                            match agent {
+                                forge_domain::SystemAgent::Forge => config.agent_forge = mc,
+                                forge_domain::SystemAgent::Muse => config.agent_muse = mc,
+                                forge_domain::SystemAgent::Sage => config.agent_sage = mc,
+                            }
                         }
                     }
                 }

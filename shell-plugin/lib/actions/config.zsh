@@ -239,6 +239,87 @@ function _forge_action_suggest_model() {
     )
 }
 
+# Action handler: Select model for the Forge agent.
+# Calls `forge config set agent-forge <provider_id> <model_id>` on selection.
+function _forge_action_forge_model() {
+    local input_text="$1"
+    (
+        echo
+        # config get agent-forge outputs two lines: provider_id (raw) then model_id
+        local agent_output current_model current_provider
+        agent_output=$(_forge_exec config get agent-forge 2>/dev/null)
+        current_provider=$(echo "$agent_output" | head -n 1)
+        current_model=$(echo "$agent_output" | tail -n 1)
+
+        local selected
+        selected=$(_forge_pick_model "Forge Agent Model ❯ " "$current_model" "$input_text" "$current_provider" 4)
+
+        if [[ -n "$selected" ]]; then
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set agent-forge "$provider_id" "$model_id"
+        fi
+    )
+}
+
+# Action handler: Select model for the Muse agent.
+# Calls `forge config set agent-muse <provider_id> <model_id>` on selection.
+function _forge_action_muse_model() {
+    local input_text="$1"
+    (
+        echo
+        # config get agent-muse outputs two lines: provider_id (raw) then model_id
+        local agent_output current_model current_provider
+        agent_output=$(_forge_exec config get agent-muse 2>/dev/null)
+        current_provider=$(echo "$agent_output" | head -n 1)
+        current_model=$(echo "$agent_output" | tail -n 1)
+
+        local selected
+        selected=$(_forge_pick_model "Muse Agent Model ❯ " "$current_model" "$input_text" "$current_provider" 4)
+
+        if [[ -n "$selected" ]]; then
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set agent-muse "$provider_id" "$model_id"
+        fi
+    )
+}
+
+# Action handler: Select model for the Sage agent.
+# Calls `forge config set agent-sage <provider_id> <model_id>` on selection.
+function _forge_action_sage_model() {
+    local input_text="$1"
+    (
+        echo
+        # config get agent-sage outputs two lines: provider_id (raw) then model_id
+        local agent_output current_model current_provider
+        agent_output=$(_forge_exec config get agent-sage 2>/dev/null)
+        current_provider=$(echo "$agent_output" | head -n 1)
+        current_model=$(echo "$agent_output" | tail -n 1)
+
+        local selected
+        selected=$(_forge_pick_model "Sage Agent Model ❯ " "$current_model" "$input_text" "$current_provider" 4)
+
+        if [[ -n "$selected" ]]; then
+            local model_id provider_id
+            read -r model_id provider_id <<<$(echo "$selected" | awk -F '  +' '{print $1, $4}')
+
+            model_id=${model_id//[[:space:]]/}
+            provider_id=${provider_id//[[:space:]]/}
+
+            _forge_exec config set agent-sage "$provider_id" "$model_id"
+        fi
+    )
+}
+
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
