@@ -388,6 +388,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            TopLevelCommand::Machine(machine_group) => {
+                match machine_group.command {
+                    crate::cli::MachineCommand::Stdio => {
+                        crate::acp_runner::run_machine_stdio_server(self.api.as_ref()).await?;
+                        return Ok(());
+                    }
+                }
+            }
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {

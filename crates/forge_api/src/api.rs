@@ -251,4 +251,7 @@ pub trait API: Sync + Send {
         &self,
         data_parameters: DataGenerationParameters,
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
+
+    /// Starts the ACP (Agent Communication Protocol) server over stdio.
+    async fn acp_start_stdio(&self) -> Result<()>;
 }

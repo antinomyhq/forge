@@ -82,6 +82,9 @@ pub enum TopLevelCommand {
     /// Manage agents.
     Agent(AgentCommandGroup),
 
+    /// Run machine-oriented commands.
+    Machine(MachineCommandGroup),
+
     /// Generate shell extension scripts.
     #[command(subcommand, alias = "extension")]
     Zsh(ZshCommandGroup),
@@ -201,6 +204,19 @@ pub enum AgentCommand {
     /// List available agents.
     #[command(alias = "ls")]
     List,
+}
+
+/// Command group for machine-oriented interfaces.
+#[derive(Parser, Debug, Clone)]
+pub struct MachineCommandGroup {
+    #[command(subcommand)]
+    pub command: MachineCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum MachineCommand {
+    /// Run the machine interface over stdio.
+    Stdio,
 }
 
 /// Command group for workspace management.
@@ -1863,5 +1879,26 @@ mod tests {
             _ => panic!("Expected Update command"),
         };
         assert!(!actual);
+    }
+
+    #[test]
+    fn test_machine_stdio_command() {
+        let fixture = Cli::parse_from(["forge", "machine", "stdio"]);
+        let actual = matches!(
+            fixture.subcommands,
+            Some(TopLevelCommand::Machine(MachineCommandGroup {
+                command: MachineCommand::Stdio,
+            }))
+        );
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_machine_stdio_is_not_interactive() {
+        let fixture = Cli::parse_from(["forge", "machine", "stdio"]);
+        let actual = fixture.is_interactive();
+        let expected = false;
+        assert_eq!(actual, expected);
     }
 }
