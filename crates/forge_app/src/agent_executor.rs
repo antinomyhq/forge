@@ -108,6 +108,7 @@ impl<S: Services> AgentExecutor<S> {
                             agent_id.as_str()
                         ));
                 }
+                ChatResponse::UsageUpdate { .. } => {}
             }
         }
         if !output.is_empty() {
