@@ -24,7 +24,7 @@ lazy_static! {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// // Before transformation:
 /// tool_use.tool_use_id = "functions.shell:0"
 ///
@@ -129,6 +129,7 @@ mod tests {
             stream: None,
             response_format: None,
             initiator: None,
+            tool_search: None,
         };
 
         let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");
@@ -173,6 +174,7 @@ mod tests {
             stream: None,
             response_format: None,
             initiator: None,
+            tool_search: None,
         };
 
         let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");
@@ -223,6 +225,7 @@ mod tests {
             stream: None,
             response_format: None,
             initiator: None,
+            tool_search: None,
         };
 
         let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");
@@ -260,6 +263,7 @@ mod tests {
             stream: None,
             response_format: None,
             initiator: None,
+            tool_search: None,
         };
 
         let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");

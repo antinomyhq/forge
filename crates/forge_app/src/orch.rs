@@ -25,6 +25,10 @@ pub struct Orchestrator<S> {
     agent: Agent,
     error_tracker: ToolErrorTracker,
     hook: Arc<Hook>,
+    /// Whether tool_search API is enabled for deferred tool loading.
+    /// When `true`, MCP tools are sent with `defer_loading: true` and a
+    /// `tool_search` tool is injected so the model can discover them on demand.
+    tool_search: Option<bool>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -44,6 +48,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             error_tracker: Default::default(),
             hook: Arc::new(Hook::default()),
+            tool_search: Default::default(),
         }
     }
 
@@ -153,10 +158,13 @@ impl<S: AgentService> Orchestrator<S> {
     async fn execute_chat_turn(
         &self,
         model_id: &ModelId,
-        context: Context,
+        mut context: Context,
         reasoning_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let tool_supported = self.is_tool_supported()?;
+        // Propagate tool_search config to the context so the repository layer
+        // can decide whether to apply deferred tool loading.
+        context.tool_search = self.tool_search;
         let mut transformers = DefaultTransformation::default()
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(NormalizeToolCallArguments::new())
@@ -268,8 +276,11 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
-            is_complete =
-                message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
+            // When tool_search_output is present, the model discovered tools via search
+            // and needs another turn to actually use them — do NOT mark as complete.
+            is_complete = message.finish_reason == Some(FinishReason::Stop)
+                && message.tool_calls.is_empty()
+                && message.tool_search_output.is_none();
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
@@ -314,6 +325,8 @@ impl<S: AgentService> Orchestrator<S> {
                 message.usage,
                 tool_call_records,
                 message.phase,
+                message.tool_search_output.clone(),
+                message.response_items.clone(),
             );
 
             if self.error_tracker.limit_reached() {
