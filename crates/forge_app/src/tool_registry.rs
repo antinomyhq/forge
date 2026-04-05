@@ -105,6 +105,29 @@ impl<S: Services> ToolRegistry<S> {
         // First, try to call a Forge tool
         if ToolCatalog::contains(&input.name) {
             let tool_input: ToolCatalog = ToolCatalog::try_from(input)?;
+
+            // Special handling for Task tool - delegate to AgentExecutor
+            if let ToolCatalog::Task(task_input) = tool_input {
+                let executor = self.agent_executor.clone();
+                let session_id = task_input.session_id.clone();
+                let agent_id = task_input.agent_id.clone();
+                // NOTE: Agents should not timeout
+                let outputs = join_all(task_input.tasks.into_iter().map(|task| {
+                    let session_id = session_id.clone();
+                    let agent_id = agent_id.clone();
+                    let executor = executor.clone();
+                    async move {
+                        executor
+                            .execute(AgentId::new(&agent_id), task, context, session_id)
+                            .await
+                    }
+                }))
+                .await
+                .into_iter()
+                .collect::<anyhow::Result<Vec<_>>>()?;
+                return Ok(ToolOutput::from(outputs.into_iter()));
+            }
+
             let env = self.services.get_environment();
             if let Some(content) = tool_input.to_content(&env) {
                 context.send(content).await?;
@@ -141,14 +164,20 @@ impl<S: Services> ToolRegistry<S> {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
             let executor = self.agent_executor.clone();
+            let agent_name = input.name.as_str().to_string();
             // NOTE: Agents should not timeout
-            let outputs =
-                join_all(agent_input.tasks.into_iter().map(|task| {
-                    executor.execute(AgentId::new(input.name.as_str()), task, context)
-                }))
-                .await
-                .into_iter()
-                .collect::<anyhow::Result<Vec<_>>>()?;
+            let outputs = join_all(agent_input.tasks.into_iter().map(|task| {
+                let agent_name = agent_name.clone();
+                let executor = executor.clone();
+                async move {
+                    executor
+                        .execute(AgentId::new(&agent_name), task, context, None)
+                        .await
+                }
+            }))
+            .await
+            .into_iter()
+            .collect::<anyhow::Result<Vec<_>>>()?;
             Ok(ToolOutput::from(outputs.into_iter()))
         } else if self.mcp_executor.contains_tool(&input.name).await? {
             let output = self
@@ -211,6 +240,9 @@ impl<S: Services> ToolRegistry<S> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
+        // Get agents for template rendering in Task tool description
+        let agents = self.services.get_agents().await?;
+
         // Check if current working directory is indexed
         let environment = self.services.get_environment();
         let cwd = environment.cwd.clone();
@@ -236,6 +268,7 @@ impl<S: Services> ToolRegistry<S> {
                 is_indexed && is_authenticated,
                 &environment,
                 model,
+                agents,
                 &template_config,
             ))
             .agents(agent_tools)
@@ -248,6 +281,7 @@ impl<S> ToolRegistry<S> {
         sem_search_supported: bool,
         env: &Environment,
         model: Option<Model>,
+        agents: Vec<forge_domain::Agent>,
         template_config: &TemplateConfig,
     ) -> Vec<ToolDefinition> {
         use crate::TemplateEngine;
@@ -275,6 +309,7 @@ impl<S> ToolRegistry<S> {
             env: Some(env.clone()),
             model,
             tool_names,
+            agents,
             config: Some(template_config.clone()),
             ..Default::default()
         };
@@ -393,7 +428,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
-    use crate::tool_registry::ToolRegistry;
+    use crate::tool_registry::{ToolRegistry, create_test_agents};
 
     fn agent() -> Agent {
         // only allow read and search tools for this agent
@@ -647,7 +682,13 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         let template_config = TemplateConfig::default();
-        let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
+        let actual = ToolRegistry::<()>::get_system_tools(
+            true,
+            &env,
+            None,
+            create_test_agents(),
+            &template_config,
+        );
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
@@ -656,9 +697,52 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         let template_config = TemplateConfig::default();
-        let actual = ToolRegistry::<()>::get_system_tools(false, &env, None, &template_config);
+        let actual = ToolRegistry::<()>::get_system_tools(
+            false,
+            &env,
+            None,
+            create_test_agents(),
+            &template_config,
+        );
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
+}
+
+#[cfg(test)]
+fn create_test_agents() -> Vec<forge_domain::Agent> {
+    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolName};
+
+    vec![
+        Agent::new(
+            AgentId::new("sage"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .id(AgentId::new("sage"))
+        .title("Research Agent")
+        .description("Specialized in researching codebases")
+        .tools(vec![
+            ToolName::new("read"),
+            ToolName::new("fs_search"),
+            ToolName::new("sem_search"),
+            ToolName::new("fetch"),
+        ]),
+        Agent::new(
+            AgentId::new("debug"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .id(AgentId::new("debug"))
+        .title("Debug Agent")
+        .description("Specialized in debugging issues")
+        .tools(vec![
+            ToolName::new("read"),
+            ToolName::new("shell"),
+            ToolName::new("fs_search"),
+            ToolName::new("sem_search"),
+            ToolName::new("fetch"),
+        ]),
+    ]
 }
 
 #[cfg(test)]
@@ -687,7 +771,13 @@ fn test_template_rendering_in_tool_descriptions() {
     let env: Environment = Faker.fake();
     let template_config = TemplateConfig { max_line_length: 2000, ..Default::default() };
 
-    let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
+    let actual = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        &template_config,
+    );
     let fs_search_tool = actual
         .iter()
         .find(|t| t.name.as_str() == "fs_search")
@@ -722,8 +812,13 @@ fn test_dynamic_tool_description_with_vision_model() {
     };
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
 
-    let tools_with_vision =
-        ToolRegistry::<()>::get_system_tools(true, &env, Some(vision_model), &template_config);
+    let tools_with_vision = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        Some(vision_model),
+        create_test_agents(),
+        &template_config,
+    );
     let read_tool = tools_with_vision
         .iter()
         .find(|t| t.name.as_str() == "read")
@@ -745,8 +840,13 @@ fn test_dynamic_tool_description_with_text_only_model() {
     };
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
 
-    let tools_text_only =
-        ToolRegistry::<()>::get_system_tools(true, &env, Some(text_only_model), &template_config);
+    let tools_text_only = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        Some(text_only_model),
+        create_test_agents(),
+        &template_config,
+    );
     let read_tool = tools_text_only
         .iter()
         .find(|t| t.name.as_str() == "read")
@@ -895,7 +995,13 @@ fn test_dynamic_tool_description_without_model() {
     };
 
     // When no model is provided, should default to showing minimal capabilities
-    let tools_no_model = ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
+    let tools_no_model = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        &template_config,
+    );
     let read_tool = tools_no_model
         .iter()
         .find(|t| t.name.as_str() == "read")
@@ -921,7 +1027,13 @@ fn test_all_rendered_tool_descriptions() {
         stdout_max_line_length: 2000,
     };
 
-    let tools = ToolRegistry::<()>::get_system_tools(true, &env, None, &template_config);
+    let tools = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        &template_config,
+    );
 
     // Verify all tools have rendered descriptions (no template syntax left)
     for tool in &tools {
