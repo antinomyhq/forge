@@ -17,6 +17,7 @@ impl Transformer for MergeSystemMessages {
             let (system, rest): (Vec<_>, Vec<_>) =
                 messages.into_iter().partition(|m| m.role == Role::System);
 
+
             let merged = if system.is_empty() {
                 rest
             } else {
@@ -41,21 +42,27 @@ impl Transformer for MergeSystemMessages {
                     .collect::<Vec<_>>()
                     .join("\n\n");
 
-                let mut result = vec![Message {
-                    role: Role::System,
-                    content: Some(MessageContent::Text(combined_content)),
-                    name: None,
-                    tool_call_id: None,
-                    tool_calls: None,
-                    reasoning_details: None,
-                    reasoning_text: None,
-                    reasoning_opaque: None,
-                    reasoning_content: None,
-                    extra_content: None,
-                }];
-                result.extend(rest);
-                result
+                if combined_content.is_empty() {
+                    // All system messages had no content, don't create empty system message
+                    rest
+                } else {
+                    let mut result = vec![Message {
+                        role: Role::System,
+                        content: Some(MessageContent::Text(combined_content)),
+                        name: None,
+                        tool_call_id: None,
+                        tool_calls: None,
+                        reasoning_details: None,
+                        reasoning_text: None,
+                        reasoning_opaque: None,
+                        reasoning_content: None,
+                        extra_content: None,
+                    }];
+                    result.extend(rest);
+                    result
+                }
             };
+
 
             request.messages = Some(merged);
         }
