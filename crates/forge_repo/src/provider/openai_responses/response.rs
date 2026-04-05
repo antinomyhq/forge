@@ -5,7 +5,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Content, FinishReason, MessagePhase, TokenCount, ToolCall,
     ToolCallArguments, ToolCallFull, ToolCallId, ToolCallPart, ToolName, Usage,
 };
-use forge_domain::{BoxStream, ResultStream};
+use forge_domain::{BoxStream, ResponseOutputItem, ResultStream, ToolSearchExecution, ToolSearchOutput, ToolSearchStatus};
 use futures::StreamExt;
 use serde::{Deserialize, Deserializer};
 
@@ -119,6 +119,8 @@ impl IntoDomain for oai::Response {
         }
 
         let mut saw_tool_call = false;
+        let mut tool_search_call_json: Option<serde_json::Value> = None;
+        let mut response_items: Vec<forge_domain::ResponseOutputItem> = Vec::new();
         for item in &self.output {
             match item {
                 oai::OutputItem::Message(output_msg) => {
@@ -134,7 +136,15 @@ impl IntoDomain for oai::Response {
                         name: ToolName::new(call.name.clone()),
                         arguments: ToolCallArguments::from_json(&call.arguments),
                         thought_signature: None,
+                        namespace: call.namespace.clone(),
                     }));
+                    response_items.push(forge_domain::ResponseOutputItem::FunctionCall {
+                        id: call.id.clone().unwrap_or_default(),
+                        call_id: ToolCallId::new(call.call_id.clone()),
+                        name: ToolName::new(call.name.clone()),
+                        arguments: ToolCallArguments::from_json(&call.arguments),
+                        namespace: call.namespace.clone(),
+                    });
                 }
                 oai::OutputItem::Reasoning(reasoning) => {
                     let mut all_reasoning_text = String::new();
@@ -200,9 +210,66 @@ impl IntoDomain for oai::Response {
                     if !all_reasoning_text.is_empty() {
                         message = message.reasoning(Content::full(all_reasoning_text));
                     }
+
+                    // Push a single ResponseOutputItem::Reasoning with all detail
+                    // for this reasoning block (encrypted + text + summary merged)
+                    let mut reasoning_full = forge_domain::ReasoningFull {
+                        id: Some(reasoning.id.clone()),
+                        ..Default::default()
+                    };
+                    if let Some(encrypted_content) = &reasoning.encrypted_content {
+                        reasoning_full.data = Some(encrypted_content.clone());
+                        reasoning_full.type_of = Some("reasoning.encrypted".to_string());
+                    }
+                    response_items.push(forge_domain::ResponseOutputItem::Reasoning(reasoning_full));
+                }
+                // Tool search call: server-side search for deferred tools.
+                oai::OutputItem::ToolSearchCall(call) => {
+                    let json = serde_json::to_value(call).ok();
+                    tool_search_call_json = json.clone();
+                    if let Some(json) = json {
+                        response_items.push(forge_domain::ResponseOutputItem::ToolSearchCall(json));
+                    }
+                }
+                // Tool search output: results of the tool search with discovered tools
+                // This is emitted when the server executed the tool search (execution: "server")
+                oai::OutputItem::ToolSearchOutput(output) => {
+                    // For server execution, call_id is null — preserve that.
+                    // Only use a fallback call_id for client execution.
+                    let call_id = output.call_id.clone().map(ToolCallId::new);
+
+                    let execution = match output.execution {
+                        oai::ToolSearchExecutionType::Server => ToolSearchExecution::Server,
+                        oai::ToolSearchExecutionType::Client => ToolSearchExecution::Client,
+                    };
+
+                    let tool_search_output = ToolSearchOutput {
+                        call_id,
+                        status: ToolSearchStatus::Completed,
+                        execution,
+                        tools: output
+                            .tools
+                            .iter()
+                            .map(|tool| serde_json::to_value(tool))
+                            .collect::<Result<Vec<_>, _>>()
+                            .unwrap_or_default(),
+                        tool_search_call: tool_search_call_json.take(),
+                    };
+
+                    // Push to ordered response_items
+                    response_items.push(ResponseOutputItem::ToolSearchOutput(
+                        tool_search_output.clone(),
+                    ));
+
+                    message = message.tool_search_output(tool_search_output);
                 }
                 _ => {}
             }
+        }
+
+        // Set ordered response items for faithful replay in Responses API
+        if !response_items.is_empty() {
+            message = message.response_items(response_items);
         }
 
         if let Some(usage) = self.usage {
@@ -225,12 +292,17 @@ struct ToolCallIndex(u32);
 #[derive(Default)]
 struct CodexStreamState {
     output_index_to_tool_call: HashMap<ToolCallIndex, (ToolCallId, ToolName)>,
+    /// Maps output index to namespace for tool calls discovered via tool_search.
+    output_index_to_namespace: HashMap<ToolCallIndex, String>,
     /// Tracks output indices that have received at least one arguments delta.
     /// When arguments are streamed via deltas, the `done` event should be
     /// skipped to avoid duplication. When no deltas are received (e.g. the
     /// Spark model sends arguments only in the `done` event), we must emit
     /// them from the `done` handler.
     received_toolcall_deltas: HashSet<ToolCallIndex>,
+    /// Raw JSON of the ToolSearchCall from the API, captured so it can be
+    /// replayed before ToolSearchOutput in the next request.
+    tool_search_call_json: Option<serde_json::Value>,
 }
 
 /// Retains only reasoning details that carry `encrypted_content` data.
@@ -271,7 +343,8 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                 futures::future::ready({
                     let item = match item {
                         Ok(StreamItem::Message(msg)) => Some(Ok(*msg)),
-                        Ok(StreamItem::Event(event)) => match *event {
+                        Ok(StreamItem::Event(event)) => {
+                            match *event {
                             oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => Some(Ok(
                                 ChatCompletionMessage::assistant(Content::part(delta.delta)),
                             )),
@@ -310,6 +383,15 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                             (tool_call_id.clone(), tool_name.clone()),
                                         );
 
+                                        // Store namespace for this tool call so it
+                                        // can be replayed in subsequent requests.
+                                        if let Some(ns) = &call.namespace {
+                                            state.output_index_to_namespace.insert(
+                                                added.output_index.into(),
+                                                ns.clone(),
+                                            );
+                                        }
+
                                         // Only emit if we have non-empty initial arguments.
                                         // Otherwise, wait for deltas or done event.
                                         if !call.arguments.is_empty() {
@@ -319,6 +401,7 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                                     name: Some(tool_name),
                                                     arguments_part: call.arguments.clone(),
                                                     thought_signature: None,
+                                                    namespace: call.namespace.clone(),
                                                 }))))
                                         } else {
                                             None
@@ -328,6 +411,45 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                         // Reasoning items don't emit content in real-time, only at
                                         // completion
                                         None
+                                    }
+                                    // Tool search call: server-side mechanism, not a tool
+                                    // call for the orch. Capture the raw JSON to replay
+                                    // in subsequent requests.
+                                    oai::OutputItem::ToolSearchCall(call) => {
+                                        state.tool_search_call_json = serde_json::to_value(call).ok();
+                                        None
+                                    }
+                                    // Tool search output: results of the tool search with discovered tools
+                                    // This is emitted when the server executed the tool search (execution: "server")
+                                    oai::OutputItem::ToolSearchOutput(output) => {
+                                        // For server execution, call_id is null — preserve that.
+                                        let call_id = output.call_id.clone().map(ToolCallId::new);
+
+                                        let execution = match output.execution {
+                                            oai::ToolSearchExecutionType::Server => ToolSearchExecution::Server,
+                                            oai::ToolSearchExecutionType::Client => ToolSearchExecution::Client,
+                                        };
+
+                                        // Always use Completed status - the OutputItemAdded event
+                                        // has InProgress, but by the time we replay this in the
+                                        // next request, the search is done.
+                                        let tool_search_output = ToolSearchOutput {
+                                            call_id,
+                                            status: ToolSearchStatus::Completed,
+                                            execution,
+                                            tools: output
+                                                .tools
+                                                .iter()
+                                                .map(|tool| serde_json::to_value(tool))
+                                                .collect::<Result<Vec<_>, _>>()
+                                                .unwrap_or_default(),
+                                            tool_search_call: state.tool_search_call_json.take(),
+                                        };
+
+                                        Some(Ok(
+                                            ChatCompletionMessage::default()
+                                                .tool_search_output(tool_search_output)
+                                        ))
                                     }
                                     _ => None,
                                 }
@@ -352,12 +474,18 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
 
                                 let name = (!name.as_str().is_empty()).then_some(name);
 
+                                let namespace = state
+                                    .output_index_to_namespace
+                                    .get(&(delta.output_index.into()))
+                                    .cloned();
+
                                 Some(Ok(ChatCompletionMessage::default().add_tool_call(
                                     ToolCall::Part(ToolCallPart {
                                         call_id: Some(call_id),
                                         name,
                                         arguments_part: delta.delta,
                                         thought_signature: None,
+                                        namespace,
                                     }),
                                 )))
                             }
@@ -391,12 +519,18 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
 
                                     let name = (!name.as_str().is_empty()).then_some(name);
 
+                                    let namespace = state
+                                        .output_index_to_namespace
+                                        .get(&(done.output_index.into()))
+                                        .cloned();
+
                                     Some(Ok(ChatCompletionMessage::default().add_tool_call(
                                         ToolCall::Part(ToolCallPart {
                                             call_id: Some(call_id),
                                             name,
                                             arguments_part: done.arguments,
                                             thought_signature: None,
+                                            namespace,
                                         }),
                                     )))
                                 }
@@ -416,6 +550,7 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                 message.reasoning_details =
                                     retain_encrypted_reasoning_details(message.reasoning_details);
                                 message.tool_calls.clear(); // Clear tool calls to avoid duplication
+                                message.tool_search_output = None; // Already streamed via OutputItemAdded
                                 Some(Ok(message))
                             }
                             oai::ResponseStreamEvent::ResponseIncomplete(done) => {
@@ -429,6 +564,7 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                 message.reasoning_details =
                                     retain_encrypted_reasoning_details(message.reasoning_details);
                                 message.tool_calls.clear(); // Clear tool calls to avoid duplication
+                                message.tool_search_output = None; // Already streamed via OutputItemAdded
                                 message = message.finish_reason_opt(Some(FinishReason::Length));
                                 Some(Ok(message))
                             }
@@ -442,7 +578,7 @@ impl IntoDomain for BoxStream<StreamItem, anyhow::Error> {
                                 Some(Err(anyhow::anyhow!("Upstream error: {}", err.message)))
                             }
                             _ => None,
-                        },
+                        }},
                         Err(err) => Some(Err(err)),
                     };
 

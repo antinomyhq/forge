@@ -292,6 +292,11 @@
         }
       ]
     },
+    "tool_search": {
+      "description": "Whether the tool_search API is enabled for deferred tool loading. When true, MCP tools are sent with defer_loading and discovered on demand via the Responses API tool_search mechanism. Defaults to false; must be explicitly enabled.",
+      "type": "boolean",
+      "default": false
+    },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment; when false,\nall tool calls are disabled.",
       "type": "boolean",

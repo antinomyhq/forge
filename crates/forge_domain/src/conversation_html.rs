@@ -209,6 +209,8 @@ fn create_info_table(conversation: &Conversation) -> Element {
                 table = table.append(create_table_row("Cost", format!("${:.4}", cost)));
             }
         }
+
+
     }
 
     section.append(table)
@@ -361,6 +363,62 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             message_elm
                         };
 
+                        // Add tool search info from response_items if present
+                        let message_elm =
+                            if let Some(response_items) = &content_message.response_items {
+                                let tso_items: Vec<_> = response_items
+                                    .iter()
+                                    .filter_map(|item| {
+                                        if let crate::ResponseOutputItem::ToolSearchOutput(tso) =
+                                            item
+                                        {
+                                            Some(tso)
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .collect();
+                                if !tso_items.is_empty() {
+                                    message_elm.append(tso_items.iter().map(|tso| {
+                                        let tool_names: Vec<&str> = tso
+                                            .tools
+                                            .iter()
+                                            .filter_map(|t| {
+                                                t.get("name").and_then(|n| n.as_str())
+                                            })
+                                            .collect();
+                                        let label = format!(
+                                            "Tool Search: loaded {} tool{}",
+                                            tool_names.len(),
+                                            if tool_names.len() == 1 { "" } else { "s" }
+                                        );
+                                        Element::new("details.tool-search-info")
+                                            .append(
+                                                Element::new("summary")
+                                                    .append(Element::new("em").text(&label))
+                                                    .append(if !tool_names.is_empty() {
+                                                        Element::new("span").text(format!(
+                                                            " ({})",
+                                                            tool_names.join(", ")
+                                                        ))
+                                                    } else {
+                                                        Element::new("span")
+                                                    }),
+                                            )
+                                            .append(Element::new("div.main-content").append(
+                                                Element::new("pre").text(
+                                                    serde_json::to_string_pretty(&tso.tools)
+                                                        .unwrap_or_default(),
+                                                ),
+                                            ))
+                                    }))
+                                } else {
+                                    message_elm
+                                }
+                            } else {
+                                message_elm
+                            };
+
                         // Add main content
                         let message_elm = message_elm.append(
                             Element::new("div.main-content")
@@ -369,7 +427,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 
                         // Add tool calls if any
 
-                        if let Some(tool_calls) = &content_message.tool_calls {
+                        let message_elm = if let Some(tool_calls) = &content_message.tool_calls {
                             if !tool_calls.is_empty() {
                                 message_elm.append(Element::new("div").append(
                                     tool_calls.iter().map(|tool_call| {
@@ -403,7 +461,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             }
                         } else {
                             message_elm
-                        }
+                        };
+
+                        message_elm
                     }
                     ContextMessage::Tool(tool_result) => {
                         // Tool Message - apply error styling if the tool result is an error
@@ -437,7 +497,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                                 Element::new("div.agent-conversation")
                                                     .append(
                                                         Element::new("p")
-                                                            .append(Element::new("strong").text("🤖 Agent Conversation: "))
+                                                            .append(Element::new("strong").text("Agent Conversation: "))
                                                             .append(
                                                                 Element::new("a")
                                                                     .attr("href", format!("#{}", anchor_id))
@@ -457,6 +517,36 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                         Element::new("div.message-card.message-user")
                             .append(Element::new("strong").text("Image Attachment"))
                             .append(Element::new("img").attr("src", image.url()))
+                    }
+                    ContextMessage::ToolSearchOutput(tso) => {
+                        let tool_names: Vec<&str> = tso.tools.iter().filter_map(|t| {
+                            t.get("name").and_then(|n| n.as_str())
+                        }).collect();
+                        let label = format!(
+                            "Tool Search: loaded {} tool{}",
+                            tool_names.len(),
+                            if tool_names.len() == 1 { "" } else { "s" }
+                        );
+
+                        Element::new("details.tool-search-info")
+                            .append(
+                                Element::new("summary")
+                                    .append(Element::new("em").text(&label))
+                                    .append(if !tool_names.is_empty() {
+                                        Element::new("span").text(
+                                            format!(" ({})", tool_names.join(", "))
+                                        )
+                                    } else {
+                                        Element::new("span")
+                                    })
+                            )
+                            .append(
+                                Element::new("div.main-content")
+                                    .append(Element::new("pre").text(
+                                        serde_json::to_string_pretty(&tso.tools)
+                                            .unwrap_or_default()
+                                    ))
+                            )
                     }
                 }
             }),

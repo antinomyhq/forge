@@ -161,7 +161,8 @@ impl<S: Services> ForgeApp<S> {
             .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
             .tool_definitions(tool_definitions)
             .models(models)
-            .hook(Arc::new(hook));
+            .hook(Arc::new(hook))
+            .tool_search(forge_config.tool_search);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
