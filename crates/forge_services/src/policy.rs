@@ -4,8 +4,8 @@ use std::sync::{Arc, LazyLock};
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{
-    ExecuteRule, Fetch, Permission, PermissionOperation, Policy, PolicyConfig, PolicyEngine,
-    ReadRule, Rule, WriteRule,
+    ExecuteRule, Fetch, McpRule, Permission, PermissionOperation, Policy, PolicyConfig,
+    PolicyEngine, ReadRule, Rule, WriteRule,
 };
 use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -185,6 +185,11 @@ where
                     PermissionOperation::Fetch { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
+                    PermissionOperation::Mcp { server_name, tool_name, .. } => {
+                        format!(
+                            "Allow MCP tool call '{tool_name}' on server '{server_name}'. How would you like to proceed?"
+                        )
+                    }
                 };
 
                 match self
@@ -262,6 +267,10 @@ fn create_policy_for_operation(
                 }),
             }
         }
+        PermissionOperation::Mcp { server_name, .. } => Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Mcp(McpRule { mcp: format!("{server_name}/*"), dir: None }),
+        }),
     }
 }
 
@@ -423,6 +432,24 @@ mod tests {
         let actual = create_policy_for_operation(&operation, None);
 
         let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_create_policy_for_mcp_operation() {
+        let operation = PermissionOperation::Mcp {
+            server_name: "github".to_string(),
+            tool_name: "list_issues".to_string(),
+            cwd: PathBuf::from("/test/cwd"),
+        };
+
+        let actual = create_policy_for_operation(&operation, None);
+
+        let expected = Some(Policy::Simple {
+            permission: Permission::Allow,
+            rule: Rule::Mcp(McpRule { mcp: "github/*".to_string(), dir: None }),
+        });
 
         assert_eq!(actual, expected);
     }
