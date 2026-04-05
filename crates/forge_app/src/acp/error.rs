@@ -14,14 +14,16 @@ pub enum Error {
     Io(#[from] std::io::Error),
 }
 
-impl From<Error> for acp::Error {
-    fn from(error: Error) -> Self {
-        match error {
-            Error::Protocol(error) => error,
-            Error::Application(error) => {
-                acp::Error::into_internal_error(error.as_ref() as &dyn std::error::Error)
-            }
-            Error::Io(error) => acp::Error::into_internal_error(&error),
+/// Converts a domain Error into an acp::Error.
+///
+/// AGENTS.md forbids blanket `From` impls for domain error conversion.
+/// Call this explicitly at each `.map_err()` site instead.
+pub fn into_acp_error(error: Error) -> acp::Error {
+    match error {
+        Error::Protocol(error) => error,
+        Error::Application(error) => {
+            acp::Error::into_internal_error(error.as_ref() as &dyn std::error::Error)
         }
+        Error::Io(error) => acp::Error::into_internal_error(&error),
     }
 }

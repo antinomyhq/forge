@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 
@@ -9,6 +10,12 @@ pub struct AcpApp<S> {
     services: Arc<S>,
 }
 
+/// Maximum time to wait for ACP I/O before considering the client hung.
+const IO_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Maximum time to wait for pending notifications to drain on shutdown.
+const SHUTDOWN_DRAIN_TIMEOUT: Duration = Duration::from_secs(5);
+
 impl<S: Services> AcpApp<S> {
     /// Creates a new ACP application orchestrator.
     pub fn new(services: Arc<S>) -> Self {
@@ -16,6 +23,13 @@ impl<S: Services> AcpApp<S> {
     }
 
     /// Starts the ACP server over stdio transport.
+    ///
+    /// # Trust model
+    ///
+    /// The stdio transport inherits OS-level process isolation: only the
+    /// parent process (e.g. Acepe) that spawned `forge machine stdio` can
+    /// read/write the stdin/stdout pipes. No network listener is opened.
+    /// Authentication is therefore a no-op by design.
     pub async fn start_stdio(&self) -> Result<()> {
         use agent_client_protocol as acp;
         use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -25,11 +39,11 @@ impl<S: Services> AcpApp<S> {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
-                .expect("Failed to create Tokio runtime");
+                .map_err(|e| anyhow::anyhow!("Failed to create Tokio runtime: {}", e))?;
 
             rt.block_on(async move {
-                let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-                let adapter = Arc::new(crate::acp::AcpAdapter::new(services, tx));
+                let (adapter, mut rx) = crate::acp::AcpAdapter::new(services);
+                let adapter = Arc::new(adapter);
 
                 let local_set = tokio::task::LocalSet::new();
                 local_set
@@ -51,7 +65,6 @@ impl<S: Services> AcpApp<S> {
 
                         let conn_for_notifications = conn.clone();
                         let notification_task = tokio::task::spawn_local(async move {
-                            let mut rx = rx;
                             while let Some(session_notification) = rx.recv().await {
                                 use agent_client_protocol::Client;
 
@@ -68,8 +81,24 @@ impl<S: Services> AcpApp<S> {
                             }
                         });
 
-                        let io_result = handle_io.await;
-                        notification_task.abort();
+                        // Wait for I/O with a timeout to prevent indefinite hangs
+                        // when the client stalls.
+                        let io_result = match tokio::time::timeout(IO_TIMEOUT, handle_io).await {
+                            Ok(result) => result,
+                            Err(_) => {
+                                tracing::warn!("ACP I/O timed out after {:?}", IO_TIMEOUT);
+                                notification_task.abort();
+                                return Err(anyhow::anyhow!(
+                                    "ACP transport timed out after {:?}",
+                                    IO_TIMEOUT
+                                ));
+                            }
+                        };
+
+                        // Graceful shutdown: give the notification task time to
+                        // drain pending messages instead of aborting immediately.
+                        drop(adapter); // drops the sender half → rx.recv() returns None
+                        let _ = tokio::time::timeout(SHUTDOWN_DRAIN_TIMEOUT, notification_task).await;
 
                         io_result.map_err(|error| anyhow::anyhow!("ACP transport error: {}", error))
                     })

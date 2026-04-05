@@ -3,6 +3,7 @@ use std::future::Future;
 use anyhow::Result;
 use forge_api::API;
 
+/// Abstraction over the ACP stdio transport entry point for testability.
 pub trait MachineStdioApi {
     fn acp_start_stdio(&self) -> impl Future<Output = Result<()>> + Send;
 }
@@ -13,6 +14,7 @@ impl<T: API + Sync> MachineStdioApi for T {
     }
 }
 
+/// Starts the ACP machine stdio server by delegating to the provided API.
 pub async fn run_machine_stdio_server<A: MachineStdioApi + ?Sized>(api: &A) -> Result<()> {
     api.acp_start_stdio().await
 }

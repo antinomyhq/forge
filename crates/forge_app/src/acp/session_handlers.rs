@@ -4,6 +4,7 @@ use forge_domain::{AgentId, Conversation, ConversationId, ModelId};
 use crate::{AgentRegistry, AppConfigService, ConversationService, Services};
 
 use super::adapter::{AcpAdapter, SessionState};
+use super::error;
 use super::state_builders::StateBuilders;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -29,10 +30,18 @@ impl<S: Services> AcpAdapter<S> {
             ))
     }
 
+    /// Handles ACP authentication.
+    ///
+    /// This is intentionally a no-op. The stdio transport inherits OS-level
+    /// process isolation: only the parent process (e.g. Acepe) that spawned
+    /// `forge machine stdio` can read/write the stdin/stdout pipes. No
+    /// network listener is opened, so no additional authentication is
+    /// required. See `AcpApp::start_stdio` for the full trust model.
     pub(super) async fn handle_authenticate(
         &self,
         _arguments: acp::AuthenticateRequest,
     ) -> std::result::Result<acp::AuthenticateResponse, acp::Error> {
+        tracing::debug!("ACP authenticate: no-op (stdio transport uses OS process isolation)");
         Ok(acp::AuthenticateResponse::default())
     }
 
@@ -43,7 +52,7 @@ impl<S: Services> AcpAdapter<S> {
         if !arguments.mcp_servers.is_empty() {
             StateBuilders::load_mcp_servers(self.services.as_ref(), &arguments.mcp_servers)
                 .await
-                .map_err(acp::Error::from)?;
+                .map_err(error::into_acp_error)?;
         }
 
         let active_agent_id = self
@@ -69,6 +78,7 @@ impl<S: Services> AcpAdapter<S> {
             SessionState {
                 conversation_id,
                 agent_id: active_agent_id.clone(),
+                model_id: None,
                 cancel_notify: None,
             },
         )
@@ -92,10 +102,10 @@ impl<S: Services> AcpAdapter<S> {
             &active_agent_id,
         )
         .await
-        .map_err(acp::Error::from)?;
+        .map_err(error::into_acp_error)?;
         let model_state = StateBuilders::build_session_model_state(&self.services, &agent)
             .await
-            .map_err(acp::Error::from)?;
+            .map_err(error::into_acp_error)?;
 
         Ok(acp::NewSessionResponse::new(session_id)
             .modes(mode_state)
@@ -109,7 +119,7 @@ impl<S: Services> AcpAdapter<S> {
         if !arguments.mcp_servers.is_empty() {
             StateBuilders::load_mcp_servers(self.services.as_ref(), &arguments.mcp_servers)
                 .await
-                .map_err(acp::Error::from)?;
+                .map_err(error::into_acp_error)?;
         }
 
         let session_key = arguments.session_id.0.as_ref().to_string();
@@ -150,10 +160,10 @@ impl<S: Services> AcpAdapter<S> {
             &state.agent_id,
         )
         .await
-        .map_err(acp::Error::from)?;
+        .map_err(error::into_acp_error)?;
         let model_state = StateBuilders::build_session_model_state(&self.services, &agent)
             .await
-            .map_err(acp::Error::from)?;
+            .map_err(error::into_acp_error)?;
 
         Ok(acp::LoadSessionResponse::new()
             .modes(mode_state)
@@ -182,7 +192,7 @@ impl<S: Services> AcpAdapter<S> {
 
         self.update_session_agent(&session_key, agent_id.clone())
             .await
-            .map_err(acp::Error::from)?;
+            .map_err(error::into_acp_error)?;
 
         let notification = acp::SessionNotification::new(
             arguments.session_id,
@@ -191,21 +201,36 @@ impl<S: Services> AcpAdapter<S> {
             )),
         );
         self.send_notification(notification)
-            .map_err(acp::Error::from)?;
+            .map_err(error::into_acp_error)?;
 
         Ok(acp::SetSessionModeResponse::new())
     }
 
+    /// Handles session model changes.
+    ///
+    /// The model preference is stored per-session so that concurrent ACP
+    /// clients do not interfere with each other. The global default model
+    /// is also updated for backward compatibility with non-ACP code paths.
     pub(super) async fn handle_set_session_model(
         &self,
         arguments: acp::SetSessionModelRequest,
     ) -> std::result::Result<acp::SetSessionModelResponse, acp::Error> {
+        let session_key = arguments.session_id.0.as_ref().to_string();
         let model_id = ModelId::new(arguments.model_id.0.to_string());
+
+        // Store per-session model preference.
+        self.update_session_model(&session_key, model_id.clone())
+            .await
+            .map_err(error::into_acp_error)?;
+
+        // Also update the global default for backward compatibility.
         self.services
             .set_default_model(model_id.clone())
             .await
             .map_err(|error| acp::Error::into_internal_error(&*error))?;
-        let _ = self.services.reload_agents().await;
+        if let Err(error) = self.services.reload_agents().await {
+            tracing::warn!("Failed to reload agents after model change: {}", error);
+        }
 
         let notification = acp::SessionNotification::new(
             arguments.session_id,

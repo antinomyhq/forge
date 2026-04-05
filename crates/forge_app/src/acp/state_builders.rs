@@ -12,6 +12,9 @@ use crate::{
 use super::conversion;
 use super::error::{Error, Result};
 
+/// Maximum allowed length for an MCP server name (prevents injection).
+const MAX_SERVER_NAME_LEN: usize = 128;
+
 pub(super) struct StateBuilders;
 
 impl StateBuilders {
@@ -109,6 +112,15 @@ impl StateBuilders {
         )
     }
 
+    /// Loads MCP server configurations provided by the ACP client.
+    ///
+    /// # Trust model
+    ///
+    /// The stdio transport inherits OS-level process isolation, so the
+    /// client is the parent process (Acepe). Server names are validated
+    /// to prevent injection. The configs are written to the local scope
+    /// only and do not persist across Forge restarts unless the caller
+    /// explicitly saves them.
     pub(super) async fn load_mcp_servers<S: Services + ?Sized>(
         services: &S,
         mcp_servers: &[acp::McpServer],
@@ -119,10 +131,23 @@ impl StateBuilders {
             .await
             .map_err(Error::Application)?;
 
-        for server in mcp_servers {
-            let (name, server_config) = Self::acp_to_mcp_server_config(server)?;
-            config.mcp_servers.insert(name, server_config);
-        }
+        let server_names: Vec<String> = mcp_servers
+            .iter()
+            .filter_map(|s| {
+                match Self::acp_to_mcp_server_config(s) {
+                    Ok((name, server_config)) => {
+                        config.mcp_servers.insert(name.clone(), server_config);
+                        Some(name.to_string())
+                    }
+                    Err(error) => {
+                        tracing::warn!("Skipping invalid MCP server config: {}", error);
+                        None
+                    }
+                }
+            })
+            .collect();
+
+        tracing::info!("Loading {} MCP servers from ACP client: {:?}", server_names.len(), server_names);
 
         services
             .mcp_config_manager()
@@ -136,6 +161,7 @@ impl StateBuilders {
     fn acp_to_mcp_server_config(server: &acp::McpServer) -> Result<(ServerName, McpServerConfig)> {
         match server {
             acp::McpServer::Stdio(stdio) => {
+                Self::validate_server_name(&stdio.name)?;
                 let env = stdio
                     .env
                     .iter()
@@ -146,35 +172,64 @@ impl StateBuilders {
                     McpServerConfig::new_stdio(stdio.command.to_string_lossy().to_string(), stdio.args.clone(), Some(env)),
                 ))
             }
-            acp::McpServer::Http(http) => Ok((
-                ServerName::from(http.name.clone()),
-                McpServerConfig::Http(McpHttpServer {
-                    url: http.url.clone(),
-                    headers: http
-                        .headers
-                        .iter()
-                        .map(|header| (header.name.clone(), header.value.clone()))
-                        .collect(),
-                    timeout: None,
-                    disable: false,
-                }),
-            )),
-            acp::McpServer::Sse(sse) => Ok((
-                ServerName::from(sse.name.clone()),
-                McpServerConfig::Http(McpHttpServer {
-                    url: sse.url.clone(),
-                    headers: sse
-                        .headers
-                        .iter()
-                        .map(|header| (header.name.clone(), header.value.clone()))
-                        .collect(),
-                    timeout: None,
-                    disable: false,
-                }),
-            )),
+            acp::McpServer::Http(http) => {
+                Self::validate_server_name(&http.name)?;
+                Ok((
+                    ServerName::from(http.name.clone()),
+                    McpServerConfig::Http(McpHttpServer {
+                        url: http.url.clone(),
+                        headers: http
+                            .headers
+                            .iter()
+                            .map(|header| (header.name.clone(), header.value.clone()))
+                            .collect(),
+                        timeout: None,
+                        disable: false,
+                    }),
+                ))
+            }
+            acp::McpServer::Sse(sse) => {
+                Self::validate_server_name(&sse.name)?;
+                Ok((
+                    ServerName::from(sse.name.clone()),
+                    McpServerConfig::Http(McpHttpServer {
+                        url: sse.url.clone(),
+                        headers: sse
+                            .headers
+                            .iter()
+                            .map(|header| (header.name.clone(), header.value.clone()))
+                            .collect(),
+                        timeout: None,
+                        disable: false,
+                    }),
+                ))
+            }
             _ => Err(Error::Application(anyhow::anyhow!(
                 "Unsupported MCP server type"
             ))),
         }
+    }
+
+    /// Validates that an MCP server name is safe to use as a config key.
+    fn validate_server_name(name: &str) -> Result<()> {
+        if name.is_empty() {
+            return Err(Error::Application(anyhow::anyhow!(
+                "MCP server name must not be empty"
+            )));
+        }
+        if name.len() > MAX_SERVER_NAME_LEN {
+            return Err(Error::Application(anyhow::anyhow!(
+                "MCP server name exceeds maximum length of {} characters",
+                MAX_SERVER_NAME_LEN
+            )));
+        }
+        // Only allow alphanumeric, hyphens, underscores, and dots.
+        if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+            return Err(Error::Application(anyhow::anyhow!(
+                "MCP server name '{}' contains invalid characters (allowed: alphanumeric, -, _, .)",
+                name
+            )));
+        }
+        Ok(())
     }
 }

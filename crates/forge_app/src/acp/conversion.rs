@@ -8,6 +8,16 @@ use forge_domain::{
 
 use super::error::{Error, Result};
 
+/// Maximum size in bytes for base64-encoded blob resources.
+/// Protects against OOM from oversized client payloads.
+const MAX_BLOB_SIZE: usize = 50 * 1024 * 1024; // 50 MB
+
+/// Maps a Forge tool name to an ACP ToolKind.
+///
+/// Native Forge tools are classified by exact match. MCP tools (prefixed
+/// with `mcp_`) use best-effort keyword heuristics and default to `Other`
+/// when the name is ambiguous. The heuristic is order-dependent: the first
+/// matching keyword category wins.
 pub(crate) fn map_tool_kind(tool_name: &ToolName) -> acp::ToolKind {
     match tool_name.as_str() {
         "read" => acp::ToolKind::Read,
@@ -17,62 +27,51 @@ pub(crate) fn map_tool_kind(tool_name: &ToolName) -> acp::ToolKind {
         "shell" => acp::ToolKind::Execute,
         "fetch" => acp::ToolKind::Fetch,
         "sage" => acp::ToolKind::Think,
-        _ => {
-            let name = tool_name.as_str();
-            if name.starts_with("mcp_") {
-                if name.contains("read")
-                    || name.contains("get")
-                    || name.contains("fetch")
-                    || name.contains("list")
-                    || name.contains("show")
-                    || name.contains("view")
-                    || name.contains("load")
-                {
-                    acp::ToolKind::Read
-                } else if name.contains("search")
-                    || name.contains("query")
-                    || name.contains("find")
-                    || name.contains("filter")
-                    || name.contains("lookup")
-                {
-                    acp::ToolKind::Search
-                } else if name.contains("write")
-                    || name.contains("update")
-                    || name.contains("create")
-                    || name.contains("set")
-                    || name.contains("add")
-                    || name.contains("insert")
-                    || name.contains("push")
-                    || name.contains("merge")
-                    || name.contains("fork")
-                    || name.contains("comment")
-                    || name.contains("assign")
-                    || name.contains("request")
-                {
-                    acp::ToolKind::Edit
-                } else if name.contains("delete")
-                    || name.contains("remove")
-                    || name.contains("drop")
-                    || name.contains("clear")
-                    || name.contains("close")
-                    || name.contains("cancel")
-                {
-                    acp::ToolKind::Delete
-                } else if name.contains("execute")
-                    || name.contains("run")
-                    || name.contains("start")
-                    || name.contains("invoke")
-                    || name.contains("call")
-                {
-                    acp::ToolKind::Execute
-                } else {
-                    acp::ToolKind::Other
-                }
-            } else {
-                acp::ToolKind::Other
-            }
+        _ => classify_mcp_tool(tool_name.as_str()),
+    }
+}
+
+/// Best-effort classification for MCP tools by keyword heuristic.
+///
+/// Falls back to `Other` for non-MCP tools or when no keyword matches.
+/// The match order matters: a tool named `mcp_get_search_results` would
+/// classify as `Read` (matches "get" before "search").
+fn classify_mcp_tool(name: &str) -> acp::ToolKind {
+    if !name.starts_with("mcp_") {
+        return acp::ToolKind::Other;
+    }
+
+    // Strip the "mcp_<server>_" prefix to get the action portion.
+    // E.g. "mcp_github_list_issues" → check against "list_issues".
+    let action = name
+        .strip_prefix("mcp_")
+        .and_then(|rest| rest.split_once('_').map(|(_, action)| action))
+        .unwrap_or(name);
+
+    const READ_KEYWORDS: &[&str] = &["read", "get", "fetch", "list", "show", "view", "load"];
+    const SEARCH_KEYWORDS: &[&str] = &["search", "query", "find", "filter", "lookup"];
+    const EDIT_KEYWORDS: &[&str] = &[
+        "write", "update", "create", "set", "add", "insert", "push", "merge",
+        "fork", "comment", "assign", "request",
+    ];
+    const DELETE_KEYWORDS: &[&str] = &["delete", "remove", "drop", "clear", "close", "cancel"];
+    const EXECUTE_KEYWORDS: &[&str] = &["execute", "run", "start", "invoke", "call"];
+
+    let checks: &[(&[&str], acp::ToolKind)] = &[
+        (READ_KEYWORDS, acp::ToolKind::Read),
+        (SEARCH_KEYWORDS, acp::ToolKind::Search),
+        (EDIT_KEYWORDS, acp::ToolKind::Edit),
+        (DELETE_KEYWORDS, acp::ToolKind::Delete),
+        (EXECUTE_KEYWORDS, acp::ToolKind::Execute),
+    ];
+
+    for (keywords, kind) in checks {
+        if keywords.iter().any(|kw| action.contains(kw)) {
+            return kind.clone();
         }
     }
+
+    acp::ToolKind::Other
 }
 
 pub(crate) fn extract_file_locations(
@@ -112,44 +111,33 @@ pub(crate) fn map_tool_call_to_acp(tool_call: &ToolCallFull) -> acp::ToolCall {
         )
 }
 
-pub(crate) struct ToolOutputConverter {
-    _private: (),
+/// Converts a ToolOutput into ACP content blocks.
+pub(crate) fn convert_tool_output(output: &ToolOutput) -> Vec<acp::ToolCallContent> {
+    output
+        .values
+        .iter()
+        .filter_map(convert_tool_value)
+        .collect()
 }
 
-impl ToolOutputConverter {
-    pub(crate) fn new(output: &ToolOutput) -> Self {
-        let _ = output;
-        Self { _private: () }
+fn convert_tool_value(value: &ToolValue) -> Option<acp::ToolCallContent> {
+    match value {
+        ToolValue::Text(text) => convert_text(text),
+        ToolValue::AI { value, .. } => convert_text(value),
+        ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
+            acp::ContentBlock::Image(acp::ImageContent::new(image.data(), image.mime_type())),
+        ))),
+        ToolValue::Empty => None,
     }
+}
 
-    pub(crate) fn convert(output: &ToolOutput) -> Vec<acp::ToolCallContent> {
-        let converter = Self::new(output);
-        output
-            .values
-            .iter()
-            .filter_map(|value| converter.convert_value(value))
-            .collect()
-    }
-
-    fn convert_value(&self, value: &ToolValue) -> Option<acp::ToolCallContent> {
-        match value {
-            ToolValue::Text(text) => self.convert_text(text),
-            ToolValue::AI { value, .. } => self.convert_text(value),
-            ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
-                acp::ContentBlock::Image(acp::ImageContent::new(image.data(), image.mime_type())),
-            ))),
-            ToolValue::Empty => None,
-        }
-    }
-
-    fn convert_text(&self, text: &str) -> Option<acp::ToolCallContent> {
-        if text.is_empty() {
-            None
-        } else {
-            Some(acp::ToolCallContent::Content(acp::Content::new(
-                acp::ContentBlock::Text(acp::TextContent::new(text.to_string())),
-            )))
-        }
+fn convert_text(text: &str) -> Option<acp::ToolCallContent> {
+    if text.is_empty() {
+        None
+    } else {
+        Some(acp::ToolCallContent::Content(acp::Content::new(
+            acp::ContentBlock::Text(acp::TextContent::new(text.to_string())),
+        )))
     }
 }
 
@@ -159,6 +147,12 @@ pub(crate) fn acp_resource_to_attachment(resource: &acp::EmbeddedResource) -> Re
             (text_resource.text.clone(), text_resource.uri.clone())
         }
         acp::EmbeddedResourceResource::BlobResourceContents(blob_resource) => {
+            if blob_resource.blob.len() > MAX_BLOB_SIZE {
+                return Err(Error::Application(anyhow::anyhow!(
+                    "Blob resource exceeds maximum size of {} bytes",
+                    MAX_BLOB_SIZE
+                )));
+            }
             let decoded = base64::Engine::decode(
                 &base64::engine::general_purpose::STANDARD,
                 &blob_resource.blob,
@@ -238,10 +232,18 @@ mod tests {
     }
 
     #[test]
+    fn test_uri_to_path_strips_file_prefix() {
+        let fixture = "file:///home/user/file.txt";
+        let actual = uri_to_path(fixture);
+        let expected = "/home/user/file.txt".to_string();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_markdown_sent_to_acp_not_xml() {
         let fixture = ToolOutput::text("## File: test.txt\n\nContent here");
 
-        let actual = ToolOutputConverter::convert(&fixture);
+        let actual = convert_tool_output(&fixture);
 
         assert_eq!(actual.len(), 1);
         if let Some(acp::ToolCallContent::Content(content)) = actual.first() {
@@ -259,7 +261,7 @@ mod tests {
     fn test_ai_output_sent_to_acp_as_text() {
         let fixture = ToolOutput::ai(ConversationId::generate(), "Agent result");
 
-        let actual = ToolOutputConverter::convert(&fixture);
+        let actual = convert_tool_output(&fixture);
 
         assert_eq!(actual.len(), 1);
         if let Some(acp::ToolCallContent::Content(content)) = actual.first() {
@@ -278,7 +280,7 @@ mod tests {
         let image = Image::new_bytes(vec![1, 2, 3, 4], "image/png".to_string());
         let fixture = ToolOutput::image(image);
 
-        let actual = ToolOutputConverter::convert(&fixture);
+        let actual = convert_tool_output(&fixture);
 
         assert_eq!(actual.len(), 1);
         if let Some(acp::ToolCallContent::Content(content)) = actual.first() {
@@ -286,5 +288,65 @@ mod tests {
         } else {
             panic!("Expected content");
         }
+    }
+
+    #[test]
+    fn test_empty_output_produces_no_content() {
+        let fixture = ToolOutput::text("");
+        let actual = convert_tool_output(&fixture);
+        let expected: Vec<acp::ToolCallContent> = vec![];
+        assert_eq!(actual.len(), expected.len());
+    }
+
+    #[test]
+    fn test_map_tool_kind_native_tools() {
+        let fixture = ToolName::new("read");
+        let actual = map_tool_kind(&fixture);
+        assert!(matches!(actual, acp::ToolKind::Read));
+    }
+
+    #[test]
+    fn test_map_tool_kind_mcp_read() {
+        let fixture = ToolName::new("mcp_github_list_issues");
+        let actual = map_tool_kind(&fixture);
+        assert!(matches!(actual, acp::ToolKind::Read));
+    }
+
+    #[test]
+    fn test_map_tool_kind_mcp_search() {
+        let fixture = ToolName::new("mcp_db_search_records");
+        let actual = map_tool_kind(&fixture);
+        assert!(matches!(actual, acp::ToolKind::Search));
+    }
+
+    #[test]
+    fn test_map_tool_kind_unknown_defaults_to_other() {
+        let fixture = ToolName::new("mcp_custom_foobar");
+        let actual = map_tool_kind(&fixture);
+        assert!(matches!(actual, acp::ToolKind::Other));
+    }
+
+    #[test]
+    fn test_map_tool_kind_non_mcp_unknown() {
+        let fixture = ToolName::new("custom_tool");
+        let actual = map_tool_kind(&fixture);
+        assert!(matches!(actual, acp::ToolKind::Other));
+    }
+
+    #[test]
+    fn test_extract_file_locations_read_tool() {
+        let fixture_name = ToolName::new("read");
+        let fixture_args = serde_json::json!({"file_path": "/tmp/test.rs"});
+        let actual = extract_file_locations(&fixture_name, &fixture_args);
+        assert_eq!(actual.len(), 1);
+    }
+
+    #[test]
+    fn test_extract_file_locations_unknown_tool() {
+        let fixture_name = ToolName::new("shell");
+        let fixture_args = serde_json::json!({"command": "ls"});
+        let actual = extract_file_locations(&fixture_name, &fixture_args);
+        let expected: Vec<acp::ToolCallLocation> = vec![];
+        assert_eq!(actual.len(), expected.len());
     }
 }

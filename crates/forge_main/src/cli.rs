@@ -213,6 +213,7 @@ pub struct MachineCommandGroup {
     pub command: MachineCommand,
 }
 
+/// Machine-oriented subcommands for non-interactive transport protocols.
 #[derive(Subcommand, Debug, Clone)]
 pub enum MachineCommand {
     /// Run the machine interface over stdio.

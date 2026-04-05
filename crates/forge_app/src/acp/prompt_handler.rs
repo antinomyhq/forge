@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use agent_client_protocol as acp;
 use agent_client_protocol::Client;
@@ -12,7 +13,7 @@ use crate::{ForgeApp, Services};
 
 use super::adapter::AcpAdapter;
 use super::conversion;
-use super::error::{Error, Result};
+use super::error::{self, Error, Result};
 
 impl<S: Services> AcpAdapter<S> {
     pub(super) async fn handle_prompt(
@@ -20,7 +21,7 @@ impl<S: Services> AcpAdapter<S> {
         arguments: acp::PromptRequest,
     ) -> std::result::Result<acp::PromptResponse, acp::Error> {
         let session_key = arguments.session_id.0.as_ref().to_string();
-        let session = self.session_state(&session_key).await.map_err(acp::Error::from)?;
+        let session = self.session_state(&session_key).await.map_err(error::into_acp_error)?;
 
         let mut prompt_text_parts = Vec::new();
         let mut attachments = Vec::new();
@@ -48,12 +49,21 @@ impl<S: Services> AcpAdapter<S> {
 
         let prompt_text = prompt_text_parts.join("\n");
         let cancel_notify = Arc::new(Notify::new());
+        let cancelled = Arc::new(AtomicBool::new(false));
         self.set_cancel_notify(&session_key, Some(cancel_notify.clone()))
             .await
-            .map_err(acp::Error::from)?;
+            .map_err(error::into_acp_error)?;
 
         let response = self
-            .run_prompt_loop(&arguments.session_id, &session_key, session, prompt_text, attachments, cancel_notify)
+            .run_prompt_loop(
+                &arguments.session_id,
+                &session_key,
+                session,
+                prompt_text,
+                attachments,
+                cancel_notify,
+                cancelled,
+            )
             .await;
 
         let _ = self.set_cancel_notify(&session_key, None).await;
@@ -68,12 +78,21 @@ impl<S: Services> AcpAdapter<S> {
         prompt_text: String,
         attachments: Vec<forge_domain::Attachment>,
         cancel_notify: Arc<Notify>,
+        cancelled: Arc<AtomicBool>,
     ) -> std::result::Result<acp::PromptResponse, acp::Error> {
         let mut event = Event::new(EventValue::text(prompt_text));
         event.attachments = attachments;
 
         let mut chat_request = ChatRequest::new(event, session.conversation_id);
         loop {
+            // Check if cancellation was requested before starting a new
+            // chat round (handles the case where cancel arrives between
+            // loop iterations).
+            if cancelled.load(Ordering::SeqCst) {
+                tracing::info!("ACP prompt cancelled for session {}", session_key);
+                return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
+            }
+
             let app = ForgeApp::new(self.services.clone());
             let mut stream = app
                 .chat(session.agent_id.clone(), chat_request)
@@ -85,6 +104,7 @@ impl<S: Services> AcpAdapter<S> {
             loop {
                 tokio::select! {
                     _ = cancel_notify.notified() => {
+                        cancelled.store(true, Ordering::SeqCst);
                         tracing::info!("ACP prompt cancelled for session {}", session_key);
                         return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
                     }
@@ -135,7 +155,7 @@ impl<S: Services> AcpAdapter<S> {
                         )),
                     );
                     self.send_notification(notification)
-                        .map_err(acp::Error::from)?;
+                        .map_err(error::into_acp_error)?;
                 }
             }
             ChatResponse::ToolCallStart { tool_call, .. } => {
@@ -146,10 +166,10 @@ impl<S: Services> AcpAdapter<S> {
                     ),
                 );
                 self.send_notification(notification)
-                    .map_err(acp::Error::from)?;
+                    .map_err(error::into_acp_error)?;
             }
             ChatResponse::ToolCallEnd(tool_result) => {
-                let content = conversion::ToolOutputConverter::convert(&tool_result.output);
+                let content = conversion::convert_tool_output(&tool_result.output);
                 let status = if tool_result.output.is_error {
                     acp::ToolCallStatus::Failed
                 } else {
@@ -169,7 +189,7 @@ impl<S: Services> AcpAdapter<S> {
                     acp::SessionUpdate::ToolCallUpdate(update),
                 );
                 self.send_notification(notification)
-                    .map_err(acp::Error::from)?;
+                    .map_err(error::into_acp_error)?;
             }
             ChatResponse::TaskComplete => {}
             ChatResponse::RetryAttempt { .. } => {}
@@ -177,7 +197,7 @@ impl<S: Services> AcpAdapter<S> {
                 let should_continue = self
                     .request_continue_permission(session_id, &reason)
                     .await
-                    .map_err(acp::Error::from)?;
+                    .map_err(error::into_acp_error)?;
                 if should_continue {
                     *continue_after_interrupt = true;
                 }
@@ -203,7 +223,7 @@ impl<S: Services> AcpAdapter<S> {
                         )),
                     );
                     self.send_notification(notification)
-                        .map_err(acp::Error::from)?;
+                        .map_err(error::into_acp_error)?;
                 }
             }
             ChatResponseContent::ToolInput(_) => {}
