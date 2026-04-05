@@ -132,7 +132,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Detect and render externally changed files notification
         let conversation = ChangedFiles::new(services.clone(), agent.clone())
-            .update_file_stats(conversation)
+            .update_file_stats(conversation, forge_config.max_parallel_file_reads)
             .await;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);

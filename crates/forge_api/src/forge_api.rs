@@ -6,7 +6,7 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ConfigReaderInfra, ConversationService, DataGenerationApp,
+    CommandLoaderService, ConversationService, DataGenerationApp,
     EnvironmentInfra, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
     McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
@@ -49,9 +49,9 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     /// * `config` - Pre-read application configuration (from startup)
     /// * `services_url` - Pre-validated URL for the gRPC workspace server
     pub fn init(cwd: PathBuf, config: ForgeConfig, services_url: Url) -> Self {
-        let infra = Arc::new(ForgeInfra::new(cwd, config, services_url));
-        let repo = Arc::new(ForgeRepo::new(infra.clone()));
-        let app = Arc::new(ForgeServices::new(repo.clone()));
+        let infra = Arc::new(ForgeInfra::new(cwd, config.clone(), services_url));
+        let repo = Arc::new(ForgeRepo::new(infra.clone(), config.clone()));
+        let app = Arc::new(ForgeServices::new(repo.clone(), config));
         ForgeAPI::new(app, repo)
     }
 
@@ -62,7 +62,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + ConfigReaderInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
+impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
     for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -155,7 +155,7 @@ impl<A: Services, F: CommandInfra + ConfigReaderInfra + EnvironmentInfra + Skill
     }
 
     fn get_config(&self) -> ForgeConfig {
-        self.infra.get_config()
+        self.services.get_config()
     }
 
     async fn conversation(

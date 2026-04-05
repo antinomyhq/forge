@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_config::ForgeConfig;
 use forge_domain::{
     AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
     OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
@@ -40,19 +39,6 @@ pub trait EnvironmentInfra: Send + Sync {
         &self,
         ops: Vec<ConfigOperation>,
     ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;
-}
-
-/// Trait for reading the current [`ForgeConfig`] from an in-memory cache.
-///
-/// Separated from [`EnvironmentInfra`] so that consumers that only need to
-/// read configuration values do not need access to the full environment
-/// infrastructure. The cache is pre-seeded at application startup and is
-/// refreshed after every [`EnvironmentInfra::update_environment`] call.
-pub trait ConfigReaderInfra: Send + Sync {
-    /// Returns the full [`ForgeConfig`] for the current session.
-    ///
-    /// Reads from the in-memory cache; does not perform disk I/O on every call.
-    fn get_config(&self) -> ForgeConfig;
 }
 
 /// Repository for accessing system environment information

@@ -3,12 +3,15 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Image;
-use forge_app::{ConfigReaderInfra, EnvironmentInfra, FileInfoInfra, ImageReadService};
+use forge_app::{EnvironmentInfra, FileInfoInfra, ImageReadService};
 use strum_macros::{Display, EnumString};
 
 use crate::utils::assert_absolute_path;
 
-pub struct ForgeImageRead<F>(Arc<F>);
+pub struct ForgeImageRead<F> {
+    infra: Arc<F>,
+    max_image_size_bytes: u64,
+}
 
 /// Supported image formats for binary file reading
 #[derive(Debug, Clone, Copy, EnumString, Display)]
@@ -39,25 +42,24 @@ impl ImageFormat {
 }
 
 impl<F> ForgeImageRead<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self(infra)
+    pub fn new(infra: Arc<F>, max_image_size_bytes: u64) -> Self {
+        Self { infra, max_image_size_bytes }
     }
 }
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + ConfigReaderInfra + forge_app::FileReaderInfra> ImageReadService
+impl<F: FileInfoInfra + EnvironmentInfra + forge_app::FileReaderInfra> ImageReadService
     for ForgeImageRead<F>
 {
     async fn read_image(&self, path: String) -> anyhow::Result<Image> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
-        let config = self.0.get_config();
 
         // Validate file size before reading content using image-specific file size
         // limit
         crate::tool_services::fs_read::assert_file_size(
-            &*self.0,
+            &*self.infra,
             path,
-            config.max_image_size_bytes,
+            self.max_image_size_bytes,
         )
         .await
         .with_context(
@@ -82,7 +84,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + ConfigReaderInfra + forge_app::FileRe
 
         // Read the binary content
         let content = self
-            .0
+            .infra
             .read(path)
             .await
             .with_context(|| format!("Failed to read binary file from {}", path.display()))?;

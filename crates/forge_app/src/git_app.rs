@@ -6,9 +6,10 @@ use forge_domain::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, ConfigReaderInfra, EnvironmentInfra,
-    ProviderAuthService, ProviderService, ShellService, TemplateService,
+use crate::{AgentProviderResolver, Services};
+use crate::services::{
+    AgentRegistry, AppConfigService, ProviderAuthService, ProviderService, ShellService,
+    TemplateService,
 };
 
 /// Errors specific to GitApp operations
@@ -92,16 +93,7 @@ impl<S> GitApp<S> {
     }
 }
 
-impl<S> GitApp<S>
-where
-    S: EnvironmentInfra
-        + ConfigReaderInfra
-        + ShellService
-        + AgentRegistry
-        + TemplateService
-        + ProviderService
-        + AppConfigService
-        + ProviderAuthService,
+impl<S: Services> GitApp<S>
 {
     /// Generates a commit message without committing
     ///

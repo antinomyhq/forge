@@ -160,15 +160,6 @@ mod tests {
         }
     }
 
-    impl crate::ConfigReaderInfra for MockServices {
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-    }
-
     #[async_trait::async_trait]
     impl FileDiscoveryService for MockServices {
         async fn collect_files(&self, _walker: Walker) -> Result<Vec<File>> {

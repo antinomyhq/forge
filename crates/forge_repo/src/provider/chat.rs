@@ -3,7 +3,7 @@ use std::sync::Arc;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderResponse, ResultStream,
 };
-use forge_app::{ConfigReaderInfra, EnvironmentInfra, HttpInfra};
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use forge_infra::CacacheStorage;
 use tokio::task::AbortHandle;
@@ -24,16 +24,17 @@ pub struct ForgeChatRepository<F> {
     bg_refresh: BgRefresh,
 }
 
-impl<F: EnvironmentInfra + ConfigReaderInfra + HttpInfra> ForgeChatRepository<F> {
+impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
     /// Creates a new ForgeChatRepository with the given infrastructure.
     ///
     /// # Arguments
     ///
     /// * `infra` - Infrastructure providing environment and HTTP capabilities
-    pub fn new(infra: Arc<F>) -> Self {
+    /// * `retry_config` - Retry configuration extracted from startup config
+    /// * `model_cache_ttl_secs` - Model cache TTL in seconds from startup config
+    pub fn new(infra: Arc<F>, retry_config: forge_config::RetryConfig, model_cache_ttl_secs: u64) -> Self {
         let env = infra.get_environment();
-        let config = infra.get_config();
-        let retry_config = Arc::new(config.retry.clone().unwrap_or_default());
+        let retry_config = Arc::new(retry_config);
 
         let openai_repo =
             OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
@@ -49,7 +50,7 @@ impl<F: EnvironmentInfra + ConfigReaderInfra + HttpInfra> ForgeChatRepository<F>
 
         let model_cache = Arc::new(CacacheStorage::new(
             env.cache_dir().join("model_cache"),
-            Some(config.model_cache_ttl_secs as u128),
+            Some(model_cache_ttl_secs as u128),
         ));
 
         Self {
@@ -68,7 +69,7 @@ impl<F: EnvironmentInfra + ConfigReaderInfra + HttpInfra> ForgeChatRepository<F>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + ConfigReaderInfra + HttpInfra + Sync> ChatRepository for ForgeChatRepository<F> {
+impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatRepository<F> {
     async fn chat(
         &self,
         model_id: &ModelId,

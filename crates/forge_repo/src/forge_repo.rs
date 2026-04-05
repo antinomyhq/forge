@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    AgentRepository, CommandInfra, ConfigReaderInfra, DirectoryReaderInfra, EnvironmentInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     GrpcInfra, HttpInfra, KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker,
     WalkerInfra,
@@ -54,13 +54,12 @@ pub struct ForgeRepo<F> {
 
 impl<
     F: EnvironmentInfra
-        + ConfigReaderInfra
         + FileReaderInfra
         + FileWriterInfra
         + GrpcInfra
         + HttpInfra,
 > ForgeRepo<F> {
-    pub fn new(infra: Arc<F>) -> Self {
+    pub fn new(infra: Arc<F>, config: forge_config::ForgeConfig) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -75,8 +74,15 @@ impl<
             Some(3600),
         )); // 1 hour TTL
 
-        let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
-        let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
+        let provider_repository = Arc::new(ForgeProviderRepository::new(
+            infra.clone(),
+            config.providers,
+        ));
+        let chat_repository = Arc::new(ForgeChatRepository::new(
+            infra.clone(),
+            config.retry.unwrap_or_default(),
+            config.model_cache_ttl_secs,
+        ));
 
         let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
@@ -148,7 +154,7 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + ConfigReaderInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
     ChatRepository for ForgeRepo<F>
 {
     async fn chat(
@@ -168,7 +174,6 @@ impl<F: EnvironmentInfra + ConfigReaderInfra + FileReaderInfra + FileWriterInfra
 #[async_trait::async_trait]
 impl<
     F: EnvironmentInfra
-        + ConfigReaderInfra
         + FileReaderInfra
         + FileWriterInfra
         + HttpInfra
@@ -224,12 +229,6 @@ impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
 
     fn get_env_vars(&self) -> BTreeMap<String, String> {
         self.infra.get_env_vars()
-    }
-}
-
-impl<F: ConfigReaderInfra + Send + Sync> ConfigReaderInfra for ForgeRepo<F> {
-    fn get_config(&self) -> forge_config::ForgeConfig {
-        self.infra.get_config()
     }
 }
 

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, ConfigReaderInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
     FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
     McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
 };
@@ -101,9 +101,15 @@ impl ForgeInfra {
     }
 }
 
-impl ConfigReaderInfra for ForgeInfra {
-    fn get_config(&self) -> forge_config::ForgeConfig {
-        self.config_infra.get_config()
+impl ForgeInfra {
+    /// Returns the current application configuration, re-reading from disk if
+    /// the cache was invalidated by a prior `update_environment` call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the disk read fails.
+    pub fn config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+        self.config_infra.cached_config()
     }
 }
 

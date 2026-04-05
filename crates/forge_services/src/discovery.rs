@@ -110,15 +110,6 @@ mod tests {
         }
     }
 
-    impl forge_app::ConfigReaderInfra for MockInfra {
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-    }
-
     #[async_trait::async_trait]
     impl WalkerInfra for MockInfra {
         async fn walk(&self, _config: Walker) -> Result<Vec<WalkedFile>> {

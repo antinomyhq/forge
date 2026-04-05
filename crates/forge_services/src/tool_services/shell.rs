@@ -131,15 +131,6 @@ mod tests {
         }
     }
 
-    impl forge_app::ConfigReaderInfra for MockCommandInfra {
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-    }
-
     #[tokio::test]
     async fn test_shell_service_forwards_env_vars() {
         let fixture = ForgeShell::new(Arc::new(MockCommandInfra {

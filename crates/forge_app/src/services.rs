@@ -16,7 +16,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::user::{User, UserUsage};
-use crate::{ConfigReaderInfra, EnvironmentInfra, Walker};
+use crate::{EnvironmentInfra, Walker};
 
 #[derive(Debug, Clone)]
 pub struct ShellOutput {
@@ -548,7 +548,7 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra + ConfigReaderInfra {
+pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
@@ -604,6 +604,12 @@ pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra + ConfigRea
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
     fn workspace_service(&self) -> &Self::WorkspaceService;
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
+
+    /// Returns the current application configuration snapshot.
+    ///
+    /// Config is read once at startup and passed via constructor. Values are
+    /// not re-read from disk dynamically.
+    fn get_config(&self) -> forge_config::ForgeConfig;
 }
 
 #[async_trait::async_trait]

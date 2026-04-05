@@ -5,7 +5,7 @@ use forge_app::domain::{
 };
 use forge_app::utils::format_display_path;
 use forge_app::{
-    AttachmentService, ConfigReaderInfra, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra,
+    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra,
     FileReaderInfra,
 };
 
@@ -14,13 +14,14 @@ use crate::range::resolve_range;
 #[derive(Clone)]
 pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
+    max_read_lines: u64,
 }
 
-impl<F: FileReaderInfra + EnvironmentInfra + ConfigReaderInfra + FileInfoInfra + DirectoryReaderInfra>
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
     ForgeChatRequest<F>
 {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { infra }
+    pub fn new(infra: Arc<F>, max_read_lines: u64) -> Self {
+        Self { infra, max_read_lines }
     }
 
     async fn prepare_attachments(&self, paths: Vec<FileTag>) -> anyhow::Result<Vec<Attachment>> {
@@ -83,11 +84,9 @@ impl<F: FileReaderInfra + EnvironmentInfra + ConfigReaderInfra + FileInfoInfra +
                 AttachmentContent::Image(Image::new_bytes(self.infra.read(&path).await?, mime_type))
             }
             None => {
-                let config = self.infra.get_config();
-
                 let start = tag.loc.as_ref().and_then(|loc| loc.start);
                 let end = tag.loc.as_ref().and_then(|loc| loc.end);
-                let (start_line, end_line) = resolve_range(start, end, config.max_read_lines);
+                let (start_line, end_line) = resolve_range(start, end, self.max_read_lines);
 
                 // range_read_utf8 returns the range content and FileInfo which
                 // carries a content_hash of the **full** file. Using the
@@ -115,7 +114,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + ConfigReaderInfra + FileInfoInfra +
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra + ConfigReaderInfra + FileInfoInfra + DirectoryReaderInfra>
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
     AttachmentService for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
@@ -164,15 +163,6 @@ pub mod tests {
 
         async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
-        }
-    }
-
-    impl forge_app::ConfigReaderInfra for MockEnvironmentInfra {
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
         }
     }
 
@@ -509,12 +499,6 @@ pub mod tests {
         }
     }
 
-    impl forge_app::ConfigReaderInfra for MockCompositeService {
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            self.env_service.get_config()
-        }
-    }
-
     #[async_trait::async_trait]
     impl FileInfoInfra for MockCompositeService {
         async fn is_binary(&self, path: &Path) -> anyhow::Result<bool> {
@@ -558,7 +542,7 @@ pub mod tests {
     async fn test_add_url_with_text_file() {
         // Setup
         let infra = Arc::new(MockCompositeService::new());
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with a text file path in chat message
         let url = "@[/test/file1.txt]".to_string();
@@ -580,7 +564,7 @@ pub mod tests {
     async fn test_add_url_with_image() {
         // Setup
         let infra = Arc::new(MockCompositeService::new());
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with an image file
         let url = "@[/test/image.png]".to_string();
@@ -607,7 +591,7 @@ pub mod tests {
     async fn test_add_url_with_jpg_image_with_spaces() {
         // Setup
         let infra = Arc::new(MockCompositeService::new());
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with an image file that has spaces in the path
         let url = "@[/test/image with spaces.jpg]".to_string();
@@ -640,7 +624,7 @@ pub mod tests {
             "This is another text file".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with multiple files mentioned
         let url = "@[/test/file1.txt] @[/test/file2.txt] @[/test/image.png]".to_string();
@@ -674,7 +658,7 @@ pub mod tests {
     async fn test_add_url_with_nonexistent_file() {
         // Setup
         let infra = Arc::new(MockCompositeService::new());
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with a file that doesn't exist
         let url = "@[/test/nonexistent.txt]".to_string();
@@ -691,7 +675,7 @@ pub mod tests {
     async fn test_add_url_empty() {
         // Setup
         let infra = Arc::new(MockCompositeService::new());
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with an empty message
         let url = "".to_string();
@@ -714,7 +698,7 @@ pub mod tests {
             "Some content".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with the file
         let url = "@[/test/unknown.xyz]".to_string();
@@ -742,7 +726,7 @@ pub mod tests {
             "Line 1\nLine 2\nLine 3\nLine 4\nLine 5".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
         let url = "@[/test/multiline.txt]".to_string();
 
         // Execute
@@ -784,7 +768,7 @@ pub mod tests {
             "Line 1\nLine 2\nLine 3\nLine 4\nLine 5".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test reading line 2 only
         let url = "@[/test/multiline.txt:2:2]";
@@ -815,7 +799,7 @@ pub mod tests {
             "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test reading lines 2-4
         let url = "@[/test/range_test.txt:2:4]";
@@ -846,7 +830,7 @@ pub mod tests {
             "First\nSecond\nThird\nFourth".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test reading from start to line 2
         let url = "@[/test/start_range.txt:1:2]";
@@ -869,7 +853,7 @@ pub mod tests {
             "Alpha\nBeta\nGamma\nDelta\nEpsilon".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test reading from line 3 to end
         let url = "@[/test/end_range.txt:3:5]";
@@ -892,7 +876,7 @@ pub mod tests {
             "Only line".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test reading beyond file length
         let url = "@[/test/edge_case.txt:1:10]";
@@ -916,7 +900,7 @@ pub mod tests {
             "B1\nB2\nB3\nB4".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test multiple files with different ranges
         let url = "Check @[/test/file_a.txt:1:2] and @[/test/file_b.txt:3:4]";
@@ -948,7 +932,7 @@ pub mod tests {
             "Meta1\nMeta2\nMeta3\nMeta4\nMeta5\nMeta6\nMeta7".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test that metadata is preserved correctly with ranges
         let url = "@[/test/metadata_test.txt:3:5]";
@@ -979,7 +963,7 @@ pub mod tests {
             "Full1\nFull2\nFull3\nFull4\nFull5".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // All reads of the same file (full or ranged) should produce the same
         // content_hash, so the external-change detector can correctly identify
@@ -1040,7 +1024,7 @@ pub mod tests {
             .file_service
             .add_dir(PathBuf::from("/test/mydir/subdir"));
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with directory path
         let url = "@[/test/mydir]";
@@ -1081,7 +1065,7 @@ pub mod tests {
         // Add empty directory
         infra.file_service.add_dir(PathBuf::from("/test/emptydir"));
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with empty directory path
         let url = "@[/test/emptydir]";
@@ -1119,7 +1103,7 @@ pub mod tests {
             "Standalone file".to_string(),
         );
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
 
         // Test with both file and directory
         let url = "@[/test/mixdir] @[/test/standalone.txt]";
@@ -1182,7 +1166,7 @@ pub mod tests {
             .file_service
             .add_dir(PathBuf::from("/test/sortdir/berry_dir"));
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
         let url = "@[/test/sortdir]";
         let attachments = chat_request.attachments(url).await.unwrap();
 
@@ -1234,7 +1218,7 @@ pub mod tests {
             .file_service
             .add_dir(PathBuf::from("/test/onlydirs/middle_dir"));
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
         let url = "@[/test/onlydirs]";
         let attachments = chat_request.attachments(url).await.unwrap();
 
@@ -1266,7 +1250,7 @@ pub mod tests {
         infra.add_file(PathBuf::from("/test/onlyfiles/alpha.txt"), "A".to_string());
         infra.add_file(PathBuf::from("/test/onlyfiles/middle.txt"), "M".to_string());
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
         let url = "@[/test/onlyfiles]";
         let attachments = chat_request.attachments(url).await.unwrap();
 
@@ -1303,7 +1287,7 @@ pub mod tests {
         infra.add_file(PathBuf::from("/test/casetest/Zebra.txt"), "Z".to_string());
         infra.add_file(PathBuf::from("/test/casetest/apple.txt"), "A".to_string());
 
-        let chat_request = ForgeChatRequest::new(infra.clone());
+        let chat_request = ForgeChatRequest::new(infra.clone(), 2000);
         let url = "@[/test/casetest]";
         let attachments = chat_request.attachments(url).await.unwrap();
 

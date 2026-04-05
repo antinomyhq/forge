@@ -93,9 +93,7 @@ async fn main() -> Result<()> {
 
     // Read and validate configuration at startup so any errors are surfaced
     // immediately rather than silently falling back to defaults at runtime.
-    let config = ForgeConfig::read().context(
-        "Failed to read Forge configuration. Please check your ~/.forge/.forge.toml file.",
-    )?;
+    let config = ForgeConfig::read().context("Failed to read Forge configuration from .forge.toml")?;
 
     // Pre-validate services_url so a malformed URL produces a clear error
     // message at startup instead of panicking inside the constructor.

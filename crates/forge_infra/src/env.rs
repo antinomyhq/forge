@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::{ConfigReaderInfra, EnvironmentInfra};
+use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{ConfigOperation, Environment};
 use tracing::debug;
@@ -115,7 +115,7 @@ impl ForgeEnvironmentInfra {
     /// # Errors
     ///
     /// Returns an error if the cache is empty and the disk read fails.
-    fn cached_config(&self) -> anyhow::Result<ForgeConfig> {
+    pub fn cached_config(&self) -> anyhow::Result<ForgeConfig> {
         let mut cache = self.cache.lock().expect("cache mutex poisoned");
         if let Some(ref config) = *cache {
             Ok(config.clone())
@@ -166,13 +166,6 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         *self.cache.lock().expect("cache mutex poisoned") = None;
 
         Ok(())
-    }
-}
-
-impl ConfigReaderInfra for ForgeEnvironmentInfra {
-    fn get_config(&self) -> ForgeConfig {
-        self.cached_config()
-            .expect("ForgeConfig cache read failed after update_environment")
     }
 }
 
