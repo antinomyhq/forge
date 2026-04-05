@@ -171,6 +171,44 @@ mod tests {
     }
 
     #[test]
+    fn test_legacy_layer_does_not_overwrite_defaults() {
+        // Simulate what `read_legacy` does: serialize a ForgeConfig that only
+        // carries session/commit/suggest (all other fields are None) and layer
+        // it on top of the embedded defaults. The default values must survive.
+        let legacy = ForgeConfig {
+            session: Some(ModelConfig {
+                provider_id: Some("anthropic".to_string()),
+                model_id: Some("claude-3".to_string()),
+            }),
+            ..Default::default()
+        };
+        let legacy_toml = toml_edit::ser::to_string_pretty(&legacy).unwrap();
+
+        let actual = ConfigReader::default()
+            // Read legacy first and then defaults
+            .read_toml(&legacy_toml)
+            .read_defaults()
+            .build()
+            .unwrap();
+
+        // Session should come from the legacy layer
+        assert_eq!(
+            actual.session,
+            Some(ModelConfig {
+                provider_id: Some("anthropic".to_string()),
+                model_id: Some("claude-3".to_string()),
+            })
+        );
+
+        // Default values from .forge.toml must be retained, not reset to zero
+        assert_eq!(actual.max_parallel_file_reads, 64);
+        assert_eq!(actual.max_read_lines, 2000);
+        assert_eq!(actual.tool_timeout_secs, 300);
+        assert_eq!(actual.max_search_lines, 1000);
+        assert_eq!(actual.tool_supported, true);
+    }
+
+    #[test]
     fn test_read_session_from_env_vars() {
         let _guard = EnvGuard::set(&[
             ("FORGE_SESSION__PROVIDER_ID", "fake-provider"),

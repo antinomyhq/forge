@@ -5,8 +5,8 @@ use anyhow::Context;
 use console::style;
 use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
-    Model, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind,
-    ToolName, ToolOutput, ToolResult,
+    Model, SystemContext, TemplateConfig, ToolCallContext, ToolCallFull, ToolCatalog,
+    ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -40,7 +40,7 @@ impl<S: Services> ToolRegistry<S> {
             tool_executor: ToolExecutor::new(services.clone()),
             agent_executor: AgentExecutor::new(services.clone()),
             mcp_executor: McpExecutor::new(services.clone()),
-            tool_timeout: Duration::from_secs(services.get_environment().tool_timeout),
+            tool_timeout: Duration::from_secs(services.get_config().tool_timeout_secs),
         }
     }
 
@@ -135,7 +135,8 @@ impl<S: Services> ToolRegistry<S> {
 
             // Check permissions before executing the tool (only in restricted mode)
             // This is done BEFORE the timeout to ensure permissions are never timed out
-            if env.is_restricted && self.check_tool_permission(&tool_input, context).await? {
+            let is_restricted = self.services.get_config().restricted;
+            if is_restricted && self.check_tool_permission(&tool_input, context).await? {
                 // Send formatted output message for policy denial
                 context
                     .send(forge_domain::TitleFormat::error("Permission Denied"))
@@ -242,9 +243,6 @@ impl<S: Services> ToolRegistry<S> {
         // Get agents for template rendering in Task tool description
         let agents = self.services.get_agents().await?;
 
-        // Get current agent ID to filter it out from Task tool agent list
-        let current_agent_id = self.services.get_active_agent_id().await.ok().flatten();
-
         // Check if current working directory is indexed
         let environment = self.services.get_environment();
         let cwd = environment.cwd.clone();
@@ -254,13 +252,24 @@ impl<S: Services> ToolRegistry<S> {
         // Get current model for dynamic tool descriptions
         let model = self.get_current_model().await;
 
+        // Build TemplateConfig from ForgeConfig for tool description templates
+        let config = self.services.get_config();
+        let template_config = TemplateConfig {
+            max_read_size: config.max_read_lines as usize,
+            max_line_length: config.max_line_chars,
+            max_image_size: config.max_image_size_bytes as usize,
+            stdout_max_prefix_length: config.max_stdout_prefix_lines,
+            stdout_max_suffix_length: config.max_stdout_suffix_lines,
+            stdout_max_line_length: config.max_stdout_line_chars,
+        };
+
         Ok(ToolsOverview::new()
             .system(Self::get_system_tools(
                 is_indexed && is_authenticated,
                 &environment,
                 model,
                 agents,
-                current_agent_id.as_ref(),
+                &template_config,
             ))
             .agents(agent_tools)
             .mcp(mcp_tools))
@@ -273,7 +282,7 @@ impl<S> ToolRegistry<S> {
         env: &Environment,
         model: Option<Model>,
         agents: Vec<forge_domain::Agent>,
-        current_agent_id: Option<&AgentId>,
+        template_config: &TemplateConfig,
     ) -> Vec<ToolDefinition> {
         use crate::TemplateEngine;
 
@@ -295,22 +304,13 @@ impl<S> ToolRegistry<S> {
             })
             .collect();
 
-        // Filter out current agent to prevent self-delegation
-        let filtered_agents = if let Some(current_id) = current_agent_id {
-            agents
-                .into_iter()
-                .filter(|agent| agent.id != *current_id)
-                .collect()
-        } else {
-            agents
-        };
-
         // Create template data with environment nested under "env"
         let ctx = SystemContext {
             env: Some(env.clone()),
             model,
             tool_names,
-            agents: filtered_agents,
+            agents,
+            config: Some(template_config.clone()),
             ..Default::default()
         };
 
@@ -422,7 +422,9 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, Environment, ModelId, ProviderId, ToolCatalog, ToolName};
+    use forge_domain::{
+        Agent, AgentId, Environment, ModelId, ProviderId, TemplateConfig, ToolCatalog, ToolName,
+    };
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
@@ -679,8 +681,15 @@ mod tests {
     fn test_sem_search_included_when_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual =
-            ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None);
+        let template_config = TemplateConfig::default();
+        let actual = ToolRegistry::<()>::get_system_tools(
+            true,
+            &env,
+            None,
+            create_test_agents(),
+            None,
+            &template_config,
+        );
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
@@ -688,8 +697,15 @@ mod tests {
     fn test_sem_search_filtered_when_not_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual =
-            ToolRegistry::<()>::get_system_tools(false, &env, None, create_test_agents(), None);
+        let template_config = TemplateConfig::default();
+        let actual = ToolRegistry::<()>::get_system_tools(
+            false,
+            &env,
+            None,
+            create_test_agents(),
+            None,
+            &template_config,
+        );
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
 }
@@ -754,11 +770,17 @@ fn create_test_model(
 fn test_template_rendering_in_tool_descriptions() {
     use fake::{Fake, Faker};
 
-    let mut env: Environment = Faker.fake();
-    env.max_search_lines = 1000;
-    env.max_line_length = 2000;
+    let env: Environment = Faker.fake();
+    let template_config = TemplateConfig { max_line_length: 2000, ..Default::default() };
 
-    let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None);
+    let actual = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        None,
+        &template_config,
+    );
     let fs_search_tool = actual
         .iter()
         .find(|t| t.name.as_str() == "fs_search")
@@ -784,10 +806,13 @@ fn test_dynamic_tool_description_with_vision_model() {
     use fake::{Fake, Faker};
     use forge_domain::InputModality;
 
-    let mut env: Environment = Faker.fake();
-    env.max_read_size = 2000;
-    env.max_line_length = 2000;
-    env.max_image_size = 5000; // Set fixed value for deterministic test
+    let env: Environment = Faker.fake();
+    let template_config = TemplateConfig {
+        max_read_size: 2000,
+        max_line_length: 2000,
+        max_image_size: 5000,
+        ..Default::default()
+    };
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
 
     let tools_with_vision = ToolRegistry::<()>::get_system_tools(
@@ -796,6 +821,7 @@ fn test_dynamic_tool_description_with_vision_model() {
         Some(vision_model),
         create_test_agents(),
         None,
+        &template_config,
     );
     let read_tool = tools_with_vision
         .iter()
@@ -809,10 +835,13 @@ fn test_dynamic_tool_description_with_text_only_model() {
     use fake::{Fake, Faker};
     use forge_domain::InputModality;
 
-    let mut env: Environment = Faker.fake();
-    env.max_read_size = 2000;
-    env.max_line_length = 2000;
-    env.max_image_size = 5000; // Set fixed value for deterministic test
+    let env: Environment = Faker.fake();
+    let template_config = TemplateConfig {
+        max_read_size: 2000,
+        max_line_length: 2000,
+        max_image_size: 5000,
+        ..Default::default()
+    };
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
 
     let tools_text_only = ToolRegistry::<()>::get_system_tools(
@@ -821,6 +850,7 @@ fn test_dynamic_tool_description_with_text_only_model() {
         Some(text_only_model),
         create_test_agents(),
         None,
+        &template_config,
     );
     let read_tool = tools_text_only
         .iter()
@@ -961,14 +991,23 @@ fn test_has_image_extension() {
 fn test_dynamic_tool_description_without_model() {
     use fake::{Fake, Faker};
 
-    let mut env: Environment = Faker.fake();
-    env.max_read_size = 2000;
-    env.max_image_size = 5000;
-    env.max_line_length = 2000;
+    let env: Environment = Faker.fake();
+    let template_config = TemplateConfig {
+        max_read_size: 2000,
+        max_image_size: 5000,
+        max_line_length: 2000,
+        ..Default::default()
+    };
 
     // When no model is provided, should default to showing minimal capabilities
-    let tools_no_model =
-        ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None);
+    let tools_no_model = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        None,
+        &template_config,
+    );
     let read_tool = tools_no_model
         .iter()
         .find(|t| t.name.as_str() == "read")
@@ -984,14 +1023,24 @@ fn test_all_rendered_tool_descriptions() {
 
     let mut env: Environment = Faker.fake();
     env.cwd = "/home/user/project".into();
-    env.max_read_size = 2000;
-    env.max_line_length = 2000;
-    env.max_image_size = 5000;
-    env.stdout_max_prefix_length = 200;
-    env.stdout_max_suffix_length = 200;
-    env.stdout_max_line_length = 2000;
 
-    let tools = ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None);
+    let template_config = TemplateConfig {
+        max_read_size: 2000,
+        max_line_length: 2000,
+        max_image_size: 5000,
+        stdout_max_prefix_length: 200,
+        stdout_max_suffix_length: 200,
+        stdout_max_line_length: 2000,
+    };
+
+    let tools = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        None,
+        &template_config,
+    );
 
     // Verify all tools have rendered descriptions (no template syntax left)
     for tool in &tools {

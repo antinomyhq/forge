@@ -107,7 +107,15 @@ async fn test_empty_responses() {
         ChatCompletionMessage::assistant(""),
     ]);
 
-    ctx.env.retry_config.max_retry_attempts = 3;
+    ctx.config.retry = Some(forge_config::RetryConfig {
+        initial_backoff_ms: 200,
+        min_delay_ms: 1000,
+        backoff_factor: 2,
+        max_attempts: 3,
+        status_codes: vec![429, 500, 502, 503, 504, 408, 522, 520, 529],
+        max_delay_secs: None,
+        suppress_errors: false,
+    });
 
     let _ = ctx.run("Read a file").await;
 

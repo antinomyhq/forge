@@ -66,13 +66,19 @@ impl<S: Services> AgentExecutor<S> {
                 .await?
                 .ok_or(Error::ConversationNotFound { id: cid })?
         } else {
-            let conversation = Conversation::generate().title(task.clone());
+            // Create context with agent initiator since it's spawned by a parent agent
+            // This is crucial for GitHub Copilot billing optimization
+            let context = forge_domain::Context::default().initiator("agent".to_string());
+            let conversation = Conversation::generate()
+                .title(task.clone())
+                .context(context.clone());
             self.services
                 .conversation_service()
                 .upsert_conversation(conversation.clone())
                 .await?;
             conversation
         };
+        // Execute the request through the ForgeApp
         let app = crate::ForgeApp::new(self.services.clone());
         let mut response_stream = app
             .chat(

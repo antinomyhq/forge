@@ -2,6 +2,8 @@ use schemars::Schema;
 use serde::de::Error as _;
 use serde_json::Value;
 
+use crate::json_repair;
+
 /// Coerces a JSON value to match the expected types defined in a JSON schema.
 ///
 /// This function recursively traverses the JSON value and the schema,
@@ -382,17 +384,40 @@ fn coerce_array_value(
     }
 }
 
-/// Attempts to parse a string as JSON, handling both valid JSON and JSON5
-/// (Python-style) syntax
+/// Attempts to parse a string as JSON, JSON5, or repairable JSON, and unwraps
+/// nested JSON strings when needed.
 fn try_parse_json_string(s: &str) -> Result<Value, serde_json::Error> {
+    let mut parsed = parse_json_like_value(s)?;
+
+    for _ in 0..4 {
+        let Value::String(inner) = &parsed else {
+            return Ok(parsed);
+        };
+
+        let Ok(next) = parse_json_like_value(inner) else {
+            return Ok(parsed);
+        };
+
+        parsed = next;
+    }
+
+    Ok(parsed)
+}
+
+fn parse_json_like_value(s: &str) -> Result<Value, serde_json::Error> {
     // First try parsing as-is (valid JSON)
     if let Ok(parsed) = serde_json::from_str::<Value>(s) {
         return Ok(parsed);
     }
 
     // If that fails, try parsing as JSON5 (handles single quotes, comments, etc.)
-    // Convert serde_json5::Error to serde_json::Error
-    serde_json5::from_str::<Value>(s).map_err(|e| serde_json::Error::custom(e.to_string()))
+    if let Ok(parsed) = serde_json5::from_str::<Value>(s) {
+        return Ok(parsed);
+    }
+
+    // Finally, fall back to Forge's JSON repair for malformed-but-recoverable
+    // payloads such as persisted double-encoded tool arguments.
+    json_repair(s).map_err(|e| serde_json::Error::custom(e.to_string()))
 }
 
 /// Extracts an array from a string that may contain garbage before/after the
@@ -944,12 +969,22 @@ mod tests {
     }
 
     #[test]
-    fn test_preserve_invalid_json_string() {
-        // Test that invalid JSON strings are preserved
+    fn test_coerce_double_encoded_string_to_object() {
+        let fixture = json!({"config": r#""{\"key\":\"value\",\"number\":42}""#});
+        let schema = schema_for!(ConfigData);
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"config": {"key": "value", "number": 42}});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_repairs_invalid_json_string_when_schema_expects_array() {
+        // Invalid JSON-like array strings are repaired into arrays when the schema
+        // expects one.
         let fixture = json!({"data": "[invalid json"});
         let schema = schema_for!(DataArray);
         let actual = coerce_to_schema(fixture, &schema);
-        let expected = json!({"data": "[invalid json"});
+        let expected = json!({"data": ["invalid json"]});
         assert_eq!(actual, expected);
     }
 

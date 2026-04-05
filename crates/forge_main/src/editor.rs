@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_api::Environment;
@@ -63,9 +64,13 @@ impl ForgeEditor {
         keybindings
     }
 
-    pub fn new(env: Environment, manager: Arc<ForgeCommandManager>) -> Self {
+    pub fn new(
+        env: Environment,
+        custom_history_path: Option<PathBuf>,
+        manager: Arc<ForgeCommandManager>,
+    ) -> Self {
         // Store file history in system config directory
-        let history_file = env.history_path();
+        let history_file = env.history_path(custom_history_path.as_ref());
 
         let history = Box::new(
             FileBackedHistory::with_file(HISTORY_CAPACITY, history_file).unwrap_or_default(),

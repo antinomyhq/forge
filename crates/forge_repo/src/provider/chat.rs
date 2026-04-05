@@ -32,7 +32,8 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
     /// * `infra` - Infrastructure providing environment and HTTP capabilities
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
-        let retry_config = Arc::new(env.retry_config.clone());
+        let config = infra.get_config();
+        let retry_config = Arc::new(config.retry.clone().unwrap_or_default());
 
         let openai_repo =
             OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
@@ -48,7 +49,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
 
         let model_cache = Arc::new(CacacheStorage::new(
             env.cache_dir().join("model_cache"),
-            Some(env.model_cache_ttl as u128),
+            Some(config.model_cache_ttl_secs as u128),
         ));
 
         Self {

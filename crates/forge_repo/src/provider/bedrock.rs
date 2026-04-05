@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use aws_sdk_bedrockruntime::config::Token;
-use forge_app::domain::RetryConfig;
+use forge_config::RetryConfig;
 use forge_domain::{
     AuthDetails, ChatCompletionMessage, ChatRepository, Context, Model, ModelId, Provider,
     ResultStream, Transformer,
@@ -13,6 +13,7 @@ use tokio::sync::OnceCell;
 use tokio_stream::StreamExt;
 
 use crate::provider::bedrock_cache::SetCache;
+use crate::provider::bedrock_sanitize_ids::SanitizeToolIds;
 use crate::provider::retry::into_retry;
 use crate::provider::{FromDomain, IntoDomain};
 
@@ -200,6 +201,7 @@ impl BedrockProvider {
         let supports_caching = Self::supports_caching(&model_id);
         let bedrock_input = SetCache
             .when(move |_| supports_caching)
+            .pipe(SanitizeToolIds)
             .transform(bedrock_input);
 
         // Build and send the converse_stream request
@@ -689,15 +691,19 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                     && let Some(reasoning_details) = &text_msg.reasoning_details
                 {
                     for reasoning in reasoning_details {
-                        // Create a thinking content block
-                        if let Some(text) = &reasoning.text {
-                            use aws_sdk_bedrockruntime::types::{
-                                ReasoningContentBlock, ReasoningTextBlock,
-                            };
+                        use aws_sdk_bedrockruntime::types::{
+                            ReasoningContentBlock, ReasoningTextBlock,
+                        };
 
+                        let signature = reasoning
+                            .signature
+                            .clone()
+                            .or_else(|| text_msg.thought_signature.clone());
+
+                        if let (Some(text), Some(signature)) = (&reasoning.text, signature) {
                             let reasoning_text_block = ReasoningTextBlock::builder()
                                 .text(text.clone())
-                                .set_signature(reasoning.signature.clone())
+                                .signature(signature)
                                 .build()
                                 .map_err(|e| {
                                     anyhow::anyhow!("Failed to build reasoning text block: {}", e)
@@ -705,6 +711,12 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
 
                             content_blocks.push(ContentBlock::ReasoningContent(
                                 ReasoningContentBlock::ReasoningText(reasoning_text_block),
+                            ));
+                        } else if let Some(data) = &reasoning.data {
+                            content_blocks.push(ContentBlock::ReasoningContent(
+                                ReasoningContentBlock::RedactedContent(Blob::new(
+                                    data.clone().into_bytes(),
+                                )),
                             ));
                         }
                     }
@@ -1517,6 +1529,76 @@ mod tests {
     }
 
     #[test]
+    fn test_from_domain_context_message_text_assistant_reasoning_uses_message_signature() {
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlock, ConversationRole, Message, ReasoningContentBlock,
+        };
+        use forge_domain::{ContextMessage, ReasoningFull, TextMessage};
+        use pretty_assertions::assert_eq;
+
+        let fixture = ContextMessage::Text(
+            TextMessage::assistant(
+                "",
+                Some(vec![
+                    ReasoningFull::default().text(Some("Thinking...".to_string())),
+                ]),
+                None,
+            )
+            .thought_signature("sig_123"),
+        );
+
+        let actual = Message::from_domain(fixture).unwrap();
+        let expected_signature = Some("sig_123");
+        let expected_text = "Thinking...";
+
+        assert_eq!(actual.role(), &ConversationRole::Assistant);
+        let content = actual.content();
+        assert_eq!(content.len(), 1);
+        match &content[0] {
+            ContentBlock::ReasoningContent(ReasoningContentBlock::ReasoningText(reasoning)) => {
+                let actual_signature = reasoning.signature();
+                let actual_text = reasoning.text();
+                assert_eq!(actual_signature, expected_signature);
+                assert_eq!(actual_text, expected_text);
+            }
+            _ => panic!("Expected reasoning content block"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_context_message_text_assistant_skips_unsigned_reasoning() {
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlock, ConversationRole, Message, ReasoningContentBlock,
+        };
+        use forge_domain::{ContextMessage, ReasoningFull, TextMessage};
+        use pretty_assertions::assert_eq;
+
+        let fixture = ContextMessage::Text(TextMessage::assistant(
+            "",
+            Some(vec![
+                ReasoningFull::default()
+                    .text(Some("Signed reasoning".to_string()))
+                    .signature(Some("sig_123".to_string())),
+                ReasoningFull::default().text(Some("Unsigned duplicate reasoning".to_string())),
+            ]),
+            None,
+        ));
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::Assistant);
+        let content = actual.content();
+        assert_eq!(content.len(), 1);
+        match &content[0] {
+            ContentBlock::ReasoningContent(ReasoningContentBlock::ReasoningText(reasoning)) => {
+                assert_eq!(reasoning.signature(), Some("sig_123"));
+                assert_eq!(reasoning.text(), "Signed reasoning");
+            }
+            _ => panic!("Expected reasoning content block"),
+        }
+    }
+
+    #[test]
     fn test_from_domain_context_message_tool_result() {
         use aws_sdk_bedrockruntime::types::{
             ContentBlock, ConversationRole, Message, ToolResultStatus,
@@ -1589,6 +1671,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![
                 ContextMessage::system("You are a helpful assistant").into(),
                 ContextMessage::Text(TextMessage::new(Role::User, "Hello!")).into(),
@@ -1621,6 +1704,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![],
             tools: vec![],
             tool_choice: None,
@@ -1646,6 +1730,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![],
             tools: vec![],
             tool_choice: None,
@@ -1679,6 +1764,7 @@ mod tests {
 
         let fixture = Context {
             conversation_id: None,
+            initiator: None,
             messages: vec![],
             tools: vec![],
             tool_choice: None,
