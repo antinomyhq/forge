@@ -697,8 +697,14 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         let template_config = TemplateConfig::default();
-        let actual =
-            ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None, &template_config);
+        let actual = ToolRegistry::<()>::get_system_tools(
+            true,
+            &env,
+            None,
+            create_test_agents(),
+            None,
+            &template_config,
+        );
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
@@ -707,8 +713,14 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         let template_config = TemplateConfig::default();
-        let actual =
-            ToolRegistry::<()>::get_system_tools(false, &env, None, create_test_agents(), None, &template_config);
+        let actual = ToolRegistry::<()>::get_system_tools(
+            false,
+            &env,
+            None,
+            create_test_agents(),
+            None,
+            &template_config,
+        );
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
 }
@@ -776,7 +788,14 @@ fn test_template_rendering_in_tool_descriptions() {
     let env: Environment = Faker.fake();
     let template_config = TemplateConfig { max_line_length: 2000, ..Default::default() };
 
-    let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None, &template_config);
+    let actual = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        None,
+        &template_config,
+    );
     let fs_search_tool = actual
         .iter()
         .find(|t| t.name.as_str() == "fs_search")
@@ -996,8 +1015,14 @@ fn test_dynamic_tool_description_without_model() {
     };
 
     // When no model is provided, should default to showing minimal capabilities
-    let tools_no_model =
-        ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None, &template_config);
+    let tools_no_model = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        None,
+        &template_config,
+    );
     let read_tool = tools_no_model
         .iter()
         .find(|t| t.name.as_str() == "read")
@@ -1023,7 +1048,14 @@ fn test_all_rendered_tool_descriptions() {
         stdout_max_line_length: 2000,
     };
 
-    let tools = ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None, &template_config);
+    let tools = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        None,
+        create_test_agents(),
+        None,
+        &template_config,
+    );
 
     // Verify all tools have rendered descriptions (no template syntax left)
     for tool in &tools {

@@ -69,8 +69,9 @@ impl<S: Services> AgentExecutor<S> {
             // Create context with agent initiator since it's spawned by a parent agent
             // This is crucial for GitHub Copilot billing optimization
             let context = forge_domain::Context::default().initiator("agent".to_string());
-            let conversation =
-                Conversation::generate().title(task.clone()).context(context.clone());
+            let conversation = Conversation::generate()
+                .title(task.clone())
+                .context(context.clone());
             self.services
                 .conversation_service()
                 .upsert_conversation(conversation.clone())
