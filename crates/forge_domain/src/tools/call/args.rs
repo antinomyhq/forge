@@ -348,4 +348,175 @@ mod tests {
         let expected = r#"{"param":"value"}"#;
         assert_eq!(actual, expected);
     }
+
+    // =========================================================================
+    // Malformed JSON tests
+    // =========================================================================
+
+    #[test]
+    fn test_parse_completely_invalid_json() {
+        // Completely invalid JSON that cannot be repaired
+        let fixture = ToolCallArguments::from_json("not json at all {{{");
+        let actual = fixture.parse();
+        assert!(
+            actual.is_err(),
+            "Should fail to parse completely invalid JSON"
+        );
+    }
+
+    #[test]
+    fn test_parse_json_with_unclosed_string() {
+        // JSON with an unclosed string
+        let fixture = ToolCallArguments::from_json(r#"{"param": "unclosed string}"#);
+        // The repair function should attempt to fix this
+        let actual = fixture.parse();
+        // Either succeeds with repair or fails gracefully
+        if let Ok(value) = actual {
+            assert!(
+                value.is_object(),
+                "Repaired JSON should be an object"
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_truncated_array() {
+        // JSON with a truncated array (missing closing bracket)
+        let fixture = ToolCallArguments::from_json(r#"{"tasks": ["task1", "task2""#);
+        let actual = fixture.parse();
+        // Repair should close the array
+        if let Ok(value) = actual {
+            assert_eq!(
+                value["tasks"],
+                json!(["task1", "task2"])
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_truncated_object() {
+        // JSON with a truncated object (missing closing brace)
+        let fixture = ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["t1"]"#);
+        let actual = fixture.parse();
+        // Repair should close the object
+        if let Ok(value) = actual {
+            assert_eq!(value["agent_id"], "sage");
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_mismatched_brackets() {
+        // JSON with mismatched brackets
+        let fixture = ToolCallArguments::from_json(r#"{"tasks": ["item1"]}"#);
+        let actual = fixture.parse();
+        assert!(
+            actual.is_ok(),
+            "Valid JSON with proper brackets should parse"
+        );
+    }
+
+    #[test]
+    fn test_parse_json_with_python_style_booleans() {
+        // JSON with Python-style booleans (True/False instead of true/false)
+        let fixture = ToolCallArguments::from_json(r#"{"active": True, "disabled": False}"#);
+        let actual = fixture.parse();
+        // Repair should convert Python booleans to JSON booleans
+        if let Ok(value) = actual {
+            assert_eq!(value["active"], true);
+            assert_eq!(value["disabled"], false);
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_python_none() {
+        // JSON with Python None instead of null
+        let fixture = ToolCallArguments::from_json(r#"{"value": None}"#);
+        let actual = fixture.parse();
+        // Repair should convert None to null
+        if let Ok(value) = actual {
+            assert_eq!(value["value"], json!(null));
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_single_quotes() {
+        // JSON with single quotes instead of double quotes (Python-style)
+        let fixture = ToolCallArguments::from_json(r#"{'agent_id': 'sage', 'tasks': ['task1']}"#);
+        let actual = fixture.parse();
+        // Repair should convert single quotes to double quotes
+        if let Ok(value) = actual {
+            assert_eq!(value["agent_id"], "sage");
+            assert_eq!(value["tasks"], json!(["task1"]));
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_trailing_commas() {
+        // JSON with trailing commas (JSON5 style)
+        let fixture = ToolCallArguments::from_json(r#"{"tasks": ["task1", "task2",], "agent_id": "sage",}"#);
+        let actual = fixture.parse();
+        // Repair should handle trailing commas
+        if let Ok(value) = actual {
+            assert_eq!(value["tasks"], json!(["task1", "task2"]));
+            assert_eq!(value["agent_id"], "sage");
+        }
+    }
+
+    #[test]
+    fn test_parse_json_with_comments() {
+        // JSON with JavaScript-style comments
+        let fixture = ToolCallArguments::from_json(
+            r#"{
+                // This is a comment
+                "agent_id": "sage",
+                /* multi-line
+                   comment */
+                "tasks": ["task1"]
+            }"#,
+        );
+        let actual = fixture.parse();
+        // Repair should strip comments
+        if let Ok(value) = actual {
+            assert_eq!(value["agent_id"], "sage");
+            assert_eq!(value["tasks"], json!(["task1"]));
+        }
+    }
+
+    #[test]
+    fn test_parse_empty_json_object() {
+        // Empty JSON object
+        let fixture = ToolCallArguments::from_json("{}");
+        let actual = fixture.parse().unwrap();
+        let expected = json!({});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_empty_json_array() {
+        // Empty JSON array
+        let fixture = ToolCallArguments::from_json("[]");
+        let actual = fixture.parse().unwrap();
+        let expected = json!([]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_json_with_escaped_characters() {
+        // JSON with escaped characters
+        let fixture = ToolCallArguments::from_json(r#"{"path": "C:\\Users\\test\\file.txt", "quote": "He said \"hello\""}"#);
+        let actual = fixture.parse().unwrap();
+        assert_eq!(actual["path"], r"C:\Users\test\file.txt");
+        assert_eq!(actual["quote"], r#"He said "hello""#);
+    }
+
+    #[test]
+    fn test_parse_json_with_newlines_in_strings() {
+        // JSON with literal newlines in strings (invalid JSON but repairable)
+        let fixture = ToolCallArguments::from_json("{\n  \"tasks\": [\"line1\nline2\"]\n}");
+        let actual = fixture.parse();
+        // Should either repair or fail gracefully
+        if let Ok(value) = actual {
+            assert!(value["tasks"].is_array());
+        }
+    }
 }

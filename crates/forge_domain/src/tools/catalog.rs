@@ -1180,7 +1180,17 @@ mod tests {
     use strum::IntoEnumIterator;
 
     use super::Shell;
-    use crate::{ToolCatalog, ToolKind, ToolName};
+    use crate::{ToolCallArguments, ToolCallFull, ToolCatalog, ToolKind, ToolName};
+
+    /// Helper function to create a ToolCallFull for testing
+    fn fixture_tool_call(name: &str, arguments: &str) -> ToolCallFull {
+        ToolCallFull {
+            name: ToolName::new(name),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(arguments),
+            thought_signature: None,
+        }
+    }
 
     #[test]
     fn test_tool_definition() {
@@ -2100,5 +2110,356 @@ mod tests {
         let definition = ToolKind::Task.definition();
         assert_eq!(definition.name.as_str(), "task");
         assert!(!definition.description.is_empty());
+    }
+
+    // =========================================================================
+    // Extremely long input tests
+    // =========================================================================
+
+    #[test]
+    fn test_task_input_parse_very_long_task_description() {
+        let long_description = "x".repeat(10_000);
+        let fixture = fixture_tool_call(
+            "task",
+            &format!(
+                r#"{{"agent_id": "sage", "tasks": ["{}"]}}"#,
+                long_description
+            ),
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_task_len = 10_000;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0].len(), expected_task_len);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_large_number_of_tasks() {
+        let tasks: Vec<String> = (0..100).map(|i| format!("task number {}", i)).collect();
+        let tasks_json = serde_json::to_string(&tasks).unwrap();
+        let fixture = fixture_tool_call(
+            "task",
+            &format!(r#"{{"agent_id": "sage", "tasks": {}}}"#, tasks_json),
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_count = 100;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks.len(), expected_count);
+                assert_eq!(task_input.tasks[0], "task number 0");
+                assert_eq!(task_input.tasks[99], "task number 99");
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_very_long_agent_id() {
+        let long_agent_id = "agent".repeat(200);
+        let fixture = fixture_tool_call(
+            "task",
+            &format!(
+                r#"{{"agent_id": "{}", "tasks": ["test"]}}"#,
+                long_agent_id
+            ),
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_len = 1000;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.agent_id.len(), expected_len);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_very_long_session_id() {
+        let long_session_id = "session".repeat(143);
+        let fixture = fixture_tool_call(
+            "task",
+            &format!(
+                r#"{{"agent_id": "sage", "tasks": ["test"], "session_id": "{}"}}"#,
+                long_session_id
+            ),
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_len = 1001;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.session_id.unwrap().len(), expected_len);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_all_very_long_fields() {
+        let long_agent_id = "a".repeat(500);
+        let long_session_id = "s".repeat(500);
+        let long_task = "t".repeat(5000);
+        let tasks: Vec<String> = vec![long_task.clone(); 10];
+        let tasks_json = serde_json::to_string(&tasks).unwrap();
+        let fixture = fixture_tool_call(
+            "task",
+            &format!(
+                r#"{{"agent_id": "{}", "tasks": {}, "session_id": "{}"}}"#,
+                long_agent_id, tasks_json, long_session_id
+            ),
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_agent_len = 500;
+        let expected_session_len = 500;
+        let expected_tasks_count = 10;
+        let expected_task_len = 5000;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.agent_id.len(), expected_agent_len);
+                assert_eq!(task_input.session_id.unwrap().len(), expected_session_len);
+                assert_eq!(task_input.tasks.len(), expected_tasks_count);
+                assert_eq!(task_input.tasks[0].len(), expected_task_len);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    // =========================================================================
+    // Unicode and special character tests
+    // =========================================================================
+
+    #[test]
+    fn test_task_input_parse_emoji_in_task() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Analyze 📊 data and create 📈 charts"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected = "Analyze 📊 data and create 📈 charts";
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], expected);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_emoji_in_agent_id() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage_🔍_agent", "tasks": ["test"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected = "sage_🔍_agent";
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.agent_id, expected);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_chinese_characters() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["分析代码库结构", "查找错误", "修复问题"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_count = 3;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks.len(), expected_count);
+                assert_eq!(task_input.tasks[0], "分析代码库结构");
+                assert_eq!(task_input.tasks[1], "查找错误");
+                assert_eq!(task_input.tasks[2], "修复问题");
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_japanese_characters() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["コードを分析する", "バグを見つける"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], "コードを分析する");
+                assert_eq!(task_input.tasks[1], "バグを見つける");
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_arabic_characters() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["تحليل الكود", "إصلاح الأخطاء"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], "تحليل الكود");
+                assert_eq!(task_input.tasks[1], "إصلاح الأخطاء");
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_cyrillic_characters() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Проанализировать код", "Исправить ошибки"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], "Проанализировать код");
+                assert_eq!(task_input.tasks[1], "Исправить ошибки");
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_mixed_unicode_scripts() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Hello 世界 🌍 Привет مرحبا"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected = "Hello 世界 🌍 Привет مرحبا";
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], expected);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_special_characters() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Test with \t tabs, \n newlines, and \"quotes\""]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected = "Test with \t tabs, \n newlines, and \"quotes\"";
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], expected);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_backslashes_and_quotes() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Path: C:\\Users\\test\\file.txt, Quote: \"hello\""]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected = r#"Path: C:\Users\test\file.txt, Quote: "hello""#;
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0], expected);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_escaped_null_bytes() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Test with \u0000 null byte"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert!(task_input.tasks[0].contains('\0'));
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_very_long_unicode_string() {
+        let long_emoji_string = "🎉".repeat(5_000);
+        let fixture = fixture_tool_call(
+            "task",
+            &format!(
+                r#"{{"agent_id": "sage", "tasks": ["{}"]}}"#,
+                long_emoji_string
+            ),
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        let expected_len = 20_000; // 5000 emojis × 4 bytes each
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert_eq!(task_input.tasks[0].len(), expected_len);
+            }
+            _ => panic!("Expected Task variant"),
+        }
+    }
+
+    #[test]
+    fn test_task_input_parse_zero_width_characters() {
+        let fixture = fixture_tool_call(
+            "task",
+            r#"{"agent_id": "sage", "tasks": ["Test\u200bwith\u200czero\u200dwidth"]}"#,
+        );
+
+        let actual = ToolCatalog::try_from(fixture).unwrap();
+
+        match actual {
+            ToolCatalog::Task(task_input) => {
+                assert!(task_input.tasks[0].contains('\u{200b}'));
+                assert!(task_input.tasks[0].contains('\u{200c}'));
+                assert!(task_input.tasks[0].contains('\u{200d}'));
+            }
+            _ => panic!("Expected Task variant"),
+        }
     }
 }

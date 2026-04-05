@@ -1309,4 +1309,237 @@ mod tests {
         let expected = json!({"count": null});
         assert_eq!(actual, expected);
     }
+
+    // =========================================================================
+    // Wrong argument type tests
+    // =========================================================================
+
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct StringField {
+        value: String,
+    }
+
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct IntegerField {
+        value: i64,
+    }
+
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct BooleanField {
+        value: bool,
+    }
+
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct ArrayField {
+        items: Vec<String>,
+    }
+
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct ObjectField {
+        nested: std::collections::BTreeMap<String, String>,
+    }
+
+    #[test]
+    fn test_boolean_where_string_expected() {
+        // Passing a boolean where a string is expected
+        // Schema coercion only converts strings TO other types, not the reverse
+        // So the boolean is preserved (validation happens elsewhere)
+        let fixture = json!({"value": true});
+        let schema = schema_for!(StringField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Boolean is preserved - validation would catch this mismatch
+        let expected = json!({"value": true});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_number_where_string_expected() {
+        // Passing a number where a string is expected
+        // Schema coercion only converts strings TO other types, not the reverse
+        // So the number is preserved (validation happens elsewhere)
+        let fixture = json!({"value": 42});
+        let schema = schema_for!(StringField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Number is preserved - validation would catch this mismatch
+        let expected = json!({"value": 42});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_float_where_string_expected() {
+        // Passing a float where a string is expected
+        // Schema coercion only converts strings TO other types, not the reverse
+        // So the float is preserved (validation happens elsewhere)
+        let fixture = json!({"value": 3.14});
+        let schema = schema_for!(StringField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Float is preserved - validation would catch this mismatch
+        let expected = json!({"value": 3.14});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_array_where_string_expected() {
+        // Passing an array where a string is expected
+        // Schema coercion only converts strings TO other types, not the reverse
+        // So the array is preserved (validation happens elsewhere)
+        let fixture = json!({"value": ["a", "b"]});
+        let schema = schema_for!(StringField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Array is preserved - validation would catch this mismatch
+        let expected = json!({"value": ["a", "b"]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_object_where_string_expected() {
+        // Passing an object where a string is expected
+        // Schema coercion only converts strings TO other types, not the reverse
+        // So the object is preserved (validation happens elsewhere)
+        let fixture = json!({"value": {"key": "val"}});
+        let schema = schema_for!(StringField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Object is preserved - validation would catch this mismatch
+        let expected = json!({"value": {"key": "val"}});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_null_where_string_expected() {
+        // Passing null where a string is expected
+        let fixture = json!({"value": null});
+        let schema = schema_for!(StringField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Null should remain null (required field validation happens elsewhere)
+        let expected = json!({"value": null});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_boolean_where_integer_expected() {
+        // Passing a boolean where an integer is expected
+        let fixture = json!({"value": true});
+        let schema = schema_for!(IntegerField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Boolean cannot be coerced to integer, should preserve original
+        let expected = json!({"value": true});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_object_where_integer_expected() {
+        // Passing an object where an integer is expected
+        let fixture = json!({"value": {"key": "val"}});
+        let schema = schema_for!(IntegerField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Object cannot be coerced to integer, should preserve original
+        let expected = json!({"value": {"key": "val"}});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_array_where_integer_expected() {
+        // Passing an array where an integer is expected
+        let fixture = json!({"value": [1, 2, 3]});
+        let schema = schema_for!(IntegerField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Array cannot be coerced to integer, should preserve original
+        let expected = json!({"value": [1, 2, 3]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_string_where_boolean_expected() {
+        // Passing a string where a boolean is expected
+        let fixture = json!({"value": "yes"});
+        let schema = schema_for!(BooleanField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Non-boolean string should be preserved (validation happens elsewhere)
+        let expected = json!({"value": "yes"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_number_where_boolean_expected() {
+        // Passing a number where a boolean is expected
+        let fixture = json!({"value": 1});
+        let schema = schema_for!(BooleanField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Number should be preserved (validation happens elsewhere)
+        let expected = json!({"value": 1});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_string_where_array_expected_but_not_parseable() {
+        // Passing a string where an array is expected, but string is not parseable as array
+        let fixture = json!({"items": "not an array"});
+        let schema = schema_for!(ArrayField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Non-array string should be preserved
+        let expected = json!({"items": "not an array"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_number_where_array_expected() {
+        // Passing a number where an array is expected
+        let fixture = json!({"items": 42});
+        let schema = schema_for!(ArrayField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Number should be preserved (validation happens elsewhere)
+        let expected = json!({"items": 42});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_boolean_where_array_expected() {
+        // Passing a boolean where an array is expected
+        let fixture = json!({"items": true});
+        let schema = schema_for!(ArrayField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Boolean should be preserved (validation happens elsewhere)
+        let expected = json!({"items": true});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_string_where_object_expected_but_not_parseable() {
+        // Passing a string where an object is expected, but string is not parseable as object
+        let fixture = json!({"nested": "not an object"});
+        let schema = schema_for!(ObjectField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Non-object string should be preserved
+        let expected = json!({"nested": "not an object"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_array_where_object_expected() {
+        // Passing an array where an object is expected
+        let fixture = json!({"nested": ["a", "b"]});
+        let schema = schema_for!(ObjectField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Array should be preserved (validation happens elsewhere)
+        let expected = json!({"nested": ["a", "b"]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mixed_wrong_types_in_array() {
+        // Array with mixed types where strings are expected
+        // Schema coercion only converts strings TO other types, not the reverse
+        // So non-string items are preserved (validation happens elsewhere)
+        let fixture = json!({"items": [1, true, "valid", null, {"key": "val"}]});
+        let schema = schema_for!(ArrayField);
+        let actual = coerce_to_schema(fixture, &schema);
+        // Items are preserved as-is - validation would catch the mismatches
+        let expected = json!({"items": [1, true, "valid", null, {"key": "val"}]});
+        assert_eq!(actual, expected);
+    }
 }
