@@ -108,6 +108,7 @@ pub struct UI<A: ConsoleWriter, F: Fn(ForgeConfig) -> A> {
     command: Arc<ForgeCommandManager>,
     cli: Cli,
     spinner: SharedSpinner<A>,
+    config: ForgeConfig,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -164,7 +165,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        let config = self.api.get_config();
+        let config = forge_config::ForgeConfig::read().unwrap_or_default();
+        self.config = config.clone();
         self.api = Arc::new((self.new_api)(config));
         self.init_state(false).await?;
 
@@ -220,20 +222,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     ///   `forge config set` are reflected in new conversations
     pub fn init(cli: Cli, config: ForgeConfig, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
-        let api = Arc::new(f(config));
+        let api = Arc::new(f(config.clone()));
         let env = api.environment();
-        let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), config.custom_history_path, command.clone()),
+            console: Console::new(env.clone(), config.custom_history_path.clone(), command.clone()),
             cli,
             command,
             spinner,
             markdown: MarkdownFormat::new(),
+            config,
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -1562,8 +1564,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     async fn on_env(&mut self) -> anyhow::Result<()> {
         let env = self.api.environment();
-        let config = self.api.get_config();
-        let info = Info::from(&env).extend(Info::from(&config));
+        let config = &self.config;
+        let info = Info::from(&env).extend(Info::from(config));
         self.writeln(info)?;
         Ok(())
     }
@@ -1758,7 +1760,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let max_conversations = self.api.get_config().max_conversations;
+        let max_conversations = self.config.max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
@@ -1792,7 +1794,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     }
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let max_conversations = self.api.get_config().max_conversations;
+        let max_conversations = self.config.max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
@@ -2985,7 +2987,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), self.api.get_config().updates.as_ref()).await;
+            on_update(self.api.clone(), self.config.updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -3144,7 +3146,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.get_config().auto_open_dump {
+                    if self.config.auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 } else {
@@ -3168,7 +3170,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.get_config().auto_open_dump {
+                    if self.config.auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 };
@@ -3249,8 +3251,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self
-                    .api
-                    .get_config()
+                    .config
                     .retry
                     .as_ref()
                     .is_some_and(|r| r.suppress_errors)
@@ -3291,7 +3292,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if let Some(format) = self.api.get_config().auto_dump {
+                if let Some(format) = self.config.auto_dump.clone() {
                     let html = matches!(format, forge_config::AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }

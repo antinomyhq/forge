@@ -16,6 +16,7 @@ use crate::{
 
 pub struct ToolExecutor<S> {
     services: Arc<S>,
+    config: forge_config::ForgeConfig,
 }
 
 impl<
@@ -39,8 +40,8 @@ impl<
         + Services,
 > ToolExecutor<S>
 {
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(services: Arc<S>, config: forge_config::ForgeConfig) -> Self {
+        Self { services, config }
     }
 
     fn require_prior_read(
@@ -69,7 +70,7 @@ impl<
         match operation {
             ToolOperation::NetFetch { input: _, output } => {
                 let original_length = output.content.len();
-                let is_truncated = original_length > self.services.get_config().max_fetch_chars;
+                let is_truncated = original_length > self.config.max_fetch_chars;
                 let mut files = TempContentFiles::default();
 
                 if is_truncated {
@@ -82,7 +83,7 @@ impl<
                 Ok(files)
             }
             ToolOperation::Shell { output } => {
-                let config = self.services.get_config();
+                let config = &self.config;
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
                 let stdout_truncated =
@@ -185,11 +186,10 @@ impl<
             }
             ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
-                let config = self.services.get_config();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let limit = config.max_sem_search_results;
-                let top_k = config.sem_search_top_k as u32;
+                let limit = self.config.max_sem_search_results;
+                let top_k = self.config.sem_search_top_k as u32;
                 let params: Vec<_> = input
                     .queries
                     .iter()
@@ -325,7 +325,7 @@ impl<
     ) -> anyhow::Result<ToolOutput> {
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
-        let config = self.services.get_config();
+        let config = &self.config;
 
         // Enforce read-before-edit for patch
         if let ToolCatalog::Patch(input) = &tool_input {

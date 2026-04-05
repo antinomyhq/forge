@@ -120,7 +120,7 @@ impl Runner {
         let conversation = SetConversationId.apply(conversation);
 
         let retry_config = setup.config.retry.clone().unwrap_or_default();
-        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent)
+        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent, setup.config.clone())
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
             .hook(Arc::new(
@@ -171,6 +171,7 @@ impl AgentService for Runner {
         _: &forge_domain::Agent,
         _: &forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
+        _: &forge_config::ForgeConfig,
     ) -> forge_domain::ToolResult {
         let name = test_call.name.clone();
         let mut guard = self.test_tool_calls.lock().await;

@@ -82,7 +82,6 @@ pub struct ForgeServices<
     provider_auth_service: ForgeProviderAuthService<F>,
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
-    config: forge_config::ForgeConfig,
     infra: Arc<F>,
 }
 
@@ -177,7 +176,6 @@ impl<
             workspace_service,
             skill_service,
             chat_service,
-            config,
             infra,
         }
     }
@@ -345,10 +343,6 @@ impl<
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
-    }
-
-    fn get_config(&self) -> forge_config::ForgeConfig {
-        self.config.clone()
     }
 }
 
