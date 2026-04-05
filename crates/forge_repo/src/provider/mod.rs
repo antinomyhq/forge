@@ -9,6 +9,7 @@ mod google;
 mod mock_server;
 mod openai;
 mod openai_responses;
+mod opencode_go;
 mod opencode_zen;
 mod provider_repo;
 mod retry;
