@@ -429,3 +429,243 @@ impl<S: AgentService> Orchestrator<S> {
         self.agent.model.clone()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::{ToolCallArguments, ToolCallFull, ToolKind, ToolName};
+
+    /// Helper function to check if a tool call is a Task tool call
+    /// Mirrors the logic in execute_tool_calls for testing purposes
+    fn is_task_tool_call(tc: &ToolCallFull) -> bool {
+        let task_tool_name = ToolKind::Task.name();
+        tc.name
+            .as_str()
+            .eq_ignore_ascii_case(task_tool_name.as_str())
+    }
+
+    #[test]
+    fn test_is_task_tool_call_lowercase() {
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["test"]}"#),
+            thought_signature: None,
+        };
+
+        assert!(
+            is_task_tool_call(&tool_call),
+            "Should identify lowercase 'task' as Task tool"
+        );
+    }
+
+    #[test]
+    fn test_is_task_tool_call_uppercase() {
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["test"]}"#),
+            thought_signature: None,
+        };
+
+        assert!(
+            is_task_tool_call(&tool_call),
+            "Should identify uppercase 'Task' as Task tool"
+        );
+    }
+
+    #[test]
+    fn test_is_task_tool_call_mixed_case() {
+        let tool_call = ToolCallFull {
+            name: ToolName::new("TASK"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["test"]}"#),
+            thought_signature: None,
+        };
+
+        assert!(
+            is_task_tool_call(&tool_call),
+            "Should identify 'TASK' as Task tool"
+        );
+    }
+
+    #[test]
+    fn test_is_task_tool_call_non_task() {
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"file_path": "/test.rs"}"#),
+            thought_signature: None,
+        };
+
+        assert!(
+            !is_task_tool_call(&tool_call),
+            "Should not identify 'read' as Task tool"
+        );
+    }
+
+    #[test]
+    fn test_partition_task_calls_from_others() {
+        let tool_calls = vec![
+            ToolCallFull {
+                name: ToolName::new("read"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(r#"{"file_path": "/test.rs"}"#),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("task"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"agent_id": "sage", "tasks": ["task1"]}"#,
+                ),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("write"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"file_path": "/test.rs", "content": "test"}"#,
+                ),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("Task"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"agent_id": "debug", "tasks": ["task2"]}"#,
+                ),
+                thought_signature: None,
+            },
+        ];
+
+        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
+            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+
+        assert_eq!(task_calls.len(), 2, "Should have 2 task calls");
+        assert_eq!(other_calls.len(), 2, "Should have 2 other calls");
+
+        // Verify task calls contain the right tools
+        assert!(task_calls.iter().all(|tc| is_task_tool_call(tc)));
+
+        // Verify other calls don't contain task tools
+        assert!(other_calls.iter().all(|tc| !is_task_tool_call(tc)));
+    }
+
+    #[test]
+    fn test_partition_preserves_order_within_groups() {
+        let tool_calls = vec![
+            ToolCallFull {
+                name: ToolName::new("task"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"agent_id": "sage", "tasks": ["first"]}"#,
+                ),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("read"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(r#"{"file_path": "/a.rs"}"#),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("Task"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"agent_id": "debug", "tasks": ["second"]}"#,
+                ),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("write"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"file_path": "/b.rs", "content": "test"}"#,
+                ),
+                thought_signature: None,
+            },
+        ];
+
+        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
+            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+
+        // Task calls should maintain order: first task, then Task
+        let task_args: Vec<_> = task_calls
+            .iter()
+            .map(|tc| {
+                let parsed: serde_json::Value = tc.arguments.parse().unwrap();
+                parsed["tasks"][0].as_str().unwrap().to_string()
+            })
+            .collect();
+        assert_eq!(task_args, vec!["first", "second"]);
+
+        // Other calls should maintain order: read, then write
+        let other_names: Vec<_> = other_calls.iter().map(|tc| tc.name.as_str()).collect();
+        assert_eq!(other_names, vec!["read", "write"]);
+    }
+
+    #[test]
+    fn test_all_task_calls_partition() {
+        let tool_calls = vec![
+            ToolCallFull {
+                name: ToolName::new("task"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"agent_id": "sage", "tasks": ["a"]}"#,
+                ),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("Task"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"agent_id": "debug", "tasks": ["b"]}"#,
+                ),
+                thought_signature: None,
+            },
+        ];
+
+        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
+            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+
+        assert_eq!(task_calls.len(), 2);
+        assert_eq!(other_calls.len(), 0);
+    }
+
+    #[test]
+    fn test_no_task_calls_partition() {
+        let tool_calls = vec![
+            ToolCallFull {
+                name: ToolName::new("read"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(r#"{"file_path": "/a.rs"}"#),
+                thought_signature: None,
+            },
+            ToolCallFull {
+                name: ToolName::new("write"),
+                call_id: None,
+                arguments: ToolCallArguments::from_json(
+                    r#"{"file_path": "/b.rs", "content": "test"}"#,
+                ),
+                thought_signature: None,
+            },
+        ];
+
+        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
+            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+
+        assert_eq!(task_calls.len(), 0);
+        assert_eq!(other_calls.len(), 2);
+    }
+
+    #[test]
+    fn test_empty_tool_calls_partition() {
+        let tool_calls: Vec<ToolCallFull> = vec![];
+
+        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
+            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+
+        assert_eq!(task_calls.len(), 0);
+        assert_eq!(other_calls.len(), 0);
+    }
+}

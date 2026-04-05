@@ -1872,4 +1872,233 @@ mod tests {
         );
         assert!(matches!(actual.unwrap(), ToolCatalog::Patch(_)));
     }
+
+    // Task tool tests
+    #[test]
+    fn test_task_input_parsing_with_required_fields() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"agent_id": "sage", "tasks": ["research codebase structure"]}"#,
+            ),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse task tool with required fields"
+        );
+
+        if let Ok(ToolCatalog::Task(task_input)) = actual {
+            assert_eq!(task_input.agent_id, "sage");
+            assert_eq!(task_input.tasks, vec!["research codebase structure"]);
+            assert_eq!(task_input.session_id, None);
+        } else {
+            panic!("Expected Task variant");
+        }
+    }
+
+    #[test]
+    fn test_task_input_parsing_with_session_id() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"agent_id": "debug", "tasks": ["find bug"], "session_id": "existing-session-123"}"#,
+            ),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse task tool with session_id"
+        );
+
+        if let Ok(ToolCatalog::Task(task_input)) = actual {
+            assert_eq!(task_input.agent_id, "debug");
+            assert_eq!(task_input.tasks, vec!["find bug"]);
+            assert_eq!(task_input.session_id, Some("existing-session-123".to_string()));
+        } else {
+            panic!("Expected Task variant");
+        }
+    }
+
+    #[test]
+    fn test_task_input_parsing_with_multiple_tasks() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"agent_id": "sage", "tasks": ["task 1", "task 2", "task 3"]}"#,
+            ),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse task tool with multiple tasks"
+        );
+
+        if let Ok(ToolCatalog::Task(task_input)) = actual {
+            assert_eq!(task_input.agent_id, "sage");
+            assert_eq!(task_input.tasks, vec!["task 1", "task 2", "task 3"]);
+        } else {
+            panic!("Expected Task variant");
+        }
+    }
+
+    #[test]
+    fn test_capitalized_task_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Task" (capitalized) is normalized to "task"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"agent_id": "sage", "tasks": ["research X"]}"#,
+            ),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Task' tool name"
+        );
+
+        if let Ok(ToolCatalog::Task(task_input)) = actual {
+            assert_eq!(task_input.agent_id, "sage");
+            assert_eq!(task_input.tasks, vec!["research X"]);
+        } else {
+            panic!("Expected Task variant");
+        }
+    }
+
+    #[test]
+    fn test_task_input_missing_agent_id_fails() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"tasks": ["research X"]}"#),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_err(),
+            "Should fail when agent_id is missing"
+        );
+    }
+
+    #[test]
+    fn test_task_input_missing_tasks_fails() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage"}"#),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_err(),
+            "Should fail when tasks is missing"
+        );
+    }
+
+    #[test]
+    fn test_task_input_empty_tasks() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        let tool_call = ToolCallFull {
+            name: ToolName::new("task"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": []}"#),
+            thought_signature: None,
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        // Empty tasks array should parse successfully (validation happens elsewhere)
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse task tool with empty tasks array"
+        );
+
+        if let Ok(ToolCatalog::Task(task_input)) = actual {
+            assert_eq!(task_input.agent_id, "sage");
+            assert_eq!(task_input.tasks, Vec::<String>::new());
+        } else {
+            panic!("Expected Task variant");
+        }
+    }
+
+    #[test]
+    fn test_task_input_serialization() {
+        use crate::{TaskInput, ToolCallFull, ToolCatalog, ToolName};
+
+        let task_input = TaskInput {
+            agent_id: "sage".to_string(),
+            tasks: vec!["research codebase".to_string()],
+            session_id: Some("session-123".to_string()),
+        };
+
+        let tool_catalog = ToolCatalog::Task(task_input);
+        let tool_call = ToolCallFull::from(tool_catalog);
+
+        assert_eq!(tool_call.name, ToolName::new("task"));
+
+        // Verify the arguments can be parsed back
+        let parsed: serde_json::Value = tool_call.arguments.parse().unwrap();
+        assert_eq!(parsed["agent_id"], "sage");
+        assert_eq!(parsed["tasks"], serde_json::json!(["research codebase"]));
+        assert_eq!(parsed["session_id"], "session-123");
+    }
+
+    #[test]
+    fn test_task_input_serialization_without_session_id() {
+        use crate::{TaskInput, ToolCatalog};
+
+        let task_input = TaskInput {
+            agent_id: "debug".to_string(),
+            tasks: vec!["find bug".to_string()],
+            session_id: None,
+        };
+
+        let tool_catalog = ToolCatalog::Task(task_input);
+        let serialized = serde_json::to_string(&tool_catalog).unwrap();
+
+        // session_id should not appear in serialization when None
+        assert!(!serialized.contains("session_id"));
+    }
+
+    #[test]
+    fn test_task_tool_definition() {
+        use crate::ToolKind;
+
+        let definition = ToolKind::Task.definition();
+        assert_eq!(definition.name.as_str(), "task");
+        assert!(!definition.description.is_empty());
+    }
 }

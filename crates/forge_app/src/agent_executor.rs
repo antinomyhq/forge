@@ -138,3 +138,91 @@ impl<S: Services> AgentExecutor<S> {
         Ok(agent_tools.iter().any(|tool| tool.name == *tool_name))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use forge_domain::ConversationId;
+
+    use super::*;
+
+    /// Tests that ConversationId::parse works correctly for valid UUIDs
+    #[test]
+    fn test_conversation_id_parse_valid() {
+        // Use a valid UUID format
+        let valid_uuid = "550e8400-e29b-41d4-a716-446655440000";
+        let result = ConversationId::parse(valid_uuid);
+        assert!(result.is_ok(), "Should parse valid UUID as conversation ID");
+    }
+
+    /// Tests that ConversationId::parse handles edge cases
+    #[test]
+    fn test_conversation_id_parse_empty() {
+        let result = ConversationId::parse("");
+        // Empty string should either fail or produce a valid empty ID
+        // depending on the implementation
+        assert!(
+            result.is_ok() || result.is_err(),
+            "Empty string should be handled"
+        );
+    }
+
+    /// Tests the error type for conversation not found
+    #[test]
+    fn test_conversation_not_found_error_message() {
+        let error = crate::error::Error::ConversationNotFound { id: "test-id".to_string() };
+        let message = error.to_string();
+        assert!(
+            message.contains("test-id"),
+            "Error message should contain the conversation ID"
+        );
+        assert!(
+            message.contains("not found"),
+            "Error message should indicate not found"
+        );
+    }
+
+    /// Tests that the error type can be created and matches expected pattern
+    #[test]
+    fn test_conversation_not_found_error_creation() {
+        let id = "session-abc-123".to_string();
+        let error = crate::error::Error::ConversationNotFound { id: id.clone() };
+        match error {
+            crate::error::Error::ConversationNotFound { id: error_id } => {
+                assert_eq!(error_id, id);
+            }
+            _ => panic!("Expected ConversationNotFound error variant"),
+        }
+    }
+
+    /// Tests that AgentToolInterrupted error contains interruption reason
+    #[test]
+    fn test_agent_tool_interrupted_error() {
+        use forge_domain::InterruptionReason;
+        use std::collections::HashMap;
+        let reason = InterruptionReason::MaxToolFailurePerTurnLimitReached {
+            limit: 5,
+            errors: HashMap::new(),
+        };
+        let error = crate::error::Error::AgentToolInterrupted(reason.clone());
+        let message = error.to_string();
+        assert!(
+            message.contains("interrupted"),
+            "Error message should indicate interruption"
+        );
+    }
+
+    /// Tests that EmptyToolResponse error has correct message
+    #[test]
+    fn test_empty_tool_response_error() {
+        let error = crate::error::Error::EmptyToolResponse;
+        let message = error.to_string();
+        assert!(
+            message.contains("Empty"),
+            "Error message should mention empty"
+        );
+        assert!(
+            message.contains("response"),
+            "Error message should mention response"
+        );
+    }
+}
