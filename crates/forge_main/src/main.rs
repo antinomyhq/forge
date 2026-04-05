@@ -2,11 +2,13 @@ use std::io::Read;
 use std::panic;
 use std::path::PathBuf;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use forge_api::ForgeAPI;
+use forge_config::ForgeConfig;
 use forge_domain::TitleFormat;
 use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
+use url::Url;
 
 /// Enables ENABLE_VIRTUAL_TERMINAL_PROCESSING on the stdout console handle.
 ///
@@ -89,6 +91,18 @@ async fn main() -> Result<()> {
         }
     }
 
+    // Read and validate configuration at startup so any errors are surfaced
+    // immediately rather than silently falling back to defaults at runtime.
+    let config =
+        ForgeConfig::read().context("Failed to read Forge configuration from .forge.toml")?;
+
+    // Pre-validate services_url so a malformed URL produces a clear error
+    // message at startup instead of panicking inside the constructor.
+    let services_url: Url = config
+        .services_url
+        .parse()
+        .context("services_url in configuration must be a valid URL")?;
+
     // Handle worktree creation if specified
     let cwd: PathBuf = match (&cli.sandbox, &cli.directory) {
         (Some(sandbox), Some(cli)) => {
@@ -104,7 +118,9 @@ async fn main() -> Result<()> {
         (_, _) => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
 
-    let mut ui = UI::init(cli, move || ForgeAPI::init(cwd.clone()))?;
+    let mut ui = UI::init(cli, config, move |config| {
+        ForgeAPI::init(cwd.clone(), config, services_url.clone())
+    })?;
     ui.run().await;
 
     Ok(())

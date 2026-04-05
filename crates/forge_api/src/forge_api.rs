@@ -24,11 +24,12 @@ use crate::API;
 pub struct ForgeAPI<S, F> {
     services: Arc<S>,
     infra: Arc<F>,
+    config: forge_config::ForgeConfig,
 }
 
 impl<A, F> ForgeAPI<A, F> {
-    pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
-        Self { services, infra }
+    pub fn new(services: Arc<A>, infra: Arc<F>, config: forge_config::ForgeConfig) -> Self {
+        Self { services, infra, config }
     }
 
     /// Creates a ForgeApp instance with the current services
@@ -36,16 +37,22 @@ impl<A, F> ForgeAPI<A, F> {
     where
         A: Services,
     {
-        ForgeApp::new(self.services.clone())
+        ForgeApp::new(self.services.clone(), self.config.clone())
     }
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
-    pub fn init(cwd: PathBuf) -> Self {
-        let infra = Arc::new(ForgeInfra::new(cwd));
-        let repo = Arc::new(ForgeRepo::new(infra.clone()));
-        let app = Arc::new(ForgeServices::new(repo.clone()));
-        ForgeAPI::new(app, repo)
+    /// Creates a fully-initialized [`ForgeAPI`] from a pre-read configuration.
+    ///
+    /// # Arguments
+    /// * `cwd` - The working directory path for environment and file resolution
+    /// * `config` - Pre-read application configuration (from startup)
+    /// * `services_url` - Pre-validated URL for the gRPC workspace server
+    pub fn init(cwd: PathBuf, config: ForgeConfig, services_url: Url) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd, config.clone(), services_url));
+        let repo = Arc::new(ForgeRepo::new(infra.clone(), config.clone()));
+        let app = Arc::new(ForgeServices::new(repo.clone(), config.clone()));
+        ForgeAPI::new(app, repo, config)
     }
 
     pub async fn get_skills_internal(&self) -> Result<Vec<Skill>> {
@@ -91,7 +98,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         diff: Option<String>,
         additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
-        let git_app = GitApp::new(self.services.clone());
+        let git_app = GitApp::new(self.services.clone(), self.config.clone());
         let result = git_app
             .commit_message(max_diff_size, diff, additional_context)
             .await?;
@@ -145,10 +152,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
 
     fn environment(&self) -> Environment {
         self.services.get_environment().clone()
-    }
-
-    fn get_config(&self) -> ForgeConfig {
-        self.infra.get_config()
     }
 
     async fn conversation(
