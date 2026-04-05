@@ -687,7 +687,6 @@ mod tests {
             &env,
             None,
             create_test_agents(),
-            None,
             &template_config,
         );
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
@@ -703,7 +702,6 @@ mod tests {
             &env,
             None,
             create_test_agents(),
-            None,
             &template_config,
         );
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
@@ -778,7 +776,6 @@ fn test_template_rendering_in_tool_descriptions() {
         &env,
         None,
         create_test_agents(),
-        None,
         &template_config,
     );
     let fs_search_tool = actual
@@ -820,7 +817,6 @@ fn test_dynamic_tool_description_with_vision_model() {
         &env,
         Some(vision_model),
         create_test_agents(),
-        None,
         &template_config,
     );
     let read_tool = tools_with_vision
@@ -849,7 +845,6 @@ fn test_dynamic_tool_description_with_text_only_model() {
         &env,
         Some(text_only_model),
         create_test_agents(),
-        None,
         &template_config,
     );
     let read_tool = tools_text_only
@@ -1005,7 +1000,6 @@ fn test_dynamic_tool_description_without_model() {
         &env,
         None,
         create_test_agents(),
-        None,
         &template_config,
     );
     let read_tool = tools_no_model
@@ -1038,7 +1032,6 @@ fn test_all_rendered_tool_descriptions() {
         &env,
         None,
         create_test_agents(),
-        None,
         &template_config,
     );
 
