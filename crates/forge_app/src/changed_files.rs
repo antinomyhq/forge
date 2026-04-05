@@ -26,7 +26,7 @@ impl<S: FsReadService + EnvironmentInfra> ChangedFiles<S> {
     /// duplicate notifications.
     pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
-        let parallel_file_reads = self.services.get_environment().parallel_file_reads;
+        let parallel_file_reads = self.services.get_config().max_parallel_file_reads;
         let changes = FileChangeDetector::new(self.services.clone(), parallel_file_reads)
             .detect(&conversation.metrics)
             .await;
@@ -119,6 +119,8 @@ mod tests {
     }
 
     impl EnvironmentInfra for TestServices {
+        type Config = forge_config::ForgeConfig;
+
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
@@ -129,6 +131,13 @@ mod tests {
                 env.cwd = PathBuf::from("/deterministic/test/cwd");
             }
             env
+        }
+
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
 
         async fn update_environment(

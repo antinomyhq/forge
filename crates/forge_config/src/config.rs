@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use derive_setters::Setters;
@@ -7,89 +8,216 @@ use serde::{Deserialize, Serialize};
 
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
-use crate::{AutoDumpFormat, Compact, HttpConfig, ModelConfig, RetryConfig, Update};
+use crate::{
+    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
+};
+
+/// Wire protocol a provider uses for chat completions.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+pub enum ProviderResponseType {
+    OpenAI,
+    OpenAIResponses,
+    Anthropic,
+    Bedrock,
+    Google,
+    OpenCode,
+}
+
+/// Category of a provider.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderTypeEntry {
+    /// LLM provider for chat completions.
+    #[default]
+    Llm,
+    /// Context engine provider for code indexing and search.
+    ContextEngine,
+}
+
+/// Authentication method supported by a provider.
+///
+/// Only the simple (non-OAuth) methods are available here; providers that
+/// require OAuth device or authorization-code flows must be configured via the
+/// file-based `provider.json` override instead.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderAuthMethod {
+    ApiKey,
+    GoogleAdc,
+}
+
+/// A URL parameter variable for a provider, used to substitute template
+/// variables in URL strings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderUrlParam {
+    /// The environment variable name used as the template variable key.
+    pub name: String,
+    /// Optional preset values for this parameter shown as suggestions in the
+    /// UI.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub options: Vec<String>,
+}
+
+/// A single provider entry defined inline in `forge.toml`.
+///
+/// Inline providers are merged with the built-in provider list; entries with
+/// the same `id` override the corresponding built-in entry field-by-field,
+/// while entries with a new `id` are appended to the list.
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub struct ProviderEntry {
+    /// Unique provider identifier used in model paths (e.g. `"my_provider"`).
+    pub id: String,
+    /// Environment variable holding the API key for this provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_key_var: Option<String>,
+    /// URL template for chat completions; may contain `{{VAR}}` placeholders
+    /// that are substituted from the credential's url params.
+    pub url: String,
+    /// URL template for fetching the model list; may contain `{{VAR}}`
+    /// placeholders.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub models: Option<String>,
+    /// Wire protocol used by this provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_type: Option<ProviderResponseType>,
+    /// Environment variables whose values are substituted into `{{VAR}}`
+    /// placeholders in the `url` and `models` templates.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub url_param_vars: Vec<ProviderUrlParam>,
+    /// Additional HTTP headers sent with every request to this provider.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_headers: Option<HashMap<String, String>>,
+    /// Provider category; defaults to `llm` when omitted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_type: Option<ProviderTypeEntry>,
+    /// Authentication methods supported by this provider; defaults to
+    /// `["api_key"]` when omitted.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub auth_methods: Vec<ProviderAuthMethod>,
+}
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
-#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
 #[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 pub struct ForgeConfig {
-    /// Configuration for the retry mechanism
+    /// Retry settings applied at the system level to all IO operations.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<RetryConfig>,
-    /// The maximum number of lines returned for FSSearch
+    /// Maximum number of lines returned by a single file search operation.
+    #[serde(default)]
     pub max_search_lines: usize,
-    /// Maximum bytes allowed for search results
+    /// Maximum number of bytes returned by a single file search operation.
+    #[serde(default)]
     pub max_search_result_bytes: usize,
-    /// Maximum characters for fetch content
+    /// Maximum number of characters returned from a URL fetch.
+    #[serde(default)]
     pub max_fetch_chars: usize,
-    /// Maximum lines for shell output prefix
+    /// Maximum number of lines captured from the leading portion of shell
+    /// command output.
+    #[serde(default)]
     pub max_stdout_prefix_lines: usize,
-    /// Maximum lines for shell output suffix
+    /// Maximum number of lines captured from the trailing portion of shell
+    /// command output.
+    #[serde(default)]
     pub max_stdout_suffix_lines: usize,
-    /// Maximum characters per line for shell output
+    /// Maximum number of characters per line in shell command output.
+    #[serde(default)]
     pub max_stdout_line_chars: usize,
-    /// Maximum characters per line for file read operations
+    /// Maximum number of characters per line when reading a file.
+    #[serde(default)]
     pub max_line_chars: usize,
-    /// Maximum number of lines to read from a file
+    /// Maximum number of lines read from a file in a single operation.
+    #[serde(default)]
     pub max_read_lines: u64,
-    /// Maximum number of files that can be read in a single batch operation
+    /// Maximum number of files read in a single batch operation.
+    #[serde(default)]
     pub max_file_read_batch_size: usize,
-    /// HTTP configuration
+    /// HTTP client settings including proxy, TLS, and timeout configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub http: Option<HttpConfig>,
-    /// Maximum file size in bytes for operations
+    /// Maximum file size in bytes permitted for read operations.
+    #[serde(default)]
     pub max_file_size_bytes: u64,
-    /// Maximum image file size in bytes for binary read operations
+    /// Maximum image file size in bytes permitted for read operations.
+    #[serde(default)]
     pub max_image_size_bytes: u64,
-    /// Maximum execution time in seconds for a single tool call
+    /// Maximum time in seconds a single tool call may run before being
+    /// cancelled.
+    #[serde(default)]
     pub tool_timeout_secs: u64,
-    /// Whether to automatically open HTML dump files in the browser
+    /// Whether to automatically open HTML dump files in the browser after
+    /// creation.
+    #[serde(default)]
     pub auto_open_dump: bool,
-    /// Path where debug request files should be written
+    /// Directory where debug request files are written; disabled when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub debug_requests: Option<PathBuf>,
-    /// Custom history file path
+    /// Path to the conversation history file; defaults to the global history
+    /// location when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub custom_history_path: Option<PathBuf>,
-    /// Maximum number of conversations to show in list
+    /// Maximum number of conversations shown in the conversation list.
+    #[serde(default)]
     pub max_conversations: usize,
-    /// Maximum number of results to return from initial vector search
+    /// Maximum number of candidate results returned from the initial semantic
+    /// search vector query.
+    #[serde(default)]
     pub max_sem_search_results: usize,
-    /// Top-k parameter for relevance filtering during semantic search
+    /// Number of top results retained after re-ranking in semantic search.
+    #[serde(default)]
     pub sem_search_top_k: usize,
-    /// URL for the indexing server
+    /// Base URL of the Forge services API used for semantic search and
+    /// indexing.
+    #[serde(default)]
+    #[dummy(expr = "\"https://api.forgecode.dev/api\".to_string()")]
     pub services_url: String,
-    /// Maximum number of file extensions to include in the system prompt
+    /// Maximum number of file extensions included in the agent system prompt.
+    #[serde(default)]
     pub max_extensions: usize,
-    /// Format for automatically creating a dump when a task is completed
+    /// Format used when automatically creating a session dump after task
+    /// completion; disabled when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auto_dump: Option<AutoDumpFormat>,
-    /// Maximum number of files read concurrently in parallel operations
+    /// Maximum number of files read concurrently during batch operations.
+    #[serde(default)]
     pub max_parallel_file_reads: usize,
-    /// TTL in seconds for the model API list cache
+    /// Time-to-live in seconds for the cached model API list.
+    #[serde(default)]
     pub model_cache_ttl_secs: u64,
     /// Default model and provider configuration used when not overridden by
     /// individual agents.    
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session: Option<ModelConfig>,
-    /// Provider and model to use for commit message generation    
-    #[serde(default)]
+    /// Model and provider configuration used for commit message generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub commit: Option<ModelConfig>,
-    /// Provider and model to use for shell command suggestion generation    
+    /// Maximum number of recent commits included as context for commit message
+    /// generation.
     #[serde(default)]
+    pub max_commit_count: usize,
+    /// Model and provider configuration used for shell command suggestion
+    /// generation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub suggest: Option<ModelConfig>,
 
     // --- Workflow fields ---
-    /// Configuration for automatic forge updates
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Configuration for automatic Forge updates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updates: Option<Update>,
 
     /// Output randomness for all agents; lower values are deterministic, higher
     /// values are creative (0.0–2.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub temperature: Option<f32>,
+    pub temperature: Option<Decimal>,
 
     /// Nucleus sampling threshold for all agents; limits token selection to the
     /// top cumulative probability mass (0.0–1.0).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub top_p: Option<f32>,
+    pub top_p: Option<Decimal>,
 
     /// Top-k vocabulary cutoff for all agents; restricts sampling to the k
     /// highest-probability tokens (1–1000).
@@ -115,13 +243,28 @@ pub struct ForgeConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub compact: Option<Compact>,
 
-    /// Whether the application is running in restricted mode.
-    /// When true, tool execution requires explicit permission grants.    
+    /// Whether restricted mode is active; when enabled, tool execution requires
+    /// explicit permission grants.
+    #[serde(default)]
     pub restricted: bool,
 
-    /// Whether tool use is supported in the current environment.
-    /// When false, tool calls are disabled regardless of agent configuration.
+    /// Whether tool use is supported in the current environment; when false,
+    /// all tool calls are disabled.
+    #[serde(default)]
     pub tool_supported: bool,
+
+    /// Reasoning configuration applied to all agents; controls effort level,
+    /// token budget, and visibility of the model's thinking process.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning: Option<ReasoningConfig>,
+
+    /// Additional provider definitions merged with the built-in provider list.
+    ///
+    /// Entries with an `id` matching a built-in provider override its fields;
+    /// entries with a new `id` are appended and become available for model
+    /// selection.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub providers: Vec<ProviderEntry>,
 }
 
 impl ForgeConfig {
@@ -134,8 +277,8 @@ impl ForgeConfig {
     /// be read, or deserialization fails.
     pub fn read() -> crate::Result<ForgeConfig> {
         ConfigReader::default()
-            .read_defaults()
             .read_legacy()
+            .read_defaults()
             .read_global()
             .read_env()
             .build()
@@ -153,49 +296,45 @@ impl ForgeConfig {
     }
 }
 
-impl Dummy<fake::Faker> for ForgeConfig {
-    fn dummy_with_rng<R: fake::RngExt + ?Sized>(_: &fake::Faker, rng: &mut R) -> Self {
-        use fake::Fake;
-        Self {
-            retry: fake::Faker.fake_with_rng(rng),
-            max_search_lines: fake::Faker.fake_with_rng(rng),
-            max_search_result_bytes: fake::Faker.fake_with_rng(rng),
-            max_fetch_chars: fake::Faker.fake_with_rng(rng),
-            max_stdout_prefix_lines: fake::Faker.fake_with_rng(rng),
-            max_stdout_suffix_lines: fake::Faker.fake_with_rng(rng),
-            max_stdout_line_chars: fake::Faker.fake_with_rng(rng),
-            max_line_chars: fake::Faker.fake_with_rng(rng),
-            max_read_lines: fake::Faker.fake_with_rng(rng),
-            max_file_read_batch_size: fake::Faker.fake_with_rng(rng),
-            http: fake::Faker.fake_with_rng(rng),
-            max_file_size_bytes: fake::Faker.fake_with_rng(rng),
-            max_image_size_bytes: fake::Faker.fake_with_rng(rng),
-            tool_timeout_secs: fake::Faker.fake_with_rng(rng),
-            auto_open_dump: fake::Faker.fake_with_rng(rng),
-            debug_requests: fake::Faker.fake_with_rng(rng),
-            custom_history_path: fake::Faker.fake_with_rng(rng),
-            max_conversations: fake::Faker.fake_with_rng(rng),
-            max_sem_search_results: fake::Faker.fake_with_rng(rng),
-            sem_search_top_k: fake::Faker.fake_with_rng(rng),
-            // Must be a valid URL for the round-trip through `Url::parse`
-            services_url: "https://example.com/api".to_string(),
-            max_extensions: fake::Faker.fake_with_rng(rng),
-            auto_dump: fake::Faker.fake_with_rng(rng),
-            max_parallel_file_reads: fake::Faker.fake_with_rng(rng),
-            model_cache_ttl_secs: fake::Faker.fake_with_rng(rng),
-            session: fake::Faker.fake_with_rng(rng),
-            commit: fake::Faker.fake_with_rng(rng),
-            suggest: fake::Faker.fake_with_rng(rng),
-            updates: fake::Faker.fake_with_rng(rng),
-            temperature: fake::Faker.fake_with_rng(rng),
-            top_p: fake::Faker.fake_with_rng(rng),
-            top_k: fake::Faker.fake_with_rng(rng),
-            max_tokens: fake::Faker.fake_with_rng(rng),
-            max_tool_failure_per_turn: fake::Faker.fake_with_rng(rng),
-            max_requests_per_turn: fake::Faker.fake_with_rng(rng),
-            compact: fake::Faker.fake_with_rng(rng),
-            restricted: fake::Faker.fake_with_rng(rng),
-            tool_supported: fake::Faker.fake_with_rng(rng),
-        }
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+    use crate::reader::ConfigReader;
+
+    #[test]
+    fn test_f32_temperature_round_trip() {
+        let fixture = ForgeConfig { temperature: Some(Decimal(0.1)), ..Default::default() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        assert!(
+            toml.contains("temperature = 0.1\n"),
+            "expected `temperature = 0.1` in TOML output, got:\n{toml}"
+        );
+    }
+
+    #[test]
+    fn test_f32_top_p_round_trip() {
+        let fixture = ForgeConfig { top_p: Some(Decimal(0.9)), ..Default::default() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        assert!(
+            toml.contains("top_p = 0.9\n"),
+            "expected `top_p = 0.9` in TOML output, got:\n{toml}"
+        );
+    }
+
+    #[test]
+    fn test_f32_temperature_deserialize_round_trip() {
+        let fixture = ForgeConfig { temperature: Some(Decimal(0.1)), ..Default::default() };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+
+        let actual = ConfigReader::default().read_toml(&toml).build().unwrap();
+
+        assert_eq!(actual.temperature, fixture.temperature);
     }
 }

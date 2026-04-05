@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ConversationId, ModelId, ProviderId};
+use forge_domain::{AgentId, ConversationId, Effort, ModelId, ProviderId};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -542,6 +542,11 @@ pub enum ConfigSetField {
         /// Model ID to use for command suggestion generation.
         model: ModelId,
     },
+    /// Set the reasoning effort level applied to all agents.
+    ReasoningEffort {
+        /// Effort level: none, minimal, low, medium, high, xhigh, max.
+        effort: Effort,
+    },
 }
 
 /// Type-safe subcommands for `forge config get`.
@@ -555,6 +560,8 @@ pub enum ConfigGetField {
     Commit,
     /// Get the command suggestion generation config.
     Suggest,
+    /// Get the reasoning effort level.
+    ReasoningEffort,
 }
 
 /// Command group for conversation management.
@@ -644,6 +651,15 @@ pub enum ConversationCommand {
     Delete {
         /// Conversation ID to delete.
         id: String,
+    },
+
+    /// Rename a conversation.
+    Rename {
+        /// Conversation ID to rename.
+        id: ConversationId,
+
+        /// New name for the conversation.
+        name: String,
     },
 }
 

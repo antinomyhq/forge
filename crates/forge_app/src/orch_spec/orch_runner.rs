@@ -10,6 +10,7 @@ use include_dir::{Dir, include_dir};
 use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
+use crate::app::build_template_config;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::hooks::DoomLoopDetector;
 use crate::init_conversation_metrics::InitConversationMetrics;
@@ -18,7 +19,8 @@ use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
+    AgentExt, AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService,
+    TemplateService,
 };
 
 static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
@@ -91,12 +93,14 @@ impl Runner {
 
         let agent = setup.agent.clone();
         let system_tools = setup.tools.clone();
-        let agent = agent.apply_env(&setup.env).model(setup.model.clone());
+        let agent = agent.apply_config(&setup.config).model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
             .files(setup.files.clone())
             .tool_definitions(system_tools.clone())
+            .max_extensions(setup.config.max_extensions)
+            .template_config(build_template_config(&setup.config))
             .add_system_message(conversation)
             .await?;
 
@@ -115,7 +119,8 @@ impl Runner {
             ApplyTunableParameters::new(agent.clone(), system_tools.clone()).apply(conversation);
         let conversation = SetConversationId.apply(conversation);
 
-        let orch = Orchestrator::new(services.clone(), setup.env.clone(), conversation, agent)
+        let retry_config = setup.config.retry.clone().unwrap_or_default();
+        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent)
             .error_tracker(ToolErrorTracker::new(3))
             .tool_definitions(system_tools)
             .hook(Arc::new(

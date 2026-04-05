@@ -20,8 +20,16 @@
     "description": "Switch the model for the current session only, without modifying global config [alias: m]"
   },
   {
-    "command": "model-reset",
-    "description": "Reset session model to use global config [alias: mr]"
+    "command": "config-reload",
+    "description": "Reset all session overrides (model, provider, reasoning effort) to use global config [alias: cr]"
+  },
+  {
+    "command": "reasoning-effort",
+    "description": "Set reasoning effort for the current session only [alias: re]"
+  },
+  {
+    "command": "config-reasoning-effort",
+    "description": "Set the reasoning effort level in global config [alias: cre]"
   },
   {
     "command": "config-commit-model",
@@ -114,6 +122,14 @@
   {
     "command": "clone",
     "description": "Clone and manage conversation context"
+  },
+  {
+    "command": "rename",
+    "description": "Rename the current conversation [alias: rn]"
+  },
+  {
+    "command": "conversation-rename",
+    "description": "Rename a conversation by ID or interactively"
   },
   {
     "command": "copy",

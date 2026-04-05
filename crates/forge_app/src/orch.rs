@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
+use forge_config::RetryConfig;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use futures::future::join_all;
@@ -19,7 +20,7 @@ pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
-    environment: Environment,
+    retry_config: RetryConfig,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
@@ -30,13 +31,13 @@ pub struct Orchestrator<S> {
 impl<S: AgentService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
-        environment: Environment,
+        retry_config: RetryConfig,
         conversation: Conversation,
         agent: Agent,
     ) -> Self {
         Self {
             conversation,
-            environment,
+            retry_config,
             services,
             agent,
             sender: Default::default(),
@@ -201,6 +202,7 @@ impl<S: AgentService> Orchestrator<S> {
         let tool_supported = self.is_tool_supported()?;
         let mut transformers = DefaultTransformation::default()
             .pipe(SortTools::new(self.agent.tool_order()))
+            .pipe(NormalizeToolCallArguments::new())
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             // Drop ALL reasoning (including config) when reasoning is not supported by the model
@@ -268,7 +270,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
 
             let message = crate::retry::retry_with_config(
-                &self.environment.retry_config,
+                &self.retry_config,
                 || {
                     self.execute_chat_turn(
                         &model_id,
@@ -354,6 +356,7 @@ impl<S: AgentService> Orchestrator<S> {
                 message.reasoning_details.clone(),
                 message.usage,
                 tool_call_records,
+                message.phase,
             );
 
             if self.error_tracker.limit_reached() {

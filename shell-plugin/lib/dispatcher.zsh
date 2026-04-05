@@ -175,8 +175,14 @@ function forge-accept-line() {
         model|m)
             _forge_action_session_model "$input_text"
         ;;
-        model-reset|mr)
-            _forge_action_model_reset
+        config-reload|cr|model-reset|mr)
+            _forge_action_config_reload
+        ;;
+        reasoning-effort|re)
+            _forge_action_reasoning_effort "$input_text"
+        ;;
+        config-reasoning-effort|cre)
+            _forge_action_config_reasoning_effort "$input_text"
         ;;
         config-commit-model|ccm)
             _forge_action_commit_model "$input_text"
@@ -216,6 +222,12 @@ function forge-accept-line() {
         ;;
         clone)
             _forge_action_clone "$input_text"
+        ;;
+        rename|rn)
+            _forge_action_rename "$input_text"
+        ;;
+        conversation-rename)
+            _forge_action_conversation_rename "$input_text"
         ;;
         copy)
             _forge_action_copy

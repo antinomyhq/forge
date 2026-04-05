@@ -103,6 +103,65 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
+impl From<forge_config::ProviderUrlParam> for UrlParamVarConfig {
+    fn from(param: forge_config::ProviderUrlParam) -> Self {
+        if param.options.is_empty() {
+            UrlParamVarConfig::Plain(param.name)
+        } else {
+            UrlParamVarConfig::WithOptions { name: param.name, options: param.options }
+        }
+    }
+}
+
+impl From<forge_config::ProviderEntry> for ProviderConfig {
+    fn from(entry: forge_config::ProviderEntry) -> Self {
+        let provider_type = match entry.provider_type {
+            Some(forge_config::ProviderTypeEntry::ContextEngine) => {
+                forge_domain::ProviderType::ContextEngine
+            }
+            Some(forge_config::ProviderTypeEntry::Llm) | None => forge_domain::ProviderType::Llm,
+        };
+
+        let auth_methods = if entry.auth_methods.is_empty() {
+            vec![forge_domain::AuthMethod::ApiKey]
+        } else {
+            entry
+                .auth_methods
+                .into_iter()
+                .map(|m| match m {
+                    forge_config::ProviderAuthMethod::ApiKey => forge_domain::AuthMethod::ApiKey,
+                    forge_config::ProviderAuthMethod::GoogleAdc => {
+                        forge_domain::AuthMethod::GoogleAdc
+                    }
+                })
+                .collect()
+        };
+
+        let response_type = entry.response_type.map(|r| match r {
+            forge_config::ProviderResponseType::OpenAI => ProviderResponse::OpenAI,
+            forge_config::ProviderResponseType::OpenAIResponses => {
+                ProviderResponse::OpenAIResponses
+            }
+            forge_config::ProviderResponseType::Anthropic => ProviderResponse::Anthropic,
+            forge_config::ProviderResponseType::Bedrock => ProviderResponse::Bedrock,
+            forge_config::ProviderResponseType::Google => ProviderResponse::Google,
+            forge_config::ProviderResponseType::OpenCode => ProviderResponse::OpenCode,
+        });
+
+        ProviderConfig {
+            id: ProviderId::from(entry.id),
+            provider_type,
+            api_key_vars: entry.api_key_var,
+            url_param_vars: entry.url_param_vars.into_iter().map(Into::into).collect(),
+            response_type,
+            url: entry.url,
+            models: entry.models.map(Models::Url),
+            auth_methods,
+            custom_headers: entry.custom_headers,
+        }
+    }
+}
+
 impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     fn from(config: &ProviderConfig) -> Self {
         let models = config.models.as_ref().map(|m| match m {
@@ -163,6 +222,17 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         let json_str = self.infra.read_utf8(&provider_json_path).await?;
         let configs = serde_json::from_str(&json_str)?;
         Ok(configs)
+    }
+
+    /// Converts provider entries from `ForgeConfig` into `ProviderConfig`
+    /// instances that can be merged into the provider list.
+    fn get_config_provider_configs(&self) -> Vec<ProviderConfig> {
+        self.infra
+            .get_config()
+            .providers
+            .into_iter()
+            .map(Into::into)
+            .collect()
     }
 
     async fn get_providers(&self) -> Vec<AnyProvider> {
@@ -420,10 +490,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// Returns merged provider configs (embedded + custom)
     async fn get_merged_configs(&self) -> Vec<ProviderConfig> {
         let mut configs = ProviderConfigs(get_provider_configs().clone());
-        // Merge custom configs into embedded configs
+        // Merge custom file configs into embedded configs
         configs.merge(ProviderConfigs(
             self.get_custom_provider_configs().await.unwrap_or_default(),
         ));
+        // Merge inline configs from ForgeConfig (forge.toml `providers` field)
+        configs.merge(ProviderConfigs(self.get_config_provider_configs()));
 
         configs.0
     }
@@ -717,11 +789,20 @@ mod env_tests {
     }
 
     impl EnvironmentInfra for MockInfra {
+        type Config = forge_config::ForgeConfig;
+
         fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let mut env: Environment = Faker.fake();
             env.base_path = self.base_path.clone();
             env
+        }
+
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
 
         async fn update_environment(
@@ -1207,11 +1288,20 @@ mod env_tests {
         }
 
         impl EnvironmentInfra for CustomMockInfra {
+            type Config = forge_config::ForgeConfig;
+
             fn get_environment(&self) -> Environment {
                 use fake::{Fake, Faker};
                 let mut env: Environment = Faker.fake();
                 env.base_path = self.base_path.clone();
                 env
+            }
+
+            fn get_config(&self) -> forge_config::ForgeConfig {
+                forge_config::ConfigReader::default()
+                    .read_defaults()
+                    .build()
+                    .unwrap()
             }
 
             async fn update_environment(
