@@ -432,7 +432,19 @@ impl<S: AgentService> Orchestrator<S> {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use forge_domain::{ToolCallArguments, ToolCallFull, ToolKind, ToolName};
+
+    /// Helper function to create a ToolCallFull for testing
+    fn fixture_tool_call(name: &str, arguments: &str) -> ToolCallFull {
+        ToolCallFull {
+            name: ToolName::new(name),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(arguments),
+            thought_signature: None,
+        }
+    }
 
     /// Helper function to check if a tool call is a Task tool call
     /// Mirrors the logic in execute_tool_calls for testing purposes
@@ -445,227 +457,131 @@ mod tests {
 
     #[test]
     fn test_is_task_tool_call_lowercase() {
-        let tool_call = ToolCallFull {
-            name: ToolName::new("task"),
-            call_id: None,
-            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["test"]}"#),
-            thought_signature: None,
-        };
-
-        assert!(
-            is_task_tool_call(&tool_call),
-            "Should identify lowercase 'task' as Task tool"
-        );
+        let fixture = fixture_tool_call("task", r#"{"agent_id": "sage", "tasks": ["test"]}"#);
+        let actual = is_task_tool_call(&fixture);
+        let expected = true;
+        assert_eq!(actual, expected, "Should identify lowercase 'task' as Task tool");
     }
 
     #[test]
     fn test_is_task_tool_call_uppercase() {
-        let tool_call = ToolCallFull {
-            name: ToolName::new("Task"),
-            call_id: None,
-            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["test"]}"#),
-            thought_signature: None,
-        };
-
-        assert!(
-            is_task_tool_call(&tool_call),
-            "Should identify uppercase 'Task' as Task tool"
-        );
+        let fixture = fixture_tool_call("Task", r#"{"agent_id": "sage", "tasks": ["test"]}"#);
+        let actual = is_task_tool_call(&fixture);
+        let expected = true;
+        assert_eq!(actual, expected, "Should identify uppercase 'Task' as Task tool");
     }
 
     #[test]
     fn test_is_task_tool_call_mixed_case() {
-        let tool_call = ToolCallFull {
-            name: ToolName::new("TASK"),
-            call_id: None,
-            arguments: ToolCallArguments::from_json(r#"{"agent_id": "sage", "tasks": ["test"]}"#),
-            thought_signature: None,
-        };
-
-        assert!(
-            is_task_tool_call(&tool_call),
-            "Should identify 'TASK' as Task tool"
-        );
+        let fixture = fixture_tool_call("TASK", r#"{"agent_id": "sage", "tasks": ["test"]}"#);
+        let actual = is_task_tool_call(&fixture);
+        let expected = true;
+        assert_eq!(actual, expected, "Should identify 'TASK' as Task tool");
     }
 
     #[test]
     fn test_is_task_tool_call_non_task() {
-        let tool_call = ToolCallFull {
-            name: ToolName::new("read"),
-            call_id: None,
-            arguments: ToolCallArguments::from_json(r#"{"file_path": "/test.rs"}"#),
-            thought_signature: None,
-        };
-
-        assert!(
-            !is_task_tool_call(&tool_call),
-            "Should not identify 'read' as Task tool"
-        );
+        let fixture = fixture_tool_call("read", r#"{"file_path": "/test.rs"}"#);
+        let actual = is_task_tool_call(&fixture);
+        let expected = false;
+        assert_eq!(actual, expected, "Should not identify 'read' as Task tool");
     }
 
     #[test]
     fn test_partition_task_calls_from_others() {
-        let tool_calls = vec![
-            ToolCallFull {
-                name: ToolName::new("read"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(r#"{"file_path": "/test.rs"}"#),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("task"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"agent_id": "sage", "tasks": ["task1"]}"#,
-                ),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("write"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"file_path": "/test.rs", "content": "test"}"#,
-                ),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("Task"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"agent_id": "debug", "tasks": ["task2"]}"#,
-                ),
-                thought_signature: None,
-            },
+        let fixture = vec![
+            fixture_tool_call("read", r#"{"file_path": "/test.rs"}"#),
+            fixture_tool_call("task", r#"{"agent_id": "sage", "tasks": ["task1"]}"#),
+            fixture_tool_call("write", r#"{"file_path": "/test.rs", "content": "test"}"#),
+            fixture_tool_call("Task", r#"{"agent_id": "debug", "tasks": ["task2"]}"#),
         ];
 
-        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
-            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+        let (actual_task, actual_other): (Vec<_>, Vec<_>) =
+            fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        assert_eq!(task_calls.len(), 2, "Should have 2 task calls");
-        assert_eq!(other_calls.len(), 2, "Should have 2 other calls");
+        let expected_task_count = 2;
+        let expected_other_count = 2;
+        assert_eq!(actual_task.len(), expected_task_count, "Should have 2 task calls");
+        assert_eq!(actual_other.len(), expected_other_count, "Should have 2 other calls");
 
         // Verify task calls contain the right tools
-        assert!(task_calls.iter().all(|tc| is_task_tool_call(tc)));
+        assert!(actual_task.iter().all(|tc| is_task_tool_call(tc)));
 
         // Verify other calls don't contain task tools
-        assert!(other_calls.iter().all(|tc| !is_task_tool_call(tc)));
+        assert!(actual_other.iter().all(|tc| !is_task_tool_call(tc)));
     }
 
     #[test]
     fn test_partition_preserves_order_within_groups() {
-        let tool_calls = vec![
-            ToolCallFull {
-                name: ToolName::new("task"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"agent_id": "sage", "tasks": ["first"]}"#,
-                ),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("read"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(r#"{"file_path": "/a.rs"}"#),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("Task"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"agent_id": "debug", "tasks": ["second"]}"#,
-                ),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("write"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"file_path": "/b.rs", "content": "test"}"#,
-                ),
-                thought_signature: None,
-            },
+        let fixture = vec![
+            fixture_tool_call("task", r#"{"agent_id": "sage", "tasks": ["first"]}"#),
+            fixture_tool_call("read", r#"{"file_path": "/a.rs"}"#),
+            fixture_tool_call("Task", r#"{"agent_id": "debug", "tasks": ["second"]}"#),
+            fixture_tool_call("write", r#"{"file_path": "/b.rs", "content": "test"}"#),
         ];
 
         let (task_calls, other_calls): (Vec<_>, Vec<_>) =
-            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+            fixture.iter().partition(|tc| is_task_tool_call(tc));
 
         // Task calls should maintain order: first task, then Task
-        let task_args: Vec<_> = task_calls
+        let actual_task_args: Vec<_> = task_calls
             .iter()
             .map(|tc| {
                 let parsed: serde_json::Value = tc.arguments.parse().unwrap();
                 parsed["tasks"][0].as_str().unwrap().to_string()
             })
             .collect();
-        assert_eq!(task_args, vec!["first", "second"]);
+        let expected_task_args = vec!["first", "second"];
+        assert_eq!(actual_task_args, expected_task_args);
 
         // Other calls should maintain order: read, then write
-        let other_names: Vec<_> = other_calls.iter().map(|tc| tc.name.as_str()).collect();
-        assert_eq!(other_names, vec!["read", "write"]);
+        let actual_other_names: Vec<_> = other_calls.iter().map(|tc| tc.name.as_str()).collect();
+        let expected_other_names = vec!["read", "write"];
+        assert_eq!(actual_other_names, expected_other_names);
     }
 
     #[test]
-    fn test_all_task_calls_partition() {
-        let tool_calls = vec![
-            ToolCallFull {
-                name: ToolName::new("task"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"agent_id": "sage", "tasks": ["a"]}"#,
-                ),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("Task"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"agent_id": "debug", "tasks": ["b"]}"#,
-                ),
-                thought_signature: None,
-            },
+    fn test_partition_all_task_calls() {
+        let fixture = vec![
+            fixture_tool_call("task", r#"{"agent_id": "sage", "tasks": ["a"]}"#),
+            fixture_tool_call("Task", r#"{"agent_id": "debug", "tasks": ["b"]}"#),
         ];
 
-        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
-            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+        let (actual_task, actual_other): (Vec<_>, Vec<_>) =
+            fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        assert_eq!(task_calls.len(), 2);
-        assert_eq!(other_calls.len(), 0);
+        let expected_task_count = 2;
+        let expected_other_count = 0;
+        assert_eq!(actual_task.len(), expected_task_count);
+        assert_eq!(actual_other.len(), expected_other_count);
     }
 
     #[test]
-    fn test_no_task_calls_partition() {
-        let tool_calls = vec![
-            ToolCallFull {
-                name: ToolName::new("read"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(r#"{"file_path": "/a.rs"}"#),
-                thought_signature: None,
-            },
-            ToolCallFull {
-                name: ToolName::new("write"),
-                call_id: None,
-                arguments: ToolCallArguments::from_json(
-                    r#"{"file_path": "/b.rs", "content": "test"}"#,
-                ),
-                thought_signature: None,
-            },
+    fn test_partition_no_task_calls() {
+        let fixture = vec![
+            fixture_tool_call("read", r#"{"file_path": "/a.rs"}"#),
+            fixture_tool_call("write", r#"{"file_path": "/b.rs", "content": "test"}"#),
         ];
 
-        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
-            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+        let (actual_task, actual_other): (Vec<_>, Vec<_>) =
+            fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        assert_eq!(task_calls.len(), 0);
-        assert_eq!(other_calls.len(), 2);
+        let expected_task_count = 0;
+        let expected_other_count = 2;
+        assert_eq!(actual_task.len(), expected_task_count);
+        assert_eq!(actual_other.len(), expected_other_count);
     }
 
     #[test]
-    fn test_empty_tool_calls_partition() {
-        let tool_calls: Vec<ToolCallFull> = vec![];
+    fn test_partition_empty_tool_calls() {
+        let fixture: Vec<ToolCallFull> = vec![];
 
-        let (task_calls, other_calls): (Vec<_>, Vec<_>) =
-            tool_calls.iter().partition(|tc| is_task_tool_call(tc));
+        let (actual_task, actual_other): (Vec<_>, Vec<_>) =
+            fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        assert_eq!(task_calls.len(), 0);
-        assert_eq!(other_calls.len(), 0);
+        let expected_task_count = 0;
+        let expected_other_count = 0;
+        assert_eq!(actual_task.len(), expected_task_count);
+        assert_eq!(actual_other.len(), expected_other_count);
     }
 }
