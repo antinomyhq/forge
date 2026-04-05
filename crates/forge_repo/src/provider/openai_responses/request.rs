@@ -57,12 +57,12 @@ fn emit_tool_search_items(
     if let Some(call_json) = &output.tool_search_call
         && let Ok(mut call_param) =
             serde_json::from_value::<oai::ToolSearchCallItemParam>(call_json.clone())
-        {
-            // The original API response has status "in_progress", but
-            // when replaying we need to send "completed".
-            call_param.status = Some(oai::OutputStatus::Completed);
-            items.push(oai::InputItem::Item(oai::Item::ToolSearchCall(call_param)));
-        }
+    {
+        // The original API response has status "in_progress", but
+        // when replaying we need to send "completed".
+        call_param.status = Some(oai::OutputStatus::Completed);
+        items.push(oai::InputItem::Item(oai::Item::ToolSearchCall(call_param)));
+    }
 
     // Then emit tool_search_output
     let tool_search_item = tool_search_output_to_oai(output)?;

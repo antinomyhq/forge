@@ -425,8 +425,6 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 
                         // Add tool calls if any
 
-                        
-
                         if let Some(tool_calls) = &content_message.tool_calls {
                             if !tool_calls.is_empty() {
                                 message_elm.append(Element::new("div").append(
