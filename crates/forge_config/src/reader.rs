@@ -1,8 +1,9 @@
-use std::path::PathBuf;
-use std::sync::LazyLock;
+use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, OnceLock};
 
 use config::ConfigBuilder;
 use config::builder::DefaultState;
+use tracing::warn;
 
 use crate::ForgeConfig;
 use crate::legacy::LegacyConfig;
@@ -30,6 +31,67 @@ static LOAD_DOT_ENV: LazyLock<()> = LazyLock::new(|| {
     }
 });
 
+static MIGRATE_CONFIG_PATHS: OnceLock<()> = OnceLock::new();
+
+fn old_base_path() -> PathBuf {
+    dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+}
+
+fn new_base_path() -> PathBuf {
+    dirs::home_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join(".forge")
+}
+
+fn migrate_file(old_path: &Path, new_path: &Path) -> std::io::Result<()> {
+    if new_path.exists() || !old_path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = new_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    std::fs::rename(old_path, new_path)?;
+    Ok(())
+}
+
+fn migrate_base_dir(old_base: &Path, new_base: &Path) -> std::io::Result<()> {
+    if new_base.exists() || !old_base.exists() {
+        return Ok(());
+    }
+
+    std::fs::rename(old_base, new_base)?;
+    Ok(())
+}
+
+fn migrate_paths() {
+    MIGRATE_CONFIG_PATHS.get_or_init(|| {
+        let old_base = old_base_path();
+        let new_base = new_base_path();
+
+        if let Err(error) = migrate_base_dir(&old_base, &new_base) {
+            warn!(
+                error = ?error,
+                old_base = %old_base.display(),
+                new_base = %new_base.display(),
+                "Failed to migrate Forge base directory"
+            );
+        }
+
+        let old_config = new_base.join(".forge.toml");
+        let new_config = new_base.join("config.toml");
+        if let Err(error) = migrate_file(&old_config, &new_config) {
+            warn!(
+                error = ?error,
+                old_config = %old_config.display(),
+                new_config = %new_config.display(),
+                "Failed to migrate Forge config file"
+            );
+        }
+    });
+}
+
 /// Merges [`ForgeConfig`] from layered sources using a builder pattern.
 #[derive(Default)]
 pub struct ConfigReader {
@@ -40,18 +102,21 @@ impl ConfigReader {
     /// Returns the path to the legacy JSON config file
     /// (`~/.forge/.config.json`).
     pub fn config_legacy_path() -> PathBuf {
+        migrate_paths();
         Self::base_path().join(".config.json")
     }
 
     /// Returns the path to the primary TOML config file
-    /// (`~/.forge/.forge.toml`).
+    /// (`~/.forge/config.toml`).
     pub fn config_path() -> PathBuf {
-        Self::base_path().join(".forge.toml")
+        migrate_paths();
+        Self::base_path().join("config.toml")
     }
 
-    /// Returns the base directory for all Forge config files (`~/forge`).
+    /// Returns the base directory for all Forge config files (`~/.forge`).
     pub fn base_path() -> PathBuf {
-        dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+        migrate_paths();
+        new_base_path()
     }
 
     /// Adds the provided TOML string as a config source without touching the
@@ -64,9 +129,9 @@ impl ConfigReader {
         self
     }
 
-    /// Adds the embedded default config (`../.forge.toml`) as a source.
+    /// Adds the embedded default config (`../config.toml`) as a source.
     pub fn read_defaults(self) -> Self {
-        let defaults = include_str!("../.forge.toml");
+        let defaults = include_str!("../config.toml");
 
         self.read_toml(defaults)
     }
@@ -101,7 +166,7 @@ impl ConfigReader {
         Ok(config.try_deserialize::<ForgeConfig>()?)
     }
 
-    /// Adds `~/.forge/.forge.toml` as a config source, silently skipping if
+    /// Adds `~/.forge/config.toml` as a config source, silently skipping if
     /// absent.
     pub fn read_global(mut self) -> Self {
         let path = Self::config_path();
@@ -125,7 +190,9 @@ impl ConfigReader {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::sync::{Mutex, MutexGuard};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     use pretty_assertions::assert_eq;
 
@@ -170,6 +237,52 @@ mod tests {
         assert!(actual.is_ok(), "read() failed: {:?}", actual.err());
     }
 
+    fn temp_fixture_dir(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("forge-config-{name}-{nonce}"));
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_migrate_base_dir_moves_legacy_forge_directory() {
+        let fixture = temp_fixture_dir("base-dir");
+        let old_base = fixture.join("forge");
+        let new_base = fixture.join(".forge");
+        fs::create_dir_all(&old_base).unwrap();
+        fs::write(old_base.join("marker.txt"), "migrated").unwrap();
+
+        let actual = migrate_base_dir(&old_base, &new_base);
+        actual.unwrap();
+        let expected = "migrated";
+
+        assert!(!old_base.exists());
+        assert_eq!(
+            fs::read_to_string(new_base.join("marker.txt")).unwrap(),
+            expected
+        );
+        fs::remove_dir_all(fixture).unwrap();
+    }
+
+    #[test]
+    fn test_migrate_file_renames_dot_forge_toml_to_config_toml() {
+        let fixture = temp_fixture_dir("config-file");
+        let old_path = fixture.join(".forge.toml");
+        let new_path = fixture.join("config.toml");
+        fs::write(&old_path, "key = 'value'").unwrap();
+
+        let actual = migrate_file(&old_path, &new_path);
+        actual.unwrap();
+        let expected = "key = 'value'";
+
+        assert!(!old_path.exists());
+        assert_eq!(fs::read_to_string(new_path).unwrap(), expected);
+        fs::remove_dir_all(fixture).unwrap();
+    }
+
     #[test]
     fn test_legacy_layer_does_not_overwrite_defaults() {
         // Simulate what `read_legacy` does: serialize a ForgeConfig that only
@@ -200,7 +313,7 @@ mod tests {
             })
         );
 
-        // Default values from .forge.toml must be retained, not reset to zero
+        // Default values from config.toml must be retained, not reset to zero
         assert_eq!(actual.max_parallel_file_reads, 64);
         assert_eq!(actual.max_read_lines, 2000);
         assert_eq!(actual.tool_timeout_secs, 300);
