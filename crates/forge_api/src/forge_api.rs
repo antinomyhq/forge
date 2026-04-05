@@ -313,10 +313,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         self.infra.load_skills().await
     }
 
-    async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
+    async fn generate_command(
+        &self,
+        prompt: UserPrompt,
+        shell_context: Option<String>,
+    ) -> Result<String> {
         use forge_app::CommandGenerator;
         let generator = CommandGenerator::new(self.services.clone());
-        generator.generate(prompt).await
+        generator.generate(prompt, shell_context).await
     }
 
     async fn init_provider_auth(
