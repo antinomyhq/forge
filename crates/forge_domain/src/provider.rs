@@ -73,6 +73,7 @@ impl ProviderId {
     pub const FIREWORKS_AI: ProviderId = ProviderId(Cow::Borrowed("fireworks-ai"));
     pub const NOVITA: ProviderId = ProviderId(Cow::Borrowed("novita"));
     pub const GOOGLE_AI_STUDIO: ProviderId = ProviderId(Cow::Borrowed("google_ai_studio"));
+    pub const NVIDIA: ProviderId = ProviderId(Cow::Borrowed("nvidia"));
 
     /// Returns all built-in provider IDs
     ///
@@ -106,6 +107,7 @@ impl ProviderId {
             ProviderId::FIREWORKS_AI,
             ProviderId::NOVITA,
             ProviderId::GOOGLE_AI_STUDIO,
+            ProviderId::NVIDIA,
         ]
     }
 
@@ -132,6 +134,7 @@ impl ProviderId {
             "fireworks-ai" => "FireworksAI".to_string(),
             "novita" => "Novita".to_string(),
             "google_ai_studio" => "GoogleAIStudio".to_string(),
+            "nvidia" => "NVIDIA".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -177,6 +180,7 @@ impl std::str::FromStr for ProviderId {
             "fireworks-ai" => ProviderId::FIREWORKS_AI,
             "novita" => ProviderId::NOVITA,
             "google_ai_studio" => ProviderId::GOOGLE_AI_STUDIO,
+            "nvidia" => ProviderId::NVIDIA,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -549,6 +553,7 @@ mod tests {
         assert_eq!(ProviderId::CODEX.to_string(), "Codex");
         assert_eq!(ProviderId::FIREWORKS_AI.to_string(), "FireworksAI");
         assert_eq!(ProviderId::GOOGLE_AI_STUDIO.to_string(), "GoogleAIStudio");
+        assert_eq!(ProviderId::NVIDIA.to_string(), "NVIDIA");
     }
 
     #[test]
@@ -572,6 +577,7 @@ mod tests {
         assert!(built_in.contains(&ProviderId::OPENAI_RESPONSES_COMPATIBLE));
         assert!(built_in.contains(&ProviderId::FIREWORKS_AI));
         assert!(built_in.contains(&ProviderId::GOOGLE_AI_STUDIO));
+        assert!(built_in.contains(&ProviderId::NVIDIA));
     }
 
     #[test]

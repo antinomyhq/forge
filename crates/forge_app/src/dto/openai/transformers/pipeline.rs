@@ -2,6 +2,7 @@ use forge_domain::{DefaultTransformation, Provider, ProviderId, Transformer};
 use url::Url;
 
 use super::drop_tool_call::DropToolCalls;
+use super::ensure_system_first::MergeSystemMessages;
 use super::github_copilot_reasoning::GitHubCopilotReasoning;
 use super::kimi_k2_reasoning::KimiK2Reasoning;
 use super::make_cerebras_compat::MakeCerebrasCompat;
@@ -67,6 +68,9 @@ impl Transformer for ProviderPipeline<'_> {
 
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
+        let ensure_system_first =
+            MergeSystemMessages.when(move |_| provider.id == ProviderId::NVIDIA);
+
         let trim_tool_call_ids = TrimToolCallIds.when(move |_| provider.id == ProviderId::OPENAI);
 
         let strict_schema = EnforceStrictToolSchema
@@ -83,6 +87,7 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(github_copilot_reasoning)
             .pipe(kimi_k2_reasoning)
             .pipe(cerebras_compat)
+            .pipe(ensure_system_first)
             .pipe(trim_tool_call_ids)
             .pipe(strict_schema)
             .pipe(NormalizeToolSchema);
