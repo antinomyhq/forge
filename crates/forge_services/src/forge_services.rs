@@ -7,7 +7,8 @@ use forge_app::{
 };
 use forge_domain::{
     ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
-    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
+    SkillRepository, SkillSearchRepository, SnapshotRepository, ValidationRepository,
+    WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -27,8 +28,8 @@ use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
     ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeSkillSearch,
 };
-
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
 
@@ -54,6 +55,7 @@ pub struct ForgeServices<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
+        + SkillSearchRepository
         + ValidationRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
@@ -83,6 +85,7 @@ pub struct ForgeServices<
     provider_auth_service: ForgeProviderAuthService<F>,
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
+    skill_search_service: Arc<ForgeSkillSearch<F, F>>,
     infra: Arc<F>,
 }
 
@@ -106,6 +109,7 @@ impl<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
+        + SkillSearchRepository
         + ValidationRepository,
 > ForgeServices<F>
 {
@@ -142,6 +146,7 @@ impl<
             discovery,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
+        let skill_search_service = Arc::new(ForgeSkillSearch::new(infra.clone(), infra.clone()));
 
         Self {
             conversation_service,
@@ -170,6 +175,7 @@ impl<
             provider_auth_service,
             workspace_service,
             skill_service,
+            skill_search_service,
             chat_service,
             infra,
         }
@@ -198,6 +204,7 @@ impl<
         + ProviderRepository
         + AgentRepository
         + SkillRepository
+        + SkillSearchRepository
         + StrategyFactory
         + WorkspaceIndexRepository
         + ValidationRepository
@@ -237,6 +244,7 @@ impl<
     type ProviderService = ForgeProviderService<F>;
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>;
     type SkillFetchService = ForgeSkillFetch<F>;
+    type SkillSearchService = ForgeSkillSearch<F, F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -337,6 +345,10 @@ impl<
         &self.skill_service
     }
 
+    fn skill_search_service(&self) -> &Self::SkillSearchService {
+        &self.skill_search_service
+    }
+
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
     }
@@ -355,6 +367,7 @@ impl<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
+        + SkillSearchRepository
         + ValidationRepository
         + Send
         + Sync,
