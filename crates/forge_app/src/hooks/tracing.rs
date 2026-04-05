@@ -206,7 +206,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
         let event = EventData::new(test_agent(), test_model_id(), ResponsePayload::new(message));
 
@@ -223,7 +223,7 @@ mod tests {
             call_id: Some(ToolCallId::new("test-id")),
             arguments: serde_json::json!({"key": "value"}).into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
         let result = ToolResult::new(ToolName::from("test-tool"))
             .call_id(ToolCallId::new("test-id"))

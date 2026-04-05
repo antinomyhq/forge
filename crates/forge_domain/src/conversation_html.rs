@@ -209,8 +209,6 @@ fn create_info_table(conversation: &Conversation) -> Element {
                 table = table.append(create_table_row("Cost", format!("${:.4}", cost)));
             }
         }
-
-
     }
 
     section.append(table)
@@ -427,7 +425,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 
                         // Add tool calls if any
 
-                        let message_elm = if let Some(tool_calls) = &content_message.tool_calls {
+                        
+
+                        if let Some(tool_calls) = &content_message.tool_calls {
                             if !tool_calls.is_empty() {
                                 message_elm.append(Element::new("div").append(
                                     tool_calls.iter().map(|tool_call| {
@@ -461,9 +461,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             }
                         } else {
                             message_elm
-                        };
-
-                        message_elm
+                        }
                     }
                     ContextMessage::Tool(tool_result) => {
                         // Tool Message - apply error styling if the tool result is an error

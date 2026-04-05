@@ -580,7 +580,7 @@ mod tests {
                 r#"{"file_path":"test.rs","old_string":"foo","new_string":"bar"}"#,
             ),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
 
         // Convert to Google Part
@@ -620,14 +620,14 @@ mod tests {
                 call_id: None,
                 arguments: ToolCallArguments::from_json(r#"{"path":"file1.rs"}"#),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallFull {
                 name: ToolName::new("remove"),
                 call_id: None,
                 arguments: ToolCallArguments::from_json(r#"{"path":"file2.rs"}"#),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
         ];
 

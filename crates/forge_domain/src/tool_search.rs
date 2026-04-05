@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::ToolCallId;
 
-/// Represents the output of a tool search operation, containing discovered tools
-/// that can be used in subsequent turns.
+/// Represents the output of a tool search operation, containing discovered
+/// tools that can be used in subsequent turns.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Setters)]
 #[setters(into)]
 pub struct ToolSearchOutput {
     /// The ID of the tool search call that produced this output.
-    /// For server-executed tool search, this is `None` (the API returns `null`).
+    /// For server-executed tool search, this is `None` (the API returns
+    /// `null`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub call_id: Option<ToolCallId>,
     /// The status of the tool search operation

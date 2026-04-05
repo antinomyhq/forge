@@ -523,9 +523,7 @@ impl ContextMessageValueRecord {
             forge_domain::ContextMessage::ToolSearchOutput(tso) => {
                 Some(Self::ToolSearchOutput(tso.clone()))
             }
-            forge_domain::ContextMessage::Image(img) => {
-                Some(Self::Image(ImageRecord::from(img)))
-            }
+            forge_domain::ContextMessage::Image(img) => Some(Self::Image(ImageRecord::from(img))),
         }
     }
 }
@@ -583,10 +581,8 @@ impl<'de> Deserialize<'de> for ContextMessageRecord {
 impl ContextMessageRecord {
     /// Converts a domain MessageEntry to a record.
     fn try_from_entry(msg: &forge_domain::MessageEntry) -> Option<Self> {
-        ContextMessageValueRecord::try_from_domain(&msg.message).map(|message| Self {
-            message,
-            usage: msg.usage.as_ref().map(UsageRecord::from),
-        })
+        ContextMessageValueRecord::try_from_domain(&msg.message)
+            .map(|message| Self { message, usage: msg.usage.as_ref().map(UsageRecord::from) })
     }
 }
 

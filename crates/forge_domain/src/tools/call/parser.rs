@@ -85,7 +85,7 @@ impl From<ToolCallParsed> for ToolCallFull {
             call_id: None,
             arguments: ToolCallArguments::from_parameters(value.args),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }
     }
 }
@@ -173,7 +173,7 @@ mod tests {
                 call_id: None,
                 arguments: ToolCallArguments::from_parameters(self.args.clone()),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             }
         }
     }
@@ -225,7 +225,7 @@ mod tests {
             call_id: None,
             arguments: json!({"path":"/a/b/c.txt"}).into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
         assert_eq!(action, expected);
     }
@@ -382,7 +382,7 @@ mod tests {
             call_id: None,
             arguments: json!({"path":"/test/path","regex":"test"}).into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
         assert_eq!(action, expected);
     }
@@ -402,7 +402,7 @@ mod tests {
             call_id: None,
             arguments: json!({"p1":"\nabc\n"}).into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
         assert_eq!(action, expected);
     }

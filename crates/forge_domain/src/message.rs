@@ -66,8 +66,9 @@ pub struct ChatCompletionMessage {
     /// Preserved from the response and replayed back on subsequent requests.
     pub phase: Option<MessagePhase>,
     /// Tool search output from deferred tool discovery.
-    /// When present, this should be converted to ContextMessage::ToolSearchOutput
-    /// instead of a regular assistant message.
+    /// When present, this should be converted to
+    /// ContextMessage::ToolSearchOutput instead of a regular assistant
+    /// message.
     pub tool_search_output: Option<ToolSearchOutput>,
     /// Ordered output items from the Responses API, preserving the exact
     /// interleaving of reasoning, tool_search, and function_call items.

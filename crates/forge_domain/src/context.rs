@@ -296,7 +296,8 @@ impl ContextMessage {
         }
     }
 
-    /// Returns the tool search output if this message is a ToolSearchOutput variant
+    /// Returns the tool search output if this message is a ToolSearchOutput
+    /// variant
     pub fn as_tool_search_output(&self) -> Option<&ToolSearchOutput> {
         match self {
             ContextMessage::ToolSearchOutput(output) => Some(output),
@@ -1396,14 +1397,14 @@ mod tests {
                         name: crate::ToolName::new("tool1"),
                         arguments: serde_json::json!({"arg": "value"}).into(),
                         thought_signature: None,
-                    namespace: None,
+                        namespace: None,
                     },
                     ToolCallFull {
                         call_id: Some(crate::ToolCallId::new("call2")),
                         name: crate::ToolName::new("tool2"),
                         arguments: serde_json::json!({"arg": "value"}).into(),
                         thought_signature: None,
-                    namespace: None,
+                        namespace: None,
                     },
                 ]),
             ))
@@ -1519,14 +1520,14 @@ mod tests {
                 name: crate::ToolName::new("fs_search"),
                 arguments: serde_json::json!({"query": "test"}).into(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallFull {
                 call_id: Some(crate::ToolCallId::new("call2")),
                 name: crate::ToolName::new("calculate"),
                 arguments: serde_json::json!({"expression": "2+2"}).into(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
         ];
         let fixture =

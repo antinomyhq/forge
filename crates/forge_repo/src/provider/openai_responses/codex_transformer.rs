@@ -37,12 +37,13 @@ impl Transformer for CodexTransformer {
 /// This transformer is designed for GPT 5.4 models that support deferred tool
 /// loading. It:
 /// - Sets `defer_loading: Some(true)` on MCP tools (names starting with "mcp_")
-/// - Injects a `tool_search` tool at the beginning of the tools list when
-///   there are deferred tools (required by the API)
+/// - Injects a `tool_search` tool at the beginning of the tools list when there
+///   are deferred tools (required by the API)
 pub struct SetDeferLoading;
 
 impl SetDeferLoading {
-    /// Determines if a tool name represents an MCP tool that should be deferred.
+    /// Determines if a tool name represents an MCP tool that should be
+    /// deferred.
     fn is_mcp_tool(name: &str) -> bool {
         name.starts_with("mcp_")
     }
@@ -318,7 +319,7 @@ mod tests {
         let actual = transformer.transform(request);
 
         let tools = actual.tools.unwrap();
-        
+
         // Should have tool_search + 4 original tools = 5 total
         assert_eq!(tools.len(), 5);
 
@@ -329,9 +330,19 @@ mod tests {
         for tool in &tools[1..] {
             if let Tool::Function(func) = tool {
                 if func.name.starts_with("mcp_") {
-                    assert_eq!(func.defer_loading, Some(true), "MCP tool {} should be deferred", func.name);
+                    assert_eq!(
+                        func.defer_loading,
+                        Some(true),
+                        "MCP tool {} should be deferred",
+                        func.name
+                    );
                 } else {
-                    assert_eq!(func.defer_loading, Some(false), "Built-in tool {} should not be deferred", func.name);
+                    assert_eq!(
+                        func.defer_loading,
+                        Some(false),
+                        "Built-in tool {} should not be deferred",
+                        func.name
+                    );
                 }
             }
         }
@@ -341,16 +352,13 @@ mod tests {
     fn test_set_defer_loading_filters_existing_tool_search() {
         let mut request = CreateResponse::default();
         let tool_search = SetDeferLoading::create_tool_search_tool();
-        request.tools = Some(vec![
-            tool_search,
-            create_test_function_tool("mcp_github"),
-        ]);
+        request.tools = Some(vec![tool_search, create_test_function_tool("mcp_github")]);
 
         let mut transformer = SetDeferLoading;
         let actual = transformer.transform(request);
 
         let tools = actual.tools.unwrap();
-        
+
         // Should still have only 2 tools (tool_search + mcp_github)
         // because existing tool_search is filtered and replaced
         assert_eq!(tools.len(), 2);

@@ -337,7 +337,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -393,7 +393,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -447,7 +447,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -502,7 +502,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -559,7 +559,7 @@ mod tests {
             finish_reason: Some(FinishReason::Stop),
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -666,7 +666,7 @@ mod tests {
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!("test_arg").into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -690,7 +690,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -706,7 +706,7 @@ mod tests {
             name: Some(ToolName::new("test_tool")),
             arguments_part: "invalid json {".to_string(), // Invalid JSON
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -727,7 +727,7 @@ mod tests {
             call_id: Some(ToolCallId::new("call_123")),
             arguments: ToolCallArguments::from_json("invalid json {"),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
         assert_eq!(actual.tool_calls[0], expected);
     }
@@ -761,7 +761,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -819,7 +819,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -852,7 +852,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -943,7 +943,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -988,7 +988,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -1031,7 +1031,7 @@ mod tests {
                                                       * finish reason */
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -1063,7 +1063,7 @@ mod tests {
             finish_reason: Some(FinishReason::ToolCalls),
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -1094,7 +1094,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -1188,7 +1188,7 @@ mod tests {
             finish_reason: Some(FinishReason::Stop),
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
@@ -1202,7 +1202,7 @@ mod tests {
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!("test_arg").into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -1226,7 +1226,7 @@ mod tests {
             finish_reason: None,
             phase: None,
             tool_search_output: None,
-        response_items: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);

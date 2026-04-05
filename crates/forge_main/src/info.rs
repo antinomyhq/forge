@@ -750,8 +750,6 @@ impl From<&Conversation> for Info {
             info = info.extend(usage);
         }
 
-
-
         info
     }
 }

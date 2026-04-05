@@ -705,7 +705,7 @@ mod tests {
                     reasoning_details: None,
                     droppable: false,
                     phase: None,
-                response_items: None,
+                    response_items: None,
                 }),
                 usage: Some(Usage {
                     prompt_tokens: forge_domain::TokenCount::Actual(100),

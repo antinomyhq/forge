@@ -3182,8 +3182,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
         match message {
-            ChatResponse::TaskMessage { content } => {
-                match content {
+            ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::ToolInput(title) => {
                     writer.finish()?;
                     self.writeln(title.display())?;
@@ -3195,7 +3194,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 ChatResponseContent::Markdown { text, partial: _ } => {
                     writer.write(&text)?;
                 }
-            }},
+            },
             ChatResponse::ToolCallStart { tool_call, notifier } => {
                 // Scope guard to ensure notification happens even on error.
                 // If writer.finish() or spinner.stop() fails, the guard's drop
@@ -3355,8 +3354,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     context.assistant_message_count().to_string(),
                 )
                 .add_key_value("Tool Calls", context.tool_call_count().to_string());
-
-
         }
 
         // Add token usage if available

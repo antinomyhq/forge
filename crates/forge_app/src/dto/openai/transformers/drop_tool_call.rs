@@ -47,7 +47,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             arguments: serde_json::json!({"key": "value"}).into(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         };
 
         let tool_result = ToolResult::new(ToolName::new("test_tool"))

@@ -363,21 +363,21 @@ mod tests {
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: None,
                 name: None,
                 arguments_part: "mascot.md\"}".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"docs/".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 // NOTE: Call ID can be repeated with each message
@@ -385,21 +385,21 @@ mod tests {
                 name: None,
                 arguments_part: "onboarding.md\"}".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_3".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/service/".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: None,
                 name: None,
                 arguments_part: "service.md\"}".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
         ];
 
@@ -413,14 +413,14 @@ mod tests {
                     r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#,
                 ),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallFull {
                 name: ToolName::new("read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
                 arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallFull {
                 name: ToolName::new("read"),
@@ -429,7 +429,7 @@ mod tests {
                     r#"{"path": "crates/forge_services/src/service/service.md"}"#,
                 ),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
         ];
 
@@ -544,7 +544,7 @@ mod tests {
             name: Some(ToolName::new("read")),
             arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
@@ -553,7 +553,7 @@ mod tests {
             name: ToolName::new("read"),
             arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
 
         assert_eq!(actual, expected);
@@ -574,7 +574,7 @@ mod tests {
             name: Some(ToolName::new("screenshot")),
             arguments_part: "".to_string(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
@@ -583,7 +583,7 @@ mod tests {
             name: ToolName::new("screenshot"),
             arguments: ToolCallArguments::default(),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
 
         assert_eq!(actual, expected);
@@ -617,21 +617,21 @@ mod tests {
                 name: Some(ToolName::new("read")),
                 arguments_part: "".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("0".to_string())),
                 name: Some(ToolName::new("")), // Empty name should not override valid name
                 arguments_part: "{\"path\"".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("0".to_string())),
                 name: Some(ToolName::new("")), // Empty name should not override valid name
                 arguments_part: ": \"/test/file.md\"}".to_string(),
                 thought_signature: None,
-            namespace: None,
+                namespace: None,
             },
         ];
 
@@ -641,7 +641,7 @@ mod tests {
             name: ToolName::new("read"),
             arguments: ToolCallArguments::from_json(r#"{"path": "/test/file.md"}"#),
             thought_signature: None,
-        namespace: None,
+            namespace: None,
         }];
 
         assert_eq!(actual, expected);
@@ -752,7 +752,7 @@ mod tests {
             name: ToolName::new("shell"),
             arguments: ToolCallArguments::from_json(r#"{"command": "date"}"#),
             thought_signature: Some("signature_abc123".to_string()),
-        namespace: None,
+            namespace: None,
         }];
 
         assert_eq!(actual, expected);
@@ -767,14 +767,14 @@ mod tests {
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"file1.txt\"}".to_string(),
                 thought_signature: Some("sig_1".to_string()),
-            namespace: None,
+                namespace: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"file2.txt\"}".to_string(),
                 thought_signature: Some("sig_2".to_string()),
-            namespace: None,
+                namespace: None,
             },
         ];
 
@@ -785,14 +785,14 @@ mod tests {
                 name: ToolName::new("read"),
                 arguments: ToolCallArguments::from_json(r#"{"path": "file1.txt"}"#),
                 thought_signature: Some("sig_1".to_string()),
-            namespace: None,
+                namespace: None,
             },
             ToolCallFull {
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: ToolName::new("read"),
                 arguments: ToolCallArguments::from_json(r#"{"path": "file2.txt"}"#),
                 thought_signature: Some("sig_2".to_string()),
-            namespace: None,
+                namespace: None,
             },
         ];
 
