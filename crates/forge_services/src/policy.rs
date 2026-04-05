@@ -3,9 +3,7 @@ use std::sync::{Arc, LazyLock};
 
 use anyhow::Context;
 use bytes::Bytes;
-use forge_app::domain::{
-    Permission, PermissionOperation, PolicyConfig, PolicyEngine,
-};
+use forge_app::domain::{Permission, PermissionOperation, PolicyConfig, PolicyEngine};
 use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
     PolicyDecision, PolicyService, UserInfra,
@@ -126,9 +124,7 @@ where
                     PermissionOperation::Write { message, .. } => {
                         format!("{message}. Allow?")
                     }
-                    PermissionOperation::Execute { .. } => {
-                        "Allow this operation?".to_string()
-                    }
+                    PermissionOperation::Execute { .. } => "Allow this operation?".to_string(),
                     PermissionOperation::Fetch { message, .. } => {
                         format!("{message}. Allow?")
                     }
@@ -142,4 +138,3 @@ where
         }
     }
 }
-
