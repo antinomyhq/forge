@@ -24,7 +24,7 @@ lazy_static! {
 ///
 /// # Example
 ///
-/// ```
+/// ```ignore
 /// // Before transformation:
 /// tool_use.tool_use_id = "functions.shell:0"
 ///

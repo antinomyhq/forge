@@ -484,7 +484,7 @@ pub struct Context {
     /// Whether server-side tool search with deferred tool loading is enabled.
     /// When `true` and the model supports it, MCP tools are deferred and a
     /// `tool_search` tool is injected. When `false`, all tools are sent
-    /// eagerly. Defaults to `None` (treated as enabled).
+    /// eagerly. Defaults to `None` (treated as disabled).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_search: Option<bool>,
 }
