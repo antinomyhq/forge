@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, ConversationId, Event, TitleFormat,
     ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
@@ -45,7 +45,7 @@ impl<S: Services> AgentExecutor<S> {
         agent_id: AgentId,
         task: String,
         ctx: &ToolCallContext,
-        conversation_id: Option<String>,
+        conversation_id: Option<ConversationId>,
     ) -> anyhow::Result<ToolOutput> {
         ctx.send_tool_input(
             TitleFormat::debug(format!(
@@ -57,14 +57,12 @@ impl<S: Services> AgentExecutor<S> {
         .await?;
 
         // Reuse existing conversation if provided, otherwise create a new one
-        let conversation = if let Some(cid) = conversation_id {
-            let conversation_id = forge_domain::ConversationId::parse(&cid)
-                .map_err(|_| Error::ConversationNotFound { id: cid.clone() })?;
+        let conversation = if let Some(conversation_id) = conversation_id {
             self.services
                 .conversation_service()
                 .find_conversation(&conversation_id)
                 .await?
-                .ok_or(Error::ConversationNotFound { id: cid })?
+                .ok_or(Error::ConversationNotFound { id: conversation_id })?
         } else {
             // Create context with agent initiator since it's spawned by a parent agent
             // This is crucial for GitHub Copilot billing optimization

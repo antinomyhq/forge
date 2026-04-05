@@ -111,14 +111,19 @@ impl<S: Services> ToolRegistry<S> {
                 let executor = self.agent_executor.clone();
                 let session_id = task_input.session_id.clone();
                 let agent_id = task_input.agent_id.clone();
+                // Parse session_id into ConversationId if present
+                let conversation_id = session_id
+                    .map(|id| forge_domain::ConversationId::parse(&id))
+                    .transpose()
+                    .ok()
+                    .flatten();
                 // NOTE: Agents should not timeout
                 let outputs = join_all(task_input.tasks.into_iter().map(|task| {
-                    let session_id = session_id.clone();
                     let agent_id = agent_id.clone();
                     let executor = executor.clone();
                     async move {
                         executor
-                            .execute(AgentId::new(&agent_id), task, context, session_id)
+                            .execute(AgentId::new(&agent_id), task, context, conversation_id)
                             .await
                     }
                 }))
