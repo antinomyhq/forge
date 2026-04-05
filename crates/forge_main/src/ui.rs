@@ -2433,6 +2433,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
+        let callback_server =
+            match crate::oauth_callback::LocalhostOAuthCallbackServer::start(request) {
+                Ok(Some(server)) => {
+                    self.writeln(format!(
+                        "{} Waiting for browser callback on {}",
+                        "→".blue(),
+                        server.redirect_uri().as_str().blue().underline()
+                    ))?;
+                    Some(server)
+                }
+                Ok(None) | Err(_) => {
+                    // Not a localhost callback flow, or the listener could not be
+                    // started — fall back to manual code paste.
+                    None
+                }
+            };
+
         // Display authorization URL
         self.writeln(format!(
             "{} Please visit: {}",
@@ -2447,14 +2464,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )))?;
         }
 
-        // Prompt user to paste authorization code
-        let code = ForgeWidget::input("Paste the authorization code")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+        let code = if let Some(server) = callback_server {
+            server.wait_for_code().await?
+        } else {
+            // Prompt user to paste authorization code
+            let code = ForgeWidget::input("Paste the authorization code")
+                .prompt()?
+                .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
-        }
+            if code.trim().is_empty() {
+                anyhow::bail!("Authorization code cannot be empty");
+            }
+
+            code
+        };
 
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
@@ -3736,6 +3759,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let workspace_info = self.api.get_workspace_info(path.clone()).await?;
             if workspace_info.is_none() {
                 self.on_workspace_init(path.clone()).await?;
+                // If the workspace still does not exist after init (e.g. user
+                // declined the consent prompt), abort the sync.
+                let workspace_info = self.api.get_workspace_info(path.clone()).await?;
+                if workspace_info.is_none() {
+                    return Ok(());
+                }
             }
         }
 
@@ -4090,6 +4119,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize workspace for a directory without syncing files
     async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        // Ask for user consent before syncing and sharing directory contents
+        // with the ForgeCode Service.
+        let display_path = path.display().to_string();
+        let confirmed = ForgeWidget::confirm(format!(
+            "This will sync and share the contents of '{}' with ForgeCode Services. Do you wish to continue?",
+            display_path
+        ))
+        .with_default(true)
+        .prompt()?;
+
+        if !confirmed.unwrap_or(false) {
+            self.writeln_title(TitleFormat::info("Workspace initialization cancelled"))?;
+            return Ok(());
+        }
+
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             self.init_forge_services().await?;

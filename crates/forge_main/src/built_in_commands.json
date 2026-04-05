@@ -20,8 +20,8 @@
     "description": "Switch the model for the current session only, without modifying global config [alias: m]"
   },
   {
-    "command": "model-reset",
-    "description": "Reset session model to use global config [alias: mr]"
+    "command": "config-reload",
+    "description": "Reset all session overrides (model, provider, reasoning effort) to use global config [alias: cr]"
   },
   {
     "command": "reasoning-effort",
