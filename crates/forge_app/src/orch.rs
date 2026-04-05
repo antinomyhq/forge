@@ -436,7 +436,6 @@ mod tests {
 
     use forge_domain::{ToolCallArguments, ToolCallFull, ToolKind, ToolName};
 
-    /// Helper function to create a ToolCallFull for testing
     fn fixture_tool_call(name: &str, arguments: &str) -> ToolCallFull {
         ToolCallFull {
             name: ToolName::new(name),
@@ -446,8 +445,6 @@ mod tests {
         }
     }
 
-    /// Helper function to check if a tool call is a Task tool call
-    /// Mirrors the logic in execute_tool_calls for testing purposes
     fn is_task_tool_call(tc: &ToolCallFull) -> bool {
         let task_tool_name = ToolKind::Task.name();
         tc.name
@@ -459,32 +456,28 @@ mod tests {
     fn test_is_task_tool_call_lowercase() {
         let fixture = fixture_tool_call("task", r#"{"agent_id": "sage", "tasks": ["test"]}"#);
         let actual = is_task_tool_call(&fixture);
-        let expected = true;
-        assert_eq!(actual, expected, "Should identify lowercase 'task' as Task tool");
+        assert!(actual);
     }
 
     #[test]
     fn test_is_task_tool_call_uppercase() {
         let fixture = fixture_tool_call("Task", r#"{"agent_id": "sage", "tasks": ["test"]}"#);
         let actual = is_task_tool_call(&fixture);
-        let expected = true;
-        assert_eq!(actual, expected, "Should identify uppercase 'Task' as Task tool");
+        assert!(actual);
     }
 
     #[test]
     fn test_is_task_tool_call_mixed_case() {
         let fixture = fixture_tool_call("TASK", r#"{"agent_id": "sage", "tasks": ["test"]}"#);
         let actual = is_task_tool_call(&fixture);
-        let expected = true;
-        assert_eq!(actual, expected, "Should identify 'TASK' as Task tool");
+        assert!(actual);
     }
 
     #[test]
     fn test_is_task_tool_call_non_task() {
         let fixture = fixture_tool_call("read", r#"{"file_path": "/test.rs"}"#);
         let actual = is_task_tool_call(&fixture);
-        let expected = false;
-        assert_eq!(actual, expected, "Should not identify 'read' as Task tool");
+        assert!(!actual);
     }
 
     #[test]
@@ -499,15 +492,9 @@ mod tests {
         let (actual_task, actual_other): (Vec<_>, Vec<_>) =
             fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        let expected_task_count = 2;
-        let expected_other_count = 2;
-        assert_eq!(actual_task.len(), expected_task_count, "Should have 2 task calls");
-        assert_eq!(actual_other.len(), expected_other_count, "Should have 2 other calls");
-
-        // Verify task calls contain the right tools
+        assert_eq!(actual_task.len(), 2);
+        assert_eq!(actual_other.len(), 2);
         assert!(actual_task.iter().all(|tc| is_task_tool_call(tc)));
-
-        // Verify other calls don't contain task tools
         assert!(actual_other.iter().all(|tc| !is_task_tool_call(tc)));
     }
 
@@ -523,7 +510,6 @@ mod tests {
         let (task_calls, other_calls): (Vec<_>, Vec<_>) =
             fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        // Task calls should maintain order: first task, then Task
         let actual_task_args: Vec<_> = task_calls
             .iter()
             .map(|tc| {
@@ -531,13 +517,10 @@ mod tests {
                 parsed["tasks"][0].as_str().unwrap().to_string()
             })
             .collect();
-        let expected_task_args = vec!["first", "second"];
-        assert_eq!(actual_task_args, expected_task_args);
+        assert_eq!(actual_task_args, vec!["first", "second"]);
 
-        // Other calls should maintain order: read, then write
         let actual_other_names: Vec<_> = other_calls.iter().map(|tc| tc.name.as_str()).collect();
-        let expected_other_names = vec!["read", "write"];
-        assert_eq!(actual_other_names, expected_other_names);
+        assert_eq!(actual_other_names, vec!["read", "write"]);
     }
 
     #[test]
@@ -550,10 +533,8 @@ mod tests {
         let (actual_task, actual_other): (Vec<_>, Vec<_>) =
             fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        let expected_task_count = 2;
-        let expected_other_count = 0;
-        assert_eq!(actual_task.len(), expected_task_count);
-        assert_eq!(actual_other.len(), expected_other_count);
+        assert_eq!(actual_task.len(), 2);
+        assert_eq!(actual_other.len(), 0);
     }
 
     #[test]
@@ -566,10 +547,8 @@ mod tests {
         let (actual_task, actual_other): (Vec<_>, Vec<_>) =
             fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        let expected_task_count = 0;
-        let expected_other_count = 2;
-        assert_eq!(actual_task.len(), expected_task_count);
-        assert_eq!(actual_other.len(), expected_other_count);
+        assert_eq!(actual_task.len(), 0);
+        assert_eq!(actual_other.len(), 2);
     }
 
     #[test]
@@ -579,9 +558,7 @@ mod tests {
         let (actual_task, actual_other): (Vec<_>, Vec<_>) =
             fixture.iter().partition(|tc| is_task_tool_call(tc));
 
-        let expected_task_count = 0;
-        let expected_other_count = 0;
-        assert_eq!(actual_task.len(), expected_task_count);
-        assert_eq!(actual_other.len(), expected_other_count);
+        assert_eq!(actual_task.len(), 0);
+        assert_eq!(actual_other.len(), 0);
     }
 }

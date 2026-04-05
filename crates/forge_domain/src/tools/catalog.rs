@@ -2129,10 +2129,9 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_task_len = 10_000;
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.tasks[0].len(), expected_task_len);
+                assert_eq!(task_input.tasks[0].len(), 10_000);
             }
             _ => panic!("Expected Task variant"),
         }
@@ -2149,10 +2148,9 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_count = 100;
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.tasks.len(), expected_count);
+                assert_eq!(task_input.tasks.len(), 100);
                 assert_eq!(task_input.tasks[0], "task number 0");
                 assert_eq!(task_input.tasks[99], "task number 99");
             }
@@ -2173,10 +2171,9 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_len = 1000;
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.agent_id.len(), expected_len);
+                assert_eq!(task_input.agent_id.len(), 1000);
             }
             _ => panic!("Expected Task variant"),
         }
@@ -2195,10 +2192,9 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_len = 1001;
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.session_id.unwrap().len(), expected_len);
+                assert_eq!(task_input.session_id.unwrap().len(), 1001);
             }
             _ => panic!("Expected Task variant"),
         }
@@ -2221,16 +2217,12 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_agent_len = 500;
-        let expected_session_len = 500;
-        let expected_tasks_count = 10;
-        let expected_task_len = 5000;
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.agent_id.len(), expected_agent_len);
-                assert_eq!(task_input.session_id.unwrap().len(), expected_session_len);
-                assert_eq!(task_input.tasks.len(), expected_tasks_count);
-                assert_eq!(task_input.tasks[0].len(), expected_task_len);
+                assert_eq!(task_input.agent_id.len(), 500);
+                assert_eq!(task_input.session_id.unwrap().len(), 500);
+                assert_eq!(task_input.tasks.len(), 10);
+                assert_eq!(task_input.tasks[0].len(), 5000);
             }
             _ => panic!("Expected Task variant"),
         }
@@ -2285,10 +2277,9 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_count = 3;
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.tasks.len(), expected_count);
+                assert_eq!(task_input.tasks.len(), 3);
                 assert_eq!(task_input.tasks[0], "分析代码库结构");
                 assert_eq!(task_input.tasks[1], "查找错误");
                 assert_eq!(task_input.tasks[2], "修复问题");
@@ -2435,10 +2426,9 @@ mod tests {
 
         let actual = ToolCatalog::try_from(fixture).unwrap();
 
-        let expected_len = 20_000; // 5000 emojis × 4 bytes each
         match actual {
             ToolCatalog::Task(task_input) => {
-                assert_eq!(task_input.tasks[0].len(), expected_len);
+                assert_eq!(task_input.tasks[0].len(), 20_000);
             }
             _ => panic!("Expected Task variant"),
         }
