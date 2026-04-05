@@ -293,7 +293,7 @@
       ]
     },
     "tool_search": {
-      "description": "Whether the tool_search API is enabled for deferred tool loading. When true, MCP tools are sent with defer_loading and discovered on demand via the Responses API tool_search mechanism. Defaults to false; must be explicitly enabled.",
+      "description": "Whether server-side tool search is enabled for models that support\ndeferred tool loading (e.g. GPT-5.4). When enabled, MCP tools are\nsent with `defer_loading: true` and a `tool_search` tool is injected\nso the API can discover them on demand. Defaults to `false`; set to\n`true` to enable.",
       "type": "boolean",
       "default": false
     },
