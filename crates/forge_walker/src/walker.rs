@@ -646,7 +646,10 @@ mod tests {
             .collect();
 
         let expected = vec!["real.txt"];
-        assert_eq!(actual_files, expected, "symlinks should be excluded from walker results");
+        assert_eq!(
+            actual_files, expected,
+            "symlinks should be excluded from walker results"
+        );
     }
 
     #[tokio::test]
@@ -673,6 +676,9 @@ mod tests {
             .collect();
 
         let expected = vec!["present.txt"];
-        assert_eq!(actual_files, expected, "dangling symlinks should be excluded from walker results");
+        assert_eq!(
+            actual_files, expected,
+            "dangling symlinks should be excluded from walker results"
+        );
     }
 }
