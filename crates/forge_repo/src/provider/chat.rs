@@ -31,8 +31,13 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
     ///
     /// * `infra` - Infrastructure providing environment and HTTP capabilities
     /// * `retry_config` - Retry configuration extracted from startup config
-    /// * `model_cache_ttl_secs` - Model cache TTL in seconds from startup config
-    pub fn new(infra: Arc<F>, retry_config: forge_config::RetryConfig, model_cache_ttl_secs: u64) -> Self {
+    /// * `model_cache_ttl_secs` - Model cache TTL in seconds from startup
+    ///   config
+    pub fn new(
+        infra: Arc<F>,
+        retry_config: forge_config::RetryConfig,
+        model_cache_ttl_secs: u64,
+    ) -> Self {
         let env = infra.get_environment();
         let retry_config = Arc::new(retry_config);
 

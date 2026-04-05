@@ -4,10 +4,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{
-    CommandInfra, EnvironmentInfra, FileReaderInfra, WalkerInfra,
-    WorkspaceService,
-};
+use forge_app::{CommandInfra, EnvironmentInfra, FileReaderInfra, WalkerInfra, WorkspaceService};
 use forge_domain::{
     AuthCredential, AuthDetails, ProviderId, ProviderRepository, SyncProgress, UserId, WorkspaceId,
     WorkspaceIndexRepository,

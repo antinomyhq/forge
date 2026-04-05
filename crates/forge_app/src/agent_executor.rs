@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use convert_case::{Case, Casing};
+use forge_config::ForgeConfig;
 use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
     ToolCallContext, ToolDefinition, ToolName, ToolOutput,
@@ -9,8 +10,6 @@ use forge_domain::{
 use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
-
-use forge_config::ForgeConfig;
 
 use crate::error::Error;
 use crate::{AgentRegistry, ConversationService, Services};

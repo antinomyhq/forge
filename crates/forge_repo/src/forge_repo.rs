@@ -4,10 +4,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
-    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
-    GrpcInfra, HttpInfra, KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker,
-    WalkerInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
+    KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AuthCredential, ChatCompletionMessage, ChatRepository, CommandOutput, Context,
@@ -52,13 +51,7 @@ pub struct ForgeRepo<F> {
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
 }
 
-impl<
-    F: EnvironmentInfra
-        + FileReaderInfra
-        + FileWriterInfra
-        + GrpcInfra
-        + HttpInfra,
-> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>, config: forge_config::ForgeConfig) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -172,14 +165,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<
-    F: EnvironmentInfra
-        + FileReaderInfra
-        + FileWriterInfra
-        + HttpInfra
-        + Send
-        + Sync,
-> ProviderRepository for ForgeRepo<F>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+    ProviderRepository for ForgeRepo<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await

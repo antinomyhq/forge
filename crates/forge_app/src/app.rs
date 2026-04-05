@@ -50,7 +50,11 @@ pub struct ForgeApp<S> {
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services and config.
     pub fn new(services: Arc<S>, config: ForgeConfig) -> Self {
-        Self { tool_registry: ToolRegistry::new(services.clone(), config.clone()), services, config }
+        Self {
+            tool_registry: ToolRegistry::new(services.clone(), config.clone()),
+            services,
+            config,
+        }
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -158,11 +162,17 @@ impl<S: Services> ForgeApp<S> {
 
         let retry_config = forge_config.retry.clone().unwrap_or_default();
 
-        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent, forge_config)
-            .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-            .tool_definitions(tool_definitions)
-            .models(models)
-            .hook(Arc::new(hook));
+        let orch = Orchestrator::new(
+            services.clone(),
+            retry_config,
+            conversation,
+            agent,
+            forge_config,
+        )
+        .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
+        .tool_definitions(tool_definitions)
+        .models(models)
+        .hook(Arc::new(hook));
 
         // Create and return the stream
         let stream = MpscStream::spawn(

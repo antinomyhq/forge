@@ -216,10 +216,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     ///
     /// # Arguments
     /// * `cli` - Parsed command-line arguments
-    /// * `config` - Pre-read application configuration for the initial API instance
-    /// * `f` - Factory closure invoked once at startup and again on each `/new` command;
-    ///   receives the latest [`ForgeConfig`] so that config changes from
-    ///   `forge config set` are reflected in new conversations
+    /// * `config` - Pre-read application configuration for the initial API
+    ///   instance
+    /// * `f` - Factory closure invoked once at startup and again on each `/new`
+    ///   command; receives the latest [`ForgeConfig`] so that config changes
+    ///   from `forge config set` are reflected in new conversations
     pub fn init(cli: Cli, config: ForgeConfig, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f(config.clone()));
@@ -230,7 +231,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), config.custom_history_path.clone(), command.clone()),
+            console: Console::new(
+                env.clone(),
+                config.custom_history_path.clone(),
+                command.clone(),
+            ),
             cli,
             command,
             spinner,

@@ -5,8 +5,7 @@ use forge_app::domain::{
 };
 use forge_app::utils::format_display_path;
 use forge_app::{
-    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra,
-    FileReaderInfra,
+    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
 };
 
 use crate::range::resolve_range;
@@ -114,8 +113,8 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
-    AttachmentService for ForgeChatRequest<F>
+impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra> AttachmentService
+    for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await

@@ -93,7 +93,8 @@ async fn main() -> Result<()> {
 
     // Read and validate configuration at startup so any errors are surfaced
     // immediately rather than silently falling back to defaults at runtime.
-    let config = ForgeConfig::read().context("Failed to read Forge configuration from .forge.toml")?;
+    let config =
+        ForgeConfig::read().context("Failed to read Forge configuration from .forge.toml")?;
 
     // Pre-validate services_url so a malformed URL produces a clear error
     // message at startup instead of panicking inside the constructor.
@@ -117,11 +118,9 @@ async fn main() -> Result<()> {
         (_, _) => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
 
-    let mut ui = UI::init(
-        cli,
-        config,
-        move |config| ForgeAPI::init(cwd.clone(), config, services_url.clone()),
-    )?;
+    let mut ui = UI::init(cli, config, move |config| {
+        ForgeAPI::init(cwd.clone(), config, services_url.clone())
+    })?;
     ui.run().await;
 
     Ok(())

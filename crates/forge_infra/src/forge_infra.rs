@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
-    McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
+    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
+    StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, FileInfo as FileInfoData, McpServerConfig, ProviderId, URLParamSpec,
@@ -55,11 +55,14 @@ pub struct ForgeInfra {
 }
 
 impl ForgeInfra {
-    /// Creates a new [`ForgeInfra`] with all infrastructure services initialized.
+    /// Creates a new [`ForgeInfra`] with all infrastructure services
+    /// initialized.
     ///
     /// # Arguments
-    /// * `cwd` - The working directory for command execution and environment resolution
-    /// * `config` - Pre-read application configuration; passed through to all consumers
+    /// * `cwd` - The working directory for command execution and environment
+    ///   resolution
+    /// * `config` - Pre-read application configuration; passed through to all
+    ///   consumers
     /// * `services_url` - Pre-validated URL for the gRPC workspace server
     pub fn new(cwd: PathBuf, config: forge_config::ForgeConfig, services_url: Url) -> Self {
         let env = to_environment(cwd.clone());

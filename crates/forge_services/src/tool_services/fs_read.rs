@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{
-    Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService,
-    FsReadService, ReadOutput, compute_hash,
+    Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
+    ReadOutput, compute_hash,
 };
 use forge_domain::{FileInfo, Image};
 
@@ -109,7 +109,13 @@ impl<F> ForgeFsRead<F> {
         max_read_lines: u64,
         max_line_chars: usize,
     ) -> Self {
-        Self { infra, max_file_size_bytes, max_image_size_bytes, max_read_lines, max_line_chars }
+        Self {
+            infra,
+            max_file_size_bytes,
+            max_image_size_bytes,
+            max_read_lines,
+            max_line_chars,
+        }
     }
 }
 

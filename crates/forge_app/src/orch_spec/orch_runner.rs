@@ -120,13 +120,19 @@ impl Runner {
         let conversation = SetConversationId.apply(conversation);
 
         let retry_config = setup.config.retry.clone().unwrap_or_default();
-        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent, setup.config.clone())
-            .error_tracker(ToolErrorTracker::new(3))
-            .tool_definitions(system_tools)
-            .hook(Arc::new(
-                Hook::default().on_request(DoomLoopDetector::default()),
-            ))
-            .sender(tx);
+        let orch = Orchestrator::new(
+            services.clone(),
+            retry_config,
+            conversation,
+            agent,
+            setup.config.clone(),
+        )
+        .error_tracker(ToolErrorTracker::new(3))
+        .tool_definitions(system_tools)
+        .hook(Arc::new(
+            Hook::default().on_request(DoomLoopDetector::default()),
+        ))
+        .sender(tx);
 
         let (mut orch, runner) = (orch, services);
 

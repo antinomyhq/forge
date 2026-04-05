@@ -6,11 +6,11 @@ use forge_domain::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::{AgentProviderResolver, Services};
 use crate::services::{
     AgentRegistry, AppConfigService, ProviderAuthService, ProviderService, ShellService,
     TemplateService,
 };
+use crate::{AgentProviderResolver, Services};
 
 /// Errors specific to GitApp operations
 #[derive(thiserror::Error, Debug)]
@@ -94,8 +94,7 @@ impl<S> GitApp<S> {
     }
 }
 
-impl<S: Services> GitApp<S>
-{
+impl<S: Services> GitApp<S> {
     /// Generates a commit message without committing
     ///
     /// # Arguments

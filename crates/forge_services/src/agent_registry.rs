@@ -74,7 +74,11 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
     /// them to the repository so agents that do not specify their own
     /// provider/model receive the session-level defaults.
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        let session = self.config.session.as_ref().ok_or(Error::NoDefaultProvider)?;
+        let session = self
+            .config
+            .session
+            .as_ref()
+            .ok_or(Error::NoDefaultProvider)?;
         let provider_id = session
             .provider_id
             .as_ref()

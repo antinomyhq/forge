@@ -43,7 +43,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetProvider(provider_id.clone())).await?;
+        self.update(ConfigOperation::SetProvider(provider_id.clone()))
+            .await?;
         let mut config = self.config.lock().unwrap();
         let session = config.session.get_or_insert_with(Default::default);
         session.provider_id = Some(provider_id.as_ref().to_string());
@@ -97,7 +98,11 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
                 .ok_or(forge_domain::Error::NoDefaultProvider)?
         };
 
-        self.update(ConfigOperation::SetModel(provider_id.clone(), model.clone())).await?;
+        self.update(ConfigOperation::SetModel(
+            provider_id.clone(),
+            model.clone(),
+        ))
+        .await?;
         let mut config = self.config.lock().unwrap();
         let session = config.session.get_or_insert_with(Default::default);
         session.model_id = Some(model.to_string());
@@ -116,7 +121,8 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
         &self,
         commit_config: forge_domain::CommitConfig,
     ) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetCommitConfig(commit_config)).await
+        self.update(ConfigOperation::SetCommitConfig(commit_config))
+            .await
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
@@ -135,24 +141,30 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
         &self,
         suggest_config: forge_domain::SuggestConfig,
     ) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetSuggestConfig(suggest_config)).await
+        self.update(ConfigOperation::SetSuggestConfig(suggest_config))
+            .await
     }
 
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>> {
         let config = self.config.lock().unwrap();
-        Ok(config.reasoning.clone().and_then(|r| r.effort).map(|e| match e {
-            forge_config::Effort::None => Effort::None,
-            forge_config::Effort::Minimal => Effort::Minimal,
-            forge_config::Effort::Low => Effort::Low,
-            forge_config::Effort::Medium => Effort::Medium,
-            forge_config::Effort::High => Effort::High,
-            forge_config::Effort::XHigh => Effort::XHigh,
-            forge_config::Effort::Max => Effort::Max,
-        }))
+        Ok(config
+            .reasoning
+            .clone()
+            .and_then(|r| r.effort)
+            .map(|e| match e {
+                forge_config::Effort::None => Effort::None,
+                forge_config::Effort::Minimal => Effort::Minimal,
+                forge_config::Effort::Low => Effort::Low,
+                forge_config::Effort::Medium => Effort::Medium,
+                forge_config::Effort::High => Effort::High,
+                forge_config::Effort::XHigh => Effort::XHigh,
+                forge_config::Effort::Max => Effort::Max,
+            }))
     }
 
     async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetReasoningEffort(effort)).await
+        self.update(ConfigOperation::SetReasoningEffort(effort))
+            .await
     }
 }
 
@@ -494,7 +506,9 @@ mod tests {
             .set_default_model("gpt-4".to_string().into())
             .await?;
 
-        let actual = service.get_provider_model(Some(&ProviderId::OPENAI)).await?;
+        let actual = service
+            .get_provider_model(Some(&ProviderId::OPENAI))
+            .await?;
         let expected = "gpt-4".to_string().into();
 
         assert_eq!(actual, expected);
@@ -521,7 +535,9 @@ mod tests {
         // ForgeConfig only tracks a single active session, so the last
         // provider/model pair wins
         let actual_provider = service.get_default_provider().await?;
-        let actual_model = service.get_provider_model(Some(&ProviderId::ANTHROPIC)).await?;
+        let actual_model = service
+            .get_provider_model(Some(&ProviderId::ANTHROPIC))
+            .await?;
 
         assert_eq!(actual_provider, ProviderId::ANTHROPIC);
         assert_eq!(actual_model, ModelId::new("claude-3"));

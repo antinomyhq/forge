@@ -355,7 +355,7 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         context.with_metrics(|metrics| {
-            operation.into_tool_output(tool_kind, truncation_path, &env, &config, metrics)
+            operation.into_tool_output(tool_kind, truncation_path, &env, config, metrics)
         })
     }
 }
