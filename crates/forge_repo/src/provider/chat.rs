@@ -3,7 +3,7 @@ use std::sync::Arc;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderResponse, ResultStream,
 };
-use forge_app::{EnvironmentInfra, HttpInfra};
+use forge_app::{ConfigReaderInfra, EnvironmentInfra, HttpInfra};
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use forge_infra::CacacheStorage;
 use tokio::task::AbortHandle;
@@ -24,7 +24,7 @@ pub struct ForgeChatRepository<F> {
     bg_refresh: BgRefresh,
 }
 
-impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
+impl<F: EnvironmentInfra + ConfigReaderInfra + HttpInfra> ForgeChatRepository<F> {
     /// Creates a new ForgeChatRepository with the given infrastructure.
     ///
     /// # Arguments
@@ -68,7 +68,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatRepository<F> {
+impl<F: EnvironmentInfra + ConfigReaderInfra + HttpInfra + Sync> ChatRepository for ForgeChatRepository<F> {
     async fn chat(
         &self,
         model_id: &ModelId,

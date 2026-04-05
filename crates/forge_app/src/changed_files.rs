@@ -4,7 +4,7 @@ use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
 use forge_template::Element;
 
 use crate::utils::format_display_path;
-use crate::{EnvironmentInfra, FsReadService};
+use crate::{ConfigReaderInfra, EnvironmentInfra, FsReadService};
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -20,7 +20,7 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService + EnvironmentInfra> ChangedFiles<S> {
+impl<S: FsReadService + EnvironmentInfra + ConfigReaderInfra> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
@@ -133,13 +133,6 @@ mod tests {
             env
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
@@ -153,6 +146,15 @@ mod tests {
 
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
             std::collections::BTreeMap::new()
+        }
+    }
+
+    impl ConfigReaderInfra for TestServices {
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
     }
 

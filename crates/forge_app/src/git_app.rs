@@ -7,8 +7,8 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentInfra, ProviderAuthService,
-    ProviderService, ShellService, TemplateService,
+    AgentProviderResolver, AgentRegistry, AppConfigService, ConfigReaderInfra, EnvironmentInfra,
+    ProviderAuthService, ProviderService, ShellService, TemplateService,
 };
 
 /// Errors specific to GitApp operations
@@ -95,6 +95,7 @@ impl<S> GitApp<S> {
 impl<S> GitApp<S>
 where
     S: EnvironmentInfra
+        + ConfigReaderInfra
         + ShellService
         + AgentRegistry
         + TemplateService

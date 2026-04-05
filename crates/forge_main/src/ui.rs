@@ -16,6 +16,7 @@ use forge_api::{
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
+use forge_config::ForgeConfig;
 use forge_display::MarkdownFormat;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
@@ -98,7 +99,7 @@ fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> 
     }
 }
 
-pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
+pub struct UI<A: ConsoleWriter, F: Fn(ForgeConfig) -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -111,7 +112,7 @@ pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -163,7 +164,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.api = Arc::new((self.new_api)());
+        let config = self.api.get_config();
+        self.api = Arc::new((self.new_api)(config));
         self.init_state(false).await?;
 
         // Set agent if provided via CLI
@@ -208,9 +210,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    pub fn init(cli: Cli, f: F) -> Result<Self> {
+    /// Initialises the UI with the provided CLI arguments and API factory.
+    ///
+    /// # Arguments
+    /// * `cli` - Parsed command-line arguments
+    /// * `config` - Pre-read application configuration for the initial API instance
+    /// * `f` - Factory closure invoked once at startup and again on each `/new` command;
+    ///   receives the latest [`ForgeConfig`] so that config changes from
+    ///   `forge config set` are reflected in new conversations
+    pub fn init(cli: Cli, config: ForgeConfig, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
-        let api = Arc::new(f());
+        let api = Arc::new(f(config));
         let env = api.environment();
         let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());

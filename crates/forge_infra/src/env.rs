@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_app::EnvironmentInfra;
+use forge_app::{ConfigReaderInfra, EnvironmentInfra};
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{ConfigOperation, Environment};
-use tracing::{debug, error};
+use tracing::debug;
 
 /// Builds a [`forge_domain::Environment`] from runtime context only.
 ///
@@ -13,7 +13,7 @@ use tracing::{debug, error};
 /// here: `os`, `pid`, `cwd`, `home`, `shell`, and `base_path`. All
 /// configuration values are now accessed through
 /// `EnvironmentInfra::get_config()`.
-fn to_environment(cwd: PathBuf) -> Environment {
+pub fn to_environment(cwd: PathBuf) -> Environment {
     Environment {
         os: std::env::consts::OS.to_string(),
         pid: std::process::id(),
@@ -97,39 +97,36 @@ pub struct ForgeEnvironmentInfra {
 }
 
 impl ForgeEnvironmentInfra {
-    /// Creates a new [`ForgeEnvironmentInfra`].
+    /// Creates a new [`ForgeEnvironmentInfra`] with the given pre-read config.
+    ///
+    /// The cache is pre-seeded with `config` so no disk I/O occurs on the
+    /// first [`EnvironmentInfra::get_config`] call.
     ///
     /// # Arguments
     /// * `cwd` - The working directory path; used to resolve `.env` files
-    pub fn new(cwd: PathBuf) -> Self {
-        Self { cwd, cache: Arc::new(std::sync::Mutex::new(None)) }
+    /// * `config` - The pre-read [`ForgeConfig`] to seed the in-memory cache
+    pub fn new(cwd: PathBuf, config: ForgeConfig) -> Self {
+        Self { cwd, cache: Arc::new(std::sync::Mutex::new(Some(config))) }
     }
 
-    /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
-    fn read_from_disk() -> ForgeConfig {
-        match ForgeConfig::read() {
-            Ok(config) => {
-                debug!(config = ?config, "read .forge.toml");
-                config
-            }
-            Err(e) => {
-                // NOTE: This should never-happen
-                error!(error = ?e, "Failed to read config file. Using default config.");
-                Default::default()
-            }
-        }
-    }
-
-    /// Returns the cached [`ForgeConfig`], reading from disk if the cache is
-    /// empty.
-    fn cached_config(&self) -> ForgeConfig {
+    /// Returns the cached [`ForgeConfig`], re-reading from disk if the cache
+    /// has been invalidated by [`Self::update_environment`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache is empty and the disk read fails.
+    fn cached_config(&self) -> anyhow::Result<ForgeConfig> {
         let mut cache = self.cache.lock().expect("cache mutex poisoned");
         if let Some(ref config) = *cache {
-            config.clone()
+            Ok(config.clone())
         } else {
-            let config = Self::read_from_disk();
+            let config = ConfigReader::default()
+                .read_defaults()
+                .read_global()
+                .read_env()
+                .build()?;
             *cache = Some(config.clone());
-            config
+            Ok(config)
         }
     }
 }
@@ -149,10 +146,6 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         to_environment(self.cwd.clone())
     }
 
-    fn get_config(&self) -> ForgeConfig {
-        self.cached_config()
-    }
-
     async fn update_environment(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
         // Load the global config (with defaults applied) for the update round-trip
         let mut fc = ConfigReader::default()
@@ -169,10 +162,17 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         fc.write()?;
         debug!(config = ?fc, "written .forge.toml");
 
-        // Reset cache
+        // Reset cache so next get_config() re-reads the updated values from disk
         *self.cache.lock().expect("cache mutex poisoned") = None;
 
         Ok(())
+    }
+}
+
+impl ConfigReaderInfra for ForgeEnvironmentInfra {
+    fn get_config(&self) -> ForgeConfig {
+        self.cached_config()
+            .expect("ForgeConfig cache read failed after update_environment")
     }
 }
 

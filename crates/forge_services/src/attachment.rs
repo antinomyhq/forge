@@ -5,7 +5,8 @@ use forge_app::domain::{
 };
 use forge_app::utils::format_display_path;
 use forge_app::{
-    AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra,
+    AttachmentService, ConfigReaderInfra, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra,
+    FileReaderInfra,
 };
 
 use crate::range::resolve_range;
@@ -15,7 +16,7 @@ pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra>
+impl<F: FileReaderInfra + EnvironmentInfra + ConfigReaderInfra + FileInfoInfra + DirectoryReaderInfra>
     ForgeChatRequest<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -114,8 +115,8 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfra> AttachmentService
-    for ForgeChatRequest<F>
+impl<F: FileReaderInfra + EnvironmentInfra + ConfigReaderInfra + FileInfoInfra + DirectoryReaderInfra>
+    AttachmentService for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
@@ -161,15 +162,17 @@ pub mod tests {
             fixture.cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
+        async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+    }
+
+    impl forge_app::ConfigReaderInfra for MockEnvironmentInfra {
         fn get_config(&self) -> forge_config::ForgeConfig {
             forge_config::ConfigReader::default()
                 .read_defaults()
                 .build()
                 .unwrap()
-        }
-
-        async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
-            unimplemented!()
         }
     }
 
@@ -489,10 +492,6 @@ pub mod tests {
             self.env_service.get_environment()
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            self.env_service.get_config()
-        }
-
         fn update_environment(
             &self,
             ops: Vec<ConfigOperation>,
@@ -507,6 +506,12 @@ pub mod tests {
 
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             self.env_service.get_env_vars()
+        }
+    }
+
+    impl forge_app::ConfigReaderInfra for MockCompositeService {
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            self.env_service.get_config()
         }
     }
 

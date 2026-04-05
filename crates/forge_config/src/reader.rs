@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 
 use config::ConfigBuilder;
 use config::builder::DefaultState;
+use tracing::warn;
 
 use crate::ForgeConfig;
 use crate::legacy::LegacyConfig;
@@ -101,24 +102,36 @@ impl ConfigReader {
         Ok(config.try_deserialize::<ForgeConfig>()?)
     }
 
-    /// Adds `~/.forge/.forge.toml` as a config source, silently skipping if
-    /// absent.
+    /// Adds `~/.forge/.forge.toml` as a config source.
+    ///
+    /// Silently skips if the file does not exist; returns an error if the file
+    /// exists but cannot be parsed (e.g., malformed TOML, wrong value types).
     pub fn read_global(mut self) -> Self {
         let path = Self::config_path();
-        self.builder = self
-            .builder
-            .add_source(config::File::from(path).required(false));
+        // Only add the source if the file exists so that a missing config file
+        // is silently skipped, while a present-but-malformed file surfaces as
+        // an error during `build()`.
+        if path.exists() {
+            self.builder = self
+                .builder
+                .add_source(config::File::from(path).required(true));
+        }
         self
     }
 
-    /// Reads `~/.forge/.config.json` (legacy format) and adds it as a source,
-    /// silently skipping errors.
+    /// Reads `~/.forge/.config.json` (legacy format) and adds it as a source.
+    ///
+    /// Silently skips if the file does not exist. Emits a `warn!` log if the
+    /// file exists but cannot be parsed, so the user is informed without
+    /// aborting startup.
     pub fn read_legacy(self) -> Self {
         let content = LegacyConfig::read(&Self::config_legacy_path());
-        if let Ok(content) = content {
-            self.read_toml(&content)
-        } else {
-            self
+        match content {
+            Ok(content) => self.read_toml(&content),
+            Err(e) => {
+                warn!(error = ?e, "Failed to read legacy config file; skipping");
+                self
+            }
         }
     }
 }

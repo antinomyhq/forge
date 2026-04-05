@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::{AppConfigService, EnvironmentInfra};
+use forge_app::{AppConfigService, ConfigReaderInfra, EnvironmentInfra};
 use forge_domain::{
     CommitConfig, ConfigOperation, Effort, ModelId, ProviderId, ProviderRepository, SuggestConfig,
 };
@@ -18,7 +18,7 @@ impl<F> ForgeAppConfigService<F> {
     }
 }
 
-impl<F: ProviderRepository + EnvironmentInfra> ForgeAppConfigService<F> {
+impl<F: ProviderRepository + EnvironmentInfra + ConfigReaderInfra> ForgeAppConfigService<F> {
     /// Helper method to apply a config operation atomically.
     async fn update(&self, op: ConfigOperation) -> anyhow::Result<()> {
         debug!(op = ?op, "Updating app config");
@@ -27,7 +27,7 @@ impl<F: ProviderRepository + EnvironmentInfra> ForgeAppConfigService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
+impl<F: ProviderRepository + EnvironmentInfra + ConfigReaderInfra + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
@@ -246,10 +246,6 @@ mod tests {
             }
         }
 
-        fn get_config(&self) -> ForgeConfig {
-            self.config.lock().unwrap().clone()
-        }
-
         fn update_environment(
             &self,
             ops: Vec<ConfigOperation>,
@@ -310,6 +306,12 @@ mod tests {
 
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
             std::collections::BTreeMap::new()
+        }
+    }
+
+    impl forge_app::ConfigReaderInfra for MockInfra {
+        fn get_config(&self) -> ForgeConfig {
+            self.config.lock().unwrap().clone()
         }
     }
 

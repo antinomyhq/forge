@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use dashmap::DashMap;
 use forge_app::domain::{AgentId, Error, ModelId, ProviderId};
-use forge_app::{AgentRepository, EnvironmentInfra};
+use forge_app::{AgentRepository, ConfigReaderInfra, EnvironmentInfra};
 use forge_domain::Agent;
 use tokio::sync::RwLock;
 
@@ -33,7 +33,7 @@ impl<R> ForgeAgentRegistryService<R> {
     }
 }
 
-impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
+impl<R: AgentRepository + EnvironmentInfra + ConfigReaderInfra> ForgeAgentRegistryService<R> {
     /// Lazily initializes and returns the agents map
     /// Loads agents from repository on first call, subsequent calls return
     /// cached value
@@ -96,7 +96,7 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: AgentRepository + EnvironmentInfra + Send + Sync> forge_app::AgentRegistry
+impl<R: AgentRepository + EnvironmentInfra + ConfigReaderInfra + Send + Sync> forge_app::AgentRegistry
     for ForgeAgentRegistryService<R>
 {
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {

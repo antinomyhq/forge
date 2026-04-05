@@ -20,8 +20,7 @@ use crate::{WalkedFile, Walker};
 /// Infrastructure trait for accessing environment configuration, system
 /// variables, and persisted application configuration.
 pub trait EnvironmentInfra: Send + Sync {
-    /// The fully-resolved configuration type returned by
-    /// [`EnvironmentInfra::get_config`].
+    /// The fully-resolved configuration type stored by the implementation.
     type Config: Clone + Send + Sync;
 
     fn get_env_var(&self, key: &str) -> Option<String>;
@@ -29,13 +28,6 @@ pub trait EnvironmentInfra: Send + Sync {
 
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
-
-    /// Returns the full [`ForgeConfig`] for the current session.
-    ///
-    /// Callers that need configuration values previously carried on
-    /// [`Environment`] (e.g. `retry_config`, `tool_timeout_secs`,
-    /// `session`, etc.) must call this method instead.
-    fn get_config(&self) -> ForgeConfig;
 
     /// Applies a list of configuration operations to the persisted config.
     ///
@@ -48,6 +40,19 @@ pub trait EnvironmentInfra: Send + Sync {
         &self,
         ops: Vec<ConfigOperation>,
     ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;
+}
+
+/// Trait for reading the current [`ForgeConfig`] from an in-memory cache.
+///
+/// Separated from [`EnvironmentInfra`] so that consumers that only need to
+/// read configuration values do not need access to the full environment
+/// infrastructure. The cache is pre-seeded at application startup and is
+/// refreshed after every [`EnvironmentInfra::update_environment`] call.
+pub trait ConfigReaderInfra: Send + Sync {
+    /// Returns the full [`ForgeConfig`] for the current session.
+    ///
+    /// Reads from the in-memory cache; does not perform disk I/O on every call.
+    fn get_config(&self) -> ForgeConfig;
 }
 
 /// Repository for accessing system environment information

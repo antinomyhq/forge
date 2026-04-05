@@ -2,7 +2,7 @@ use std::sync::{Arc, LazyLock};
 
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
-use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
+use forge_app::{ConfigReaderInfra, EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
     AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
     ProviderRepository, ProviderType, URLParam, URLParamSpec, URLParamValue,
@@ -212,7 +212,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
     }
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
+impl<F: EnvironmentInfra + ConfigReaderInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     ForgeProviderRepository<F>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
@@ -520,8 +520,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
-    for ForgeProviderRepository<F>
+impl<F: EnvironmentInfra + ConfigReaderInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
+    ProviderRepository for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await)
@@ -798,13 +798,6 @@ mod env_tests {
             env
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
@@ -821,6 +814,15 @@ mod env_tests {
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect()
+        }
+    }
+
+    impl forge_app::ConfigReaderInfra for MockInfra {
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
     }
 
@@ -1297,13 +1299,6 @@ mod env_tests {
                 env
             }
 
-            fn get_config(&self) -> forge_config::ForgeConfig {
-                forge_config::ConfigReader::default()
-                    .read_defaults()
-                    .build()
-                    .unwrap()
-            }
-
             async fn update_environment(
                 &self,
                 _ops: Vec<forge_domain::ConfigOperation>,
@@ -1320,6 +1315,15 @@ mod env_tests {
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
+            }
+        }
+
+        impl forge_app::ConfigReaderInfra for CustomMockInfra {
+            fn get_config(&self) -> forge_config::ForgeConfig {
+                forge_config::ConfigReader::default()
+                    .read_defaults()
+                    .build()
+                    .unwrap()
             }
         }
 

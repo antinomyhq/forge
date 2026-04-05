@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::{
-    Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
-    ReadOutput, compute_hash,
+    Content, ConfigReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService,
+    FsReadService, ReadOutput, compute_hash,
 };
 use forge_domain::{FileInfo, Image};
 
@@ -102,7 +102,7 @@ impl<F> ForgeFsRead<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for ForgeFsRead<F> {
+impl<F: FileInfoInfra + EnvironmentInfra + ConfigReaderInfra + InfraFsReadService> FsReadService for ForgeFsRead<F> {
     async fn read(
         &self,
         path: String,

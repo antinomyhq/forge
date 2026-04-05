@@ -16,7 +16,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::user::{User, UserUsage};
-use crate::{EnvironmentInfra, Walker};
+use crate::{ConfigReaderInfra, EnvironmentInfra, Walker};
 
 #[derive(Debug, Clone)]
 pub struct ShellOutput {
@@ -548,7 +548,7 @@ pub trait ProviderAuthService: Send + Sync {
     ) -> anyhow::Result<Provider<Url>>;
 }
 
-pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra {
+pub trait Services: Send + Sync + 'static + Clone + EnvironmentInfra + ConfigReaderInfra {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;

@@ -144,13 +144,6 @@ mod tests {
             self.environment.clone()
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
@@ -164,6 +157,15 @@ mod tests {
 
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
             std::collections::BTreeMap::new()
+        }
+    }
+
+    impl crate::ConfigReaderInfra for MockServices {
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
     }
 

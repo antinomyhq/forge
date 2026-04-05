@@ -118,13 +118,6 @@ mod tests {
             Faker.fake()
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
@@ -135,6 +128,15 @@ mod tests {
 
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
             std::collections::BTreeMap::new()
+        }
+    }
+
+    impl forge_app::ConfigReaderInfra for MockCommandInfra {
+        fn get_config(&self) -> forge_config::ForgeConfig {
+            forge_config::ConfigReader::default()
+                .read_defaults()
+                .build()
+                .unwrap()
         }
     }
 

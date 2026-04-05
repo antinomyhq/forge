@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use forge_app::{
-    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
-    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
+    AgentRepository, CommandInfra, ConfigReaderInfra, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    HttpInfra, KVStore, McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
@@ -43,11 +43,11 @@ type AuthService<F> = ForgeAuthService<F>;
 pub struct ForgeServices<
     F: HttpInfra
         + EnvironmentInfra
+        + ConfigReaderInfra
         + McpServerInfra
         + WalkerInfra
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -89,6 +89,7 @@ pub struct ForgeServices<
 impl<
     F: McpServerInfra
         + EnvironmentInfra
+        + ConfigReaderInfra
         + FileWriterInfra
         + FileInfoInfra
         + FileReaderInfra
@@ -99,7 +100,6 @@ impl<
         + UserInfra
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + ChatRepository
         + ProviderRepository
         + KVStore
@@ -186,13 +186,13 @@ impl<
         + FileInfoInfra
         + FileDirectoryInfra
         + EnvironmentInfra
+        + ConfigReaderInfra
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
         + Clone
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -344,6 +344,7 @@ impl<
 
 impl<
     F: EnvironmentInfra
+        + ConfigReaderInfra
         + HttpInfra
         + McpServerInfra
         + WalkerInfra
@@ -366,10 +367,6 @@ impl<
         self.infra.get_environment()
     }
 
-    fn get_config(&self) -> forge_config::ForgeConfig {
-        self.infra.get_config()
-    }
-
     fn update_environment(
         &self,
         ops: Vec<forge_domain::ConfigOperation>,
@@ -383,5 +380,29 @@ impl<
 
     fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
         self.infra.get_env_vars()
+    }
+}
+
+impl<
+    F: ConfigReaderInfra
+        + EnvironmentInfra
+        + HttpInfra
+        + McpServerInfra
+        + WalkerInfra
+        + SnapshotRepository
+        + ConversationRepository
+        + KVStore
+        + ChatRepository
+        + ProviderRepository
+        + WorkspaceIndexRepository
+        + AgentRepository
+        + SkillRepository
+        + ValidationRepository
+        + Send
+        + Sync,
+> ConfigReaderInfra for ForgeServices<F>
+{
+    fn get_config(&self) -> forge_config::ForgeConfig {
+        self.infra.get_config()
     }
 }

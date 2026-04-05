@@ -6,9 +6,10 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
-    FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
+    CommandLoaderService, ConfigReaderInfra, ConversationService, DataGenerationApp,
+    EnvironmentInfra, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
+    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_config::ForgeConfig;
 use forge_domain::{Agent, ConsoleWriter, *};
@@ -41,8 +42,14 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
-    pub fn init(cwd: PathBuf) -> Self {
-        let infra = Arc::new(ForgeInfra::new(cwd));
+    /// Creates a fully-initialized [`ForgeAPI`] from a pre-read configuration.
+    ///
+    /// # Arguments
+    /// * `cwd` - The working directory path for environment and file resolution
+    /// * `config` - Pre-read application configuration (from startup)
+    /// * `services_url` - Pre-validated URL for the gRPC workspace server
+    pub fn init(cwd: PathBuf, config: ForgeConfig, services_url: Url) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd, config, services_url));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
@@ -55,7 +62,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
+impl<A: Services, F: CommandInfra + ConfigReaderInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
     for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
