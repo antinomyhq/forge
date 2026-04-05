@@ -11,7 +11,7 @@ use forge_app::{CommandInfra, CustomInstructionsService, EnvironmentInfra, FileR
 #[derive(Clone)]
 pub struct ForgeCustomInstructionsService<F> {
     infra: Arc<F>,
-    cache: tokio::sync::OnceCell<Vec<String>>,
+    cache: tokio::sync::OnceCell<Vec<PathBuf>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> ForgeCustomInstructionsService<F> {
@@ -64,20 +64,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> ForgeCustomInstructio
             None
         }
     }
-
-    async fn init(&self) -> Vec<String> {
-        let paths = self.discover_agents_files().await;
-
-        let mut custom_instructions = Vec::new();
-
-        for path in paths {
-            if let Ok(content) = self.infra.read_utf8(&path).await {
-                custom_instructions.push(content);
-            }
-        }
-
-        custom_instructions
-    }
 }
 
 #[async_trait::async_trait]
@@ -85,6 +71,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + CommandInfra> CustomInstructionsSer
     for ForgeCustomInstructionsService<F>
 {
     async fn get_custom_instructions(&self) -> Vec<String> {
-        self.cache.get_or_init(|| self.init()).await.clone()
+        let paths = self.cache.get_or_init(|| self.discover_agents_files()).await;
+
+        let mut custom_instructions = Vec::new();
+
+        for path in paths {
+            if let Ok(content) = self.infra.read_utf8(path).await {
+                custom_instructions.push(content);
+            }
+        }
+
+        custom_instructions
     }
 }
