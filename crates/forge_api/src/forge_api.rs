@@ -392,10 +392,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         self.services.init_workspace(path).await
     }
 
-    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
-        Ok(self.services.migrate_env_credentials().await?)
-    }
-
     async fn generate_data(
         &self,
         data_parameters: DataGenerationParameters,

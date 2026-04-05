@@ -5,8 +5,8 @@ use url::Url;
 
 use crate::{
     AnyProvider, AuthCredential, ChatCompletionMessage, Context, Conversation, ConversationId,
-    MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate, ResultStream,
-    SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
+    Model, ModelId, Provider, ProviderId, ProviderTemplate, ResultStream, SearchMatch, Skill,
+    Snapshot, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -107,7 +107,6 @@ pub trait ProviderRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
-    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
 }
 
 /// Repository for managing workspace indexing and search operations
