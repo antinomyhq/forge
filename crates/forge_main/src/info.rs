@@ -387,6 +387,7 @@ impl From<&ForgeConfig> for Info {
             .add_key_value("ForgeCode Service URL", config.services_url.to_string())
             .add_title("TOOL CONFIGURATION")
             .add_key_value("Tool Timeout", format!("{}s", config.tool_timeout_secs))
+            .add_key("Hook Timed out")
             .add_key_value(
                 "Max Image Size",
                 format!("{} bytes", config.max_image_size_bytes),

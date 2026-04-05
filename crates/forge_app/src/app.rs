@@ -9,10 +9,14 @@ use forge_stream::MpscStream;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
+use crate::hooks::{
+    CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler, UserHookHandler,
+};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AgentRegistry, CustomInstructionsService, ProviderAuthService};
+use crate::services::{
+    AgentRegistry, CustomInstructionsService, ProviderAuthService, UserHookConfigService,
+};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -143,7 +147,7 @@ impl<S: Services> ForgeApp<S> {
         // Create the orchestrator with all necessary dependencies
         let tracing_handler = TracingHandler::new();
         let title_handler = TitleGenerationHandler::new(services.clone());
-        let hook = Hook::default()
+        let internal_hook = Hook::default()
             .on_start(tracing_handler.clone().and(title_handler.clone()))
             .on_request(tracing_handler.clone().and(DoomLoopDetector::default()))
             .on_response(
@@ -154,6 +158,29 @@ impl<S: Services> ForgeApp<S> {
             .on_toolcall_start(tracing_handler.clone())
             .on_toolcall_end(tracing_handler.clone())
             .on_end(tracing_handler.and(title_handler));
+
+        // Load user-configurable hooks from settings files
+        let user_hook_config = services.get_user_hook_config().await?;
+
+        let hook = if !user_hook_config.is_empty() {
+            let user_handler = UserHookHandler::new(
+                services.hook_command_service().clone(),
+                services.get_env_vars(),
+                user_hook_config,
+                environment.cwd.clone(),
+                conversation.id.to_string(),
+            );
+            let user_hook = Hook::default()
+                .on_start(user_handler.clone())
+                .on_request(user_handler.clone())
+                .on_response(user_handler.clone())
+                .on_toolcall_start(user_handler.clone())
+                .on_toolcall_end(user_handler.clone())
+                .on_end(user_handler);
+            internal_hook.zip(user_hook)
+        } else {
+            internal_hook
+        };
 
         let retry_config = forge_config.retry.clone().unwrap_or_default();
 

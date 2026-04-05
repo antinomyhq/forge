@@ -3250,6 +3250,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
+            ChatResponse::HookError { tool_name, reason } => {
+                writer.finish()?;
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::error(format!(
+                    "PreToolUse:{tool_name} hook error: {reason}"
+                )))?;
+                self.spinner.start(None)?;
+            }
             ChatResponse::Interrupt { reason } => {
                 writer.finish()?;
                 self.spinner.stop(None)?;

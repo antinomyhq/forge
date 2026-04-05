@@ -48,3 +48,5 @@ Cargo.lock
 **/.forge/request.body.json
 node_modules/
 bench/__pycache__
+/hooksref*
+#/cc

@@ -42,7 +42,7 @@ impl<S> TitleGenerationHandler<S> {
 impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHandler<S> {
     async fn handle(
         &self,
-        event: &EventData<StartPayload>,
+        event: &mut EventData<StartPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if conversation.title.is_some() {
@@ -94,7 +94,7 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
 impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHandler<S> {
     async fn handle(
         &self,
-        _event: &EventData<EndPayload>,
+        _event: &mut EventData<EndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         // Atomically transition InProgress → Awaiting, extracting the receiver
@@ -221,7 +221,7 @@ mod tests {
         conversation.title = Some("existing".into());
 
         handler
-            .handle(&event(StartPayload), &mut conversation)
+            .handle(&mut event(StartPayload), &mut conversation)
             .await
             .unwrap();
 
@@ -238,7 +238,7 @@ mod tests {
             .insert(conversation.id, TitleTask::InProgress(rx));
 
         handler
-            .handle(&event(StartPayload), &mut conversation)
+            .handle(&mut event(StartPayload), &mut conversation)
             .await
             .unwrap();
 
@@ -260,7 +260,7 @@ mod tests {
             .insert(conversation.id, TitleTask::Awaiting);
 
         handler
-            .handle(&event(StartPayload), &mut conversation)
+            .handle(&mut event(StartPayload), &mut conversation)
             .await
             .unwrap();
 
@@ -279,7 +279,7 @@ mod tests {
             .insert(conversation.id, TitleTask::Done("existing".into()));
 
         handler
-            .handle(&event(StartPayload), &mut conversation)
+            .handle(&mut event(StartPayload), &mut conversation)
             .await
             .unwrap();
 
@@ -299,7 +299,7 @@ mod tests {
             .insert(conversation.id, TitleTask::InProgress(rx));
 
         handler
-            .handle(&event(EndPayload), &mut conversation)
+            .handle(&mut event(EndPayload), &mut conversation)
             .await
             .unwrap();
 
@@ -321,7 +321,7 @@ mod tests {
             .insert(conversation.id, TitleTask::InProgress(rx));
 
         handler
-            .handle(&event(EndPayload), &mut conversation)
+            .handle(&mut event(EndPayload), &mut conversation)
             .await
             .unwrap();
 
@@ -345,7 +345,7 @@ mod tests {
             joins.push(tokio::spawn(async move {
                 barrier.wait().await;
                 handler
-                    .handle(&event(StartPayload), &mut conv)
+                    .handle(&mut event(StartPayload), &mut conv)
                     .await
                     .unwrap();
             }));
