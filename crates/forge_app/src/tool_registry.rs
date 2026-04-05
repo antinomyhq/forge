@@ -243,9 +243,6 @@ impl<S: Services> ToolRegistry<S> {
         // Get agents for template rendering in Task tool description
         let agents = self.services.get_agents().await?;
 
-        // Get current agent ID to filter it out from Task tool agent list
-        let current_agent_id = self.services.get_active_agent_id().await.ok().flatten();
-
         // Check if current working directory is indexed
         let environment = self.services.get_environment();
         let cwd = environment.cwd.clone();
@@ -272,7 +269,6 @@ impl<S: Services> ToolRegistry<S> {
                 &environment,
                 model,
                 agents,
-                current_agent_id.as_ref(),
                 &template_config,
             ))
             .agents(agent_tools)
@@ -286,7 +282,6 @@ impl<S> ToolRegistry<S> {
         env: &Environment,
         model: Option<Model>,
         agents: Vec<forge_domain::Agent>,
-        current_agent_id: Option<&AgentId>,
         template_config: &TemplateConfig,
     ) -> Vec<ToolDefinition> {
         use crate::TemplateEngine;
@@ -309,22 +304,12 @@ impl<S> ToolRegistry<S> {
             })
             .collect();
 
-        // Filter out current agent to prevent self-delegation
-        let filtered_agents = if let Some(current_id) = current_agent_id {
-            agents
-                .into_iter()
-                .filter(|agent| agent.id != *current_id)
-                .collect()
-        } else {
-            agents
-        };
-
         // Create template data with environment nested under "env"
         let ctx = SystemContext {
             env: Some(env.clone()),
             model,
             tool_names,
-            agents: filtered_agents,
+            agents,
             config: Some(template_config.clone()),
             ..Default::default()
         };
