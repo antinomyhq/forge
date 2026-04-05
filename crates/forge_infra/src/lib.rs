@@ -1,9 +1,8 @@
+mod auth;
 mod console;
 mod env;
-pub mod executor;
-
-mod auth;
 mod error;
+mod executor;
 mod forge_infra;
 mod fs_create_dirs;
 mod fs_meta;
@@ -24,3 +23,4 @@ pub use env::ForgeEnvironmentInfra;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;
+pub use mcp_client::*;
