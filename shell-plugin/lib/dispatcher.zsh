@@ -241,7 +241,7 @@ function forge-accept-line() {
         workspace-info|sync-info)
             _forge_action_sync_info
         ;;
-        provider-login|login)
+        provider-login|login|provider)
             _forge_action_login "$input_text"
         ;;
         logout)
