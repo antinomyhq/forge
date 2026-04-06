@@ -774,6 +774,15 @@ impl Default for TokenCount {
     }
 }
 
+impl TokenCount {
+    /// Returns the larger of two TokenCount values by their inner count.
+    /// If both are `Actual`, the result is `Actual`. If either is `Approx`,
+    /// the result is `Approx`.
+    pub fn max(self, other: TokenCount) -> TokenCount {
+        if *self >= *other { self } else { other }
+    }
+}
+
 impl Deref for TokenCount {
     type Target = usize;
 
