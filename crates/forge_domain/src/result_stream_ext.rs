@@ -578,6 +578,8 @@ mod tests {
             reasoning_details: None,
             finish_reason: Some(FinishReason::Stop),
             phase: None,
+            tool_search_output: None,
+            response_items: None,
         };
 
         assert_eq!(actual, expected);
