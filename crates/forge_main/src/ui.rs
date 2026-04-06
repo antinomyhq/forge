@@ -2393,19 +2393,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn display_credential_success(
         &mut self,
         provider_id: ProviderId,
-    ) -> anyhow::Result<bool> {
+    ) -> anyhow::Result<()> {
         self.writeln_title(TitleFormat::info(format!(
             "{provider_id} configured successfully!"
         )))?;
 
-        // Prompt user to set as active provider
-        let should_set_active = ForgeWidget::confirm(format!(
-            "Would you like to set {provider_id} as the active provider?"
-        ))
-        .with_default(true)
-        .prompt()?;
-
-        Ok(should_set_active.unwrap_or(false))
+        Ok(())
     }
 
     async fn handle_code_flow(
@@ -2591,11 +2584,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        let should_set_active = self.display_credential_success(provider_id.clone()).await?;
-
-        if !should_set_active {
-            return Ok(None);
-        }
+        self.display_credential_success(provider_id.clone()).await?;
 
         // Fetch and return the configured provider
         let provider = self.api.get_provider(&provider_id).await?;
