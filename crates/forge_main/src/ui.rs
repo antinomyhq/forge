@@ -2088,7 +2088,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             if !self.on_provider_selection().await? {
                 return Ok(None);
             }
-            return Ok(None);
+
+            // Provider activation may have already completed model selection.
+            // If it did not, continue below and show the full cross-provider
+            // model list.
+            if self.api.get_default_model().await.is_some() {
+                return Ok(None);
+            }
         }
 
         // Fetch models from ALL configured providers (matches shell plugin's
