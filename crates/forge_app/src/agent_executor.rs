@@ -41,6 +41,7 @@ impl<S: Services> AgentExecutor<S> {
         &self,
         agent_id: AgentId,
         task: String,
+        cwd_override: Option<std::path::PathBuf>,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         ctx.send_tool_input(
@@ -55,9 +56,16 @@ impl<S: Services> AgentExecutor<S> {
         // Create a new conversation for agent execution
         // Create context with agent initiator since it's spawned by a parent agent
         let context = forge_domain::Context::default().initiator("agent".to_string());
-        let conversation = Conversation::generate()
+        let mut conversation = Conversation::generate()
             .title(task.clone())
             .context(context.clone());
+
+        // Set CWD override on the conversation so ForgeApp::chat uses it
+        // for environment, file listing, and extensions
+        if let Some(cwd) = cwd_override {
+            conversation = conversation.cwd(cwd);
+        }
+
         self.services
             .conversation_service()
             .upsert_conversation(conversation.clone())

@@ -67,6 +67,12 @@ pub struct AgentInput {
     /// requirements to enable the agent to understand and execute the work
     /// accurately.
     pub tasks: Vec<String>,
+    /// Optional working directory override for the agent. When provided, the
+    /// agent will treat this path as its current working directory instead of
+    /// the parent process's CWD. This affects the system information shown to
+    /// the agent (file listing, extensions, env.cwd).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
 }
 
 fn default_true() -> bool {

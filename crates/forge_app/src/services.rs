@@ -349,6 +349,10 @@ pub trait FileDiscoveryService: Send + Sync {
     /// Lists all entries (files and directories) in the current directory
     /// Returns a sorted vector of File entries with directories first
     async fn list_current_directory(&self) -> anyhow::Result<Vec<File>>;
+
+    /// Lists all entries (files and directories) at the specified path
+    /// Returns a sorted vector of File entries with directories first
+    async fn list_directory_at(&self, path: &std::path::Path) -> anyhow::Result<Vec<File>>;
 }
 
 #[async_trait::async_trait]
@@ -746,6 +750,10 @@ impl<I: Services> FileDiscoveryService for I {
 
     async fn list_current_directory(&self) -> anyhow::Result<Vec<File>> {
         self.file_discovery_service().list_current_directory().await
+    }
+
+    async fn list_directory_at(&self, path: &std::path::Path) -> anyhow::Result<Vec<File>> {
+        self.file_discovery_service().list_directory_at(path).await
     }
 }
 

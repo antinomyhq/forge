@@ -70,9 +70,18 @@ impl<S: Services> ForgeApp<S> {
 
         // Discover files using the discovery service
         let forge_config = services.get_config();
-        let environment = services.get_environment();
+        let cwd_override = conversation.cwd.clone();
+        let mut environment = services.get_environment();
 
-        let files = services.list_current_directory().await?;
+        // Apply CWD override from conversation (set by sub-agent invocations)
+        if let Some(ref cwd) = cwd_override {
+            environment.cwd = cwd.clone();
+        }
+
+        let files = match cwd_override {
+            Some(ref cwd) => services.list_directory_at(cwd.as_path()).await?,
+            None => services.list_current_directory().await?,
+        };
 
         let custom_instructions = services.get_custom_instructions().await;
 

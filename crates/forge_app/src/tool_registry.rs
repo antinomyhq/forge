@@ -140,11 +140,13 @@ impl<S: Services> ToolRegistry<S> {
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
+            let cwd_override = agent_input.cwd.map(std::path::PathBuf::from);
             let executor = self.agent_executor.clone();
             // NOTE: Agents should not timeout
             let outputs =
                 join_all(agent_input.tasks.into_iter().map(|task| {
-                    executor.execute(AgentId::new(input.name.as_str()), task, context)
+                    let cwd = cwd_override.clone();
+                    executor.execute(AgentId::new(input.name.as_str()), task, cwd, context)
                 }))
                 .await
                 .into_iter()
