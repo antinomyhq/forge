@@ -2066,13 +2066,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// selected the model list is scoped to that provider only.
     ///
     /// # Returns
-    /// - `Ok(Some(ModelId))` if a model was selected
+    /// - `Ok(Some((ModelId, ProviderId)))` if a model was selected
     /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
     async fn select_model(
         &mut self,
         provider_filter: Option<ProviderId>,
-    ) -> Result<Option<ModelId>> {
+    ) -> Result<Option<(ModelId, ProviderId)>> {
         // Check if provider is set otherwise first ask to select a provider
         if self.api.get_default_provider().await.is_err() {
             self.on_provider_selection().await?;
@@ -2170,13 +2170,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(None);
         }
 
-        // Build a flat list of (ModelId, display_line) for the data rows.
+        // Build a flat list of (ModelId, ProviderId) pairs for the data rows.
         // The first line is the header; data rows follow in the same order as
         // the Info entries (sorted by provider, then model within provider).
-        let mut model_ids: Vec<ModelId> = Vec::new();
+        let mut model_entries: Vec<(ModelId, ProviderId)> = Vec::new();
         for pm in &all_provider_models {
             for model in &pm.models {
-                model_ids.push(model.id.clone());
+                model_entries.push((model.id.clone(), pm.provider_id.clone()));
             }
         }
 
@@ -2185,6 +2185,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         #[derive(Clone)]
         struct ModelRow {
             model_id: Option<ModelId>,
+            provider_id: Option<ProviderId>,
             display: String,
         }
         impl std::fmt::Display for ModelRow {
@@ -2195,13 +2196,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
         // Header row (non-selectable via header_lines=1)
-        rows.push(ModelRow { model_id: None, display: all_lines[0].to_string() });
+        rows.push(ModelRow {
+            model_id: None,
+            provider_id: None,
+            display: all_lines[0].to_string(),
+        });
         // Data rows
         for (i, line) in all_lines.iter().skip(1).enumerate() {
-            rows.push(ModelRow {
-                model_id: model_ids.get(i).cloned(),
-                display: line.to_string(),
-            });
+            let (model_id, provider_id) = model_entries
+                .get(i)
+                .map(|(m, p)| (Some(m.clone()), Some(p.clone())))
+                .unwrap_or((None, None));
+            rows.push(ModelRow { model_id, provider_id, display: line.to_string() });
         }
 
         // Find starting cursor position for the current model.
@@ -2212,7 +2218,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .and_then(|current| model_entries.iter().position(|(id, _)| id == current))
             .unwrap_or(0);
 
         match ForgeWidget::select("Model", rows)
@@ -2220,7 +2226,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .with_header_lines(1)
             .prompt()?
         {
-            Some(row) => Ok(row.model_id),
+            Some(row) => match (row.model_id, row.provider_id) {
+                (Some(model_id), Some(provider_id)) => Ok(Some((model_id, provider_id))),
+                _ => Ok(None),
+            },
             None => Ok(None),
         }
     }
@@ -2737,16 +2746,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_filter: Option<ProviderId>,
     ) -> Result<Option<ModelId>> {
-        // Select a model
-        let model_option = self.select_model(provider_filter).await?;
+        // Select a model (returns both model and its owning provider)
+        let selection = self.select_model(provider_filter).await?;
 
         // If no model was selected (user canceled), return early
-        let model = match model_option {
-            Some(model) => model,
+        let (model, selected_provider) = match selection {
+            Some(pair) => pair,
             None => return Ok(None),
         };
 
         // Update the operating model via API
+        self.api
+            .set_default_provider(selected_provider.clone())
+            .await?;
         self.api.set_default_model(model.clone()).await?;
 
         // Update the UI state with the new model
