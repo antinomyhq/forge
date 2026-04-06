@@ -52,7 +52,7 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
-    pub fn new(infra: Arc<F>) -> Self {
+    pub fn new(infra: Arc<F>, config: forge_config::ForgeConfig) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
@@ -67,8 +67,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             Some(3600),
         )); // 1 hour TTL
 
-        let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
-        let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
+        let provider_repository = Arc::new(ForgeProviderRepository::new(
+            infra.clone(),
+            config.providers,
+        ));
+        let chat_repository = Arc::new(ForgeChatRepository::new(
+            infra.clone(),
+            config.retry.unwrap_or_default(),
+            config.model_cache_ttl_secs,
+        ));
 
         let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
@@ -194,10 +201,6 @@ impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
 
     fn get_environment(&self) -> Environment {
         self.infra.get_environment()
-    }
-
-    fn get_config(&self) -> forge_config::ForgeConfig {
-        self.infra.get_config()
     }
 
     fn update_environment(
