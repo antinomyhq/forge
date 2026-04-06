@@ -159,7 +159,9 @@ fn drain_stdin() {
         return;
     }
 
-    unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) };
+    if unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) } < 0 {
+        return;
+    }
 
     let mut buf = [0u8; 1024];
     let mut stdin = std::io::stdin().lock();

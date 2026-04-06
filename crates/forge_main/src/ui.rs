@@ -54,8 +54,10 @@ const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
 /// RAII guard that suppresses terminal echo while alive.
 /// Prevents keypresses during agent execution from disrupting spinner output.
+#[cfg(unix)]
 struct EchoGuard;
 
+#[cfg(unix)]
 impl EchoGuard {
     fn suppress() -> Self {
         let _ = std::process::Command::new("stty")
@@ -67,6 +69,7 @@ impl EchoGuard {
     }
 }
 
+#[cfg(unix)]
 impl Drop for EchoGuard {
     fn drop(&mut self) {
         let _ = std::process::Command::new("stty")
@@ -370,6 +373,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     // Suppress terminal echo so keypresses during execution
                     // (like Shift+Tab) don't disrupt the spinner output.
                     // Echo is restored when the guard is dropped.
+                    #[cfg(unix)]
                     let _echo_guard = EchoGuard::suppress();
 
                     tokio::select! {
