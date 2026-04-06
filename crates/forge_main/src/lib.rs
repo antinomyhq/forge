@@ -8,6 +8,7 @@ mod fish;
 mod info;
 mod input;
 mod model;
+mod oauth_callback;
 mod porcelain;
 mod prompt;
 mod sandbox;
