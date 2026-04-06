@@ -35,7 +35,7 @@ use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
 use crate::editor::ReadLineError;
 use crate::info::Info;
-use crate::input::Console;
+use crate::input::{Console, PromptResult};
 use crate::model::{ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
@@ -51,6 +51,31 @@ use crate::{TRACKER, banner, tracker};
 
 // File-specific constants
 const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
+
+/// RAII guard that suppresses terminal echo while alive.
+/// Prevents keypresses during agent execution from disrupting spinner output.
+struct EchoGuard;
+
+impl EchoGuard {
+    fn suppress() -> Self {
+        let _ = std::process::Command::new("stty")
+            .arg("-echo")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        Self
+    }
+}
+
+impl Drop for EchoGuard {
+    fn drop(&mut self) {
+        let _ = std::process::Command::new("stty")
+            .arg("echo")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+}
 
 /// Conversation dump format used by the /dump command
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -208,6 +233,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    async fn on_cycle_agent(&mut self) -> Result<()> {
+        let mut agents = self.api.get_agents().await?;
+        agents.retain(|a| a.id != AgentId::SAGE);
+        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+
+        if agents.is_empty() {
+            return Ok(());
+        }
+
+        let current = self.api.get_active_agent().await.unwrap_or_default();
+        let idx = agents.iter().position(|a| a.id == current).unwrap_or(0);
+        let next = (idx + 1) % agents.len();
+        self.on_agent_change(agents[next].id.clone()).await
+    }
+
     pub fn init(cli: Cli, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
         let api = Arc::new(f());
@@ -228,26 +268,39 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         })
     }
 
-    async fn prompt(&self) -> Result<SlashCommand> {
-        // Get usage from current conversation if available
-        let usage = if let Some(conversation_id) = &self.state.conversation_id {
-            self.api
-                .conversation(conversation_id)
-                .await
-                .ok()
-                .flatten()
-                .and_then(|conv| conv.accumulated_usage())
-        } else {
-            None
-        };
+    async fn prompt(&mut self) -> Result<SlashCommand> {
+        loop {
+            // Get usage from current conversation if available
+            let usage = if let Some(conversation_id) = &self.state.conversation_id {
+                self.api
+                    .conversation(conversation_id)
+                    .await
+                    .ok()
+                    .flatten()
+                    .and_then(|conv| conv.accumulated_usage())
+            } else {
+                None
+            };
 
-        // Prompt the user for input
-        let agent_id = self.api.get_active_agent().await.unwrap_or_default();
-        let model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
-        let forge_prompt = ForgePrompt { cwd: self.state.cwd.clone(), usage, model, agent_id };
-        self.console.prompt(forge_prompt).await
+            // Prompt the user for input
+            let agent_id = self.api.get_active_agent().await.unwrap_or_default();
+            let model = self
+                .get_agent_model(self.api.get_active_agent().await)
+                .await;
+            let forge_prompt = ForgePrompt {
+                cwd: self.state.cwd.clone(),
+                usage,
+                model,
+                agent_id,
+            };
+
+            match self.console.prompt(forge_prompt).await? {
+                PromptResult::CycleAgent => {
+                    self.on_cycle_agent().await?;
+                }
+                PromptResult::Command(command) => return Ok(command),
+            }
+        }
     }
 
     pub async fn run(&mut self) {
@@ -314,6 +367,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         loop {
             match command {
                 Ok(command) => {
+                    // Suppress terminal echo so keypresses during execution
+                    // (like Shift+Tab) don't disrupt the spinner output.
+                    // Echo is restored when the guard is dropped.
+                    let _echo_guard = EchoGuard::suppress();
+
                     tokio::select! {
                         _ = tokio::signal::ctrl_c() => {
                             self.spinner.reset();
@@ -336,6 +394,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         }
                     }
 
+                    drop(_echo_guard);
                     self.spinner.stop(None)?;
                 }
                 Err(error) => {

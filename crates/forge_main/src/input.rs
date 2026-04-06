@@ -8,6 +8,12 @@ use crate::model::{ForgeCommandManager, SlashCommand};
 use crate::prompt::ForgePrompt;
 use crate::tracker;
 
+/// What the user did at the prompt — either a command or a hotkey action.
+pub enum PromptResult {
+    Command(SlashCommand),
+    CycleAgent,
+}
+
 /// Console implementation for handling user input via command line.
 pub struct Console {
     command: Arc<ForgeCommandManager>,
@@ -27,18 +33,18 @@ impl Console {
 }
 
 impl Console {
-    pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<SlashCommand> {
+    pub async fn prompt(&self, prompt: ForgePrompt) -> anyhow::Result<PromptResult> {
         loop {
             let mut forge_editor = self.editor.lock().unwrap();
             let user_input = forge_editor.prompt(&prompt)?;
             drop(forge_editor);
             match user_input {
-                ReadResult::Continue => continue,
-                ReadResult::Exit => return Ok(SlashCommand::Exit),
-                ReadResult::Empty => continue,
+                ReadResult::Continue | ReadResult::Empty => continue,
+                ReadResult::Exit => return Ok(PromptResult::Command(SlashCommand::Exit)),
+                ReadResult::CycleAgent => return Ok(PromptResult::CycleAgent),
                 ReadResult::Success(text) => {
                     tracker::prompt(text.clone());
-                    return self.command.parse(&text);
+                    return Ok(PromptResult::Command(self.command.parse(&text)?));
                 }
             }
         }

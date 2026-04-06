@@ -29,3 +29,6 @@ bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
+# Bind Shift+Tab to cycle through agents
+zle -N forge-cycle-agent
+bindkey '\e[Z' forge-cycle-agent

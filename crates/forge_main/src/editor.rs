@@ -14,6 +14,9 @@ use crate::model::ForgeCommandManager;
 // TODO: Store the last `HISTORY_CAPACITY` commands in the history file
 const HISTORY_CAPACITY: usize = 1024 * 1024;
 const COMPLETION_MENU: &str = "completion_menu";
+/// Zero-width space used as an invisible submit marker for Shift+Tab agent cycling.
+/// This is an implementation detail — higher layers see `ReadResult::CycleAgent`.
+const CYCLE_AGENT_MARKER: &str = "\u{200B}";
 
 pub struct ForgeEditor {
     editor: Reedline,
@@ -21,6 +24,7 @@ pub struct ForgeEditor {
 
 pub enum ReadResult {
     Success(String),
+    CycleAgent,
     Empty,
     Continue,
     Exit,
@@ -61,6 +65,20 @@ impl ForgeEditor {
             ReedlineEvent::Edit(vec![EditCommand::InsertNewline]),
         );
 
+        // on Shift+Tab press cycles to the next agent.
+        // Uses a proper Submit (not ExecuteHostCommand) so reedline correctly
+        // commits the prompt line. The zero-width space is invisible to the user
+        // but survives trim(), letting us distinguish this from an empty Enter.
+        let cycle = ReedlineEvent::Multiple(vec![
+            ReedlineEvent::Edit(vec![
+                EditCommand::Clear,
+                EditCommand::InsertString(CYCLE_AGENT_MARKER.to_string()),
+            ]),
+            ReedlineEvent::Submit,
+        ]);
+        keybindings.add_binding(KeyModifiers::SHIFT, KeyCode::BackTab, cycle.clone());
+        keybindings.add_binding(KeyModifiers::NONE, KeyCode::BackTab, cycle);
+
         keybindings
     }
 
@@ -100,8 +118,11 @@ impl ForgeEditor {
     }
 
     pub fn prompt(&mut self, prompt: &dyn Prompt) -> anyhow::Result<ReadResult> {
-        let signal = self.editor.read_line(prompt);
-        signal
+        // Discard any bytes buffered in stdin during agent execution
+        // (e.g. Shift+Tab presses) so they don't trigger actions.
+        drain_stdin();
+        self.editor
+            .read_line(prompt)
             .map(Into::into)
             .map_err(|e| anyhow::anyhow!(ReadLineError(e)))
     }
@@ -113,6 +134,44 @@ impl ForgeEditor {
     }
 }
 
+/// Reads and discards any bytes pending in stdin by briefly setting it to
+/// non-blocking mode. This prevents buffered keypresses from agent execution
+/// (like Shift+Tab) from being interpreted by reedline.
+#[cfg(unix)]
+fn drain_stdin() {
+    use std::io::Read;
+    use std::os::unix::io::AsRawFd;
+
+    unsafe extern "C" {
+        fn fcntl(fd: std::ffi::c_int, cmd: std::ffi::c_int, ...) -> std::ffi::c_int;
+    }
+
+    const F_GETFL: std::ffi::c_int = 3;
+    const F_SETFL: std::ffi::c_int = 4;
+    #[cfg(target_os = "linux")]
+    const O_NONBLOCK: std::ffi::c_int = 0o4000;
+    #[cfg(not(target_os = "linux"))]
+    const O_NONBLOCK: std::ffi::c_int = 0x0004;
+
+    let fd = std::io::stdin().as_raw_fd();
+    let flags = unsafe { fcntl(fd, F_GETFL) };
+    if flags < 0 {
+        return;
+    }
+
+    unsafe { fcntl(fd, F_SETFL, flags | O_NONBLOCK) };
+
+    let mut buf = [0u8; 1024];
+    let mut stdin = std::io::stdin().lock();
+    while stdin.read(&mut buf).unwrap_or(0) > 0 {}
+    drop(stdin);
+
+    unsafe { fcntl(fd, F_SETFL, flags) };
+}
+
+#[cfg(not(unix))]
+fn drain_stdin() {}
+
 #[derive(Debug, thiserror::Error)]
 #[error(transparent)]
 pub struct ReadLineError(std::io::Error);
@@ -122,7 +181,9 @@ impl From<Signal> for ReadResult {
         match signal {
             Signal::Success(buffer) => {
                 let trimmed = buffer.trim();
-                if trimmed.is_empty() {
+                if trimmed == CYCLE_AGENT_MARKER {
+                    ReadResult::CycleAgent
+                } else if trimmed.is_empty() {
                     ReadResult::Empty
                 } else {
                     ReadResult::Success(trimmed.to_string())

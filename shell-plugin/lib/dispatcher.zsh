@@ -2,6 +2,38 @@
 
 # Main command dispatcher and widget registration
 
+# Cycle to the next agent on Shift+Tab
+function forge-cycle-agent() {
+    local commands_list=$(_forge_get_commands)
+    if [[ -z "$commands_list" ]]; then
+        return 0
+    fi
+
+    # Extract agent names (column 1) where type (column 2) is AGENT, excluding sage
+    local -a agents
+    agents=($(echo "$commands_list" | awk '$2 == "AGENT" && $1 != "sage" {print $1}' | sort))
+
+    if [[ ${#agents[@]} -le 0 ]]; then
+        return 0
+    fi
+
+    local current="${_FORGE_ACTIVE_AGENT:-forge}"
+    local next_agent="${agents[1]}"
+
+    local i
+    for i in {1..${#agents[@]}}; do
+        if [[ "${agents[$i]}" == "$current" ]]; then
+            local next_i=$(( (i % ${#agents[@]}) + 1 ))
+            next_agent="${agents[$next_i]}"
+            break
+        fi
+    done
+
+    _FORGE_ACTIVE_AGENT="$next_agent"
+    _forge_log info "\033[1;37m${_FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
+    zle reset-prompt
+}
+
 # Action handler: Set active agent or execute command
 # Flow:
 # 1. Check if user_action is a CUSTOM command -> execute with `cmd` subcommand
