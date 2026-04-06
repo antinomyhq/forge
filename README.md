@@ -373,6 +373,7 @@ After running `:sync`, the AI can search your codebase by meaning rather than ex
 
 ### Quick Reference: All `:` Commands
 
+
 | Command | Alias | What it does |
 |---|---|---|
 | `: <prompt>` | | Send prompt to active agent |
@@ -381,6 +382,7 @@ After running `:sync`, the AI can search your codebase by meaning rather than ex
 | `:conversation -` | | Toggle to previous conversation |
 | `:clone` | | Branch current conversation |
 | `:rename <name>` | `:rn` | Rename current conversation |
+| `:conversation-rename` | | Rename conversation (fzf picker) |
 | `:retry` | `:r` | Retry last prompt |
 | `:copy` | | Copy last response to clipboard |
 | `:dump` | `:d` | Export conversation as JSON |
