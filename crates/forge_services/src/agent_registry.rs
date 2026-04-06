@@ -3,7 +3,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use forge_app::domain::{AgentId, Error, ModelId, ProviderId};
 use forge_app::{AgentRepository, EnvironmentInfra};
-use forge_config::{ConfigReader, ForgeConfig};
+use forge_config::ForgeConfig;
 use forge_domain::Agent;
 use tokio::sync::RwLock;
 
@@ -40,15 +40,9 @@ impl<R> ForgeAgentRegistryService<R> {
 }
 
 impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
-    /// Reloads Forge config from defaults, global file, legacy file, and env.
+    /// Reloads Forge config using the same precedence order as startup.
     fn load_current_config(&self) -> anyhow::Result<ForgeConfig> {
-        ConfigReader::default()
-            .read_defaults()
-            .read_global()
-            .read_legacy()
-            .read_env()
-            .build()
-            .map_err(Into::into)
+        ForgeConfig::read().map_err(Into::into)
     }
 
     /// Refreshes the in-memory config snapshot from disk/env sources.
@@ -157,7 +151,8 @@ impl<R: AgentRepository + EnvironmentInfra + Send + Sync> forge_app::AgentRegist
 mod tests {
     use std::collections::BTreeMap;
     use std::fs;
-    use std::sync::Mutex;
+    use std::path::Path;
+    use std::sync::{Mutex, MutexGuard};
 
     use forge_app::AgentRegistry;
     use forge_config::{ForgeConfig, ModelConfig};
@@ -168,6 +163,39 @@ mod tests {
     use super::*;
 
     static HOME_ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    struct HomeEnvGuard {
+        original_home: Option<String>,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl HomeEnvGuard {
+        fn set(home: &Path) -> Self {
+            let lock = HOME_ENV_MUTEX.lock().unwrap();
+            let original_home = std::env::var("HOME").ok();
+            unsafe {
+                std::env::set_var("HOME", home);
+            }
+            Self {
+                original_home,
+                _lock: lock,
+            }
+        }
+    }
+
+    impl Drop for HomeEnvGuard {
+        fn drop(&mut self) {
+            if let Some(home) = &self.original_home {
+                unsafe {
+                    std::env::set_var("HOME", home);
+                }
+            } else {
+                unsafe {
+                    std::env::remove_var("HOME");
+                }
+            }
+        }
+    }
 
     #[derive(Default)]
     struct MockRepository;
@@ -212,15 +240,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_reload_agents_refreshes_provider_model_from_config_file() {
-        let fixture_home_guard = HOME_ENV_MUTEX.lock().unwrap();
         let fixture_home = tempdir().unwrap();
+        let _fixture_home_env_guard = HomeEnvGuard::set(fixture_home.path());
         let fixture_forge_dir = fixture_home.path().join("forge");
         fs::create_dir_all(&fixture_forge_dir).unwrap();
-
-        let fixture_original_home = std::env::var("HOME").ok();
-        unsafe {
-            std::env::set_var("HOME", fixture_home.path());
-        }
 
         let fixture_first_config = r#"
 [session]
@@ -271,17 +294,6 @@ model_id = "zai-org/GLM-5-FP8"
         let expected_after_model = ModelId::new("zai-org/GLM-5-FP8");
         assert_eq!(actual_after.provider, expected_after_provider);
         assert_eq!(actual_after.model, expected_after_model);
-
-        if let Some(home) = fixture_original_home {
-            unsafe {
-                std::env::set_var("HOME", home);
-            }
-        } else {
-            unsafe {
-                std::env::remove_var("HOME");
-            }
-        }
-        drop(fixture_home_guard);
     }
 }
 
