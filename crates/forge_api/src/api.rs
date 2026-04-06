@@ -125,6 +125,15 @@ pub trait API: Sync + Send {
     /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
 
+    /// Updates the caller's default provider and model together, ensuring all
+    /// commands resolve a consistent pair without requiring a follow-up model
+    /// selection call.
+    async fn set_default_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()>;
+
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
 

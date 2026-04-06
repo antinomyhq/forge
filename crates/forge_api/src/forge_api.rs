@@ -281,6 +281,19 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         result
     }
 
+    async fn set_default_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        let result = self
+            .services
+            .set_default_provider_and_model(provider_id, model)
+            .await;
+        let _ = self.services.reload_agents().await;
+        result
+    }
+
     async fn get_commit_config(&self) -> anyhow::Result<Option<CommitConfig>> {
         self.services.get_commit_config().await
     }

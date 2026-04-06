@@ -266,6 +266,14 @@ mod tests {
             Ok(())
         }
 
+        async fn set_default_provider_and_model(
+            &self,
+            _provider_id: ProviderId,
+            _model: ModelId,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         async fn get_commit_config(&self) -> Result<Option<forge_domain::CommitConfig>> {
             Ok(None)
         }
