@@ -65,12 +65,7 @@ impl<S: Services> ForgeApp<S> {
         let conversation = services
             .find_conversation(&chat.conversation_id)
             .await?
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "conversation {} not found",
-                    chat.conversation_id
-                )
-            })?;
+            .ok_or_else(|| forge_domain::Error::ConversationNotFound(chat.conversation_id))?;
 
         // Discover files using the discovery service
         let forge_config = services.get_config();
