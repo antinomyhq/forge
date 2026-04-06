@@ -46,7 +46,17 @@ fn enable_stdout_vt_processing() {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() {
+    if let Err(err) = run().await {
+        eprintln!("{}", TitleFormat::error(format!("{err}")).display());
+        if let Some(cause) = err.chain().nth(1) {
+            eprintln!("{cause}");
+        }
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<()> {
     // Enable ANSI escape code support on Windows console.
     // `enable_ansi_support` sets VT processing on the `CONOUT$` screen buffer
     // handle. We additionally set it on `STD_OUTPUT_HANDLE` directly, since
