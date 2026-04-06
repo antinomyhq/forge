@@ -8,10 +8,6 @@
     "description": "Display environment information [alias: e]"
   },
   {
-    "command": "config-provider",
-    "description": "Switch the providers [alias: p, provider]"
-  },
-  {
     "command": "config-model",
     "description": "Switch the models [alias: cm]"
   },
