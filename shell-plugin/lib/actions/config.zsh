@@ -72,27 +72,6 @@ function _forge_action_agent() {
     fi
 }
 
-# Action handler: Select provider
-function _forge_action_provider() {
-    local input_text="$1"
-    echo
-    local selected
-    # Only show LLM providers (exclude context_engine and other non-LLM types)
-    # Pass input_text as query parameter for fuzzy search
-    selected=$(_forge_select_provider "" "" "llm" "$input_text")
-    
-    if [[ -n "$selected" ]]; then
-        # Extract the second field (provider ID) from the selected line
-        # Format: "DisplayName  provider_id  host  type  status"
-        local provider_id=$(echo "$selected" | awk '{print $2}')
-        # Use _forge_exec_interactive because config-set may trigger
-        # interactive authentication prompts (rustyline) when the provider
-        # is not yet configured. Without /dev/tty redirection, ZLE's pipes
-        # cause rustyline to see EOF and fail with "API key input cancelled".
-        _forge_exec_interactive config set provider "$provider_id"
-    fi
-}
-
 # Helper: Open an fzf model picker and print the raw selected line.
 #
 # Model list columns (from `forge list models --porcelain`):

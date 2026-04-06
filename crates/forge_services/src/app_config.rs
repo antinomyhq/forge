@@ -93,6 +93,15 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
             .await
     }
 
+    async fn set_default_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        self.update(ConfigOperation::SetModel(provider_id, model))
+            .await
+    }
+
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
         let config = self.infra.get_config();
         Ok(config.commit.map(|mc| CommitConfig {
