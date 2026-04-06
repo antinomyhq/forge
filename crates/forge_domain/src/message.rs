@@ -428,10 +428,10 @@ mod tests {
         let actual = fixture_message_start.merge(&fixture_message_delta);
 
         let expected = Usage {
-            prompt_tokens: TokenCount::Actual(1000), // max(1000, 0)
+            prompt_tokens: TokenCount::Actual(1000),   // max(1000, 0)
             completion_tokens: TokenCount::Actual(75), // max(1, 75) = 75, NOT 1+75=76
-            total_tokens: TokenCount::Actual(1001),  // max(1001, 75)
-            cached_tokens: TokenCount::Actual(300),  // max(300, 0)
+            total_tokens: TokenCount::Actual(1001),    // max(1001, 75)
+            cached_tokens: TokenCount::Actual(300),    // max(300, 0)
             cost: None,
         };
 

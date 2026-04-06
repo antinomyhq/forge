@@ -534,8 +534,8 @@ mod tests {
         // Expected: Usage should use max (merge) not sum (accumulate).
         // message_start has completion_tokens=1 and prompt_tokens=1000, so
         // is_complete_usage=true -> replace: usage = {1000, 1, 1001, 300}
-        // message_delta has prompt=0, completion=50 -> is_complete_usage=false -> merge:
-        //   prompt = max(1000, 0) = 1000
+        // message_delta has prompt=0, completion=50 -> is_complete_usage=false ->
+        // merge:   prompt = max(1000, 0) = 1000
         //   completion = max(1, 50) = 50 (NOT 1+50=51)
         //   total = max(1001, 50) = 1001
         //   cached = max(300, 0) = 300
