@@ -2746,6 +2746,33 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(None),
         };
 
+        let selected_provider_id = match provider_filter {
+            Some(provider_id) => provider_id,
+            None => self
+                .api
+                .get_all_provider_models()
+                .await?
+                .into_iter()
+                .find_map(|provider_models| {
+                    provider_models
+                        .models
+                        .iter()
+                        .any(|candidate| candidate.id == model)
+                        .then_some(provider_models.provider_id)
+                })
+                .ok_or_else(|| anyhow::anyhow!("No provider found for selected model: {model}"))?,
+        };
+
+        let current_provider_id = self.api.get_default_provider().await.ok().map(|p| p.id);
+
+        if current_provider_id.as_ref() != Some(&selected_provider_id) {
+            let provider = self.api.get_provider(&selected_provider_id).await?;
+            self.finalize_provider_activation(provider, Some(model.clone()))
+                .await?;
+            self.update_model(Some(model.clone()));
+            return Ok(Some(model));
+        }
+
         // Update the operating model via API
         self.api.set_default_model(model.clone()).await?;
 
