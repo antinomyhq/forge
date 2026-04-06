@@ -779,7 +779,13 @@ impl TokenCount {
     /// If both are `Actual`, the result is `Actual`. If either is `Approx`,
     /// the result is `Approx`.
     pub fn max(self, other: TokenCount) -> TokenCount {
-        if *self >= *other { self } else { other }
+        use TokenCount::*;
+        match (self, other) {
+            (Actual(a), Actual(b)) => Actual(a.max(b)),
+            (Actual(a), Approx(b)) => Approx(a.max(b)),
+            (Approx(a), Actual(b)) => Approx(a.max(b)),
+            (Approx(a), Approx(b)) => Approx(a.max(b)),
+        }
     }
 }
 
