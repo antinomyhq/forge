@@ -10,6 +10,7 @@ use forge_app::domain::{
 };
 use forge_config::RetryConfig;
 use forge_domain::{BoxStream, ChatRepository, Provider};
+use forge_infra::sanitize_headers;
 use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use tracing::info;
@@ -18,7 +19,6 @@ use url::Url;
 use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context};
-use forge_infra::sanitize_headers;
 
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {

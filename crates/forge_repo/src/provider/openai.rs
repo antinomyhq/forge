@@ -10,6 +10,7 @@ use forge_app::domain::{
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use forge_config::RetryConfig;
 use forge_domain::{ChatRepository, Provider};
+use forge_infra::sanitize_headers;
 use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
 use tracing::{debug, info};
@@ -18,7 +19,6 @@ use url::Url;
 use crate::provider::event::into_chat_completion_message;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, join_url};
-use forge_infra::sanitize_headers;
 
 /// Enhances error messages with provider-specific helpful information
 fn enhance_error(error: anyhow::Error, provider_id: &ProviderId) -> anyhow::Error {
