@@ -144,13 +144,6 @@ mod tests {
             self.environment.clone()
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
@@ -270,6 +263,14 @@ mod tests {
         }
 
         async fn set_default_model(&self, _model: ModelId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_default_provider_and_model(
+            &self,
+            _provider_id: ProviderId,
+            _model: ModelId,
+        ) -> anyhow::Result<()> {
             Ok(())
         }
 

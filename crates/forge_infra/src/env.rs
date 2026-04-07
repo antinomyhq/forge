@@ -5,18 +5,16 @@ use std::sync::Arc;
 use forge_app::EnvironmentInfra;
 use forge_config::{ConfigReader, ForgeConfig, ModelConfig};
 use forge_domain::{ConfigOperation, Environment};
-use tracing::{debug, error};
+use tracing::debug;
 
 /// Builds a [`forge_domain::Environment`] from runtime context only.
 ///
-/// Only the six fields that cannot be sourced from [`ForgeConfig`] are set
-/// here: `os`, `pid`, `cwd`, `home`, `shell`, and `base_path`. All
-/// configuration values are now accessed through
-/// `EnvironmentInfra::get_config()`.
-fn to_environment(cwd: PathBuf) -> Environment {
+/// Only the five fields that cannot be sourced from [`ForgeConfig`] are set
+/// here: `os`, `cwd`, `home`, `shell`, and `base_path`. All configuration
+/// values are now accessed through `EnvironmentInfra::get_config()`.
+pub fn to_environment(cwd: PathBuf) -> Environment {
     Environment {
         os: std::env::consts::OS.to_string(),
-        pid: std::process::id(),
         cwd,
         home: dirs::home_dir(),
         shell: if cfg!(target_os = "windows") {
@@ -24,9 +22,7 @@ fn to_environment(cwd: PathBuf) -> Environment {
         } else {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
         },
-        base_path: dirs::home_dir()
-            .map(|h| h.join("forge"))
-            .unwrap_or_else(|| PathBuf::from(".").join("forge")),
+        base_path: ConfigReader::base_path(),
     }
 }
 
@@ -97,39 +93,36 @@ pub struct ForgeEnvironmentInfra {
 }
 
 impl ForgeEnvironmentInfra {
-    /// Creates a new [`ForgeEnvironmentInfra`].
+    /// Creates a new [`ForgeEnvironmentInfra`] with the given pre-read config.
+    ///
+    /// The cache is pre-seeded with `config` so no disk I/O occurs on the
+    /// first [`EnvironmentInfra::get_config`] call.
     ///
     /// # Arguments
     /// * `cwd` - The working directory path; used to resolve `.env` files
-    pub fn new(cwd: PathBuf) -> Self {
-        Self { cwd, cache: Arc::new(std::sync::Mutex::new(None)) }
+    /// * `config` - The pre-read [`ForgeConfig`] to seed the in-memory cache
+    pub fn new(cwd: PathBuf, config: ForgeConfig) -> Self {
+        Self { cwd, cache: Arc::new(std::sync::Mutex::new(Some(config))) }
     }
 
-    /// Reads [`ForgeConfig`] from disk via [`ForgeConfig::read`].
-    fn read_from_disk() -> ForgeConfig {
-        match ForgeConfig::read() {
-            Ok(config) => {
-                debug!(config = ?config, "read .forge.toml");
-                config
-            }
-            Err(e) => {
-                // NOTE: This should never-happen
-                error!(error = ?e, "Failed to read config file. Using default config.");
-                Default::default()
-            }
-        }
-    }
-
-    /// Returns the cached [`ForgeConfig`], reading from disk if the cache is
-    /// empty.
-    fn cached_config(&self) -> ForgeConfig {
+    /// Returns the cached [`ForgeConfig`], re-reading from disk if the cache
+    /// has been invalidated by [`Self::update_environment`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the cache is empty and the disk read fails.
+    pub fn cached_config(&self) -> anyhow::Result<ForgeConfig> {
         let mut cache = self.cache.lock().expect("cache mutex poisoned");
         if let Some(ref config) = *cache {
-            config.clone()
+            Ok(config.clone())
         } else {
-            let config = Self::read_from_disk();
+            let config = ConfigReader::default()
+                .read_defaults()
+                .read_global()
+                .read_env()
+                .build()?;
             *cache = Some(config.clone());
-            config
+            Ok(config)
         }
     }
 }
@@ -149,10 +142,6 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         to_environment(self.cwd.clone())
     }
 
-    fn get_config(&self) -> ForgeConfig {
-        self.cached_config()
-    }
-
     async fn update_environment(&self, ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
         // Load the global config (with defaults applied) for the update round-trip
         let mut fc = ConfigReader::default()
@@ -169,7 +158,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         fc.write()?;
         debug!(config = ?fc, "written .forge.toml");
 
-        // Reset cache
+        // Reset cache so next get_config() re-reads the updated values from disk
         *self.cache.lock().expect("cache mutex poisoned") = None;
 
         Ok(())
@@ -179,17 +168,63 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::{Mutex, MutexGuard};
 
     use forge_config::ForgeConfig;
     use pretty_assertions::assert_eq;
 
     use super::*;
 
+    /// Serializes tests that mutate environment variables to prevent races.
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
+
+    /// Holds env vars set for a test's duration and removes them on drop,
+    /// while holding [`ENV_MUTEX`].
+    struct EnvGuard {
+        keys: Vec<&'static str>,
+        _lock: MutexGuard<'static, ()>,
+    }
+
+    impl EnvGuard {
+        #[must_use]
+        fn set(pairs: &[(&'static str, &str)]) -> Self {
+            let lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
+            let keys = pairs.iter().map(|(k, _)| *k).collect();
+            for (key, value) in pairs {
+                unsafe { std::env::set_var(key, value) };
+            }
+            Self { keys, _lock: lock }
+        }
+    }
+
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for key in &self.keys {
+                unsafe { std::env::remove_var(key) };
+            }
+        }
+    }
+
     #[test]
     fn test_to_environment_sets_cwd() {
         let fixture_cwd = PathBuf::from("/test/cwd");
         let actual = to_environment(fixture_cwd.clone());
         assert_eq!(actual.cwd, fixture_cwd);
+    }
+
+    #[test]
+    fn test_to_environment_uses_forge_config_env_var() {
+        let _guard = EnvGuard::set(&[("FORGE_CONFIG", "/custom/config/dir")]);
+        let actual = to_environment(PathBuf::from("/any/cwd"));
+        let expected = PathBuf::from("/custom/config/dir");
+        assert_eq!(actual.base_path, expected);
+    }
+
+    #[test]
+    fn test_to_environment_falls_back_to_home_dir_when_env_var_absent() {
+        let actual = to_environment(PathBuf::from("/any/cwd"));
+        // Without FORGE_CONFIG the base_path must end with "forge"
+        assert_eq!(actual.base_path.file_name().unwrap(), "forge");
     }
 
     #[test]
