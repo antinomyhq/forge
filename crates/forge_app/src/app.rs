@@ -160,6 +160,7 @@ impl<S: Services> ForgeApp<S> {
             .on_end(tracing_handler.and(title_handler));
 
         let retry_config = forge_config.retry.clone().unwrap_or_default();
+        let tool_search = forge_config.tool_search;
 
         let orch = Orchestrator::new(
             services.clone(),
@@ -172,7 +173,7 @@ impl<S: Services> ForgeApp<S> {
         .tool_definitions(tool_definitions)
         .models(models)
         .hook(Arc::new(hook))
-            .tool_search(forge_config.tool_search);
+        .tool_search(tool_search);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
