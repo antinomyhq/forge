@@ -267,7 +267,6 @@ mod tests {
         fn get_environment(&self) -> Environment {
             Environment {
                 os: "test".to_string(),
-                pid: 0,
                 cwd: PathBuf::new(),
                 home: None,
                 shell: "bash".to_string(),
