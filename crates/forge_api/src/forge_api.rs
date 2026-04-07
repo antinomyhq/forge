@@ -399,6 +399,11 @@ impl<
         app.execute(data_parameters).await
     }
 
+    async fn acp_start_stdio(&self) -> Result<()> {
+        let acp_app = forge_app::AcpApp::new(self.services.clone());
+        acp_app.start_stdio().await
+    }
+
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         let provider_id = self.services.get_default_provider().await?;
         self.services.get_provider(provider_id).await
