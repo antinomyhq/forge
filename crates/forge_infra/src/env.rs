@@ -225,22 +225,22 @@ mod tests {
 
     #[test]
     fn test_apply_config_op_set_model() {
-        use forge_domain::{ModelConfig as DomainModelConfig, ProviderId, ModelId};
+        use forge_domain::{ModelConfig as DomainModelConfig, ModelId, ProviderId};
 
         let mut fixture = ForgeConfig::default();
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetSessionConfig(DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet"))),
+            ConfigOperation::SetSessionConfig(DomainModelConfig::new(
+                ProviderId::ANTHROPIC,
+                ModelId::new("claude-3-5-sonnet"),
+            )),
         );
 
         let actual_provider = fixture
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_deref());
-        let actual_model = fixture
-            .session
-            .as_ref()
-            .and_then(|s| s.model_id.as_deref());
+        let actual_model = fixture.session.as_ref().and_then(|s| s.model_id.as_deref());
 
         assert_eq!(actual_provider, Some("anthropic"));
         assert_eq!(actual_model, Some("claude-3-5-sonnet"));
@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn test_apply_config_op_set_model_matching_provider() {
         use forge_config::ModelConfig as ForgeCfgModelConfig;
-        use forge_domain::{ModelConfig as DomainModelConfig, ProviderId, ModelId};
+        use forge_domain::{ModelConfig as DomainModelConfig, ModelId, ProviderId};
 
         let mut fixture = ForgeConfig {
             session: Some(ForgeCfgModelConfig {
@@ -261,9 +261,10 @@ mod tests {
 
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetSessionConfig(
-                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet-20241022")),
-            ),
+            ConfigOperation::SetSessionConfig(DomainModelConfig::new(
+                ProviderId::ANTHROPIC,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )),
         );
 
         let actual = fixture.session.as_ref().and_then(|s| s.model_id.as_deref());
@@ -275,7 +276,7 @@ mod tests {
     #[test]
     fn test_apply_config_op_set_model_different_provider_replaces_session() {
         use forge_config::ModelConfig as ForgeCfgModelConfig;
-        use forge_domain::{ModelConfig as DomainModelConfig, ProviderId, ModelId};
+        use forge_domain::{ModelConfig as DomainModelConfig, ModelId, ProviderId};
 
         let mut fixture = ForgeConfig {
             session: Some(ForgeCfgModelConfig {
@@ -287,9 +288,10 @@ mod tests {
 
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetSessionConfig(
-                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet-20241022")),
-            ),
+            ConfigOperation::SetSessionConfig(DomainModelConfig::new(
+                ProviderId::ANTHROPIC,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )),
         );
 
         let actual_provider = fixture

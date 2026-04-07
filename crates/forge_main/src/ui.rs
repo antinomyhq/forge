@@ -2763,13 +2763,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         // If we have a provider to activate, write both atomically
         if let Some(provider_id) = provider_to_activate {
             self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(forge_domain::ModelConfig::new(provider_id, model.clone()))])
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider_id, model.clone()),
+                )])
                 .await?;
         } else {
             // Resolve the active provider so we can build a SetModel op
             let provider_id = self.api.get_default_provider().await?.id;
             self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(forge_domain::ModelConfig::new(provider_id, model.clone()))])
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider_id, model.clone()),
+                )])
                 .await?;
         }
 
@@ -2891,9 +2895,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         } else {
             // The current model is compatible with the new provider — write both
             // atomically so the session always stores a consistent pair.
-            let model = compatible_model.expect("compatible_model is Some when !needs_model_selection");
+            let model =
+                compatible_model.expect("compatible_model is Some when !needs_model_selection");
             self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(forge_domain::ModelConfig::new(provider.id.clone(), model))])
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider.id.clone(), model),
+                )])
                 .await?;
 
             self.writeln_title(
@@ -3561,7 +3568,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let commit_config = forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
+                let commit_config =
+                    forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
                 self.api
                     .update_config(vec![ConfigOperation::SetCommitConfig(Some(commit_config))])
                     .await?;
@@ -3573,7 +3581,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             ConfigSetField::Suggest { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let suggest_config = forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
+                let suggest_config =
+                    forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
                 self.api
                     .update_config(vec![ConfigOperation::SetSuggestConfig(suggest_config)])
                     .await?;

@@ -312,34 +312,27 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> GitApp<
         // If the configured provider is unavailable (e.g. logged out), fall back to the
         // agent's provider/model with a warning.
         let (provider, model) = match commit_config {
-            Some(mc) => {
-                match self.services.get_provider(mc.provider).await {
-                    Ok(provider) => {
-                        match self.services.refresh_provider_credential(provider).await {
-                            Ok(provider) => (provider, mc.model),
-                            Err(err) => {
-                                tracing::warn!(
-                                    error = %err,
-                                    "Failed to refresh credentials for configured commit provider. Falling back to the active provider."
-                                );
-                                self.resolve_agent_provider_and_model(
-                                    &agent_provider_resolver,
-                                    agent_id,
-                                )
-                                .await?
-                            }
-                        }
-                    }
+            Some(mc) => match self.services.get_provider(mc.provider).await {
+                Ok(provider) => match self.services.refresh_provider_credential(provider).await {
+                    Ok(provider) => (provider, mc.model),
                     Err(err) => {
                         tracing::warn!(
                             error = %err,
-                            "Configured commit provider unavailable. Falling back to the active provider."
+                            "Failed to refresh credentials for configured commit provider. Falling back to the active provider."
                         );
                         self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
                             .await?
                     }
+                },
+                Err(err) => {
+                    tracing::warn!(
+                        error = %err,
+                        "Configured commit provider unavailable. Falling back to the active provider."
+                    );
+                    self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
+                        .await?
                 }
-            }
+            },
             None => {
                 self.resolve_agent_provider_and_model(&agent_provider_resolver, agent_id)
                     .await?

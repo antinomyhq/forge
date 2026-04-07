@@ -72,10 +72,12 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>> {
         let config = self.infra.get_config()?;
         Ok(config.commit.clone().and_then(|mc| {
-            mc.provider_id.zip(mc.model_id).map(|(pid, mid)| ModelConfig {
-                provider: ProviderId::from(pid),
-                model: ModelId::new(mid),
-            })
+            mc.provider_id
+                .zip(mc.model_id)
+                .map(|(pid, mid)| ModelConfig {
+                    provider: ProviderId::from(pid),
+                    model: ModelId::new(mid),
+                })
         }))
     }
 
@@ -121,13 +123,12 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_config::{ForgeConfig, ModelConfig};
-    use forge_domain::{
-        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality,
-        MigrationResult, Model, ModelId, ModelSource, Provider, ProviderId, ProviderResponse,
-        ProviderTemplate,
-    };
     // Alias to avoid collision with forge_config::ModelConfig used in test fixtures
     use forge_domain::ModelConfig as DomainModelConfig;
+    use forge_domain::{
+        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality, MigrationResult,
+        Model, ModelId, ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
+    };
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -227,7 +228,9 @@ mod tests {
                             let pid_str = mc.provider.as_ref().to_string();
                             let mid_str = mc.model.to_string();
                             config.session = Some(match config.session.take() {
-                                Some(existing) if existing.provider_id.as_deref() == Some(&pid_str) => {
+                                Some(existing)
+                                    if existing.provider_id.as_deref() == Some(&pid_str) =>
+                                {
                                     existing.model_id(mid_str)
                                 }
                                 _ => ModelConfig::default()
@@ -486,7 +489,10 @@ mod tests {
         // Then switch to Anthropic with its model
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::from("claude-3".to_string())),
+                DomainModelConfig::new(
+                    ProviderId::ANTHROPIC,
+                    ModelId::from("claude-3".to_string()),
+                ),
             )])
             .await?;
 

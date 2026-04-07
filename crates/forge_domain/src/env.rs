@@ -27,7 +27,6 @@ pub struct SessionConfig {
 /// each in order, and persist the result atomically.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigOperation {
-
     /// Set the active session provider and model atomically.
     ///
     /// When the provider differs from the current session provider the entire
