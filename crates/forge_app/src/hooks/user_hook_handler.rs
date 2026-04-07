@@ -180,9 +180,7 @@ impl<I> UserHookHandler<I> {
             if let Some(output) = result.parse_output()
                 && output.is_blocking()
             {
-                let reason = output
-                    .reason
-                    .unwrap_or_else(|| "Hook blocked execution".to_string());
+                let reason = output.blocking_reason("Hook blocked execution");
                 return Some(reason);
             }
 
@@ -215,17 +213,13 @@ impl<I> UserHookHandler<I> {
             if let Some(output) = result.parse_output() {
                 // Check permission decision
                 if output.permission_decision.as_deref() == Some("deny") {
-                    let reason = output
-                        .reason
-                        .unwrap_or_else(|| "Tool execution denied by hook".to_string());
+                    let reason = output.blocking_reason("Tool execution denied by hook");
                     return PreToolUseDecision::Block(reason);
                 }
 
                 // Check generic block decision
                 if output.is_blocking() {
-                    let reason = output
-                        .reason
-                        .unwrap_or_else(|| "Hook blocked tool execution".to_string());
+                    let reason = output.blocking_reason("Hook blocked tool execution");
                     return PreToolUseDecision::Block(reason);
                 }
 
@@ -1241,5 +1235,50 @@ mod tests {
         let actual_args = event.payload.tool_call.arguments.parse().unwrap();
         let expected_args = serde_json::json!({"command": "rm -rf /"});
         assert_eq!(actual_args, expected_args);
+    }
+
+    #[test]
+    fn test_process_results_blocking_continue_false() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"continue": false, "stopReason": "task complete"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_results(&results);
+        assert_eq!(actual, Some("task complete".to_string()));
+    }
+
+    #[test]
+    fn test_process_pre_tool_use_output_block_on_continue_false() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"continue": false, "stopReason": "no more tools"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
+        assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "no more tools"));
+    }
+
+    #[test]
+    fn test_process_results_stop_reason_fallback() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"decision": "block", "stopReason": "fallback reason"}"#.to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_results(&results);
+        assert_eq!(actual, Some("fallback reason".to_string()));
+    }
+
+    #[test]
+    fn test_process_results_reason_over_stop_reason() {
+        let results = vec![HookExecutionResult {
+            exit_code: Some(0),
+            stdout: r#"{"decision": "block", "reason": "primary", "stopReason": "secondary"}"#
+                .to_string(),
+            stderr: String::new(),
+        }];
+        let actual = UserHookHandler::<NullInfra>::process_results(&results);
+        assert_eq!(actual, Some("primary".to_string()));
     }
 }

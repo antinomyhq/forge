@@ -75,9 +75,9 @@ pub enum HookEventInput {
 /// exit 0 with empty stdout.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct HookOutput {
-    /// FIXME: Whether execution should continue; deserialized from hook stdout
-    /// but never checked in any decision logic (`process_results`,
-    /// `is_blocking()`).
+    /// Whether execution should continue. When `false`, prevents the agent's
+    /// execution loop from continuing. Checked by `is_blocking()` alongside
+    /// `decision` and `permission_decision`.
     #[serde(default, rename = "continue", skip_serializing_if = "Option::is_none")]
     pub continue_execution: Option<bool>,
 
@@ -113,8 +113,9 @@ pub struct HookOutput {
     )]
     pub additional_context: Option<String>,
 
-    /// FIXME: Reason for stopping (for Stop hooks); deserialized from hook
-    /// stdout but never consumed anywhere in decision logic.
+    /// Reason for stopping, used as a fallback reason when
+    /// `continue_execution` is `false`. Consumed by `process_results` and
+    /// `process_pre_tool_use_output` as a fallback when `reason` is absent.
     #[serde(
         default,
         rename = "stopReason",
@@ -136,6 +137,15 @@ impl HookOutput {
     pub fn is_blocking(&self) -> bool {
         self.decision.as_deref() == Some("block")
             || self.permission_decision.as_deref() == Some("deny")
+            || self.continue_execution == Some(false)
+    }
+
+    /// Returns the blocking reason, preferring `reason` over `stop_reason`.
+    pub fn blocking_reason(&self, default: &str) -> String {
+        self.reason
+            .clone()
+            .or_else(|| self.stop_reason.clone())
+            .unwrap_or_else(|| default.to_string())
     }
 }
 
@@ -287,6 +297,67 @@ mod tests {
 
         let fixture = HookOutput::default();
         assert!(!fixture.is_blocking());
+    }
+
+    #[test]
+    fn test_hook_output_is_blocking_continue_false() {
+        let fixture = HookOutput {
+            continue_execution: Some(false),
+            ..Default::default()
+        };
+        assert!(fixture.is_blocking());
+    }
+
+    #[test]
+    fn test_hook_output_is_not_blocking_continue_true() {
+        let fixture = HookOutput {
+            continue_execution: Some(true),
+            ..Default::default()
+        };
+        assert!(!fixture.is_blocking());
+    }
+
+    #[test]
+    fn test_hook_output_is_not_blocking_continue_none() {
+        let fixture = HookOutput { continue_execution: None, ..Default::default() };
+        assert!(!fixture.is_blocking());
+    }
+
+    #[test]
+    fn test_hook_output_continue_false_with_stop_reason_parses_and_blocks() {
+        let stdout = r#"{"continue": false, "stopReason": "done"}"#;
+        let actual = HookOutput::parse(stdout);
+        assert!(actual.is_blocking());
+        assert_eq!(actual.continue_execution, Some(false));
+        assert_eq!(actual.stop_reason, Some("done".to_string()));
+    }
+
+    #[test]
+    fn test_blocking_reason_prefers_reason_over_stop_reason() {
+        let fixture = HookOutput {
+            reason: Some("primary".to_string()),
+            stop_reason: Some("secondary".to_string()),
+            ..Default::default()
+        };
+        let actual = fixture.blocking_reason("default");
+        assert_eq!(actual, "primary");
+    }
+
+    #[test]
+    fn test_blocking_reason_falls_back_to_stop_reason() {
+        let fixture = HookOutput {
+            stop_reason: Some("fallback".to_string()),
+            ..Default::default()
+        };
+        let actual = fixture.blocking_reason("default");
+        assert_eq!(actual, "fallback");
+    }
+
+    #[test]
+    fn test_blocking_reason_uses_default_when_both_none() {
+        let fixture = HookOutput::default();
+        let actual = fixture.blocking_reason("default reason");
+        assert_eq!(actual, "default reason");
     }
 
     #[test]
