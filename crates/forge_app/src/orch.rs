@@ -4,15 +4,14 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_config::RetryConfig;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use futures::future::join_all;
 use tokio::sync::Notify;
 use tracing::warn;
 
-use crate::TemplateEngine;
 use crate::agent::AgentService;
+use crate::{EnvironmentInfra, TemplateEngine};
 
 #[derive(Clone, Setters)]
 #[setters(into)]
@@ -20,7 +19,6 @@ pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
-    retry_config: RetryConfig,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
@@ -29,17 +27,15 @@ pub struct Orchestrator<S> {
     config: forge_config::ForgeConfig,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
-        retry_config: RetryConfig,
         conversation: Conversation,
         agent: Agent,
         config: forge_config::ForgeConfig,
     ) -> Self {
         Self {
             conversation,
-            retry_config,
             services,
             agent,
             config,
@@ -81,10 +77,11 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls
         // work.
-        let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(task_calls.iter().map(|tc| {
-            self.services
-                .call(&self.agent, tool_context, (*tc).clone(), &self.config)
-        }))
+        let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(
+            task_calls
+                .iter()
+                .map(|tc| self.services.call(&self.agent, tool_context, (*tc).clone())),
+        )
         .await
         .into_iter()
         .zip(task_calls.iter())
@@ -130,12 +127,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(
-                    &self.agent,
-                    tool_context,
-                    (*tool_call).clone(),
-                    &self.config,
-                )
+                .call(&self.agent, tool_context, (*tool_call).clone())
                 .await;
 
             // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
@@ -290,7 +282,7 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             let message = crate::retry::retry_with_config(
-                &self.retry_config,
+                &self.config.clone().retry.unwrap_or_default(),
                 || {
                     self.execute_chat_turn(
                         &model_id,
