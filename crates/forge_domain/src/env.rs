@@ -28,6 +28,7 @@ pub struct SessionConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigOperation {
     /// Set the active provider.
+    // FIXME: Drop `SetProvider` we should only support `SetModel`
     SetProvider(ProviderId),
     /// Set the model for the given provider.
     SetModel(ProviderId, ModelId),

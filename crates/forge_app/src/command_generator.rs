@@ -255,10 +255,6 @@ mod tests {
             Ok(ProviderId::OPENAI)
         }
 
-        async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
-            Ok(())
-        }
-
         async fn get_provider_model(
             &self,
             _provider_id: Option<&ProviderId>,
@@ -266,39 +262,22 @@ mod tests {
             Ok(ModelId::new("test-model"))
         }
 
-        async fn set_default_model(&self, _model: ModelId) -> Result<()> {
-            Ok(())
-        }
-
-        async fn set_default_provider_and_model(
-            &self,
-            _provider_id: ProviderId,
-            _model: ModelId,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
         async fn get_commit_config(&self) -> Result<Option<forge_domain::CommitConfig>> {
             Ok(None)
-        }
-
-        async fn set_commit_config(&self, _config: forge_domain::CommitConfig) -> Result<()> {
-            Ok(())
         }
 
         async fn get_suggest_config(&self) -> Result<Option<forge_domain::SuggestConfig>> {
             Ok(None)
         }
 
-        async fn set_suggest_config(&self, _config: forge_domain::SuggestConfig) -> Result<()> {
-            Ok(())
-        }
-
         async fn get_reasoning_effort(&self) -> Result<Option<forge_domain::Effort>> {
             Ok(None)
         }
 
-        async fn set_reasoning_effort(&self, _effort: forge_domain::Effort) -> Result<()> {
+        async fn update_config(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> Result<()> {
             Ok(())
         }
     }

@@ -230,11 +230,36 @@ impl<
         agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        let result = self.services.set_default_provider(provider_id).await;
-        // Invalidate cache for agents
-        let _ = self.services.reload_agents().await;
+    async fn update_config(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> anyhow::Result<()> {
+        // Determine whether any op affects provider/model resolution before writing,
+        // so we can invalidate the agent cache afterwards.
+        let needs_agent_reload = ops.iter().any(|op| {
+            matches!(
+                op,
+                forge_domain::ConfigOperation::SetProvider(_)
+                    | forge_domain::ConfigOperation::SetModel(_, _)
+            )
+        });
+        let result = self.services.update_config(ops).await;
+        if needs_agent_reload {
+            let _ = self.services.reload_agents().await;
+        }
         result
+    }
+
+    async fn get_commit_config(&self) -> anyhow::Result<Option<CommitConfig>> {
+        self.services.get_commit_config().await
+    }
+
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<SuggestConfig>> {
+        self.services.get_suggest_config().await
+    }
+
+    async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>> {
+        self.services.get_reasoning_effort().await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -277,50 +302,6 @@ impl<
 
     async fn get_default_model(&self) -> Option<ModelId> {
         self.services.get_provider_model(None).await.ok()
-    }
-    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        let result = self.services.set_default_model(model_id).await;
-        // Invalidate cache for agents
-        let _ = self.services.reload_agents().await;
-
-        result
-    }
-
-    async fn set_default_provider_and_model(
-        &self,
-        provider_id: ProviderId,
-        model: ModelId,
-    ) -> anyhow::Result<()> {
-        let result = self
-            .services
-            .set_default_provider_and_model(provider_id, model)
-            .await;
-        let _ = self.services.reload_agents().await;
-        result
-    }
-
-    async fn get_commit_config(&self) -> anyhow::Result<Option<CommitConfig>> {
-        self.services.get_commit_config().await
-    }
-
-    async fn set_commit_config(&self, config: CommitConfig) -> anyhow::Result<()> {
-        self.services.set_commit_config(config).await
-    }
-
-    async fn get_suggest_config(&self) -> anyhow::Result<Option<SuggestConfig>> {
-        self.services.get_suggest_config().await
-    }
-
-    async fn set_suggest_config(&self, config: SuggestConfig) -> anyhow::Result<()> {
-        self.services.set_suggest_config(config).await
-    }
-
-    async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>> {
-        self.services.get_reasoning_effort().await
-    }
-
-    async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()> {
-        self.services.set_reasoning_effort(effort).await
     }
 
     async fn reload_mcp(&self) -> Result<()> {

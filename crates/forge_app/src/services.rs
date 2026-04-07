@@ -178,18 +178,11 @@ pub trait ProviderService: Send + Sync {
         &self,
     ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
-// FIXME: Use `ConfigOperation` to modify configuration instead of providing individual setters for each config-property
 /// Manages user preferences for default providers and models.
 #[async_trait::async_trait]
 pub trait AppConfigService: Send + Sync {
     /// Gets the user's default provider ID.
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId>;
-
-    /// Sets the user's default provider preference.
-    async fn set_default_provider(
-        &self,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()>;
 
     /// Gets the user's default model for a specific provider or the currently
     /// active provider. When provider_id is None, uses the currently active
@@ -205,41 +198,27 @@ pub trait AppConfigService: Send + Sync {
         provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId>;
 
-    /// Sets the user's default model for the currently active provider.
-    ///
-    /// # Errors
-    /// Returns an error if no default provider is configured.
-    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
-
-    /// Sets the user's default provider and default model in a single atomic
-    /// update so the persisted configuration never stores a mismatched pair.
-    async fn set_default_provider_and_model(
-        &self,
-        provider_id: ProviderId,
-        model: ModelId,
-    ) -> anyhow::Result<()>;
-
     /// Gets the commit configuration (provider and model for commit message
     /// generation).
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
-
-    /// Sets the commit configuration (provider and model for commit message
-    /// generation).
-    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()>;
 
     /// Gets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
 
-    /// Sets the suggest configuration (provider and model for command
-    /// suggestion generation).
-    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
-
     /// Gets the current reasoning effort setting.
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<forge_domain::Effort>>;
 
-    /// Sets the reasoning effort level applied to all agents.
-    async fn set_reasoning_effort(&self, effort: forge_domain::Effort) -> anyhow::Result<()>;
+    /// Applies one or more configuration mutations atomically.
+    ///
+    /// Each operation in `ops` is applied in order, and the result is
+    /// persisted as a single atomic write. This is the sole write path for
+    /// all configuration changes; use [`forge_domain::ConfigOperation`]
+    /// variants to describe each mutation.
+    async fn update_config(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -978,15 +957,6 @@ impl<I: Services> AppConfigService for I {
         self.config_service().get_default_provider().await
     }
 
-    async fn set_default_provider(
-        &self,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.config_service()
-            .set_default_provider(provider_id)
-            .await
-    }
-
     async fn get_provider_model(
         &self,
         provider_id: Option<&forge_domain::ProviderId>,
@@ -994,42 +964,23 @@ impl<I: Services> AppConfigService for I {
         self.config_service().get_provider_model(provider_id).await
     }
 
-    async fn set_default_provider_and_model(
-        &self,
-        provider_id: forge_domain::ProviderId,
-        model: ModelId,
-    ) -> anyhow::Result<()> {
-        self.config_service()
-            .set_default_provider_and_model(provider_id, model)
-            .await
-    }
-
-    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        self.config_service().set_default_model(model).await
-    }
-
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
         self.config_service().get_commit_config().await
-    }
-
-    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()> {
-        self.config_service().set_commit_config(config).await
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
         self.config_service().get_suggest_config().await
     }
 
-    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()> {
-        self.config_service().set_suggest_config(config).await
-    }
-
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<forge_domain::Effort>> {
         self.config_service().get_reasoning_effort().await
     }
 
-    async fn set_reasoning_effort(&self, effort: forge_domain::Effort) -> anyhow::Result<()> {
-        self.config_service().set_reasoning_effort(effort).await
+    async fn update_config(
+        &self,
+        ops: Vec<forge_domain::ConfigOperation>,
+    ) -> anyhow::Result<()> {
+        self.config_service().update_config(ops).await
     }
 }
 

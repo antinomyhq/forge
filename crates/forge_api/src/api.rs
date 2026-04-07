@@ -9,9 +9,6 @@ use futures::stream::BoxStream;
 use url::Url;
 
 use crate::*;
-
-// FIXME: Use `ConfigOperation` to modify configuration instead of providing individual setter api for each config-property
-// In case something is unclear or you hit a roadblock add a comment about whats missing.
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
     /// Provides a list of files in the current working directory for auto
@@ -124,16 +121,15 @@ pub trait API: Sync + Send {
     /// Retrieves the provider configuration for the default agent
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
 
-    /// Sets the default provider for all the agents
-    async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
-
-    /// Updates the caller's default provider and model together, ensuring all
-    /// commands resolve a consistent pair without requiring a follow-up model
-    /// selection call.
-    async fn set_default_provider_and_model(
+    /// Applies one or more configuration mutations atomically.
+    ///
+    /// Each operation in `ops` is applied in order and persisted as a single
+    /// atomic write. Use [`forge_domain::ConfigOperation`] variants to describe
+    /// each mutation. Provider and model changes also invalidate the agent
+    /// cache so the next request picks up the updated configuration.
+    async fn update_config(
         &self,
-        provider_id: ProviderId,
-        model: ModelId,
+        ops: Vec<forge_domain::ConfigOperation>,
     ) -> anyhow::Result<()>;
 
     /// Retrieves information about the currently authenticated user
@@ -154,30 +150,16 @@ pub trait API: Sync + Send {
     /// Gets the default model
     async fn get_default_model(&self) -> Option<ModelId>;
 
-    /// Sets the operating model
-    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
-
     /// Gets the commit configuration (provider and model for commit message
     /// generation).
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
-
-    /// Sets the commit configuration (provider and model for commit message
-    /// generation).
-    async fn set_commit_config(&self, config: forge_domain::CommitConfig) -> anyhow::Result<()>;
 
     /// Gets the suggest configuration (provider and model for command
     /// suggestion generation).
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
 
-    /// Sets the suggest configuration (provider and model for command
-    /// suggestion generation).
-    async fn set_suggest_config(&self, config: forge_domain::SuggestConfig) -> anyhow::Result<()>;
-
     /// Gets the current reasoning effort setting.
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>>;
-
-    /// Sets the reasoning effort level applied to all agents.
-    async fn set_reasoning_effort(&self, effort: Effort) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;

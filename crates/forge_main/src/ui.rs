@@ -11,8 +11,8 @@ use console::style;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
-    ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
+    ChatResponse, CodeRequest, ConfigOperation, Conversation, ConversationId, DeviceCodeRequest,
+    Event, InterruptionReason, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -2765,10 +2765,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         // If we have a provider to activate, write both atomically
         if let Some(provider_id) = provider_to_activate {
             self.api
-                .set_default_provider_and_model(provider_id, model.clone())
+                .update_config(vec![ConfigOperation::SetModel(provider_id, model.clone())])
                 .await?;
         } else {
-            self.api.set_default_model(model.clone()).await?;
+            // Resolve the active provider so we can build a SetModel op
+            let provider_id = self.api.get_default_provider().await?.id;
+            self.api
+                .update_config(vec![ConfigOperation::SetModel(provider_id, model.clone())])
+                .await?;
         }
 
         // Update the UI state with the new model
@@ -2844,7 +2848,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 .validate_model(model.as_str(), Some(&provider.id))
                 .await?;
             self.api
-                .set_default_provider_and_model(provider.id.clone(), model_id.clone())
+                .update_config(vec![ConfigOperation::SetModel(
+                    provider.id.clone(),
+                    model_id.clone(),
+                )])
                 .await?;
             self.writeln_title(
                 TitleFormat::action(format!("{}", provider.id))
@@ -2883,7 +2890,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         } else {
             // Set the provider via API
             // Only reaches here if model is confirmed — safe to write provider now
-            self.api.set_default_provider(provider.id.clone()).await?;
+            self.api
+                .update_config(vec![ConfigOperation::SetProvider(provider.id.clone())])
+                .await?;
 
             self.writeln_title(
                 TitleFormat::action(format!("{}", provider.id))
@@ -3536,7 +3545,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;
-                self.api.set_default_model(model_id.clone()).await?;
+                // Resolve the active provider so we can build a SetModel op
+                let provider_id = self.api.get_default_provider().await?.id;
+                self.api
+                    .update_config(vec![ConfigOperation::SetModel(
+                        provider_id,
+                        model_id.clone(),
+                    )])
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
@@ -3547,7 +3563,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 let commit_config = forge_domain::CommitConfig::default()
                     .provider(provider.clone())
                     .model(validated_model.clone());
-                self.api.set_commit_config(commit_config).await?;
+                self.api
+                    .update_config(vec![ConfigOperation::SetCommitConfig(commit_config)])
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(validated_model.as_str())
                         .sub_title(format!("is now the commit model for provider '{provider}'")),
@@ -3560,13 +3578,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                     provider: provider.clone(),
                     model: validated_model.clone(),
                 };
-                self.api.set_suggest_config(suggest_config).await?;
+                self.api
+                    .update_config(vec![ConfigOperation::SetSuggestConfig(suggest_config)])
+                    .await?;
                 self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
             ConfigSetField::ReasoningEffort { effort } => {
-                self.api.set_reasoning_effort(effort.clone()).await?;
+                self.api
+                    .update_config(vec![ConfigOperation::SetReasoningEffort(effort.clone())])
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(effort.to_string())
                         .sub_title("is now the reasoning effort"),
