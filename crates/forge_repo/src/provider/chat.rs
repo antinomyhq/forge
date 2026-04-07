@@ -179,9 +179,7 @@ impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + Sync>
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         match provider.response {
-            Some(ProviderResponse::OpenAI) => {
-                self.openai_repo.models(provider).await
-            }
+            Some(ProviderResponse::OpenAI) => self.openai_repo.models(provider).await,
             Some(ProviderResponse::OpenAIResponses) => self.codex_repo.models(provider).await,
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
             Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
