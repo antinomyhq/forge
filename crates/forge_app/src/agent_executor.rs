@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use convert_case::{Case, Casing};
+use forge_config::ForgeConfig;
 use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, ConversationId, Event,
     TitleFormat, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
@@ -16,12 +17,13 @@ use crate::{AgentRegistry, ConversationService, Services};
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
     services: Arc<S>,
+    config: ForgeConfig,
     pub tool_agents: Arc<RwLock<Option<Vec<ToolDefinition>>>>,
 }
 
 impl<S: Services> AgentExecutor<S> {
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services, tool_agents: Arc::new(RwLock::new(None)) }
+    pub fn new(services: Arc<S>, config: ForgeConfig) -> Self {
+        Self { services, config, tool_agents: Arc::new(RwLock::new(None)) }
     }
 
     /// Returns a list of tool definitions for all available agents.
@@ -77,7 +79,7 @@ impl<S: Services> AgentExecutor<S> {
             conversation
         };
         // Execute the request through the ForgeApp
-        let app = crate::ForgeApp::new(self.services.clone());
+        let app = crate::ForgeApp::new(self.services.clone(), self.config.clone());
         let mut response_stream = app
             .chat(
                 agent_id.clone(),

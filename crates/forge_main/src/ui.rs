@@ -16,6 +16,7 @@ use forge_api::{
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
+use forge_config::ForgeConfig;
 use forge_display::MarkdownFormat;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
@@ -98,7 +99,7 @@ fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> 
     }
 }
 
-pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
+pub struct UI<A: ConsoleWriter, F: Fn(ForgeConfig) -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -107,11 +108,12 @@ pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
     command: Arc<ForgeCommandManager>,
     cli: Cli,
     spinner: SharedSpinner<A>,
+    config: ForgeConfig,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -155,7 +157,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.api = Arc::new((self.new_api)());
+        let config = forge_config::ForgeConfig::read().unwrap_or_default();
+        self.config = config.clone();
+        self.api = Arc::new((self.new_api)(config));
         self.init_state(false).await?;
 
         // Set agent if provided via CLI
@@ -200,22 +204,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    pub fn init(cli: Cli, f: F) -> Result<Self> {
+    /// Initialises the UI with the provided CLI arguments and API factory.
+    ///
+    /// # Arguments
+    /// * `cli` - Parsed command-line arguments
+    /// * `config` - Pre-read application configuration for the initial API
+    ///   instance
+    /// * `f` - Factory closure invoked once at startup and again on each `/new`
+    ///   command; receives the latest [`ForgeConfig`] so that config changes
+    ///   from `forge config set` are reflected in new conversations
+    pub fn init(cli: Cli, config: ForgeConfig, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
-        let api = Arc::new(f());
+        let api = Arc::new(f(config.clone()));
         let env = api.environment();
-        let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), config.custom_history_path, command.clone()),
+            console: Console::new(
+                env.clone(),
+                config.custom_history_path.clone(),
+                command.clone(),
+            ),
             cli,
             command,
             spinner,
             markdown: MarkdownFormat::new(),
+            config,
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -1545,8 +1562,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_env(&mut self) -> anyhow::Result<()> {
         let env = self.api.environment();
-        let config = self.api.get_config();
-        let info = Info::from(&env).extend(Info::from(&config));
+        let config = &self.config;
+        let info = Info::from(&env).extend(Info::from(config));
         self.writeln(info)?;
         Ok(())
     }
@@ -1741,7 +1758,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let max_conversations = self.api.get_config().max_conversations;
+        let max_conversations = self.config.max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
@@ -1775,7 +1792,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let max_conversations = self.api.get_config().max_conversations;
+        let max_conversations = self.config.max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
@@ -2071,7 +2088,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if !self.on_provider_selection().await? {
                 return Ok(None);
             }
-            return Ok(None);
+
+            // Provider activation may have already completed model selection.
+            // If it did not, continue below and show the full cross-provider
+            // model list.
+            if self.api.get_default_model().await.is_some() {
+                return Ok(None);
+            }
         }
 
         // Fetch models from ALL configured providers (matches shell plugin's
@@ -2558,8 +2581,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(None), // User cancelled
         };
 
-        self.spinner.start(Some("Initiating authentication..."))?;
+        // Show warning for Claude Code provider about account ban risk
+        if provider_id == ProviderId::CLAUDE_CODE {
+            self.writeln_title(
+                TitleFormat::warning(
+                    "Using Claude Code subscription in third-party tools violates Anthropic's Terms of Service."
+                )
+                .sub_title("Your account may be suspended or banned. Continue at your own risk."),
+            )?;
 
+            let confirmed = ForgeWidget::confirm("Do you want to continue with this provider?")
+                .with_default(false)
+                .prompt()?;
+
+            if !confirmed.unwrap_or(false) {
+                return Ok(None);
+            }
+        }
+
+        self.spinner.start(Some("Initiating authentication..."))?;
         // Initiate the authentication flow
         let auth_request = self
             .api
@@ -2977,7 +3017,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), self.api.get_config().updates.as_ref()).await;
+            on_update(self.api.clone(), self.config.updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -3136,7 +3176,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.get_config().auto_open_dump {
+                    if self.config.auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 } else {
@@ -3160,7 +3200,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.get_config().auto_open_dump {
+                    if self.config.auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 };
@@ -3241,8 +3281,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self
-                    .api
-                    .get_config()
+                    .config
                     .retry
                     .as_ref()
                     .is_some_and(|r| r.suppress_errors)
@@ -3283,7 +3322,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if let Some(format) = self.api.get_config().auto_dump {
+                if let Some(format) = self.config.auto_dump.clone() {
                     let html = matches!(format, forge_config::AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }

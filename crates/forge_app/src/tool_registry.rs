@@ -31,16 +31,18 @@ pub struct ToolRegistry<S> {
     mcp_executor: McpExecutor<S>,
     tool_timeout: Duration,
     services: Arc<S>,
+    config: forge_config::ForgeConfig,
 }
 
 impl<S: Services> ToolRegistry<S> {
-    pub fn new(services: Arc<S>) -> Self {
+    pub fn new(services: Arc<S>, config: forge_config::ForgeConfig) -> Self {
         Self {
             services: services.clone(),
-            tool_executor: ToolExecutor::new(services.clone()),
-            agent_executor: AgentExecutor::new(services.clone()),
+            tool_executor: ToolExecutor::new(services.clone(), config.clone()),
+            agent_executor: AgentExecutor::new(services.clone(), config.clone()),
             mcp_executor: McpExecutor::new(services.clone()),
-            tool_timeout: Duration::from_secs(services.get_config().tool_timeout_secs),
+            tool_timeout: Duration::from_secs(config.tool_timeout_secs),
+            config,
         }
     }
 
@@ -140,7 +142,7 @@ impl<S: Services> ToolRegistry<S> {
 
             // Check permissions before executing the tool (only in restricted mode)
             // This is done BEFORE the timeout to ensure permissions are never timed out
-            let is_restricted = self.services.get_config().restricted;
+            let is_restricted = self.config.restricted;
             if is_restricted && self.check_tool_permission(&tool_input, context).await? {
                 // Send formatted output message for policy denial
                 context
@@ -258,7 +260,7 @@ impl<S: Services> ToolRegistry<S> {
         let model = self.get_current_model().await;
 
         // Build TemplateConfig from ForgeConfig for tool description templates
-        let config = self.services.get_config();
+        let config = &self.config;
         let template_config = TemplateConfig {
             max_read_size: config.max_read_lines as usize,
             max_line_length: config.max_line_chars,
