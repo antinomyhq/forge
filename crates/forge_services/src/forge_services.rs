@@ -87,7 +87,7 @@ pub struct ForgeServices<
 
 impl<
     F: McpServerInfra
-        + EnvironmentInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + FileWriterInfra
         + FileInfoInfra
         + FileReaderInfra
@@ -120,7 +120,7 @@ impl<
             config.services_url.clone(),
         ));
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
-        let config_service = Arc::new(ForgeAppConfigService::new(infra.clone(), config.clone()));
+        let config_service = Arc::new(ForgeAppConfigService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsWrite::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(
@@ -200,7 +200,7 @@ impl<
         + FileRemoverInfra
         + FileInfoInfra
         + FileDirectoryInfra
-        + EnvironmentInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
@@ -357,7 +357,7 @@ impl<
 }
 
 impl<
-    F: EnvironmentInfra
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
         + HttpInfra
         + McpServerInfra
         + WalkerInfra
@@ -378,6 +378,10 @@ impl<
 
     fn get_environment(&self) -> forge_domain::Environment {
         self.infra.get_environment()
+    }
+
+    fn get_config(&self) -> impl std::future::Future<Output = anyhow::Result<forge_config::ForgeConfig>> + Send {
+        self.infra.get_config()
     }
 
     fn update_environment(

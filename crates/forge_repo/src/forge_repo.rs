@@ -196,11 +196,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
+impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
     type Config = forge_config::ForgeConfig;
 
     fn get_environment(&self) -> Environment {
         self.infra.get_environment()
+    }
+
+    fn get_config(&self) -> impl std::future::Future<Output = anyhow::Result<forge_config::ForgeConfig>> + Send {
+        self.infra.get_config()
     }
 
     fn update_environment(

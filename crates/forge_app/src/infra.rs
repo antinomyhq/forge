@@ -28,6 +28,14 @@ pub trait EnvironmentInfra: Send + Sync {
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
 
+    //FIXME: Doesn't need to return a future - keep it sync
+    /// Returns the latest fully-resolved configuration, re-reading from disk
+    /// if a prior `update_environment` call has invalidated the cache.
+    ///
+    /// # Errors
+    /// Returns an error if the disk read fails.
+    fn get_config(&self) -> impl std::future::Future<Output = anyhow::Result<Self::Config>> + Send;
+
     /// Applies a list of configuration operations to the persisted config.
     ///
     /// Implementations should load the current config, apply each operation in

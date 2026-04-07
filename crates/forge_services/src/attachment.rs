@@ -160,6 +160,10 @@ pub mod tests {
             fixture.cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }
 
+        async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+            Ok(forge_config::ForgeConfig::default())
+        }
+
         async fn update_environment(&self, _ops: Vec<ConfigOperation>) -> anyhow::Result<()> {
             unimplemented!()
         }
@@ -494,6 +498,14 @@ pub mod tests {
 
         fn get_environment(&self) -> Environment {
             self.env_service.get_environment()
+        }
+
+        fn get_config(
+            &self,
+        ) -> impl std::future::Future<Output = anyhow::Result<forge_config::ForgeConfig>> + Send
+        {
+            let env_service = self.env_service.clone();
+            async move { env_service.get_config().await }
         }
 
         fn update_environment(

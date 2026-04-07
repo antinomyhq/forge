@@ -1,26 +1,27 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use forge_app::{AppConfigService, EnvironmentInfra};
-use forge_config::ForgeConfig;
 use forge_domain::{
     CommitConfig, ConfigOperation, Effort, ModelId, ProviderId, ProviderRepository, SuggestConfig,
 };
 use tracing::debug;
 
 /// Service for managing user preferences for default providers and models.
+///
+/// All reads go through `infra.get_config()` so they always reflect the latest
+/// on-disk state after any `update_environment` call.
 pub struct ForgeAppConfigService<F> {
     infra: Arc<F>,
-    config: Arc<Mutex<ForgeConfig>>,
 }
 
 impl<F> ForgeAppConfigService<F> {
     /// Creates a new provider preferences service.
-    pub fn new(infra: Arc<F>, config: ForgeConfig) -> Self {
-        Self { infra, config: Arc::new(Mutex::new(config)) }
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra }
     }
 }
 
-impl<F: ProviderRepository + EnvironmentInfra> ForgeAppConfigService<F> {
+impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAppConfigService<F> {
     /// Helper method to apply a config operation atomically.
     async fn update(&self, op: ConfigOperation) -> anyhow::Result<()> {
         debug!(op = ?op, "Updating app config");
@@ -29,11 +30,11 @@ impl<F: ProviderRepository + EnvironmentInfra> ForgeAppConfigService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
-    for ForgeAppConfigService<F>
+impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync>
+    AppConfigService for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
-        let config = self.config.lock().unwrap();
+        let config = self.infra.get_config().await?;
         config
             .session
             .as_ref()
@@ -43,19 +44,14 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetProvider(provider_id.clone()))
-            .await?;
-        let mut config = self.config.lock().unwrap();
-        let session = config.session.get_or_insert_with(Default::default);
-        session.provider_id = Some(provider_id.as_ref().to_string());
-        Ok(())
+        self.update(ConfigOperation::SetProvider(provider_id)).await
     }
 
     async fn get_provider_model(
         &self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        let config = self.config.lock().unwrap();
+        let config = self.infra.get_config().await?;
 
         let session = config
             .session
@@ -88,25 +84,16 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let provider_id = {
-            let config = self.config.lock().unwrap();
-            config
-                .session
-                .as_ref()
-                .and_then(|s| s.provider_id.as_ref())
-                .map(|id| ProviderId::from(id.clone()))
-                .ok_or(forge_domain::Error::NoDefaultProvider)?
-        };
+        let config = self.infra.get_config().await?;
+        let provider_id = config
+            .session
+            .as_ref()
+            .and_then(|s| s.provider_id.as_ref())
+            .map(|id| ProviderId::from(id.clone()))
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
 
-        self.update(ConfigOperation::SetModel(
-            provider_id.clone(),
-            model.clone(),
-        ))
-        .await?;
-        let mut config = self.config.lock().unwrap();
-        let session = config.session.get_or_insert_with(Default::default);
-        session.model_id = Some(model.to_string());
-        Ok(())
+        self.update(ConfigOperation::SetModel(provider_id, model))
+            .await
     }
 
     async fn set_default_provider_and_model(
@@ -119,7 +106,7 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
-        let config = self.config.lock().unwrap();
+        let config = self.infra.get_config().await?;
         Ok(config.commit.clone().map(|mc| CommitConfig {
             provider: mc.provider_id.map(ProviderId::from),
             model: mc.model_id.map(ModelId::new),
@@ -135,7 +122,7 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
-        let config = self.config.lock().unwrap();
+        let config = self.infra.get_config().await?;
         Ok(config.suggest.clone().and_then(|mc| {
             mc.provider_id
                 .zip(mc.model_id)
@@ -155,7 +142,7 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
     }
 
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>> {
-        let config = self.config.lock().unwrap();
+        let config = self.infra.get_config().await?;
         Ok(config
             .reasoning
             .clone()
@@ -328,6 +315,11 @@ mod tests {
             }
         }
 
+        fn get_config(&self) -> impl std::future::Future<Output = anyhow::Result<ForgeConfig>> + Send {
+            let config = self.config.clone();
+            async move { Ok(config.lock().unwrap().clone()) }
+        }
+
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
         }
@@ -419,7 +411,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_provider_when_none_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture));
 
         let result = service.get_default_provider().await;
 
@@ -430,7 +422,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_provider_when_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service.set_default_provider(ProviderId::ANTHROPIC).await?;
         let actual = service.get_default_provider().await?;
@@ -446,7 +438,7 @@ mod tests {
         let mut fixture = MockInfra::new();
         // Remove OpenAI from available providers but keep it in config
         fixture.providers.retain(|p| p.id != ProviderId::OPENAI);
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         // Set OpenAI as the default provider in config
         service.set_default_provider(ProviderId::OPENAI).await?;
@@ -462,7 +454,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_default_provider() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service.set_default_provider(ProviderId::ANTHROPIC).await?;
 
@@ -476,7 +468,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_model_when_none_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture));
 
         let result = service.get_provider_model(Some(&ProviderId::OPENAI)).await;
 
@@ -487,7 +479,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_default_model_when_set() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         // Set OpenAI as the default provider first
         service.set_default_provider(ProviderId::OPENAI).await?;
@@ -506,7 +498,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_default_model() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         // Set OpenAI as the default provider first
         service.set_default_provider(ProviderId::OPENAI).await?;
@@ -526,7 +518,7 @@ mod tests {
     #[tokio::test]
     async fn test_set_multiple_default_models() -> anyhow::Result<()> {
         let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         // Set model for OpenAI first
         service.set_default_provider(ProviderId::OPENAI).await?;

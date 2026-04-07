@@ -805,6 +805,10 @@ mod env_tests {
             Ok(())
         }
 
+        async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+            Ok(forge_config::ForgeConfig::default())
+        }
+
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
         }
@@ -1299,6 +1303,10 @@ mod env_tests {
                 _ops: Vec<forge_domain::ConfigOperation>,
             ) -> anyhow::Result<()> {
                 Ok(())
+            }
+
+            async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+                Ok(forge_config::ForgeConfig::default())
             }
 
             fn get_env_var(&self, key: &str) -> Option<String> {
