@@ -220,6 +220,11 @@
         "$ref": "#/$defs/ProviderEntry"
       }
     },
+    "pending_todos_hook": {
+      "description": "Enables the pending todos hook that checks for incomplete todo items when a task ends and reminds the LLM about them.",
+      "type": "boolean",
+      "default": false
+    },
     "reasoning": {
       "description": "Reasoning configuration applied to all agents; controls effort level,\ntoken budget, and visibility of the model's thinking process.",
       "anyOf": [

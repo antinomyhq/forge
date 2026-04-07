@@ -265,6 +265,11 @@ pub struct ForgeConfig {
     /// selection.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub providers: Vec<ProviderEntry>,
+
+    /// Enables the pending todos hook that checks for incomplete todo items
+    /// when a task ends and reminds the LLM about them.
+    #[serde(default)]
+    pub pending_todos_hook: bool,
 }
 
 impl ForgeConfig {
