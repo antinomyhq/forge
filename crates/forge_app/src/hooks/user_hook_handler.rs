@@ -12,6 +12,7 @@ use forge_domain::{
 };
 use regex::Regex;
 use serde_json::Value;
+use forge_template::Element;
 use tracing::{debug, warn};
 
 use super::user_hook_executor::UserHookExecutor;
@@ -359,9 +360,11 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             );
             // Inject feedback so the model sees why the prompt was flagged.
             if let Some(context) = conversation.context.as_mut() {
-                let feedback_msg = format!(
-                    "<hook_feedback>\n<event>UserPromptSubmit</event>\n<status>blocked</status>\n<reason>{reason}</reason>\n</hook_feedback>"
-                );
+                let feedback_msg = Element::new("hook_feedback")
+                    .append(Element::new("event").text("UserPromptSubmit"))
+                    .append(Element::new("status").text("blocked"))
+                    .append(Element::new("reason").text(&reason))
+                    .render();
                 context
                     .messages
                     .push(ContextMessage::user(feedback_msg, None).into());
@@ -504,10 +507,12 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
             );
             // Inject feedback as a user message
             if let Some(context) = conversation.context.as_mut() {
-                let feedback_msg = format!(
-                    "<hook_feedback>\n<event>{}</event>\n<tool>{}</tool>\n<status>blocked</status>\n<reason>{}</reason>\n</hook_feedback>",
-                    event_name, tool_name, reason
-                );
+                let feedback_msg = Element::new("hook_feedback")
+                    .append(Element::new("event").text(event_name.to_string()))
+                    .append(Element::new("tool").text(tool_name))
+                    .append(Element::new("status").text("blocked"))
+                    .append(Element::new("reason").text(&reason))
+                    .render();
                 context
                     .messages
                     .push(forge_domain::ContextMessage::user(feedback_msg, None).into());
@@ -577,10 +582,11 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             );
             // Inject a message to continue the conversation
             if let Some(context) = conversation.context.as_mut() {
-                let continue_msg = format!(
-                    "<hook_feedback>\n<event>Stop</event>\n<status>continue</status>\n<reason>{}</reason>\n</hook_feedback>",
-                    reason
-                );
+                let continue_msg = Element::new("hook_feedback")
+                    .append(Element::new("event").text("Stop"))
+                    .append(Element::new("status").text("continue"))
+                    .append(Element::new("reason").text(&reason))
+                    .render();
                 context
                     .messages
                     .push(forge_domain::ContextMessage::user(continue_msg, None).into());

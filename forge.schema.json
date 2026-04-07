@@ -56,15 +56,6 @@
         "null"
       ]
     },
-    "hook_timeout_ms": {
-      "description": "Default timeout in milliseconds for user hook commands.\nIndividual hooks can override this via their own `timeout` field.",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint64",
-      "minimum": 0
-    },
     "http": {
       "description": "HTTP client settings including proxy, TLS, and timeout configuration.",
       "anyOf": [
