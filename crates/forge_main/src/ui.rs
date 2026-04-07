@@ -2703,8 +2703,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             None => return Ok(None), // User cancelled
         };
 
-        self.spinner.start(Some("Initiating authentication..."))?;
+        // Show warning for Claude Code provider about account ban risk
+        if provider_id == ProviderId::CLAUDE_CODE {
+            self.writeln_title(
+                TitleFormat::warning(
+                    "Using Claude Code subscription in third-party tools violates Anthropic's Terms of Service."
+                )
+                .sub_title("Your account may be suspended or banned. Continue at your own risk."),
+            )?;
 
+            let confirmed = ForgeWidget::confirm("Do you want to continue with this provider?")
+                .with_default(false)
+                .prompt()?;
+
+            if !confirmed.unwrap_or(false) {
+                return Ok(None);
+            }
+        }
+
+        self.spinner.start(Some("Initiating authentication..."))?;
         // Initiate the authentication flow
         let auth_request = self
             .api
