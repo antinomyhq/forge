@@ -21,3 +21,4 @@ terminal-colorsaurus = "1.0.3"
 [dev-dependencies]
 insta.workspace = true
 strip-ansi-escapes.workspace = true
+pretty_assertions.workspace = true

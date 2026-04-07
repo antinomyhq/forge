@@ -2,10 +2,10 @@
 
 use streamdown_ansi::utils::visible_length;
 use streamdown_parser::ListBullet;
-use streamdown_render::text::text_wrap;
 
 use crate::inline::render_inline_content;
 use crate::style::{InlineStyler, ListStyler};
+use crate::utils::wrap_text_preserving_spaces;
 
 /// Bullet characters for dash lists at different nesting levels.
 const BULLETS_DASH: [&str; 4] = ["•", "◦", "▪", "‣"];
@@ -183,20 +183,13 @@ pub fn render_list_item<S: InlineStyler + ListStyler>(
     let next_prefix = format!("{}{}", margin, " ".repeat(content_indent));
 
     // Wrap the content
-    let wrapped = text_wrap(
-        &rendered_content,
-        width,
-        0,
-        &first_prefix,
-        &next_prefix,
-        false,
-        true,
-    );
+    let wrapped =
+        wrap_text_preserving_spaces(&rendered_content, width, &first_prefix, &next_prefix);
 
     if wrapped.is_empty() {
         vec![first_prefix]
     } else {
-        wrapped.lines
+        wrapped
     }
 }
 
@@ -336,6 +329,14 @@ mod tests {
         <dash>•</dash> This is a very long list item that
           should wrap to multiple lines
         ");
+    }
+
+    #[test]
+    fn test_wrapping_preserves_korean_word_spaces() {
+        let actual = render_with_width(0, ListBullet::Dash, "한글 공백 보존 확인", 8);
+        let expected = "  <dash>•</dash> 한글\n    공백\n    보존\n    확인";
+
+        pretty_assertions::assert_eq!(actual, expected);
     }
 
     #[test]

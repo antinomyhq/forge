@@ -3,7 +3,6 @@
 use std::io::{self, Write};
 
 use streamdown_parser::ParseEvent;
-use streamdown_render::text::text_wrap;
 
 use crate::code::CodeHighlighter;
 use crate::heading::render_heading;
@@ -12,6 +11,7 @@ use crate::list::{ListState, render_list_item};
 use crate::style::InlineStyler;
 use crate::table::render_table;
 use crate::theme::Theme;
+use crate::utils::wrap_text_preserving_spaces;
 
 /// Main renderer for markdown events.
 pub struct Renderer<W: Write> {
@@ -257,11 +257,12 @@ impl<W: Write> Renderer<W> {
                 let width = self.current_width();
                 // Parse inline formatting (bold, italic, etc.) in blockquote content
                 let rendered_content = render_inline_content(text, &self.theme);
-                let wrapped = text_wrap(&rendered_content, width, 0, &margin, &margin, false, true);
+                let wrapped =
+                    wrap_text_preserving_spaces(&rendered_content, width, &margin, &margin);
                 if wrapped.is_empty() {
                     self.writeln(&margin)?;
                 } else {
-                    for line in wrapped.lines {
+                    for line in wrapped {
                         self.writeln(&line)?;
                     }
                 }
