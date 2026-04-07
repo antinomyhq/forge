@@ -301,19 +301,13 @@ mod tests {
 
     #[test]
     fn test_hook_output_is_blocking_continue_false() {
-        let fixture = HookOutput {
-            continue_execution: Some(false),
-            ..Default::default()
-        };
+        let fixture = HookOutput { continue_execution: Some(false), ..Default::default() };
         assert!(fixture.is_blocking());
     }
 
     #[test]
     fn test_hook_output_is_not_blocking_continue_true() {
-        let fixture = HookOutput {
-            continue_execution: Some(true),
-            ..Default::default()
-        };
+        let fixture = HookOutput { continue_execution: Some(true), ..Default::default() };
         assert!(!fixture.is_blocking());
     }
 

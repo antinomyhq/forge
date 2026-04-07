@@ -10,9 +10,9 @@ use forge_domain::{
     StartPayload, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload, UserHookConfig,
     UserHookEntry, UserHookEventName, UserHookMatcherGroup,
 };
+use forge_template::Element;
 use regex::Regex;
 use serde_json::Value;
-use forge_template::Element;
 use tracing::{debug, warn};
 
 use super::user_hook_executor::UserHookExecutor;
