@@ -61,8 +61,8 @@ impl ForgeInfra {
     /// # Arguments
     /// * `cwd` - The working directory for command execution and environment
     ///   resolution
-    /// * `config` - Pre-read application configuration; passed through to all
-    ///   consumers
+    /// * `config` - Pre-read application configuration; used only at
+    ///   construction time to initialize infrastructure services
     /// * `services_url` - Pre-validated URL for the gRPC workspace server
     pub fn new(cwd: PathBuf, config: forge_config::ForgeConfig, services_url: Url) -> Self {
         let env = to_environment(cwd.clone());
@@ -70,13 +70,16 @@ impl ForgeInfra {
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(
-            config.clone(),
+            config_infra.cached_config().unwrap_or(config),
             file_write_service.clone(),
         ));
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService::new(
-            config.max_parallel_file_reads,
+            config_infra
+                .cached_config()
+                .map(|c| c.max_parallel_file_reads)
+                .unwrap_or(4),
         ));
         let grpc_client = Arc::new(ForgeGrpcClient::new(services_url));
         let output_printer = Arc::new(StdConsoleWriter::default());
@@ -129,6 +132,10 @@ impl EnvironmentInfra for ForgeInfra {
 
     fn get_environment(&self) -> forge_domain::Environment {
         self.config_infra.get_environment()
+    }
+
+    fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+        self.config_infra.get_config()
     }
 
     async fn update_environment(
