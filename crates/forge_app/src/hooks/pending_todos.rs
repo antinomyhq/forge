@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload,
-    Template, TodoStatus,
+    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload, Template,
+    TodoStatus,
 };
 use forge_template::Element;
 use serde::Serialize;
