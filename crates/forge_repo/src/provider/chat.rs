@@ -14,7 +14,6 @@ use crate::provider::bedrock::BedrockResponseRepository;
 use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
-use crate::provider::opencode_go::OpenCodeGoResponseRepository;
 use crate::provider::opencode_zen::OpenCodeZenResponseRepository;
 
 /// Repository responsible for routing chat requests to the appropriate provider
@@ -53,8 +52,6 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
             GoogleResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
         let opencode_zen_repo =
             OpenCodeZenResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
-        let opencode_go_repo =
-            OpenCodeGoResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
         let model_cache = Arc::new(CacacheStorage::new(
             env.cache_dir().join("model_cache"),
@@ -69,7 +66,6 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
                 bedrock_repo,
                 google_repo,
                 opencode_zen_repo,
-                opencode_go_repo,
             }),
             model_cache,
             bg_refresh: BgRefresh::default(),
@@ -140,7 +136,6 @@ struct ProviderRouter<F> {
     bedrock_repo: BedrockResponseRepository,
     google_repo: GoogleResponseRepository<F>,
     opencode_zen_repo: OpenCodeZenResponseRepository<F>,
-    opencode_go_repo: OpenCodeGoResponseRepository<F>,
 }
 
 impl<F: HttpInfra + Sync> ProviderRouter<F> {
@@ -162,10 +157,6 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
                 } else if provider.id == ProviderId::CODEX {
                     // All Codex provider models use the Responses API
                     self.codex_repo.chat(model_id, context, provider).await
-                } else if provider.id == ProviderId::OPENCODE_GO {
-                    self.opencode_go_repo
-                        .chat(model_id, context, provider)
-                        .await
                 } else {
                     self.openai_repo.chat(model_id, context, provider).await
                 }
@@ -197,11 +188,7 @@ impl<F: HttpInfra + Sync> ProviderRouter<F> {
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         match provider.response {
             Some(ProviderResponse::OpenAI) => {
-                if provider.id == ProviderId::OPENCODE_GO {
-                    self.opencode_go_repo.models(provider).await
-                } else {
-                    self.openai_repo.models(provider).await
-                }
+                self.openai_repo.models(provider).await
             }
             Some(ProviderResponse::OpenAIResponses) => self.codex_repo.models(provider).await,
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,

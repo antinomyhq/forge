@@ -2816,7 +2816,7 @@
     "id": "opencode_go",
     "api_key_vars": "OPENCODE_API_KEY",
     "url_param_vars": [],
-    "response_type": "OpenAI",
+    "response_type": "OpenCode",
     "url": "https://opencode.ai/zen/go/v1/chat/completions",
     "models": [
       {
