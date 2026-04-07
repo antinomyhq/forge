@@ -174,7 +174,6 @@ impl AgentService for Runner {
         _: &forge_domain::Agent,
         _: &forge_domain::ToolCallContext,
         test_call: forge_domain::ToolCallFull,
-        _: &forge_config::ForgeConfig,
     ) -> forge_domain::ToolResult {
         let name = test_call.name.clone();
         let mut guard = self.test_tool_calls.lock().await;

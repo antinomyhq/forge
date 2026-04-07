@@ -79,7 +79,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
         // work.
         let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(task_calls.iter().map(|tc| {
             self.services
-                .call(&self.agent, tool_context, (*tc).clone(), &self.config)
+                .call(&self.agent, tool_context, (*tc).clone())
         }))
         .await
         .into_iter()
@@ -130,7 +130,6 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                     &self.agent,
                     tool_context,
                     (*tool_call).clone(),
-                    &self.config,
                 )
                 .await;
 

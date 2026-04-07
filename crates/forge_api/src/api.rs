@@ -10,6 +10,8 @@ use url::Url;
 
 use crate::*;
 
+// FIXME: Use `ConfigOperation` to modify configuration instead of providing individual setter api for each config-property
+// In case something is unclear or you hit a roadblock add a comment about whats missing.
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
     /// Provides a list of files in the current working directory for auto

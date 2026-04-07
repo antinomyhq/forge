@@ -30,8 +30,6 @@ pub trait AgentService: Send + Sync + 'static {
         agent: &Agent,
         context: &ToolCallContext,
         call: ToolCallFull,
-        // FIXME: Drop `_config` from the API
-        config: &ForgeConfig,
     ) -> ToolResult;
 
     /// Synchronize the on-going conversation
@@ -62,8 +60,6 @@ impl<T: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> AgentSe
         agent: &Agent,
         context: &ToolCallContext,
         call: ToolCallFull,
-        // FIXME: Drop `_config` from the API
-        _config: &ForgeConfig,
     ) -> ToolResult {
         let registry = ToolRegistry::new(Arc::new(self.clone()));
         registry.call(agent, context, call).await

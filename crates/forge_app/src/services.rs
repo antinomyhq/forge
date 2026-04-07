@@ -178,7 +178,7 @@ pub trait ProviderService: Send + Sync {
         &self,
     ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
-
+// FIXME: Use `ConfigOperation` to modify configuration instead of providing individual setters for each config-property
 /// Manages user preferences for default providers and models.
 #[async_trait::async_trait]
 pub trait AppConfigService: Send + Sync {

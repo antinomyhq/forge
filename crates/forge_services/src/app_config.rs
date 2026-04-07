@@ -31,6 +31,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     }
 }
 
+
 #[async_trait::async_trait]
 impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync>
     AppConfigService for ForgeAppConfigService<F>
