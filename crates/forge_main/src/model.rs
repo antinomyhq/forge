@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use forge_api::{Agent, Model, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumIter, EnumProperty};
+use strum_macros::EnumIter;
 
 use crate::info::Info;
 

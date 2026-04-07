@@ -697,6 +697,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.on_zsh_doctor().await?;
                 return Ok(());
             }
+            TopLevelCommand::Acp => {
+                forge_acp::run().await?;
+                return Ok(());
+            }
         }
         Ok(())
     }

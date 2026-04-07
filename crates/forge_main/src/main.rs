@@ -91,6 +91,14 @@ async fn run() -> Result<()> {
     // Initialize and run the UI
     let mut cli = Cli::parse();
 
+    // The `acp` subcommand owns stdio entirely for its JSON-RPC transport.
+    // It must be dispatched before the stdin-consuming block below, which
+    // would otherwise drain all of stdin before the ACP server can read it.
+    if matches!(cli.subcommands, Some(forge_main::TopLevelCommand::Acp)) {
+        forge_acp::run().await?;
+        return Ok(());
+    }
+
     // Check if there's piped input
     if !atty::is(atty::Stream::Stdin) {
         let mut stdin_content = String::new();

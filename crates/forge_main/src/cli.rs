@@ -145,6 +145,13 @@ pub enum TopLevelCommand {
     /// Update forge to the latest version.
     Update(UpdateArgs),
 
+    /// Start the Agent Client Protocol (ACP) server over stdio.
+    ///
+    /// Launches a JSON-RPC server that implements the ACP specification,
+    /// enabling IDE integrations and other clients to communicate with
+    /// forge via the standardized agent-client protocol.
+    Acp,
+
     /// Setup zsh integration by updating .zshrc with plugin and theme (alias
     /// for `zsh setup`).
     Setup,

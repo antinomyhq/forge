@@ -62,6 +62,7 @@ indexmap.workspace = true
 async-recursion.workspace = true
 
 forge_markdown_stream.workspace = true
+forge_acp.workspace = true
 strip-ansi-escapes.workspace = true
 terminal_size = "0.4"
 rustls.workspace = true
