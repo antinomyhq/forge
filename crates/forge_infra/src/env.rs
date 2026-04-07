@@ -9,14 +9,12 @@ use tracing::debug;
 
 /// Builds a [`forge_domain::Environment`] from runtime context only.
 ///
-/// Only the six fields that cannot be sourced from [`ForgeConfig`] are set
-/// here: `os`, `pid`, `cwd`, `home`, `shell`, and `base_path`. All
-/// configuration values are now accessed through
-/// `EnvironmentInfra::get_config()`.
+/// Only the five fields that cannot be sourced from [`ForgeConfig`] are set
+/// here: `os`, `cwd`, `home`, `shell`, and `base_path`. All configuration
+/// values are now accessed through `EnvironmentInfra::get_config()`.
 pub fn to_environment(cwd: PathBuf) -> Environment {
     Environment {
         os: std::env::consts::OS.to_string(),
-        pid: std::process::id(),
         cwd,
         home: dirs::home_dir(),
         shell: if cfg!(target_os = "windows") {
