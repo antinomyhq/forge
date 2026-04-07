@@ -114,8 +114,16 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
         provider_id: ProviderId,
         model: ModelId,
     ) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetModel(provider_id, model))
-            .await
+        self.update(ConfigOperation::SetModel(
+            provider_id.clone(),
+            model.clone(),
+        ))
+        .await?;
+        let mut config = self.config.lock().unwrap();
+        let session = config.session.get_or_insert_with(Default::default);
+        session.provider_id = Some(provider_id.as_ref().to_string());
+        session.model_id = Some(model.to_string());
+        Ok(())
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
@@ -549,6 +557,51 @@ mod tests {
 
         assert_eq!(actual_provider, ProviderId::ANTHROPIC);
         assert_eq!(actual_model, ModelId::new("claude-3"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_default_provider_and_model_updates_in_memory() -> anyhow::Result<()> {
+        let fixture = MockInfra::new();
+        let service =
+            ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+
+        // Set both provider and model atomically
+        service
+            .set_default_provider_and_model(ProviderId::OPENAI, ModelId::new("gpt-4"))
+            .await?;
+
+        // Verify both provider and model are immediately available in-memory
+        let actual_provider = service.get_default_provider().await?;
+        let actual_model = service.get_provider_model(None).await?;
+
+        assert_eq!(actual_provider, ProviderId::OPENAI);
+        assert_eq!(actual_model, ModelId::new("gpt-4"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_set_default_provider_and_model_then_change_model() -> anyhow::Result<()> {
+        let fixture = MockInfra::new();
+        let service =
+            ForgeAppConfigService::new(Arc::new(fixture.clone()), ForgeConfig::default());
+
+        // Set both provider and model atomically (first-time setup flow)
+        service
+            .set_default_provider_and_model(ProviderId::OPENAI, ModelId::new("gpt-4"))
+            .await?;
+
+        // Then change just the model (user running /model)
+        service
+            .set_default_model("gpt-4o".to_string().into())
+            .await?;
+
+        // Provider should remain OpenAI, model should be updated
+        let actual_provider = service.get_default_provider().await?;
+        let actual_model = service.get_provider_model(None).await?;
+
+        assert_eq!(actual_provider, ProviderId::OPENAI);
+        assert_eq!(actual_model, ModelId::new("gpt-4o"));
         Ok(())
     }
 }
