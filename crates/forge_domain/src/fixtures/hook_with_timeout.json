@@ -1,0 +1,9 @@
+{
+  "PreToolUse": [
+    {
+      "hooks": [
+        { "type": "command", "command": "slow.sh", "timeout": 30000 }
+      ]
+    }
+  ]
+}

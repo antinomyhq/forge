@@ -1,0 +1,11 @@
+{
+  "PreToolUse": [
+    { "matcher": "Bash", "hooks": [{ "type": "command", "command": "pre.sh" }] }
+  ],
+  "PostToolUse": [
+    { "hooks": [{ "type": "command", "command": "post.sh" }] }
+  ],
+  "Stop": [
+    { "hooks": [{ "type": "command", "command": "stop.sh" }] }
+  ]
+}
