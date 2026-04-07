@@ -17,7 +17,8 @@ use url::Url;
 
 use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
-use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
+use crate::provider::utils::{create_headers, format_http_context};
+use forge_infra::sanitize_headers;
 
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {

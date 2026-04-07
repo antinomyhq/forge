@@ -17,7 +17,8 @@ use url::Url;
 
 use crate::provider::event::into_chat_completion_message;
 use crate::provider::retry::into_retry;
-use crate::provider::utils::{create_headers, format_http_context, join_url, sanitize_headers};
+use crate::provider::utils::{create_headers, format_http_context, join_url};
+use forge_infra::sanitize_headers;
 
 /// Enhances error messages with provider-specific helpful information
 fn enhance_error(error: anyhow::Error, provider_id: &ProviderId) -> anyhow::Error {
