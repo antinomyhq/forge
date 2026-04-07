@@ -56,7 +56,6 @@ impl Default for TestContext {
             attachments: Default::default(),
             env: Environment {
                 os: "MacOS".to_string(),
-                pid: 1234,
                 cwd: PathBuf::from("/Users/tushar"),
                 home: Some(PathBuf::from("/Users/tushar")),
                 shell: "bash".to_string(),

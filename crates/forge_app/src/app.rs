@@ -44,12 +44,17 @@ pub(crate) fn build_template_config(config: &ForgeConfig) -> forge_domain::Templ
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
+    config: ForgeConfig,
 }
 
 impl<S: Services> ForgeApp<S> {
-    /// Creates a new ForgeApp instance with the provided services.
-    pub fn new(services: Arc<S>) -> Self {
-        Self { tool_registry: ToolRegistry::new(services.clone()), services }
+    /// Creates a new ForgeApp instance with the provided services and config.
+    pub fn new(services: Arc<S>, config: ForgeConfig) -> Self {
+        Self {
+            tool_registry: ToolRegistry::new(services.clone(), config.clone()),
+            services,
+            config,
+        }
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -64,12 +69,11 @@ impl<S: Services> ForgeApp<S> {
         // Get the conversation for the chat request
         let conversation = services
             .find_conversation(&chat.conversation_id)
-            .await
-            .unwrap_or_default()
-            .expect("conversation for the request should've been created at this point.");
+            .await?
+            .ok_or_else(|| forge_domain::Error::ConversationNotFound(chat.conversation_id))?;
 
         // Discover files using the discovery service
-        let forge_config = services.get_config();
+        let forge_config = self.config.clone();
         let environment = services.get_environment();
 
         let files = services.list_current_directory().await?;
@@ -132,7 +136,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Detect and render externally changed files notification
         let conversation = ChangedFiles::new(services.clone(), agent.clone())
-            .update_file_stats(conversation)
+            .update_file_stats(conversation, forge_config.max_parallel_file_reads)
             .await;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);
@@ -157,11 +161,17 @@ impl<S: Services> ForgeApp<S> {
 
         let retry_config = forge_config.retry.clone().unwrap_or_default();
 
-        let orch = Orchestrator::new(services.clone(), retry_config, conversation, agent)
-            .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
-            .tool_definitions(tool_definitions)
-            .models(models)
-            .hook(Arc::new(hook))
+        let orch = Orchestrator::new(
+            services.clone(),
+            retry_config,
+            conversation,
+            agent,
+            forge_config,
+        )
+        .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
+        .tool_definitions(tool_definitions)
+        .models(models)
+        .hook(Arc::new(hook))
             .tool_search(forge_config.tool_search);
 
         // Create and return the stream
@@ -220,7 +230,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
 
-        let forge_config = self.services.get_config();
+        let forge_config = self.config.clone();
 
         // Get agent and apply workflow config
         let agent = self.services.get_agent(&active_agent_id).await?;

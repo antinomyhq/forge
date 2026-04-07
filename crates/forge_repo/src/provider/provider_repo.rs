@@ -204,11 +204,12 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
+    config_providers: Vec<forge_config::ProviderEntry>,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
-    pub fn new(infra: Arc<F>) -> Self {
-        Self { infra }
+    pub fn new(infra: Arc<F>, config_providers: Vec<forge_config::ProviderEntry>) -> Self {
+        Self { infra, config_providers }
     }
 }
 
@@ -227,10 +228,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// Converts provider entries from `ForgeConfig` into `ProviderConfig`
     /// instances that can be merged into the provider list.
     fn get_config_provider_configs(&self) -> Vec<ProviderConfig> {
-        self.infra
-            .get_config()
-            .providers
-            .into_iter()
+        self.config_providers
+            .iter()
+            .cloned()
             .map(Into::into)
             .collect()
     }
@@ -798,13 +798,6 @@ mod env_tests {
             env
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
@@ -869,6 +862,10 @@ mod env_tests {
                 let mut guard = self.credentials.lock().await;
                 *guard = Some(creds);
             }
+            Ok(())
+        }
+
+        async fn append(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -980,7 +977,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra.clone());
+        let registry = ForgeProviderRepository::new(infra.clone(), vec![]);
 
         // Trigger migration
         registry.migrate_env_to_file().await.unwrap();
@@ -1049,7 +1046,7 @@ mod env_tests {
         env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
 
         let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra.clone());
+        let registry = ForgeProviderRepository::new(infra.clone(), vec![]);
 
         // Trigger migration
         registry.migrate_env_to_file().await.unwrap();
@@ -1096,7 +1093,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra.clone());
+        let registry = ForgeProviderRepository::new(infra.clone(), vec![]);
 
         // Trigger migration
         registry.migrate_env_to_file().await.unwrap();
@@ -1160,7 +1157,7 @@ mod env_tests {
         );
 
         let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra);
+        let registry = ForgeProviderRepository::new(infra, vec![]);
 
         // Trigger migration to populate credentials file
         registry.migrate_env_to_file().await.unwrap();
@@ -1217,7 +1214,7 @@ mod env_tests {
         env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
 
         let infra = Arc::new(MockInfra::new(env_vars));
-        let registry = ForgeProviderRepository::new(infra);
+        let registry = ForgeProviderRepository::new(infra, vec![]);
 
         // Migrate environment variables to credentials file
         registry.migrate_env_to_file().await.unwrap();
@@ -1297,13 +1294,6 @@ mod env_tests {
                 env
             }
 
-            fn get_config(&self) -> forge_config::ForgeConfig {
-                forge_config::ConfigReader::default()
-                    .read_defaults()
-                    .build()
-                    .unwrap()
-            }
-
             async fn update_environment(
                 &self,
                 _ops: Vec<forge_domain::ConfigOperation>,
@@ -1354,6 +1344,10 @@ mod env_tests {
         #[async_trait::async_trait]
         impl FileWriterInfra for CustomMockInfra {
             async fn write(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn append(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
                 Ok(())
             }
 
@@ -1452,7 +1446,7 @@ mod env_tests {
         }
 
         let infra = Arc::new(CustomMockInfra { env_vars, base_path });
-        let registry = ForgeProviderRepository::new(infra);
+        let registry = ForgeProviderRepository::new(infra, vec![]);
 
         // Get merged configs
         let merged_configs = registry.get_merged_configs().await;
