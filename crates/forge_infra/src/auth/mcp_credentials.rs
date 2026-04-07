@@ -127,7 +127,6 @@ mod tests {
     fn test_env() -> Environment {
         Environment {
             os: "test".to_string(),
-            pid: 1234,
             cwd: PathBuf::from("/tmp"),
             home: Some(PathBuf::from("/home/test")),
             shell: "bash".to_string(),
