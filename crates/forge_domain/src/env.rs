@@ -47,8 +47,8 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 /// Represents the minimal runtime environment in which the application is
 /// running.
 ///
-/// Contains only the six fields that cannot be sourced from [`ForgeConfig`]:
-/// `os`, `pid`, `cwd`, `home`, `shell`, and `base_path`. All configuration
+/// Contains only the five fields that cannot be sourced from [`ForgeConfig`]:
+/// `os`, `cwd`, `home`, `shell`, and `base_path`. All configuration
 /// values previously carried here are now accessed through
 /// `EnvironmentInfra::get_config()`.
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
@@ -57,8 +57,6 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 pub struct Environment {
     /// The operating system of the environment.
     pub os: String,
-    /// The process ID of the current process.
-    pub pid: u32,
     /// The current working directory.
     pub cwd: PathBuf,
     /// The home directory.

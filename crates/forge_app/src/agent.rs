@@ -30,6 +30,7 @@ pub trait AgentService: Send + Sync + 'static {
         agent: &Agent,
         context: &ToolCallContext,
         call: ToolCallFull,
+        config: &ForgeConfig,
     ) -> ToolResult;
 
     /// Synchronize the on-going conversation
@@ -60,8 +61,9 @@ impl<T: Services> AgentService for T {
         agent: &Agent,
         context: &ToolCallContext,
         call: ToolCallFull,
+        config: &ForgeConfig,
     ) -> ToolResult {
-        let registry = ToolRegistry::new(Arc::new(self.clone()));
+        let registry = ToolRegistry::new(Arc::new(self.clone()), config.clone());
         registry.call(agent, context, call).await
     }
 
