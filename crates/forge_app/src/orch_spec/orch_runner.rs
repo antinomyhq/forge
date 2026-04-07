@@ -134,8 +134,8 @@ impl Runner {
             .tool_definitions(system_tools)
             .hook(Arc::new(
                 Hook::default()
-                .on_request(DoomLoopDetector::default())
-                .on_end(PendingTodosHandler::new()),
+                    .on_request(DoomLoopDetector::default())
+                    .on_end(PendingTodosHandler::new()),
             ))
             .sender(tx);
 

@@ -54,7 +54,7 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
                 entry
                     .message
                     .content()
-                    .map_or(false, |content| content.contains("pending todo items"))
+                    .is_some_and(|content| content.contains("pending todo items"))
             });
             if has_existing_reminder {
                 return Ok(());

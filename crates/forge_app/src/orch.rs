@@ -275,11 +275,10 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 .map(|ctx| ctx.messages.len())
                 .unwrap_or(request_count_before_hook);
             // Sync context from conversation if Request hook added messages
-            if request_count_after_hook > request_count_before_hook {
-                if let Some(updated_context) = &self.conversation.context {
+            if request_count_after_hook > request_count_before_hook
+                && let Some(updated_context) = &self.conversation.context {
                     context = updated_context.clone();
                 }
-            }
 
             let message = crate::retry::retry_with_config(
                 &self.config.clone().retry.unwrap_or_default(),
