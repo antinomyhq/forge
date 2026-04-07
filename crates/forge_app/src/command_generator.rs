@@ -251,10 +251,6 @@ mod tests {
             Ok(ProviderId::OPENAI)
         }
 
-        async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
-            Ok(())
-        }
-
         async fn get_provider_model(
             &self,
             _provider_id: Option<&ProviderId>,

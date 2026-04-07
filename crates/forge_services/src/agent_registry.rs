@@ -79,18 +79,8 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
             .session
             .as_ref()
             .ok_or(Error::NoDefaultProvider)?;
-        let provider_id = session
-            .provider_id
-            .as_ref()
-            .map(|id| ProviderId::from(id.clone()))
-            .ok_or(Error::NoDefaultProvider)?;
-        let model_id = session
-            .model_id
-            .as_ref()
-            .map(|id| ModelId::new(id.clone()))
-            .ok_or_else(|| {
-                anyhow::anyhow!("No default model configured for provider {}", provider_id)
-            })?;
+        let provider_id = ProviderId::from(session.provider_id.clone());
+        let model_id = ModelId::new(session.model_id.clone());
 
         let agents = self.repository.get_agents(provider_id, model_id).await?;
 

@@ -12,36 +12,36 @@ Remove the `Option` wrappers from `provider_id` and `model_id` in `ModelConfig` 
 
 ### Phase 1 — Core Config Types (`forge_config`)
 
-- [ ] Task 1. **`crates/forge_config/src/model.rs` — `ModelConfig` fields**
+- [x] Task 1. **`crates/forge_config/src/model.rs` — `ModelConfig` fields**
   - Change `provider_id: Option<String>` → `provider_id: String`
   - Change `model_id: Option<String>` → `model_id: String`
   - Remove `Default` from the `#[derive(...)]` list (no meaningful default for required strings)
   - Change `#[setters(strip_option, into)]` → `#[setters(into)]` (strip_option is Option-specific)
   - Add an explicit `pub fn new(provider_id: impl Into<String>, model_id: impl Into<String>) -> Self` constructor for ergonomic construction
 
-- [ ] Task 2. **`crates/forge_config/src/legacy.rs` — `LegacyConfig::into_forge_config`**
+- [x] Task 2. **`crates/forge_config/src/legacy.rs` — `LegacyConfig::into_forge_config`**
   - Session construction: Use `and_then` so that a `ModelConfig` is only created when both the provider is set AND the model for that provider is found in the map. If the model lookup fails (provider in config but not in model map), silently produce `None` for `session`.
   - Commit construction: Replace the direct `Option<String>` field struct literal with `zip()` on `c.provider` and `c.model` — only create `ModelConfig::new(pid, mid)` when both are `Some`.
   - Suggest construction: Same `zip()` pattern as commit.
 
-- [ ] Task 3. **`crates/forge_config/src/reader.rs` — test fixtures**
+- [x] Task 3. **`crates/forge_config/src/reader.rs` — test fixtures**
   - Update the test at line ~200 that constructs `ModelConfig { provider_id: Some("anthropic"), model_id: Some("claude-3") }` to use `ModelConfig::new("anthropic", "claude-3")`.
 
 ---
 
 ### Phase 2 — Domain Types (`forge_domain`)
 
-- [ ] Task 4. **`crates/forge_domain/src/env.rs` — `SessionConfig`**
+- [x] Task 4. **`crates/forge_domain/src/env.rs` — `SessionConfig`**
   - Change `provider_id: Option<String>` → `provider_id: String`
   - Change `model_id: Option<String>` → `model_id: String`
   - Remove `Default` from derives
   - Change `#[setters(strip_option, into)]` → `#[setters(into)]`
   - Add `pub fn new(provider_id: impl Into<String>, model_id: impl Into<String>) -> Self` constructor
 
-- [ ] Task 5. **`crates/forge_domain/src/env.rs` — `ConfigOperation` enum**
+- [x] Task 5. **`crates/forge_domain/src/env.rs` — `ConfigOperation` enum**
   - Remove the `SetProvider(ProviderId)` variant entirely. This variant was the only way to create the partial (provider-only, no model) state. With required fields, there is no valid partial operation — the single `SetModel(ProviderId, ModelId)` variant becomes the sole session-mutation operation.
 
-- [ ] Task 6. **`crates/forge_domain/src/commit_config.rs` — `CommitConfig`**
+- [x] Task 6. **`crates/forge_domain/src/commit_config.rs` — `CommitConfig`**
   - Change `provider: Option<ProviderId>` → `provider: ProviderId`
   - Change `model: Option<ModelId>` → `model: ModelId`
   - Remove `Default` from derives
@@ -54,13 +54,13 @@ Remove the `Option` wrappers from `provider_id` and `model_id` in `ModelConfig` 
 
 ### Phase 3 — Infrastructure Layer (`forge_infra`)
 
-- [ ] Task 7. **`crates/forge_infra/src/env.rs` — `apply_config_op` function**
+- [x] Task 7. **`crates/forge_infra/src/env.rs` — `apply_config_op` function**
   - Remove the `ConfigOperation::SetProvider` arm from the match (the variant is gone)
   - Simplify the `ConfigOperation::SetModel` arm: always create a fresh `ModelConfig::new(pid_str, mid_str)` — eliminate the conditional branch that checked whether the existing provider matched. The always-overwrite semantics are simpler and correct.
   - Simplify the `ConfigOperation::SetCommitConfig` arm: `CommitConfig` now carries required fields, so replace the `zip()` pattern with a direct `Some(ModelConfig::new(commit.provider.as_ref(), commit.model.as_str()))`.
   - `ConfigOperation::SetSuggestConfig` arm needs no logic change (it already creates a complete `ModelConfig`), but update the field access to use non-optional syntax.
 
-- [ ] Task 8. **`crates/forge_infra/src/env.rs` — tests**
+- [x] Task 8. **`crates/forge_infra/src/env.rs` — tests**
   - Remove the `test_apply_config_op_set_provider` test (the operation no longer exists); replace with a test that verifies `SetModel` alone creates a complete session pair.
   - Update `test_apply_config_op_set_model_matching_provider`: The fixture currently sets `session = Some(ModelConfig { provider_id: Some("anthropic"), model_id: None })` — this state is no longer representable. Change the fixture to use a complete starting pair (e.g., `ModelConfig::new("anthropic", "old-model")`) and verify the model is replaced.
   - Update `test_apply_config_op_set_model_different_provider_replaces_session` to use `ModelConfig::new(...)` construction.
@@ -69,30 +69,30 @@ Remove the `Option` wrappers from `provider_id` and `model_id` in `ModelConfig` 
 
 ### Phase 4 — Service Layer (`forge_services`)
 
-- [ ] Task 9. **`crates/forge_services/src/app_config.rs` — `get_default_provider`**
+- [x] Task 9. **`crates/forge_services/src/app_config.rs` — `get_default_provider`**
   - Simplify: `session.provider_id` is now a `String`. Remove the double `and_then`/`as_ref` chain; use a single `.map(|s| ProviderId::from(s.provider_id.clone()))`.
 
-- [ ] Task 10. **`crates/forge_services/src/app_config.rs` — `get_provider_model`**
+- [x] Task 10. **`crates/forge_services/src/app_config.rs` — `get_provider_model`**
   - Simplify: `session.provider_id` and `session.model_id` are no longer `Option`. Remove all inner `.as_ref()` / `.map(...)` option-unwrapping on these fields. The provider comparison becomes a direct string equality check.
 
-- [ ] Task 11. **`crates/forge_services/src/app_config.rs` — remove `set_default_provider`**
+- [x] Task 11. **`crates/forge_services/src/app_config.rs` — remove `set_default_provider`**
   - Remove the entire `set_default_provider` method implementation. With required fields there is no valid write operation that sets only the provider without a model. All callers must use `set_default_provider_and_model` instead.
 
-- [ ] Task 12. **`crates/forge_services/src/app_config.rs` — `set_default_model`**
+- [x] Task 12. **`crates/forge_services/src/app_config.rs` — `set_default_model`**
   - Simplify: Reading `session.provider_id` no longer requires an `and_then` chain — it is a plain `String`. Update the `provider_id` extraction and the inline cache update (`session.model_id = model.to_string()`).
 
-- [ ] Task 13. **`crates/forge_services/src/app_config.rs` — `get_commit_config`**
+- [x] Task 13. **`crates/forge_services/src/app_config.rs` — `get_commit_config`**
   - Simplify: `CommitConfig.provider` and `CommitConfig.model` are now required fields — remove the `.map(ProviderId::from)` and `.map(ModelId::new)` Option wrappers. Direct field construction is now `CommitConfig { provider: mc.provider_id.into(), model: ModelId::new(mc.model_id) }`.
 
-- [ ] Task 14. **`crates/forge_services/src/app_config.rs` — `get_suggest_config`**
+- [x] Task 14. **`crates/forge_services/src/app_config.rs` — `get_suggest_config`**
   - Simplify: Replace the `zip()` trick with a direct construction. Since `ModelConfig` always has both fields present, reading `mc.provider_id` and `mc.model_id` is direct, and the `SuggestConfig` is always constructed (no more `and_then`).
 
-- [ ] Task 15. **`crates/forge_services/src/app_config.rs` — mock `update_environment` in tests**
+- [x] Task 15. **`crates/forge_services/src/app_config.rs` — mock `update_environment` in tests**
   - Remove the `ConfigOperation::SetProvider` arm from the mock match
   - Simplify `ConfigOperation::SetModel` arm: always `config.session = Some(ModelConfig::new(pid_str, mid_str))`
   - Simplify `ConfigOperation::SetCommitConfig` arm: `CommitConfig` now has required fields, replace `zip()` with direct field access
 
-- [ ] Task 16. **`crates/forge_services/src/app_config.rs` — tests**
+- [x] Task 16. **`crates/forge_services/src/app_config.rs` — tests**
   - Update all test methods that call `set_default_provider()` to instead call `set_default_provider_and_model(provider_id, model_id)` with a valid model for that provider
   - Remove the `test_set_default_provider` test or replace it with a test for `set_default_provider_and_model`
   - Update `test_get_default_provider_when_configured_provider_not_available` to use `set_default_provider_and_model`
@@ -101,46 +101,46 @@ Remove the `Option` wrappers from `provider_id` and `model_id` in `ModelConfig` 
 
 ### Phase 5 — Application Layer (`forge_app`)
 
-- [ ] Task 17. **`crates/forge_app/src/services.rs` — `AppConfigService` trait**
+- [x] Task 17. **`crates/forge_app/src/services.rs` — `AppConfigService` trait**
   - Remove `set_default_provider()` from the trait declaration
 
-- [ ] Task 18. **`crates/forge_app/src/services.rs` — delegating `impl<I: Services> AppConfigService for I`**
+- [x] Task 18. **`crates/forge_app/src/services.rs` — delegating `impl<I: Services> AppConfigService for I`**
   - Remove the `set_default_provider()` delegation method from this blanket impl
 
-- [ ] Task 19. **`crates/forge_app/src/command_generator.rs` — `MockServices` impl**
+- [x] Task 19. **`crates/forge_app/src/command_generator.rs` — `MockServices` impl**
   - Remove `set_default_provider()` from the `AppConfigService` impl for `MockServices`
 
 ---
 
 ### Phase 6 — API Layer (`forge_api`)
 
-- [ ] Task 20. **`crates/forge_api/src/api.rs` — `API` trait**
+- [x] Task 20. **`crates/forge_api/src/api.rs` — `API` trait**
   - Remove `set_default_provider()` from the trait declaration
 
-- [ ] Task 21. **`crates/forge_api/src/forge_api.rs` — `ForgeAPI` impl**
+- [x] Task 21. **`crates/forge_api/src/forge_api.rs` — `ForgeAPI` impl**
   - Remove the `set_default_provider()` method implementation from `ForgeAPI`
 
 ---
 
 ### Phase 7 — CLI / UI Layer (`forge_main`)
 
-- [ ] Task 22. **`crates/forge_main/src/ui.rs` — `activate_provider_with_model` (line ~2886)**
+- [x] Task 22. **`crates/forge_main/src/ui.rs` — `activate_provider_with_model` (line ~2886)**
   - In the `else` branch (model is already compatible with the new provider), replace the call to `self.api.set_default_provider(provider.id.clone())` with `self.api.set_default_provider_and_model(provider.id.clone(), current_model_id)`. Restructure the surrounding code so that `current_model` (the `Option<ModelId>` captured on line ~2860) is accessible in this else branch — either by changing the match to not consume it, or by cloning it before the match.
 
-- [ ] Task 23. **`crates/forge_main/src/ui.rs` — `handle_config_get` (line ~3608–3624)**
+- [x] Task 23. **`crates/forge_main/src/ui.rs` — `handle_config_get` (line ~3608–3624)**
   - In the `ConfigGetField::Commit` arm, simplify the `CommitConfig` field access: `provider` and `model` are no longer `Option`, so remove the `.map(...).unwrap_or_else(|| "Not set".to_string())` wrappers and use direct `.as_ref().to_string()` / `.as_str().to_string()`.
 
-- [ ] Task 24. **`crates/forge_main/src/ui.rs` — `handle_config_set` (line ~3547–3549)**
+- [x] Task 24. **`crates/forge_main/src/ui.rs` — `handle_config_set` (line ~3547–3549)**
   - In the `ConfigSetField::Commit` arm, replace `forge_domain::CommitConfig::default().provider(...).model(...)` with the new `CommitConfig::new(provider, validated_model)` constructor (since `Default` is removed).
 
 ---
 
 ### Phase 8 — Snapshot Regeneration and Verification
 
-- [ ] Task 25. **Regenerate test snapshots**
+- [x] Task 25. **Regenerate test snapshots**
   - Run `cargo insta test --accept` to regenerate any snapshot tests that capture `ModelConfig`, `CommitConfig`, or related output that changed due to the field type change.
 
-- [ ] Task 26. **Verify compilation and tests**
+- [x] Task 26. **Verify compilation and tests**
   - Run `cargo check` across the workspace to catch any remaining sites that still use `Option<String>` accessors on these fields.
   - Run `cargo insta test --accept` to verify all tests pass with the updated type contracts.
 

@@ -185,12 +185,6 @@ pub trait AppConfigService: Send + Sync {
     /// Gets the user's default provider ID.
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId>;
 
-    /// Sets the user's default provider preference.
-    async fn set_default_provider(
-        &self,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()>;
-
     /// Gets the user's default model for a specific provider or the currently
     /// active provider. When provider_id is None, uses the currently active
     /// provider.
@@ -976,15 +970,6 @@ impl<I: Services> PolicyService for I {
 impl<I: Services> AppConfigService for I {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
         self.config_service().get_default_provider().await
-    }
-
-    async fn set_default_provider(
-        &self,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.config_service()
-            .set_default_provider(provider_id)
-            .await
     }
 
     async fn get_provider_model(

@@ -1339,13 +1339,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let commit_config = self.api.get_commit_config().await.ok().flatten();
         let commit_provider = commit_config
             .as_ref()
-            .and_then(|c| c.provider.as_ref())
-            .map(|p| p.to_string())
+            .map(|c| c.provider.as_ref().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
         let commit_model = commit_config
             .as_ref()
-            .and_then(|c| c.model.as_ref())
-            .map(|m| m.as_str().to_string())
+            .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let suggest_config = self.api.get_suggest_config().await.ok().flatten();
@@ -2858,14 +2856,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
-        let needs_model_selection = match current_model {
+        let needs_model_selection = match &current_model {
             None => true,
             Some(current_model) => {
                 let provider_models = self.api.get_all_provider_models().await?;
                 let model_available = provider_models
                     .iter()
                     .find(|pm| pm.provider_id == provider.id)
-                    .map(|pm| pm.models.iter().any(|m| m.id == current_model))
+                    .map(|pm| pm.models.iter().any(|m| &m.id == current_model))
                     .unwrap_or(false);
                 !model_available
             }
@@ -2881,9 +2879,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 return Ok(());
             }
         } else {
-            // Set the provider via API
-            // Only reaches here if model is confirmed — safe to write provider now
-            self.api.set_default_provider(provider.id.clone()).await?;
+            // Model is compatible with the new provider — set both atomically
+            let model_id = current_model.expect("current_model is Some in the else branch");
+            self.api
+                .set_default_provider_and_model(provider.id.clone(), model_id)
+                .await?;
 
             self.writeln_title(
                 TitleFormat::action(format!("{}", provider.id))
@@ -3544,9 +3544,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let commit_config = forge_domain::CommitConfig::default()
-                    .provider(provider.clone())
-                    .model(validated_model.clone());
+                let commit_config =
+                    forge_domain::CommitConfig::new(provider.clone(), validated_model.clone());
                 self.api.set_commit_config(commit_config).await?;
                 self.writeln_title(
                     TitleFormat::action(validated_model.as_str())
@@ -3609,16 +3608,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 let commit_config = self.api.get_commit_config().await?;
                 match commit_config {
                     Some(config) => {
-                        let provider = config
-                            .provider
-                            .map(|p| p.as_ref().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        let model = config
-                            .model
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        self.writeln(provider)?;
-                        self.writeln(model)?;
+                        self.writeln(config.provider.as_ref().to_string())?;
+                        self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Commit: Not set")?,
                 }

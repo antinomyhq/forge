@@ -11,13 +11,20 @@ use crate::{Effort, ModelId, ProviderId};
 ///
 /// Used to represent an active session, decoupled from the on-disk
 /// configuration format.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
+#[setters(into)]
 pub struct SessionConfig {
     /// The active provider ID (e.g. `"anthropic"`).
-    pub provider_id: Option<String>,
+    pub provider_id: String,
     /// The model ID to use with this provider.
-    pub model_id: Option<String>,
+    pub model_id: String,
+}
+
+impl SessionConfig {
+    /// Creates a new [`SessionConfig`] with the given provider and model IDs.
+    pub fn new(provider_id: impl Into<String>, model_id: impl Into<String>) -> Self {
+        Self { provider_id: provider_id.into(), model_id: model_id.into() }
+    }
 }
 
 /// All discrete mutations that can be applied to the application configuration.
@@ -27,9 +34,7 @@ pub struct SessionConfig {
 /// each in order, and persist the result atomically.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigOperation {
-    /// Set the active provider.
-    SetProvider(ProviderId),
-    /// Set the model for the given provider.
+    /// Set the model for the given provider, replacing any existing session.
     SetModel(ProviderId, ModelId),
     /// Set the commit-message generation configuration.
     SetCommitConfig(crate::CommitConfig),

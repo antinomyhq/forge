@@ -32,36 +32,17 @@ pub fn to_environment(cwd: PathBuf) -> Environment {
 /// persisted config without an intermediate `Environment` round-trip.
 fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
     match op {
-        ConfigOperation::SetProvider(pid) => {
-            let session = fc.session.get_or_insert_with(ModelConfig::default);
-            session.provider_id = Some(pid.as_ref().to_string());
-        }
         ConfigOperation::SetModel(pid, mid) => {
-            let pid_str = pid.as_ref().to_string();
-            let mid_str = mid.to_string();
-            let session = fc.session.get_or_insert_with(ModelConfig::default);
-            if session.provider_id.as_deref() == Some(&pid_str) {
-                session.model_id = Some(mid_str);
-            } else {
-                fc.session =
-                    Some(ModelConfig { provider_id: Some(pid_str), model_id: Some(mid_str) });
-            }
+            fc.session = Some(ModelConfig::new(&**pid, mid.as_str()));
         }
         ConfigOperation::SetCommitConfig(commit) => {
-            fc.commit = commit
-                .provider
-                .as_ref()
-                .zip(commit.model.as_ref())
-                .map(|(pid, mid)| ModelConfig {
-                    provider_id: Some(pid.as_ref().to_string()),
-                    model_id: Some(mid.to_string()),
-                });
+            fc.commit = Some(ModelConfig::new(&**commit.provider, commit.model.as_str()));
         }
         ConfigOperation::SetSuggestConfig(suggest) => {
-            fc.suggest = Some(ModelConfig {
-                provider_id: Some(suggest.provider.as_ref().to_string()),
-                model_id: Some(suggest.model.to_string()),
-            });
+            fc.suggest = Some(ModelConfig::new(
+                &**suggest.provider,
+                suggest.model.as_str(),
+            ));
         }
         ConfigOperation::SetReasoningEffort(effort) => {
             let config_effort = match effort {
@@ -228,22 +209,25 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_config_op_set_provider() {
-        use forge_domain::ProviderId;
+    fn test_apply_config_op_set_model_creates_complete_session() {
+        use forge_domain::{ModelId, ProviderId};
 
         let mut fixture = ForgeConfig::default();
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetProvider(ProviderId::ANTHROPIC),
+            ConfigOperation::SetModel(
+                ProviderId::ANTHROPIC,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            ),
         );
 
-        let actual = fixture
-            .session
-            .as_ref()
-            .and_then(|s| s.provider_id.as_deref());
-        let expected = Some("anthropic");
+        let actual_provider = fixture.session.as_ref().map(|s| s.provider_id.as_str());
+        let actual_model = fixture.session.as_ref().map(|s| s.model_id.as_str());
+        let expected_provider = Some("anthropic");
+        let expected_model = Some("claude-3-5-sonnet-20241022");
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual_provider, expected_provider);
+        assert_eq!(actual_model, expected_model);
     }
 
     #[test]
@@ -251,10 +235,7 @@ mod tests {
         use forge_domain::{ModelId, ProviderId};
 
         let mut fixture = ForgeConfig {
-            session: Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: None,
-            }),
+            session: Some(ModelConfig::new("anthropic", "old-model")),
             ..Default::default()
         };
 
@@ -266,7 +247,7 @@ mod tests {
             ),
         );
 
-        let actual = fixture.session.as_ref().and_then(|s| s.model_id.as_deref());
+        let actual = fixture.session.as_ref().map(|s| s.model_id.as_str());
         let expected = Some("claude-3-5-sonnet-20241022");
 
         assert_eq!(actual, expected);
@@ -277,10 +258,7 @@ mod tests {
         use forge_domain::{ModelId, ProviderId};
 
         let mut fixture = ForgeConfig {
-            session: Some(ModelConfig {
-                provider_id: Some("openai".to_string()),
-                model_id: Some("gpt-4".to_string()),
-            }),
+            session: Some(ModelConfig::new("openai", "gpt-4")),
             ..Default::default()
         };
 
@@ -292,11 +270,8 @@ mod tests {
             ),
         );
 
-        let actual_provider = fixture
-            .session
-            .as_ref()
-            .and_then(|s| s.provider_id.as_deref());
-        let actual_model = fixture.session.as_ref().and_then(|s| s.model_id.as_deref());
+        let actual_provider = fixture.session.as_ref().map(|s| s.provider_id.as_str());
+        let actual_model = fixture.session.as_ref().map(|s| s.model_id.as_str());
 
         assert_eq!(actual_provider, Some("anthropic"));
         assert_eq!(actual_model, Some("claude-3-5-sonnet-20241022"));

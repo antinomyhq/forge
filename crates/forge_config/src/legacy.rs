@@ -57,18 +57,19 @@ impl LegacyConfig {
     /// Converts a [`LegacyConfig`] into the fields of [`ForgeConfig`] that it
     /// covers, leaving all other fields at their defaults (`None`).
     fn into_forge_config(self) -> ForgeConfig {
-        let session = self.provider.as_deref().map(|provider_id| {
-            let model_id = self.model.get(provider_id).cloned();
-            ModelConfig { provider_id: Some(provider_id.to_string()), model_id }
+        let session = self.provider.as_deref().and_then(|provider_id| {
+            self.model
+                .get(provider_id)
+                .map(|model_id| ModelConfig::new(provider_id, model_id.as_str()))
         });
 
         let commit = self
             .commit
-            .map(|c| ModelConfig { provider_id: c.provider, model_id: c.model });
+            .and_then(|c| c.provider.zip(c.model).map(|(pid, mid)| ModelConfig::new(pid, mid)));
 
         let suggest = self
             .suggest
-            .map(|s| ModelConfig { provider_id: s.provider, model_id: s.model });
+            .and_then(|s| s.provider.zip(s.model).map(|(pid, mid)| ModelConfig::new(pid, mid)));
 
         ForgeConfig { session, commit, suggest, ..Default::default() }
     }

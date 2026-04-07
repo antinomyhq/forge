@@ -197,10 +197,7 @@ mod tests {
         // carries session/commit/suggest (all other fields are None) and layer
         // it on top of the embedded defaults. The default values must survive.
         let legacy = ForgeConfig {
-            session: Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
-            }),
+            session: Some(ModelConfig::new("anthropic", "claude-3")),
             ..Default::default()
         };
         let legacy_toml = toml_edit::ser::to_string_pretty(&legacy).unwrap();
@@ -213,13 +210,7 @@ mod tests {
             .unwrap();
 
         // Session should come from the legacy layer
-        assert_eq!(
-            actual.session,
-            Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
-            })
-        );
+        assert_eq!(actual.session, Some(ModelConfig::new("anthropic", "claude-3")));
 
         // Default values from .forge.toml must be retained, not reset to zero
         assert_eq!(actual.max_parallel_file_reads, 64);
@@ -242,10 +233,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let expected = Some(ModelConfig {
-            provider_id: Some("fake-provider".to_string()),
-            model_id: Some("fake-model".to_string()),
-        });
+        let expected = Some(ModelConfig::new("fake-provider", "fake-model"));
         assert_eq!(actual.session, expected);
     }
 }

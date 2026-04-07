@@ -312,8 +312,10 @@ impl<S: Services> GitApp<S> {
         // Resolve provider and model: commit config takes priority over agent defaults.
         // If the configured provider is unavailable (e.g. logged out), fall back to the
         // agent's provider/model with a warning.
-        let (provider, model) = match commit_config.and_then(|c| c.provider.zip(c.model)) {
-            Some((provider_id, commit_model)) => {
+        let (provider, model) = match commit_config {
+            Some(c) => {
+                let provider_id = c.provider;
+                let commit_model = c.model;
                 match self.services.get_provider(provider_id).await {
                     Ok(provider) => {
                         match self.services.refresh_provider_credential(provider).await {
