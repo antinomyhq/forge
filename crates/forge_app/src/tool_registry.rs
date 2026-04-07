@@ -21,28 +21,24 @@ use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
-    AgentRegistry, McpService, PolicyService, ProviderService, Services, ToolResolver,
-    WorkspaceService,
+    AgentRegistry, EnvironmentInfra, McpService, PolicyService, ProviderService, Services,
+    ToolResolver, WorkspaceService,
 };
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
     agent_executor: AgentExecutor<S>,
     mcp_executor: McpExecutor<S>,
-    tool_timeout: Duration,
     services: Arc<S>,
-    config: forge_config::ForgeConfig,
 }
 
-impl<S: Services> ToolRegistry<S> {
-    pub fn new(services: Arc<S>, config: forge_config::ForgeConfig) -> Self {
+impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ToolRegistry<S> {
+    pub fn new(services: Arc<S>) -> Self {
         Self {
             services: services.clone(),
-            tool_executor: ToolExecutor::new(services.clone(), config.clone()),
-            agent_executor: AgentExecutor::new(services.clone(), config.clone()),
+            tool_executor: ToolExecutor::new(services.clone()),
+            agent_executor: AgentExecutor::new(services.clone()),
             mcp_executor: McpExecutor::new(services.clone()),
-            tool_timeout: Duration::from_secs(config.tool_timeout_secs),
-            config,
         }
     }
 
@@ -55,10 +51,11 @@ impl<S: Services> ToolRegistry<S> {
         F: FnOnce() -> Fut,
         Fut: std::future::Future<Output = anyhow::Result<ToolOutput>>,
     {
-        timeout(self.tool_timeout, future())
+        let tool_timeout = Duration::from_secs(self.services.get_config()?.tool_timeout_secs);
+        timeout(tool_timeout, future())
             .await
             .context(Error::CallTimeout {
-                timeout: self.tool_timeout.as_secs() / 60,
+                timeout: tool_timeout.as_secs() / 60,
                 tool_name: tool_name.clone(),
             })?
     }
@@ -142,7 +139,7 @@ impl<S: Services> ToolRegistry<S> {
 
             // Check permissions before executing the tool (only in restricted mode)
             // This is done BEFORE the timeout to ensure permissions are never timed out
-            let is_restricted = self.config.restricted;
+            let is_restricted = self.services.get_config()?.restricted;
             if is_restricted && self.check_tool_permission(&tool_input, context).await? {
                 // Send formatted output message for policy denial
                 context
@@ -260,7 +257,7 @@ impl<S: Services> ToolRegistry<S> {
         let model = self.get_current_model().await;
 
         // Build TemplateConfig from ForgeConfig for tool description templates
-        let config = &self.config;
+        let config = self.services.get_config()?;
         let template_config = TemplateConfig {
             max_read_size: config.max_read_lines as usize,
             max_line_length: config.max_line_chars,
