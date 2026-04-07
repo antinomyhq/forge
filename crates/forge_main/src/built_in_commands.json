@@ -89,7 +89,7 @@
   },
   {
     "command": "provider-login",
-    "description": "Login to a provider [alias: login]"
+    "description": "Login to a provider [aliases: login, provider]"
   },
   {
     "command": "logout",

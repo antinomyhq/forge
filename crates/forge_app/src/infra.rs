@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_config::ForgeConfig;
 use forge_domain::{
     AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
     OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
@@ -20,8 +19,7 @@ use crate::{WalkedFile, Walker};
 /// Infrastructure trait for accessing environment configuration, system
 /// variables, and persisted application configuration.
 pub trait EnvironmentInfra: Send + Sync {
-    /// The fully-resolved configuration type returned by
-    /// [`EnvironmentInfra::get_config`].
+    /// The fully-resolved configuration type stored by the implementation.
     type Config: Clone + Send + Sync;
 
     fn get_env_var(&self, key: &str) -> Option<String>;
@@ -29,13 +27,6 @@ pub trait EnvironmentInfra: Send + Sync {
 
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
-
-    /// Returns the full [`ForgeConfig`] for the current session.
-    ///
-    /// Callers that need configuration values previously carried on
-    /// [`Environment`] (e.g. `retry_config`, `tool_timeout_secs`,
-    /// `session`, etc.) must call this method instead.
-    fn get_config(&self) -> ForgeConfig;
 
     /// Applies a list of configuration operations to the persisted config.
     ///
