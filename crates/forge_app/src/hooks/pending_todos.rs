@@ -2,8 +2,7 @@ use std::fmt::Write;
 
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload,
-    TodoStatus,
+    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload, TodoStatus,
 };
 
 /// Detects when the LLM signals task completion while there are still
@@ -172,9 +171,8 @@ mod tests {
     async fn test_tool_calls_present_does_not_trigger() {
         let handler = PendingTodosHandler::new();
         let event = fixture_event(Some(FinishReason::Stop), true);
-        let mut conversation = fixture_conversation(vec![
-            Todo::new("Fix the build").status(TodoStatus::Pending),
-        ]);
+        let mut conversation =
+            fixture_conversation(vec![Todo::new("Fix the build").status(TodoStatus::Pending)]);
 
         let initial_msg_count = conversation.context.as_ref().unwrap().messages.len();
         handler.handle(&event, &mut conversation).await.unwrap();
@@ -188,9 +186,8 @@ mod tests {
     async fn test_non_stop_finish_reason_does_not_trigger() {
         let handler = PendingTodosHandler::new();
         let event = fixture_event(Some(FinishReason::Length), false);
-        let mut conversation = fixture_conversation(vec![
-            Todo::new("Fix the build").status(TodoStatus::Pending),
-        ]);
+        let mut conversation =
+            fixture_conversation(vec![Todo::new("Fix the build").status(TodoStatus::Pending)]);
 
         let initial_msg_count = conversation.context.as_ref().unwrap().messages.len();
         handler.handle(&event, &mut conversation).await.unwrap();
