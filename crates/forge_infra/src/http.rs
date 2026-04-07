@@ -231,7 +231,7 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
             let body_clone = body.clone();
             let debug_path = debug_path.clone();
             tokio::spawn(async move {
-                let _ = file_writer.write(&debug_path, body_clone).await;
+                let _ = file_writer.append(&debug_path, body_clone).await;
             });
         }
     }
@@ -325,6 +325,14 @@ mod tests {
     #[async_trait::async_trait]
     impl FileWriterInfra for MockFileWriter {
         async fn write(&self, path: &std::path::Path, contents: Bytes) -> anyhow::Result<()> {
+            self.writes
+                .lock()
+                .await
+                .push((path.to_path_buf(), contents));
+            Ok(())
+        }
+
+        async fn append(&self, path: &std::path::Path, contents: Bytes) -> anyhow::Result<()> {
             self.writes
                 .lock()
                 .await
