@@ -8,6 +8,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream,
 };
 use forge_domain::{BoxStream, ChatRepository, Provider};
+use forge_infra::sanitize_headers;
 use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use tracing::info;
@@ -15,7 +16,7 @@ use url::Url;
 
 use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
-use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
+use crate::provider::utils::{create_headers, format_http_context};
 
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {
