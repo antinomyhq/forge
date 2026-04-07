@@ -22,13 +22,7 @@ pub fn to_environment(cwd: PathBuf) -> Environment {
         } else {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
         },
-        base_path: std::env::var("FORGE_CONFIG")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| {
-                dirs::home_dir()
-                    .map(|h| h.join("forge"))
-                    .unwrap_or_else(|| PathBuf::from(".").join("forge"))
-            }),
+        base_path: ConfigReader::base_path(),
     }
 }
 
