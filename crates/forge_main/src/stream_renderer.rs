@@ -236,7 +236,8 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
 
         // Track if we ended on a newline - only safe to show spinner at line start
         let last_is_newline = buf.last() == Some(&b'\n');
-        self.ends_with_newline.store(last_is_newline, Ordering::Relaxed);
+        self.ends_with_newline
+            .store(last_is_newline, Ordering::Relaxed);
         if last_is_newline {
             self.resume_spinner();
         }
