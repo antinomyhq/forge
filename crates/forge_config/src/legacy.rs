@@ -63,13 +63,17 @@ impl LegacyConfig {
                 .map(|model_id| ModelConfig::new(provider_id, model_id.as_str()))
         });
 
-        let commit = self
-            .commit
-            .and_then(|c| c.provider.zip(c.model).map(|(pid, mid)| ModelConfig::new(pid, mid)));
+        let commit = self.commit.and_then(|c| {
+            c.provider
+                .zip(c.model)
+                .map(|(pid, mid)| ModelConfig::new(pid, mid))
+        });
 
-        let suggest = self
-            .suggest
-            .and_then(|s| s.provider.zip(s.model).map(|(pid, mid)| ModelConfig::new(pid, mid)));
+        let suggest = self.suggest.and_then(|s| {
+            s.provider
+                .zip(s.model)
+                .map(|(pid, mid)| ModelConfig::new(pid, mid))
+        });
 
         ForgeConfig { session, commit, suggest, ..Default::default() }
     }

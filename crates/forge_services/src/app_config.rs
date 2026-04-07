@@ -78,8 +78,11 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
                 .ok_or(forge_domain::Error::NoDefaultProvider)?
         };
 
-        self.update(ConfigOperation::SetModel(provider_id.clone(), model.clone()))
-            .await?;
+        self.update(ConfigOperation::SetModel(
+            provider_id.clone(),
+            model.clone(),
+        ))
+        .await?;
         let mut config = self.config.lock().unwrap();
         if let Some(session) = config.session.as_mut() {
             session.model_id = model.to_string();
@@ -92,10 +95,16 @@ impl<F: ProviderRepository + EnvironmentInfra + Send + Sync> AppConfigService
         provider_id: ProviderId,
         model: ModelId,
     ) -> anyhow::Result<()> {
-        self.update(ConfigOperation::SetModel(provider_id.clone(), model.clone()))
-            .await?;
+        self.update(ConfigOperation::SetModel(
+            provider_id.clone(),
+            model.clone(),
+        ))
+        .await?;
         let mut config = self.config.lock().unwrap();
-        config.session = Some(forge_config::ModelConfig::new(&**provider_id, model.as_str()));
+        config.session = Some(forge_config::ModelConfig::new(
+            &**provider_id,
+            model.as_str(),
+        ));
         Ok(())
     }
 
@@ -261,14 +270,11 @@ mod tests {
                 for op in ops {
                     match op {
                         ConfigOperation::SetModel(pid, mid) => {
-                            config.session =
-                                Some(ModelConfig::new(&**pid, mid.as_str()));
+                            config.session = Some(ModelConfig::new(&**pid, mid.as_str()));
                         }
                         ConfigOperation::SetCommitConfig(commit) => {
-                            config.commit = Some(ModelConfig::new(
-                                &**commit.provider,
-                                commit.model.as_str(),
-                            ));
+                            config.commit =
+                                Some(ModelConfig::new(&**commit.provider, commit.model.as_str()));
                         }
                         ConfigOperation::SetSuggestConfig(suggest) => {
                             config.suggest = Some(ModelConfig::new(

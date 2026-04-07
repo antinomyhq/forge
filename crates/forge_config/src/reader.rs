@@ -210,7 +210,10 @@ mod tests {
             .unwrap();
 
         // Session should come from the legacy layer
-        assert_eq!(actual.session, Some(ModelConfig::new("anthropic", "claude-3")));
+        assert_eq!(
+            actual.session,
+            Some(ModelConfig::new("anthropic", "claude-3"))
+        );
 
         // Default values from .forge.toml must be retained, not reset to zero
         assert_eq!(actual.max_parallel_file_reads, 64);
