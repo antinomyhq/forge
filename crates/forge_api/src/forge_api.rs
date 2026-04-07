@@ -234,7 +234,7 @@ impl<
         // Determine whether any op affects provider/model resolution before writing,
         // so we can invalidate the agent cache afterwards.
         let needs_agent_reload = ops.iter().any(|op| {
-            matches!(op, forge_domain::ConfigOperation::SetModel(_, _))
+            matches!(op, forge_domain::ConfigOperation::SetSessionConfig(_, _))
         });
         let result = self.services.update_config(ops).await;
         if needs_agent_reload {

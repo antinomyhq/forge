@@ -2765,13 +2765,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         // If we have a provider to activate, write both atomically
         if let Some(provider_id) = provider_to_activate {
             self.api
-                .update_config(vec![ConfigOperation::SetModel(provider_id, model.clone())])
+                .update_config(vec![ConfigOperation::SetSessionConfig(provider_id, model.clone())])
                 .await?;
         } else {
             // Resolve the active provider so we can build a SetModel op
             let provider_id = self.api.get_default_provider().await?.id;
             self.api
-                .update_config(vec![ConfigOperation::SetModel(provider_id, model.clone())])
+                .update_config(vec![ConfigOperation::SetSessionConfig(provider_id, model.clone())])
                 .await?;
         }
 
@@ -2848,7 +2848,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 .validate_model(model.as_str(), Some(&provider.id))
                 .await?;
             self.api
-                .update_config(vec![ConfigOperation::SetModel(
+                .update_config(vec![ConfigOperation::SetSessionConfig(
                     provider.id.clone(),
                     model_id.clone(),
                 )])
@@ -2896,7 +2896,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             // atomically so the session always stores a consistent pair.
             let model = compatible_model.expect("compatible_model is Some when !needs_model_selection");
             self.api
-                .update_config(vec![ConfigOperation::SetModel(provider.id.clone(), model)])
+                .update_config(vec![ConfigOperation::SetSessionConfig(provider.id.clone(), model)])
                 .await?;
 
             self.writeln_title(
@@ -3553,7 +3553,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 // Resolve the active provider so we can build a SetModel op
                 let provider_id = self.api.get_default_provider().await?.id;
                 self.api
-                    .update_config(vec![ConfigOperation::SetModel(
+                    .update_config(vec![ConfigOperation::SetSessionConfig(
                         provider_id,
                         model_id.clone(),
                     )])

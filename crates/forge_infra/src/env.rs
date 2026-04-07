@@ -32,7 +32,7 @@ pub fn to_environment(cwd: PathBuf) -> Environment {
 /// persisted config without an intermediate `Environment` round-trip.
 fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
     match op {
-        ConfigOperation::SetModel(pid, mid) => {
+        ConfigOperation::SetSessionConfig(pid, mid) => {
             let pid_str = pid.as_ref().to_string();
             let mid_str = mid.to_string();
             let session = fc.session.get_or_insert_with(ModelConfig::default);
@@ -234,7 +234,7 @@ mod tests {
         let mut fixture = ForgeConfig::default();
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetModel(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet")),
+            ConfigOperation::SetSessionConfig(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet")),
         );
 
         let actual_provider = fixture
@@ -264,7 +264,7 @@ mod tests {
 
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetModel(
+            ConfigOperation::SetSessionConfig(
                 ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             ),
@@ -290,7 +290,7 @@ mod tests {
 
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetModel(
+            ConfigOperation::SetSessionConfig(
                 ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             ),

@@ -220,7 +220,7 @@ mod tests {
                 let mut config = config.lock().unwrap();
                 for op in ops {
                     match op {
-                        ConfigOperation::SetModel(pid, mid) => {
+                        ConfigOperation::SetSessionConfig(pid, mid) => {
                             let pid_str = pid.as_ref().to_string();
                             let mid_str = mid.to_string();
                             config.session = Some(match config.session.take() {
@@ -367,7 +367,7 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::ANTHROPIC,
                 ModelId::new("claude-3"),
             )])
@@ -389,7 +389,7 @@ mod tests {
 
         // Set OpenAI as the default provider in config (with a model)
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::OPENAI,
                 ModelId::new("gpt-4"),
             )])
@@ -409,7 +409,7 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::ANTHROPIC,
                 ModelId::new("claude-3"),
             )])
@@ -440,7 +440,7 @@ mod tests {
 
         // Set OpenAI as the default provider first, then set model atomically
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::OPENAI,
                 "gpt-4".to_string().into(),
             )])
@@ -461,7 +461,7 @@ mod tests {
 
         // Set provider and model atomically
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::OPENAI,
                 "gpt-4".to_string().into(),
             )])
@@ -483,7 +483,7 @@ mod tests {
 
         // Set model for OpenAI first
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::OPENAI,
                 "gpt-4".to_string().into(),
             )])
@@ -491,7 +491,7 @@ mod tests {
 
         // Then switch to Anthropic with its model
         service
-            .update_config(vec![ConfigOperation::SetModel(
+            .update_config(vec![ConfigOperation::SetSessionConfig(
                 ProviderId::ANTHROPIC,
                 "claude-3".to_string().into(),
             )])
