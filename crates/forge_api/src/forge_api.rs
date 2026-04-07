@@ -24,20 +24,21 @@ use crate::API;
 pub struct ForgeAPI<S, F> {
     services: Arc<S>,
     infra: Arc<F>,
-    config: forge_config::ForgeConfig,
 }
 
 impl<A, F> ForgeAPI<A, F> {
-    pub fn new(services: Arc<A>, infra: Arc<F>, config: forge_config::ForgeConfig) -> Self {
-        Self { services, infra, config }
+    pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
+        Self { services, infra }
     }
 
-    /// Creates a ForgeApp instance with the current services
+    /// Creates a ForgeApp instance with the current services and latest config.
     fn app(&self) -> ForgeApp<A>
     where
         A: Services,
+        F: EnvironmentInfra<Config = forge_config::ForgeConfig>,
     {
-        ForgeApp::new(self.services.clone(), self.config.clone())
+        let config = self.infra.get_config().unwrap_or_default();
+        ForgeApp::new(self.services.clone(), config)
     }
 }
 
@@ -49,10 +50,10 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     /// * `config` - Pre-read application configuration (from startup)
     /// * `services_url` - Pre-validated URL for the gRPC workspace server
     pub fn init(cwd: PathBuf, config: ForgeConfig, services_url: Url) -> Self {
-        let infra = Arc::new(ForgeInfra::new(cwd, config.clone(), services_url));
-        let repo = Arc::new(ForgeRepo::new(infra.clone(), config.clone()));
-        let app = Arc::new(ForgeServices::new(repo.clone(), config.clone()));
-        ForgeAPI::new(app, repo, config)
+        let infra = Arc::new(ForgeInfra::new(cwd, config, services_url));
+        let repo = Arc::new(ForgeRepo::new(infra.clone()));
+        let app = Arc::new(ForgeServices::new(repo.clone()));
+        ForgeAPI::new(app, repo)
     }
 
     pub async fn get_skills_internal(&self) -> Result<Vec<Skill>> {
@@ -62,7 +63,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInfra> API
+impl<A: Services, F: CommandInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + SkillRepository + GrpcInfra> API
     for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -98,7 +99,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + GrpcInf
         diff: Option<String>,
         additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
-        let git_app = GitApp::new(self.services.clone(), self.config.clone());
+        let config = self.infra.get_config().unwrap_or_default();
+        let git_app = GitApp::new(self.services.clone(), config);
         let result = git_app
             .commit_message(max_diff_size, diff, additional_context)
             .await?;

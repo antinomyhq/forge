@@ -24,22 +24,17 @@ pub struct ForgeChatRepository<F> {
     bg_refresh: BgRefresh,
 }
 
-impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
+impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + HttpInfra> ForgeChatRepository<F> {
     /// Creates a new ForgeChatRepository with the given infrastructure.
     ///
     /// # Arguments
     ///
     /// * `infra` - Infrastructure providing environment and HTTP capabilities
-    /// * `retry_config` - Retry configuration extracted from startup config
-    /// * `model_cache_ttl_secs` - Model cache TTL in seconds from startup
-    ///   config
-    pub fn new(
-        infra: Arc<F>,
-        retry_config: forge_config::RetryConfig,
-        model_cache_ttl_secs: u64,
-    ) -> Self {
+    pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
-        let retry_config = Arc::new(retry_config);
+        let config = infra.get_config().unwrap_or_default();
+        let retry_config = Arc::new(config.retry.unwrap_or_default());
+        let model_cache_ttl_secs = config.model_cache_ttl_secs;
 
         let openai_repo =
             OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
