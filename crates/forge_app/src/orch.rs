@@ -81,11 +81,10 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls
         // work.
-        let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(
-            task_calls
-                .iter()
-                .map(|tc| self.services.call(&self.agent, tool_context, (*tc).clone(), &self.config)),
-        )
+        let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(task_calls.iter().map(|tc| {
+            self.services
+                .call(&self.agent, tool_context, (*tc).clone(), &self.config)
+        }))
         .await
         .into_iter()
         .zip(task_calls.iter())
@@ -131,7 +130,12 @@ impl<S: AgentService> Orchestrator<S> {
             // Execute the tool
             let tool_result = self
                 .services
-                .call(&self.agent, tool_context, (*tool_call).clone(), &self.config)
+                .call(
+                    &self.agent,
+                    tool_context,
+                    (*tool_call).clone(),
+                    &self.config,
+                )
                 .await;
 
             // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
