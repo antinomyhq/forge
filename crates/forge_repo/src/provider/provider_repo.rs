@@ -206,14 +206,20 @@ pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
 }
 
-impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + HttpInfra> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + HttpInfra>
+    ForgeProviderRepository<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
 }
 
-impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + FileReaderInfra + FileWriterInfra + HttpInfra>
-    ForgeProviderRepository<F>
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra,
+> ForgeProviderRepository<F>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
@@ -521,8 +527,13 @@ impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + FileReaderInfra +
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
-    for ForgeProviderRepository<F>
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra
+        + Sync,
+> ProviderRepository for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await)

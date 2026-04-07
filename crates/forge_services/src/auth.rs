@@ -57,7 +57,9 @@ impl<I: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeA
 }
 
 #[async_trait::async_trait]
-impl<I: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig>> AuthService for ForgeAuthService<I> {
+impl<I: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig>> AuthService
+    for ForgeAuthService<I>
+{
     async fn user_info(&self, api_key: &str) -> anyhow::Result<User> {
         self.user_info(api_key).await
     }

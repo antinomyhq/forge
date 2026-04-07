@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_app::domain::{ChatCompletionMessage, Context, Model, ModelId, ResultStream};
 use forge_app::dto::google::{EventData, Request};
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;
 use tokio_stream::StreamExt;

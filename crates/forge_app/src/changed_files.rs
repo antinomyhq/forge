@@ -24,10 +24,7 @@ impl<S: FsReadService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Ch
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
-    pub async fn update_file_stats(
-        &self,
-        mut conversation: Conversation,
-    ) -> Conversation {
+    pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
         let parallel_file_reads = self
             .services

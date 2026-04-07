@@ -10,9 +10,8 @@ use futures::future::join_all;
 use tokio::sync::Notify;
 use tracing::warn;
 
-use crate::EnvironmentInfra;
-use crate::TemplateEngine;
 use crate::agent::AgentService;
+use crate::{EnvironmentInfra, TemplateEngine};
 
 #[derive(Clone, Setters)]
 #[setters(into)]

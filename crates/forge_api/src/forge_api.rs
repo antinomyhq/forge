@@ -62,8 +62,13 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>, F: CommandInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + SkillRepository + GrpcInfra> API
-    for ForgeAPI<A, F>
+impl<
+    A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>,
+    F: CommandInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + SkillRepository
+        + GrpcInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();

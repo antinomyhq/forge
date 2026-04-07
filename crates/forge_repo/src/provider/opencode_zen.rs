@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderResponse,
     ResultStream,
 };
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::ChatRepository;
 use url::Url;
 
@@ -26,7 +26,9 @@ pub struct OpenCodeZenResponseRepository<F> {
     google_repo: GoogleResponseRepository<F>,
 }
 
-impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + Sync> OpenCodeZenResponseRepository<F> {
+impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + Sync>
+    OpenCodeZenResponseRepository<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         Self {
             openai_repo: OpenAIResponseRepository::new(infra.clone()),

@@ -38,7 +38,8 @@ impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + HttpInfra> ForgeC
         let openai_repo = OpenAIResponseRepository::new(infra.clone());
         let codex_repo = OpenAIResponsesResponseRepository::new(infra.clone());
         let anthropic_repo = AnthropicResponseRepository::new(infra.clone());
-        let bedrock_repo = BedrockResponseRepository::new(Arc::new(config.retry.unwrap_or_default()));
+        let bedrock_repo =
+            BedrockResponseRepository::new(Arc::new(config.retry.unwrap_or_default()));
         let google_repo = GoogleResponseRepository::new(infra.clone());
         let opencode_zen_repo = OpenCodeZenResponseRepository::new(infra.clone());
 

@@ -3,10 +3,10 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use eventsource_stream::Eventsource;
-use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream,
 };
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{BoxStream, ChatRepository, Provider};
 use forge_infra::sanitize_headers;
 use futures::StreamExt;

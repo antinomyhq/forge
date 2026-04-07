@@ -21,7 +21,9 @@ impl<F> ForgeAppConfigService<F> {
     }
 }
 
-impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAppConfigService<F> {
+impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
+    ForgeAppConfigService<F>
+{
     /// Helper method to apply a config operation atomically.
     async fn update(&self, op: ConfigOperation) -> anyhow::Result<()> {
         debug!(op = ?op, "Updating app config");

@@ -33,7 +33,9 @@ impl<R> ForgeAgentRegistryService<R> {
     }
 }
 
-impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAgentRegistryService<R> {
+impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
+    ForgeAgentRegistryService<R>
+{
     /// Lazily initializes and returns the agents map
     /// Loads agents from repository on first call, subsequent calls return
     /// cached value
@@ -71,10 +73,7 @@ impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>> 
     /// defaults.
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
         let config = self.repository.get_config()?;
-        let session = config
-            .session
-            .as_ref()
-            .ok_or(Error::NoDefaultProvider)?;
+        let session = config.session.as_ref().ok_or(Error::NoDefaultProvider)?;
         let provider_id = session
             .provider_id
             .as_ref()
@@ -100,8 +99,8 @@ impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>> 
 }
 
 #[async_trait::async_trait]
-impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync> forge_app::AgentRegistry
-    for ForgeAgentRegistryService<R>
+impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync>
+    forge_app::AgentRegistry for ForgeAgentRegistryService<R>
 {
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         let agent_id = self.active_agent_id.read().await;

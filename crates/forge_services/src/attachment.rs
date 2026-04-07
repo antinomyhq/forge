@@ -15,8 +15,12 @@ pub struct ForgeChatRequest<F> {
     infra: Arc<F>,
 }
 
-impl<F: FileReaderInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + FileInfoInfra + DirectoryReaderInfra>
-    ForgeChatRequest<F>
+impl<
+    F: FileReaderInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileInfoInfra
+        + DirectoryReaderInfra,
+> ForgeChatRequest<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
@@ -113,9 +117,12 @@ impl<F: FileReaderInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> +
 }
 
 #[async_trait::async_trait]
-impl<F: FileReaderInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + FileInfoInfra + DirectoryReaderInfra>
-    AttachmentService
-    for ForgeChatRequest<F>
+impl<
+    F: FileReaderInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileInfoInfra
+        + DirectoryReaderInfra,
+> AttachmentService for ForgeChatRequest<F>
 {
     async fn attachments(&self, url: &str) -> anyhow::Result<Vec<Attachment>> {
         self.prepare_attachments(Attachment::parse_all(url)).await
