@@ -286,7 +286,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .execute_tool_calls(&message.tool_calls, &tool_context)
                 .await?;
 
-            // Update context from conversation after tool-call hooks run
+            // Update context from conversation after response / tool-call hooks run
             if let Some(updated_context) = &self.conversation.context {
                 context = updated_context.clone();
             }
@@ -318,19 +318,6 @@ impl<S: AgentService> Orchestrator<S> {
                 tool_call_records,
                 message.phase,
             );
-
-            if is_complete {
-                let pending_todos = self.conversation.metrics.get_active_todos();
-                if !pending_todos.is_empty() {
-                    let reminder = format!(
-                        "You have {} pending todo items. Please complete them before finishing the task.",
-                        pending_todos.len()
-                    );
-                    context = context.add_message(ContextMessage::user(reminder, None));
-                    should_yield = false;
-                    is_complete = false;
-                }
-            }
 
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {

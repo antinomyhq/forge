@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 pub use super::orch_setup::TestContext;
 use crate::app::build_template_config;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::hooks::DoomLoopDetector;
+use crate::hooks::{DoomLoopDetector, PendingTodosHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -136,7 +136,9 @@ impl Runner {
         .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)
         .hook(Arc::new(
-            Hook::default().on_request(DoomLoopDetector::default()),
+            Hook::default()
+                .on_request(DoomLoopDetector::default())
+                .on_response(PendingTodosHandler::new()),
         ))
         .sender(tx);
 

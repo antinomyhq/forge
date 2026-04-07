@@ -596,11 +596,11 @@ async fn test_not_complete_when_stop_with_tool_calls() {
 #[tokio::test]
 async fn test_todo_enforcement_injects_reminder() {
     // Test: When the orchestrator receives a Stop response but there are pending
-    // todos, it should inject a reminder message into the context.
-    // Note: This test will exhaust mock responses due to the todo enforcement loop.
+    // todos, the PendingTodosHandler hook should inject a formatted reminder
+    // message into the context listing all outstanding items.
     use forge_domain::{Metrics, Todo, TodoStatus};
 
-    let ctx = TestContext::default()
+    let mut ctx = TestContext::default()
         .mock_assistant_responses(vec![
             // LLM tries to finish but has pending todos - reminder will be injected
             ChatCompletionMessage::assistant(Content::full("Task is done"))
@@ -611,35 +611,30 @@ async fn test_todo_enforcement_injects_reminder() {
             Todo::new("In progress task").status(TodoStatus::InProgress),
         ]));
 
-    // Run in a separate task so we can check results even if it panics
-    let handle = tokio::spawn(async move {
-        let mut ctx = ctx;
-        ctx.run("Complete this task").await
-    });
+    ctx.run("Complete this task").await.unwrap();
 
-    // Wait for the task - it will likely panic due to mock exhaustion
-    let result = handle.await;
+    let messages = ctx.output.context_messages();
 
-    // Extract the conversation from the result or from panic unwind
-    // Since we can't easily get ctx back after panic, let's just verify
-    // the test framework behavior - the key assertion is that the panic message
-    // contains our reminder (which it does based on test output)
+    // Find the reminder message injected by the PendingTodosHandler hook
+    let reminder = messages
+        .iter()
+        .filter_map(|entry| entry.message.content())
+        .find(|content| content.contains("pending todo items"));
 
-    // The test passes if we got here with an error/panic that mentions our reminder
-    // This confirms the todo enforcement is working
-    match result {
-        Ok(Ok(_)) => {
-            // Unexpected success - todos should have blocked completion
-            panic!("Expected test to fail due to mock exhaustion, but it succeeded");
-        }
-        Ok(Err(_)) => {
-            // Error returned (not panic) - also acceptable
-        }
-        Err(_) => {
-            // Task panicked - this is expected due to mock exhaustion
-            // The panic message should contain our reminder
-        }
-    }
+    assert!(
+        reminder.is_some(),
+        "Should have a reminder message about pending todos"
+    );
+
+    let actual = reminder.unwrap();
+    assert!(
+        actual.contains("- [PENDING] Pending task 1"),
+        "Reminder should list pending items with status"
+    );
+    assert!(
+        actual.contains("- [IN_PROGRESS] In progress task"),
+        "Reminder should list in-progress items with status"
+    );
 }
 
 #[tokio::test]

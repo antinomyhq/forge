@@ -9,7 +9,10 @@ use forge_stream::MpscStream;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
-use crate::hooks::{CompactionHandler, DoomLoopDetector, TitleGenerationHandler, TracingHandler};
+use crate::hooks::{
+    CompactionHandler, DoomLoopDetector, PendingTodosHandler, TitleGenerationHandler,
+    TracingHandler,
+};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{AgentRegistry, CustomInstructionsService, ProviderAuthService};
@@ -153,7 +156,8 @@ impl<S: Services> ForgeApp<S> {
             .on_response(
                 tracing_handler
                     .clone()
-                    .and(CompactionHandler::new(agent.clone(), environment.clone())),
+                    .and(CompactionHandler::new(agent.clone(), environment.clone()))
+                    .and(PendingTodosHandler::new()),
             )
             .on_toolcall_start(tracing_handler.clone())
             .on_toolcall_end(tracing_handler.clone())
