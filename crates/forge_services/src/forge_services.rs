@@ -49,7 +49,6 @@ pub struct ForgeServices<
         + WalkerInfra
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -103,7 +102,6 @@ impl<
         + UserInfra
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + ChatRepository
         + ProviderRepository
         + KVStore
@@ -113,20 +111,33 @@ impl<
         + ValidationRepository,
 > ForgeServices<F>
 {
-    pub fn new(infra: Arc<F>) -> Self {
+    pub fn new(infra: Arc<F>, config: forge_config::ForgeConfig) -> Self {
         let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
-        let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
+        let attachment_service =
+            Arc::new(ForgeChatRequest::new(infra.clone(), config.max_read_lines));
         let suggestion_service = Arc::new(ForgeDiscoveryService::new(infra.clone()));
         let conversation_service = Arc::new(ForgeConversationService::new(infra.clone()));
-        let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
+        let auth_service = Arc::new(ForgeAuthService::new(
+            infra.clone(),
+            config.services_url.clone(),
+        ));
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
-        let config_service = Arc::new(ForgeAppConfigService::new(infra.clone()));
+        let config_service = Arc::new(ForgeAppConfigService::new(infra.clone(), config.clone()));
         let file_create_service = Arc::new(ForgeFsWrite::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
-        let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
-        let image_read_service = Arc::new(ForgeImageRead::new(infra.clone()));
+        let file_read_service = Arc::new(ForgeFsRead::new(
+            infra.clone(),
+            config.max_file_size_bytes,
+            config.max_image_size_bytes,
+            config.max_read_lines,
+            config.max_line_chars,
+        ));
+        let image_read_service = Arc::new(ForgeImageRead::new(
+            infra.clone(),
+            config.max_image_size_bytes,
+        ));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
@@ -136,7 +147,10 @@ impl<
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
-        let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(infra.clone()));
+        let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(
+            infra.clone(),
+            config.clone(),
+        ));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let user_hook_config_service = Arc::new(ForgeUserHookConfigService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
@@ -145,6 +159,7 @@ impl<
         let workspace_service = Arc::new(crate::context_engine::ForgeWorkspaceService::new(
             infra.clone(),
             discovery,
+            config.max_file_read_batch_size,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
         let hook_command_service = Arc::new(ForgeHookCommandService::new(infra.clone()));
@@ -200,7 +215,6 @@ impl<
         + Clone
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -382,10 +396,6 @@ impl<
 
     fn get_environment(&self) -> forge_domain::Environment {
         self.infra.get_environment()
-    }
-
-    fn get_config(&self) -> forge_config::ForgeConfig {
-        self.infra.get_config()
     }
 
     fn update_environment(

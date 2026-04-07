@@ -72,27 +72,6 @@ function _forge_action_agent() {
     fi
 }
 
-# Action handler: Select provider
-function _forge_action_provider() {
-    local input_text="$1"
-    echo
-    local selected
-    # Only show LLM providers (exclude context_engine and other non-LLM types)
-    # Pass input_text as query parameter for fuzzy search
-    selected=$(_forge_select_provider "" "" "llm" "$input_text")
-    
-    if [[ -n "$selected" ]]; then
-        # Extract the second field (provider ID) from the selected line
-        # Format: "DisplayName  provider_id  host  type  status"
-        local provider_id=$(echo "$selected" | awk '{print $2}')
-        # Use _forge_exec_interactive because config-set may trigger
-        # interactive authentication prompts (rustyline) when the provider
-        # is not yet configured. Without /dev/tty redirection, ZLE's pipes
-        # cause rustyline to see EOF and fail with "API key input cancelled".
-        _forge_exec_interactive config set provider "$provider_id"
-    fi
-}
-
 # Helper: Open an fzf model picker and print the raw selected line.
 #
 # Model list columns (from `forge list models --porcelain`):
@@ -242,16 +221,18 @@ function _forge_action_suggest_model() {
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
-    # Execute sync with stdin redirected to prevent hanging
-    # Sync doesn't need interactive input, so close stdin immediately
+    # Use _forge_exec_interactive so that the consent prompt (and any other
+    # interactive prompts) can access /dev/tty even though ZLE owns the
+    # terminal's stdin/stdout pipes.
     # --init initializes the workspace first if it has not been set up yet
-    _forge_exec workspace sync --init </dev/null
+    _forge_exec_interactive workspace sync --init
 }
 
 # Action handler: inits workspace for codebase search
 function _forge_action_sync_init() {
     echo
-    _forge_exec workspace init </dev/null
+    # Use _forge_exec_interactive so that the consent prompt can access /dev/tty
+    _forge_exec_interactive workspace init
 }
 
 # Action handler: Show sync status of workspace files
@@ -358,21 +339,23 @@ function _forge_action_session_model() {
     fi
 }
 
-# Action handler: Reset session model and provider to defaults.
-# Clears both _FORGE_SESSION_MODEL and _FORGE_SESSION_PROVIDER,
-# reverting to global config for subsequent forge invocations.
-function _forge_action_model_reset() {
+# Action handler: Reload config by resetting all session-scoped overrides.
+# Clears _FORGE_SESSION_MODEL, _FORGE_SESSION_PROVIDER, and
+# _FORGE_SESSION_REASONING_EFFORT so that every subsequent forge invocation
+# falls back to the permanent global configuration.
+function _forge_action_config_reload() {
     echo
 
-    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" ]]; then
-        _forge_log info "Session model already cleared (using global config)"
+    if [[ -z "$_FORGE_SESSION_MODEL" && -z "$_FORGE_SESSION_PROVIDER" && -z "$_FORGE_SESSION_REASONING_EFFORT" ]]; then
+        _forge_log info "No session overrides active (already using global config)"
         return 0
     fi
 
     _FORGE_SESSION_MODEL=""
     _FORGE_SESSION_PROVIDER=""
+    _FORGE_SESSION_REASONING_EFFORT=""
 
-    _forge_log success "Session model reset to global config"
+    _forge_log success "Session overrides cleared — using global config"
 }
 
 # Action handler: Select reasoning effort for the current session only.

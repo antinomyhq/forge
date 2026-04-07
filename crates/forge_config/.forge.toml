@@ -1,5 +1,6 @@
 auto_open_dump = false
 max_conversations = 100
+max_commit_count = 20
 max_extensions = 15
 max_fetch_chars = 50000
 max_file_read_batch_size = 50

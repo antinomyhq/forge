@@ -25,6 +25,7 @@ pub struct Orchestrator<S> {
     agent: Agent,
     error_tracker: ToolErrorTracker,
     hook: Arc<Hook>,
+    config: forge_config::ForgeConfig,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -33,12 +34,14 @@ impl<S: AgentService> Orchestrator<S> {
         retry_config: RetryConfig,
         conversation: Conversation,
         agent: Agent,
+        config: forge_config::ForgeConfig,
     ) -> Self {
         Self {
             conversation,
             retry_config,
             services,
             agent,
+            config,
             sender: Default::default(),
             tool_definitions: Default::default(),
             models: Default::default(),
@@ -118,7 +121,7 @@ impl<S: AgentService> Orchestrator<S> {
                 };
                 let result = self
                     .services
-                    .call(&self.agent, tool_context, effective.clone())
+                    .call(&self.agent, tool_context, effective.clone(), &self.config)
                     .await;
                 (effective, result)
             };

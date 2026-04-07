@@ -3,7 +3,6 @@ use std::path::PathBuf;
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
-use forge_config::ForgeConfig;
 use forge_domain::{AgentId, Effort, ModelId, ProviderModels};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
@@ -50,9 +49,6 @@ pub trait API: Sync + Send {
 
     /// Returns the current environment
     fn environment(&self) -> Environment;
-
-    /// Returns the full application configuration.
-    fn get_config(&self) -> ForgeConfig;
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;
@@ -128,6 +124,15 @@ pub trait API: Sync + Send {
 
     /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
+
+    /// Updates the caller's default provider and model together, ensuring all
+    /// commands resolve a consistent pair without requiring a follow-up model
+    /// selection call.
+    async fn set_default_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()>;
 
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;

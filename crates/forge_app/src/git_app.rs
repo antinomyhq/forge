@@ -6,10 +6,11 @@ use forge_domain::*;
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-use crate::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentInfra, ProviderAuthService,
-    ProviderService, ShellService, TemplateService,
+use crate::services::{
+    AgentRegistry, AppConfigService, ProviderAuthService, ProviderService, ShellService,
+    TemplateService,
 };
+use crate::{AgentProviderResolver, Services};
 
 /// Errors specific to GitApp operations
 #[derive(thiserror::Error, Debug)]
@@ -21,6 +22,7 @@ pub enum GitAppError {
 /// GitApp handles git-related operations like commit message generation.
 pub struct GitApp<S> {
     services: Arc<S>,
+    config: forge_config::ForgeConfig,
 }
 
 /// Result of a commit operation
@@ -65,9 +67,9 @@ struct DiffContext {
 }
 
 impl<S> GitApp<S> {
-    /// Creates a new GitApp instance with the provided services.
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    /// Creates a new GitApp instance with the provided services and config.
+    pub fn new(services: Arc<S>, config: forge_config::ForgeConfig) -> Self {
+        Self { services, config }
     }
 
     /// Truncates diff content if it exceeds the maximum size
@@ -92,16 +94,7 @@ impl<S> GitApp<S> {
     }
 }
 
-impl<S> GitApp<S>
-where
-    S: EnvironmentInfra
-        + ShellService
-        + AgentRegistry
-        + TemplateService
-        + ProviderService
-        + AppConfigService
-        + ProviderAuthService,
-{
+impl<S: Services> GitApp<S> {
     /// Generates a commit message without committing
     ///
     /// # Arguments
@@ -220,7 +213,7 @@ where
             additional_context,
         };
 
-        let retry_config = self.services.get_config().retry.unwrap_or_default();
+        let retry_config = self.config.retry.clone().unwrap_or_default();
         crate::retry::retry_with_config(
             &retry_config,
             || self.generate_message_from_diff(ctx.clone()),
@@ -231,15 +224,12 @@ where
 
     /// Fetches git context (branch name and recent commits)
     async fn fetch_git_context(&self, cwd: &Path) -> Result<(String, String)> {
+        let max_commit_count = self.config.max_commit_count;
+        let git_log_cmd =
+            format!("git log --pretty=format:%s --abbrev-commit --max-count={max_commit_count}");
         let (recent_commits, branch_name) = tokio::join!(
-            self.services.execute(
-                "git log --pretty=format:%s --abbrev-commit --max-count=20".into(),
-                cwd.to_path_buf(),
-                false,
-                true,
-                None,
-                None,
-            ),
+            self.services
+                .execute(git_log_cmd, cwd.to_path_buf(), false, true, None, None,),
             self.services.execute(
                 "git rev-parse --abbrev-ref HEAD".into(),
                 cwd.to_path_buf(),

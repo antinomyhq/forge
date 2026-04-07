@@ -212,6 +212,14 @@ pub trait AppConfigService: Send + Sync {
     /// Returns an error if no default provider is configured.
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
 
+    /// Sets the user's default provider and default model in a single atomic
+    /// update so the persisted configuration never stores a mismatched pair.
+    async fn set_default_provider_and_model(
+        &self,
+        provider_id: ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()>;
+
     /// Gets the commit configuration (provider and model for commit message
     /// generation).
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
@@ -1021,6 +1029,16 @@ impl<I: Services> AppConfigService for I {
         provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId> {
         self.config_service().get_provider_model(provider_id).await
+    }
+
+    async fn set_default_provider_and_model(
+        &self,
+        provider_id: forge_domain::ProviderId,
+        model: ModelId,
+    ) -> anyhow::Result<()> {
+        self.config_service()
+            .set_default_provider_and_model(provider_id, model)
+            .await
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
