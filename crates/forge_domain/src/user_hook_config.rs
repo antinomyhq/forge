@@ -151,19 +151,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_pre_tool_use_hook() {
-        let json = r#"{
-            "PreToolUse": [
-                {
-                    "matcher": "Bash",
-                    "hooks": [
-                        {
-                            "type": "command",
-                            "command": "echo 'blocked'"
-                        }
-                    ]
-                }
-            ]
-        }"#;
+        let json = include_str!("fixtures/hook_pre_tool_use.json");
 
         let actual: UserHookConfig = serde_json::from_str(json).unwrap();
         let groups = actual.get_groups(&UserHookEventName::PreToolUse);
@@ -180,17 +168,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_multiple_events() {
-        let json = r#"{
-            "PreToolUse": [
-                { "matcher": "Bash", "hooks": [{ "type": "command", "command": "pre.sh" }] }
-            ],
-            "PostToolUse": [
-                { "hooks": [{ "type": "command", "command": "post.sh" }] }
-            ],
-            "Stop": [
-                { "hooks": [{ "type": "command", "command": "stop.sh" }] }
-            ]
-        }"#;
+        let json = include_str!("fixtures/hook_multiple_events.json");
 
         let actual: UserHookConfig = serde_json::from_str(json).unwrap();
 
@@ -206,15 +184,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_hook_with_timeout() {
-        let json = r#"{
-            "PreToolUse": [
-                {
-                    "hooks": [
-                        { "type": "command", "command": "slow.sh", "timeout": 30000 }
-                    ]
-                }
-            ]
-        }"#;
+        let json = include_str!("fixtures/hook_with_timeout.json");
 
         let actual: UserHookConfig = serde_json::from_str(json).unwrap();
         let groups = actual.get_groups(&UserHookEventName::PreToolUse);
@@ -224,19 +194,8 @@ mod tests {
 
     #[test]
     fn test_merge_configs() {
-        let json1 = r#"{
-            "PreToolUse": [
-                { "matcher": "Bash", "hooks": [{ "type": "command", "command": "hook1.sh" }] }
-            ]
-        }"#;
-        let json2 = r#"{
-            "PreToolUse": [
-                { "matcher": "Write", "hooks": [{ "type": "command", "command": "hook2.sh" }] }
-            ],
-            "Stop": [
-                { "hooks": [{ "type": "command", "command": "stop.sh" }] }
-            ]
-        }"#;
+        let json1 = include_str!("fixtures/hook_merge_config_1.json");
+        let json2 = include_str!("fixtures/hook_merge_config_2.json");
 
         let mut actual: UserHookConfig = serde_json::from_str(json1).unwrap();
         let config2: UserHookConfig = serde_json::from_str(json2).unwrap();
@@ -248,13 +207,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_settings_with_hooks() {
-        let json = r#"{
-            "hooks": {
-                "PreToolUse": [
-                    { "matcher": "Bash", "hooks": [{ "type": "command", "command": "check.sh" }] }
-                ]
-            }
-        }"#;
+        let json = include_str!("fixtures/hook_settings_with_hooks.json");
 
         let actual: UserSettings = serde_json::from_str(json).unwrap();
 
@@ -278,11 +231,7 @@ mod tests {
 
     #[test]
     fn test_no_matcher_group_fires_unconditionally() {
-        let json = r#"{
-            "PostToolUse": [
-                { "hooks": [{ "type": "command", "command": "always.sh" }] }
-            ]
-        }"#;
+        let json = include_str!("fixtures/hook_no_matcher.json");
 
         let actual: UserHookConfig = serde_json::from_str(json).unwrap();
         let groups = actual.get_groups(&UserHookEventName::PostToolUse);
