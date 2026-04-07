@@ -288,6 +288,7 @@ fn resolve_skill_conflicts(skills: Vec<Skill>) -> Vec<Skill> {
 
 #[cfg(test)]
 mod tests {
+    use forge_config::ForgeConfig;
     use forge_infra::ForgeInfra;
     use pretty_assertions::assert_eq;
 
@@ -296,7 +297,13 @@ mod tests {
     fn fixture_skill_repo() -> (ForgeSkillRepository<ForgeInfra>, std::path::PathBuf) {
         let skill_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("src/fixtures/skills_with_resources");
-        let infra = Arc::new(ForgeInfra::new(std::env::current_dir().unwrap()));
+        let config = ForgeConfig::read().unwrap_or_default();
+        let services_url = config.services_url.parse().unwrap();
+        let infra = Arc::new(ForgeInfra::new(
+            std::env::current_dir().unwrap(),
+            config,
+            services_url,
+        ));
         let repo = ForgeSkillRepository::new(infra);
         (repo, skill_dir)
     }
