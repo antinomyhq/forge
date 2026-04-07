@@ -2,13 +2,11 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
-use derive_setters::Setters;
 use eventsource_stream::Eventsource;
-use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream,
 };
-use forge_config::RetryConfig;
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{BoxStream, ChatRepository, Provider};
 use forge_infra::sanitize_headers;
 use futures::StreamExt;
@@ -356,28 +354,27 @@ fn request_message_count(request: &oai::CreateResponse) -> usize {
 ///
 /// Handles OpenAI's Codex models (e.g., gpt-5.1-codex, codex-mini-latest)
 /// which use the Responses API instead of the standard Chat Completions API.
-#[derive(Setters)]
-#[setters(strip_option, into)]
 pub struct OpenAIResponsesResponseRepository<F> {
     infra: Arc<F>,
-    retry_config: Arc<RetryConfig>,
 }
 
 impl<F> OpenAIResponsesResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponsesResponseRepository<F> {
+impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + 'static> ChatRepository
+    for OpenAIResponsesResponseRepository<F>
+{
     async fn chat(
         &self,
         model_id: &ModelId,
         context: ChatContext,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let retry_config = self.retry_config.clone();
+        let retry_config = self.infra.get_config()?.retry.unwrap_or_default();
         let provider_client: OpenAIResponsesProvider<F> =
             OpenAIResponsesProvider::new(provider, self.infra.clone());
         let stream = provider_client
@@ -520,6 +517,34 @@ mod tests {
                 request = request.headers(headers);
             }
             Ok(reqwest_eventsource::EventSource::new(request)?)
+        }
+    }
+
+    impl forge_app::EnvironmentInfra for MockHttpClient {
+        type Config = forge_config::ForgeConfig;
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
+        }
+
+        fn get_environment(&self) -> forge_domain::Environment {
+            use fake::{Fake, Faker};
+            Faker.fake()
+        }
+
+        fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+            Ok(forge_config::ForgeConfig::default())
+        }
+
+        async fn update_environment(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
