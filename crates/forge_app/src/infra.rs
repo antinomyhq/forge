@@ -102,7 +102,8 @@ pub trait FileWriterInfra: Send + Sync {
     /// Writes the content of a file at the specified path.
     async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
 
-    /// Appends content to a file at the specified path, creating it if it does not exist.
+    /// Appends content to a file at the specified path, creating it if it does
+    /// not exist.
     async fn append(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,

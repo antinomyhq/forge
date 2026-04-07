@@ -865,11 +865,7 @@ mod env_tests {
             Ok(())
         }
 
-        async fn append(
-            &self,
-            _path: &std::path::Path,
-            _content: Bytes,
-        ) -> anyhow::Result<()> {
+        async fn append(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -1351,11 +1347,7 @@ mod env_tests {
                 Ok(())
             }
 
-            async fn append(
-                &self,
-                _path: &std::path::Path,
-                _content: Bytes,
-            ) -> anyhow::Result<()> {
+            async fn append(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
                 Ok(())
             }
 
