@@ -34,11 +34,10 @@ impl<A, F> ForgeAPI<A, F> {
     /// Creates a ForgeApp instance with the current services and latest config.
     fn app(&self) -> ForgeApp<A>
     where
-        A: Services,
+        A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>,
         F: EnvironmentInfra<Config = forge_config::ForgeConfig>,
     {
-        let config = self.infra.get_config().unwrap_or_default();
-        ForgeApp::new(self.services.clone(), config)
+        ForgeApp::new(self.services.clone())
     }
 }
 
@@ -63,7 +62,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + SkillRepository + GrpcInfra> API
+impl<A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>, F: CommandInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + SkillRepository + GrpcInfra> API
     for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -99,8 +98,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra<Config = forge_config::Forg
         diff: Option<String>,
         additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
-        let config = self.infra.get_config().unwrap_or_default();
-        let git_app = GitApp::new(self.services.clone(), config);
+        let git_app = GitApp::new(self.services.clone());
         let result = git_app
             .commit_message(max_diff_size, diff, additional_context)
             .await?;

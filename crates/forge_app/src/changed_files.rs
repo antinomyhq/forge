@@ -20,18 +20,22 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService + EnvironmentInfra> ChangedFiles<S> {
+impl<S: FsReadService + EnvironmentInfra<Config = forge_config::ForgeConfig>> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
     pub async fn update_file_stats(
         &self,
         mut conversation: Conversation,
-        parallel_file_reads: usize,
     ) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
-        let changes = FileChangeDetector::new(self.services.clone(), parallel_file_reads)
-            .detect(&conversation.metrics)
+        let parallel_file_reads = self
+            .services
+            .get_config()
+            .map(|c| c.max_parallel_file_reads)
+            .unwrap_or(4);
+        let changes = FileChangeDetector::new(self.services.clone())
+            .detect(&conversation.metrics, parallel_file_reads)
             .await;
 
         if changes.is_empty() {
@@ -137,7 +141,7 @@ mod tests {
         }
 
         fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
-            Ok(forge_config::ForgeConfig::default())
+            Ok(forge_config::ForgeConfig { max_parallel_file_reads: 4, ..Default::default() })
         }
 
         async fn update_environment(
@@ -203,7 +207,7 @@ mod tests {
             Some(ModelId::new("test")),
         )));
 
-        let actual = service.update_file_stats(conversation.clone(), 4).await;
+        let actual = service.update_file_stats(conversation.clone()).await;
 
         assert_eq!(actual.context.clone().unwrap_or_default().messages.len(), 1);
         assert_eq!(actual.context, conversation.context);
@@ -219,7 +223,7 @@ mod tests {
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
 
-        let actual = service.update_file_stats(conversation, 4).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let messages = &actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1);
@@ -239,7 +243,7 @@ mod tests {
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
 
-        let actual = service.update_file_stats(conversation, 4).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let updated_hash = actual
             .metrics
@@ -265,7 +269,7 @@ mod tests {
             .into(),
         );
 
-        let actual = service.update_file_stats(conversation, 4).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let message = actual.context.unwrap().messages[0]
             .content()
@@ -288,7 +292,7 @@ mod tests {
             Some(cwd),
         );
 
-        let actual = service.update_file_stats(conversation, 4).await;
+        let actual = service.update_file_stats(conversation).await;
 
         let message = actual.context.unwrap().messages[0]
             .content()

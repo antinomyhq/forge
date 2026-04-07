@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use derive_setters::Setters;
 use eventsource_stream::Eventsource;
-use forge_app::HttpInfra;
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
@@ -12,7 +11,6 @@ use forge_app::dto::anthropic::{
     EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SanitizeToolIds,
     SetCache,
 };
-use forge_config::RetryConfig;
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use futures::StreamExt;
 use reqwest::Url;
@@ -782,16 +780,13 @@ mod tests {
 }
 
 /// Repository for Anthropic provider responses
-#[derive(Setters)]
-#[setters(strip_option, into)]
 pub struct AnthropicResponseRepository<F> {
     infra: Arc<F>,
-    retry_config: Arc<RetryConfig>,
 }
 
 impl<F> AnthropicResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
+        Self { infra }
     }
 }
 
@@ -828,14 +823,16 @@ impl<F: HttpInfra> AnthropicResponseRepository<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: HttpInfra + 'static> ChatRepository for AnthropicResponseRepository<F> {
+impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + 'static> ChatRepository
+    for AnthropicResponseRepository<F>
+{
     async fn chat(
         &self,
         model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let retry_config = self.retry_config.clone();
+        let retry_config = self.infra.get_config()?.retry.unwrap_or_default();
         let provider_client = self.create_client(provider)?;
 
         let stream = provider_client
@@ -849,7 +846,7 @@ impl<F: HttpInfra + 'static> ChatRepository for AnthropicResponseRepository<F> {
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        let retry_config = self.retry_config.clone();
+        let retry_config = self.infra.get_config()?.retry.unwrap_or_default();
         let provider_client = self.create_client(provider)?;
 
         provider_client

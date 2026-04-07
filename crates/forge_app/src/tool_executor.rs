@@ -16,7 +16,6 @@ use crate::{
 
 pub struct ToolExecutor<S> {
     services: Arc<S>,
-    config: forge_config::ForgeConfig,
 }
 
 impl<
@@ -32,7 +31,7 @@ impl<
         + ShellService
         + FollowUpService
         + ConversationService
-        + EnvironmentInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + PlanCreateService
         + SkillFetchService
         + AgentRegistry
@@ -40,8 +39,8 @@ impl<
         + Services,
 > ToolExecutor<S>
 {
-    pub fn new(services: Arc<S>, config: forge_config::ForgeConfig) -> Self {
-        Self { services, config }
+    pub fn new(services: Arc<S>) -> Self {
+        Self { services }
     }
 
     fn require_prior_read(
@@ -69,8 +68,9 @@ impl<
     async fn dump_operation(&self, operation: &ToolOperation) -> anyhow::Result<TempContentFiles> {
         match operation {
             ToolOperation::NetFetch { input: _, output } => {
+                let config = self.services.get_config()?;
                 let original_length = output.content.len();
-                let is_truncated = original_length > self.config.max_fetch_chars;
+                let is_truncated = original_length > config.max_fetch_chars;
                 let mut files = TempContentFiles::default();
 
                 if is_truncated {
@@ -83,7 +83,7 @@ impl<
                 Ok(files)
             }
             ToolOperation::Shell { output } => {
-                let config = &self.config;
+                let config = self.services.get_config()?;
                 let stdout_lines = output.output.stdout.lines().count();
                 let stderr_lines = output.output.stderr.lines().count();
                 let stdout_truncated =
@@ -185,11 +185,12 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::SemSearch(input) => {
+                let config = self.services.get_config()?;
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let limit = self.config.max_sem_search_results;
-                let top_k = self.config.sem_search_top_k as u32;
+                let limit = config.max_sem_search_results;
+                let top_k = config.sem_search_top_k as u32;
                 let params: Vec<_> = input
                     .queries
                     .iter()
@@ -337,7 +338,7 @@ impl<
     ) -> anyhow::Result<ToolOutput> {
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
-        let config = &self.config;
+        let config = self.services.get_config()?;
 
         // Enforce read-before-edit for patch operations
         let file_path = match &tool_input {
@@ -373,7 +374,7 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         context.with_metrics(|metrics| {
-            operation.into_tool_output(tool_kind, truncation_path, &env, config, metrics)
+            operation.into_tool_output(tool_kind, truncation_path, &env, &config, metrics)
         })
     }
 }

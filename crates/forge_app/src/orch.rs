@@ -4,13 +4,13 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_config::RetryConfig;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use futures::future::join_all;
 use tokio::sync::Notify;
 use tracing::warn;
 
+use crate::EnvironmentInfra;
 use crate::TemplateEngine;
 use crate::agent::AgentService;
 
@@ -20,7 +20,6 @@ pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
-    retry_config: RetryConfig,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
@@ -29,17 +28,15 @@ pub struct Orchestrator<S> {
     config: forge_config::ForgeConfig,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
-        retry_config: RetryConfig,
         conversation: Conversation,
         agent: Agent,
         config: forge_config::ForgeConfig,
     ) -> Self {
         Self {
             conversation,
-            retry_config,
             services,
             agent,
             config,
@@ -277,7 +274,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?;
 
             let message = crate::retry::retry_with_config(
-                &self.retry_config,
+                &self.config.clone().retry.unwrap_or_default(),
                 || {
                     self.execute_chat_turn(
                         &model_id,

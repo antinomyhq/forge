@@ -1,14 +1,12 @@
 use std::sync::{Arc, LazyLock};
 
 use anyhow::{Context as _, Result};
-use derive_setters::Setters;
-use forge_app::HttpInfra;
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ProviderId, ResultStream,
     Transformer,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
-use forge_config::RetryConfig;
 use forge_domain::{ChatRepository, Provider};
 use reqwest::header::AUTHORIZATION;
 use tokio_stream::StreamExt;
@@ -1128,28 +1126,27 @@ mod tests {
 /// - OpenRouter
 /// - DeepSeek
 /// - Groq
-#[derive(Setters)]
-#[setters(strip_option, into)]
 pub struct OpenAIResponseRepository<F> {
     infra: Arc<F>,
-    retry_config: Arc<RetryConfig>,
 }
 
 impl<F> OpenAIResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
+        Self { infra }
     }
 }
 
 #[async_trait::async_trait]
-impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
+impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + 'static> ChatRepository
+    for OpenAIResponseRepository<F>
+{
     async fn chat(
         &self,
         model_id: &ModelId,
         context: ChatContext,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let retry_config = self.retry_config.clone();
+        let retry_config = self.infra.get_config()?.retry.unwrap_or_default();
         let provider_id = provider.id.clone();
         let provider_client = OpenAIProvider::new(provider, self.infra.clone());
         let stream = provider_client
@@ -1163,7 +1160,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        let retry_config = self.retry_config.clone();
+        let retry_config = self.infra.get_config()?.retry.unwrap_or_default();
         let provider_client = OpenAIProvider::new(provider, self.infra.clone());
         provider_client
             .models()
