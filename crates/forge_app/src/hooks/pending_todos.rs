@@ -1,9 +1,25 @@
-use std::fmt::Write;
-
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload, TodoStatus,
+    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload,
+    Template, TodoStatus,
 };
+use forge_template::Element;
+use serde::Serialize;
+
+use crate::TemplateEngine;
+
+/// A single todo item prepared for template rendering.
+#[derive(Serialize)]
+struct TodoReminderItem {
+    status: &'static str,
+    content: String,
+}
+
+/// Template context for the pending-todos reminder.
+#[derive(Serialize)]
+struct PendingTodosContext {
+    todos: Vec<TodoReminderItem>,
+}
 
 /// Detects when the LLM signals task completion while there are still
 /// pending or in-progress todo items.
@@ -43,28 +59,29 @@ impl EventHandle<EventData<ResponsePayload>> for PendingTodosHandler {
             return Ok(());
         }
 
-        let mut reminder = String::from(
-            "You have pending todo items that must be completed before finishing the task:\n\n",
-        );
-        for todo in &pending_todos {
-            let status = match todo.status {
-                TodoStatus::Pending => "PENDING",
-                TodoStatus::InProgress => "IN_PROGRESS",
-                _ => continue,
-            };
-            writeln!(reminder, "- [{}] {}", status, todo.content)
-                .expect("Writing to String should not fail");
-        }
-        writeln!(
-            reminder,
-            "\nPlease complete all pending items before finishing."
-        )
-        .expect("Writing to String should not fail");
+        let todo_items: Vec<TodoReminderItem> = pending_todos
+            .iter()
+            .filter_map(|todo| {
+                let status = match todo.status {
+                    TodoStatus::Pending => "PENDING",
+                    TodoStatus::InProgress => "IN_PROGRESS",
+                    _ => return None,
+                };
+                Some(TodoReminderItem { status, content: todo.content.clone() })
+            })
+            .collect();
+
+        let ctx = PendingTodosContext { todos: todo_items };
+        let reminder = TemplateEngine::default().render(
+            Template::<PendingTodosContext>::new("forge-pending-todos-reminder.md"),
+            &ctx,
+        )?;
 
         if let Some(context) = conversation.context.as_mut() {
+            let content = Element::new("system_reminder").cdata(reminder);
             context
                 .messages
-                .push(ContextMessage::user(reminder, None).into());
+                .push(ContextMessage::user(content, None).into());
         }
 
         Ok(())
