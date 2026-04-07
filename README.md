@@ -558,6 +558,7 @@ System-level environment variables (usually set automatically):
 
 ```bash
 # .env
+FORGE_CONFIG=/custom/config/dir        # Base directory for all Forge config files (default: ~/forge)
 FORGE_MAX_SEARCH_RESULT_BYTES=10240   # Maximum bytes for search results (default: 10240 - 10 KB)
 FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)

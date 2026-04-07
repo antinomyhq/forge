@@ -166,9 +166,6 @@ function forge-accept-line() {
         conversation|c)
             _forge_action_conversation "$input_text"
         ;;
-        config-provider|provider|p)
-            _forge_action_provider "$input_text"
-        ;;
         config-model|cm)
             _forge_action_model "$input_text"
         ;;
@@ -244,7 +241,7 @@ function forge-accept-line() {
         workspace-info|sync-info)
             _forge_action_sync_info
         ;;
-        provider-login|login)
+        provider-login|login|provider)
             _forge_action_login "$input_text"
         ;;
         logout)
