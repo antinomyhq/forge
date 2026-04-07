@@ -511,7 +511,8 @@ pub(super) enum ContextMessageValueRecord {
 
 impl ContextMessageValueRecord {
     /// Tries to convert a domain ContextMessage to a record.
-    /// All variants are currently persisted and included in the conversation record.
+    /// All variants are currently persisted and included in the conversation
+    /// record.
     fn try_from_domain(value: &forge_domain::ContextMessage) -> Option<Self> {
         match value {
             forge_domain::ContextMessage::Text(msg) => {
