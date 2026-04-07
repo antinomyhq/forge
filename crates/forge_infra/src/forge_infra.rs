@@ -131,8 +131,8 @@ impl EnvironmentInfra for ForgeInfra {
         self.config_infra.get_environment()
     }
 
-    async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
-        self.config_infra.get_config().await
+    fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+        self.config_infra.get_config()
     }
 
     async fn update_environment(

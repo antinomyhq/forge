@@ -203,7 +203,7 @@ impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync> Envi
         self.infra.get_environment()
     }
 
-    fn get_config(&self) -> impl std::future::Future<Output = anyhow::Result<forge_config::ForgeConfig>> + Send {
+    fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
         self.infra.get_config()
     }
 

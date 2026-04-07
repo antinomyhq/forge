@@ -34,7 +34,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     AppConfigService for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
-        let config = self.infra.get_config().await?;
+        let config = self.infra.get_config()?;
         config
             .session
             .as_ref()
@@ -51,7 +51,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
         &self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        let config = self.infra.get_config().await?;
+        let config = self.infra.get_config()?;
 
         let session = config
             .session
@@ -84,7 +84,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
-        let config = self.infra.get_config().await?;
+        let config = self.infra.get_config()?;
         let provider_id = config
             .session
             .as_ref()
@@ -106,7 +106,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
-        let config = self.infra.get_config().await?;
+        let config = self.infra.get_config()?;
         Ok(config.commit.clone().map(|mc| CommitConfig {
             provider: mc.provider_id.map(ProviderId::from),
             model: mc.model_id.map(ModelId::new),
@@ -122,7 +122,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
-        let config = self.infra.get_config().await?;
+        let config = self.infra.get_config()?;
         Ok(config.suggest.clone().and_then(|mc| {
             mc.provider_id
                 .zip(mc.model_id)
@@ -142,7 +142,7 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
     }
 
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>> {
-        let config = self.infra.get_config().await?;
+        let config = self.infra.get_config()?;
         Ok(config
             .reasoning
             .clone()
@@ -315,9 +315,8 @@ mod tests {
             }
         }
 
-        fn get_config(&self) -> impl std::future::Future<Output = anyhow::Result<ForgeConfig>> + Send {
-            let config = self.config.clone();
-            async move { Ok(config.lock().unwrap().clone()) }
+        fn get_config(&self) -> anyhow::Result<ForgeConfig> {
+            Ok(self.config.lock().unwrap().clone())
         }
 
         fn get_env_var(&self, _key: &str) -> Option<String> {

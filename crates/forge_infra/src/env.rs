@@ -142,7 +142,7 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         to_environment(self.cwd.clone())
     }
 
-    async fn get_config(&self) -> anyhow::Result<ForgeConfig> {
+    fn get_config(&self) -> anyhow::Result<ForgeConfig> {
         self.cached_config()
     }
 

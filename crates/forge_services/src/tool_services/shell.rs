@@ -118,7 +118,7 @@ mod tests {
             Faker.fake()
         }
 
-        async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+        fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
             Ok(forge_config::ForgeConfig::default())
         }
 

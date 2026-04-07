@@ -805,7 +805,7 @@ mod env_tests {
             Ok(())
         }
 
-        async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+        fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
             Ok(forge_config::ForgeConfig::default())
         }
 
@@ -1305,7 +1305,7 @@ mod env_tests {
                 Ok(())
             }
 
-            async fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
                 Ok(forge_config::ForgeConfig::default())
             }
 
