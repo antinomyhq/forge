@@ -27,10 +27,11 @@ pub struct SessionConfig {
 /// each in order, and persist the result atomically.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigOperation {
-    /// Set the active provider.
-    // FIXME: Drop `SetProvider` we should only support `SetModel`
-    SetProvider(ProviderId),
     /// Set the model for the given provider.
+    ///
+    /// When the provider differs from the current session provider the entire
+    /// session (provider + model) is replaced atomically. When they match only
+    /// the model field is updated.
     SetModel(ProviderId, ModelId),
     /// Set the commit-message generation configuration.
     SetCommitConfig(crate::CommitConfig),

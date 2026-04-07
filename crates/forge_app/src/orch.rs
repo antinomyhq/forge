@@ -77,10 +77,11 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
 
         // Execute task tool calls in parallel — mirrors how direct agent-as-tool calls
         // work.
-        let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(task_calls.iter().map(|tc| {
-            self.services
-                .call(&self.agent, tool_context, (*tc).clone())
-        }))
+        let task_results: Vec<(ToolCallFull, ToolResult)> = join_all(
+            task_calls
+                .iter()
+                .map(|tc| self.services.call(&self.agent, tool_context, (*tc).clone())),
+        )
         .await
         .into_iter()
         .zip(task_calls.iter())
@@ -126,11 +127,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             // Execute the tool
             let tool_result = self
                 .services
-                .call(
-                    &self.agent,
-                    tool_context,
-                    (*tool_call).clone(),
-                )
+                .call(&self.agent, tool_context, (*tool_call).clone())
                 .await;
 
             // Fire the ToolcallEnd lifecycle event (fires on both success and failure)

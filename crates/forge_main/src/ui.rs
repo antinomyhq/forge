@@ -2865,8 +2865,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
-        let needs_model_selection = match current_model {
-            None => true,
+        let (needs_model_selection, compatible_model) = match current_model {
+            None => (true, None),
             Some(current_model) => {
                 let provider_models = self.api.get_all_provider_models().await?;
                 let model_available = provider_models
@@ -2874,7 +2874,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                     .find(|pm| pm.provider_id == provider.id)
                     .map(|pm| pm.models.iter().any(|m| m.id == current_model))
                     .unwrap_or(false);
-                !model_available
+                if model_available {
+                    (false, Some(current_model))
+                } else {
+                    (true, None)
+                }
             }
         };
 
@@ -2888,10 +2892,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 return Ok(());
             }
         } else {
-            // Set the provider via API
-            // Only reaches here if model is confirmed — safe to write provider now
+            // The current model is compatible with the new provider — write both
+            // atomically so the session always stores a consistent pair.
+            let model = compatible_model.expect("compatible_model is Some when !needs_model_selection");
             self.api
-                .update_config(vec![ConfigOperation::SetProvider(provider.id.clone())])
+                .update_config(vec![ConfigOperation::SetModel(provider.id.clone(), model)])
                 .await?;
 
             self.writeln_title(

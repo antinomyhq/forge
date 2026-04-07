@@ -215,10 +215,7 @@ pub trait AppConfigService: Send + Sync {
     /// persisted as a single atomic write. This is the sole write path for
     /// all configuration changes; use [`forge_domain::ConfigOperation`]
     /// variants to describe each mutation.
-    async fn update_config(
-        &self,
-        ops: Vec<forge_domain::ConfigOperation>,
-    ) -> anyhow::Result<()>;
+    async fn update_config(&self, ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -976,10 +973,7 @@ impl<I: Services> AppConfigService for I {
         self.config_service().get_reasoning_effort().await
     }
 
-    async fn update_config(
-        &self,
-        ops: Vec<forge_domain::ConfigOperation>,
-    ) -> anyhow::Result<()> {
+    async fn update_config(&self, ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> {
         self.config_service().update_config(ops).await
     }
 }

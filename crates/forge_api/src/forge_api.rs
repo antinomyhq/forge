@@ -230,18 +230,11 @@ impl<
         agent_provider_resolver.get_provider(Some(agent_id)).await
     }
 
-    async fn update_config(
-        &self,
-        ops: Vec<forge_domain::ConfigOperation>,
-    ) -> anyhow::Result<()> {
+    async fn update_config(&self, ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> {
         // Determine whether any op affects provider/model resolution before writing,
         // so we can invalidate the agent cache afterwards.
         let needs_agent_reload = ops.iter().any(|op| {
-            matches!(
-                op,
-                forge_domain::ConfigOperation::SetProvider(_)
-                    | forge_domain::ConfigOperation::SetModel(_, _)
-            )
+            matches!(op, forge_domain::ConfigOperation::SetModel(_, _))
         });
         let result = self.services.update_config(ops).await;
         if needs_agent_reload {

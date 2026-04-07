@@ -32,10 +32,6 @@ pub fn to_environment(cwd: PathBuf) -> Environment {
 /// persisted config without an intermediate `Environment` round-trip.
 fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
     match op {
-        ConfigOperation::SetProvider(pid) => {
-            let session = fc.session.get_or_insert_with(ModelConfig::default);
-            session.provider_id = Some(pid.as_ref().to_string());
-        }
         ConfigOperation::SetModel(pid, mid) => {
             let pid_str = pid.as_ref().to_string();
             let mid_str = mid.to_string();
@@ -232,22 +228,26 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_config_op_set_provider() {
-        use forge_domain::ProviderId;
+    fn test_apply_config_op_set_model() {
+        use forge_domain::{ModelId, ProviderId};
 
         let mut fixture = ForgeConfig::default();
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetProvider(ProviderId::ANTHROPIC),
+            ConfigOperation::SetModel(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet")),
         );
 
-        let actual = fixture
+        let actual_provider = fixture
             .session
             .as_ref()
             .and_then(|s| s.provider_id.as_deref());
-        let expected = Some("anthropic");
+        let actual_model = fixture
+            .session
+            .as_ref()
+            .and_then(|s| s.model_id.as_deref());
 
-        assert_eq!(actual, expected);
+        assert_eq!(actual_provider, Some("anthropic"));
+        assert_eq!(actual_model, Some("claude-3-5-sonnet"));
     }
 
     #[test]

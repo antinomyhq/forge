@@ -220,13 +220,6 @@ mod tests {
                 let mut config = config.lock().unwrap();
                 for op in ops {
                     match op {
-                        ConfigOperation::SetProvider(pid) => {
-                            let pid_str = pid.as_ref().to_string();
-                            config.session = Some(match config.session.take() {
-                                Some(mc) => mc.provider_id(pid_str),
-                                None => ModelConfig::default().provider_id(pid_str),
-                            });
-                        }
                         ConfigOperation::SetModel(pid, mid) => {
                             let pid_str = pid.as_ref().to_string();
                             let mid_str = mid.to_string();
@@ -374,7 +367,10 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .update_config(vec![ConfigOperation::SetProvider(ProviderId::ANTHROPIC)])
+            .update_config(vec![ConfigOperation::SetModel(
+                ProviderId::ANTHROPIC,
+                ModelId::new("claude-3"),
+            )])
             .await?;
         let actual = service.get_default_provider().await?;
         let expected = ProviderId::ANTHROPIC;
@@ -391,9 +387,12 @@ mod tests {
         fixture.providers.retain(|p| p.id != ProviderId::OPENAI);
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        // Set OpenAI as the default provider in config
+        // Set OpenAI as the default provider in config (with a model)
         service
-            .update_config(vec![ConfigOperation::SetProvider(ProviderId::OPENAI)])
+            .update_config(vec![ConfigOperation::SetModel(
+                ProviderId::OPENAI,
+                ModelId::new("gpt-4"),
+            )])
             .await?;
 
         // Should return the provider ID even if provider is not available
@@ -410,7 +409,10 @@ mod tests {
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
         service
-            .update_config(vec![ConfigOperation::SetProvider(ProviderId::ANTHROPIC)])
+            .update_config(vec![ConfigOperation::SetModel(
+                ProviderId::ANTHROPIC,
+                ModelId::new("claude-3"),
+            )])
             .await?;
 
         let actual = service.get_default_provider().await?;

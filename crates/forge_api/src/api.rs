@@ -127,10 +127,7 @@ pub trait API: Sync + Send {
     /// atomic write. Use [`forge_domain::ConfigOperation`] variants to describe
     /// each mutation. Provider and model changes also invalidate the agent
     /// cache so the next request picks up the updated configuration.
-    async fn update_config(
-        &self,
-        ops: Vec<forge_domain::ConfigOperation>,
-    ) -> anyhow::Result<()>;
+    async fn update_config(&self, ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()>;
 
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
