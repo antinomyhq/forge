@@ -146,7 +146,8 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
         let tracing_handler = TracingHandler::new();
         let title_handler = TitleGenerationHandler::new(services.clone());
 
-        // Build the on_end hook, conditionally adding PendingTodosHandler based on config
+        // Build the on_end hook, conditionally adding PendingTodosHandler based on
+        // config
         let on_end_hook = if forge_config.pending_todos_hook {
             tracing_handler
                 .clone()
