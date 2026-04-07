@@ -213,17 +213,17 @@
       "default": 0,
       "minimum": 0
     },
+    "pending_todos_hook": {
+      "description": "Enables the pending todos hook that checks for incomplete todo items\nwhen a task ends and reminds the LLM about them.",
+      "type": "boolean",
+      "default": false
+    },
     "providers": {
       "description": "Additional provider definitions merged with the built-in provider list.\n\nEntries with an `id` matching a built-in provider override its fields;\nentries with a new `id` are appended and become available for model\nselection.",
       "type": "array",
       "items": {
         "$ref": "#/$defs/ProviderEntry"
       }
-    },
-    "pending_todos_hook": {
-      "description": "Enables the pending todos hook that checks for incomplete todo items when a task ends and reminds the LLM about them.",
-      "type": "boolean",
-      "default": false
     },
     "reasoning": {
       "description": "Reasoning configuration applied to all agents; controls effort level,\ntoken budget, and visibility of the model's thinking process.",
