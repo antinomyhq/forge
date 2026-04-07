@@ -1339,13 +1339,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let commit_config = self.api.get_commit_config().await.ok().flatten();
         let commit_provider = commit_config
             .as_ref()
-            .and_then(|c| c.provider.as_ref())
-            .map(|p| p.to_string())
+            .map(|c| c.provider.to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
         let commit_model = commit_config
             .as_ref()
-            .and_then(|c| c.model.as_ref())
-            .map(|m| m.as_str().to_string())
+            .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let suggest_config = self.api.get_suggest_config().await.ok().flatten();
@@ -2765,13 +2763,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         // If we have a provider to activate, write both atomically
         if let Some(provider_id) = provider_to_activate {
             self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(provider_id, model.clone())])
+                .update_config(vec![ConfigOperation::SetSessionConfig(forge_domain::ModelConfig::new(provider_id, model.clone()))])
                 .await?;
         } else {
             // Resolve the active provider so we can build a SetModel op
             let provider_id = self.api.get_default_provider().await?.id;
             self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(provider_id, model.clone())])
+                .update_config(vec![ConfigOperation::SetSessionConfig(forge_domain::ModelConfig::new(provider_id, model.clone()))])
                 .await?;
         }
 
@@ -2849,8 +2847,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 .await?;
             self.api
                 .update_config(vec![ConfigOperation::SetSessionConfig(
-                    provider.id.clone(),
-                    model_id.clone(),
+                    forge_domain::ModelConfig::new(provider.id.clone(), model_id.clone()),
                 )])
                 .await?;
             self.writeln_title(
@@ -2896,7 +2893,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             // atomically so the session always stores a consistent pair.
             let model = compatible_model.expect("compatible_model is Some when !needs_model_selection");
             self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(provider.id.clone(), model)])
+                .update_config(vec![ConfigOperation::SetSessionConfig(forge_domain::ModelConfig::new(provider.id.clone(), model))])
                 .await?;
 
             self.writeln_title(
@@ -3554,8 +3551,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 let provider_id = self.api.get_default_provider().await?.id;
                 self.api
                     .update_config(vec![ConfigOperation::SetSessionConfig(
-                        provider_id,
-                        model_id.clone(),
+                        forge_domain::ModelConfig::new(provider_id, model_id.clone()),
                     )])
                     .await?;
                 self.writeln_title(
@@ -3565,11 +3561,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let commit_config = forge_domain::CommitConfig::default()
-                    .provider(provider.clone())
-                    .model(validated_model.clone());
+                let commit_config = forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
                 self.api
-                    .update_config(vec![ConfigOperation::SetCommitConfig(commit_config)])
+                    .update_config(vec![ConfigOperation::SetCommitConfig(Some(commit_config))])
                     .await?;
                 self.writeln_title(
                     TitleFormat::action(validated_model.as_str())
@@ -3579,10 +3573,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             ConfigSetField::Suggest { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let suggest_config = forge_domain::SuggestConfig {
-                    provider: provider.clone(),
-                    model: validated_model.clone(),
-                };
+                let suggest_config = forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
                 self.api
                     .update_config(vec![ConfigOperation::SetSuggestConfig(suggest_config)])
                     .await?;
@@ -3636,16 +3627,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 let commit_config = self.api.get_commit_config().await?;
                 match commit_config {
                     Some(config) => {
-                        let provider = config
-                            .provider
-                            .map(|p| p.as_ref().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        let model = config
-                            .model
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        self.writeln(provider)?;
-                        self.writeln(model)?;
+                        self.writeln(config.provider.as_ref())?;
+                        self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Commit: Not set")?,
                 }

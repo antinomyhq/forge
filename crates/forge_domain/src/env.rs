@@ -5,7 +5,7 @@ use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Effort, ModelId, ProviderId};
+use crate::{Effort, ModelConfig};
 
 /// Domain-level session configuration pairing a provider with a model.
 ///
@@ -28,18 +28,19 @@ pub struct SessionConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigOperation {
 
-    // FIXME: Create a new type - `ModelConfig {model_id, provider_id}` and use it in `SetSessionConfig` `SetCommitConfig` and `SetSuggestConfig`
-    // Drop `CommitConfig` and `SuggestConfig`
-    /// Set the model for the given provider.
+    /// Set the active session provider and model atomically.
     ///
     /// When the provider differs from the current session provider the entire
     /// session (provider + model) is replaced atomically. When they match only
     /// the model field is updated.
-    SetSessionConfig(ProviderId, ModelId),
+    SetSessionConfig(ModelConfig),
     /// Set the commit-message generation configuration.
-    SetCommitConfig(crate::CommitConfig),
+    ///
+    /// `None` clears the commit configuration so the active session
+    /// provider/model is used for commit message generation.
+    SetCommitConfig(Option<ModelConfig>),
     /// Set the shell-command suggestion configuration.
-    SetSuggestConfig(crate::SuggestConfig),
+    SetSuggestConfig(ModelConfig),
     /// Set the reasoning effort level for all agents.
     SetReasoningEffort(Effort),
 }

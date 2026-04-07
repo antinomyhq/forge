@@ -262,11 +262,11 @@ mod tests {
             Ok(ModelId::new("test-model"))
         }
 
-        async fn get_commit_config(&self) -> Result<Option<forge_domain::CommitConfig>> {
+        async fn get_commit_config(&self) -> Result<Option<forge_domain::ModelConfig>> {
             Ok(None)
         }
 
-        async fn get_suggest_config(&self) -> Result<Option<forge_domain::SuggestConfig>> {
+        async fn get_suggest_config(&self) -> Result<Option<forge_domain::ModelConfig>> {
             Ok(None)
         }
 

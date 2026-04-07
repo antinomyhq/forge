@@ -234,7 +234,7 @@ impl<
         // Determine whether any op affects provider/model resolution before writing,
         // so we can invalidate the agent cache afterwards.
         let needs_agent_reload = ops.iter().any(|op| {
-            matches!(op, forge_domain::ConfigOperation::SetSessionConfig(_, _))
+            matches!(op, forge_domain::ConfigOperation::SetSessionConfig(_))
         });
         let result = self.services.update_config(ops).await;
         if needs_agent_reload {
@@ -243,11 +243,11 @@ impl<
         result
     }
 
-    async fn get_commit_config(&self) -> anyhow::Result<Option<CommitConfig>> {
+    async fn get_commit_config(&self) -> anyhow::Result<Option<ModelConfig>> {
         self.services.get_commit_config().await
     }
 
-    async fn get_suggest_config(&self) -> anyhow::Result<Option<SuggestConfig>> {
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<ModelConfig>> {
         self.services.get_suggest_config().await
     }
 

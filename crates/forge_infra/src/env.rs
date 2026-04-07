@@ -32,9 +32,9 @@ pub fn to_environment(cwd: PathBuf) -> Environment {
 /// persisted config without an intermediate `Environment` round-trip.
 fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
     match op {
-        ConfigOperation::SetSessionConfig(pid, mid) => {
-            let pid_str = pid.as_ref().to_string();
-            let mid_str = mid.to_string();
+        ConfigOperation::SetSessionConfig(mc) => {
+            let pid_str = mc.provider.as_ref().to_string();
+            let mid_str = mc.model.to_string();
             let session = fc.session.get_or_insert_with(ModelConfig::default);
             if session.provider_id.as_deref() == Some(&pid_str) {
                 session.model_id = Some(mid_str);
@@ -43,20 +43,16 @@ fn apply_config_op(fc: &mut ForgeConfig, op: ConfigOperation) {
                     Some(ModelConfig { provider_id: Some(pid_str), model_id: Some(mid_str) });
             }
         }
-        ConfigOperation::SetCommitConfig(commit) => {
-            fc.commit = commit
-                .provider
-                .as_ref()
-                .zip(commit.model.as_ref())
-                .map(|(pid, mid)| ModelConfig {
-                    provider_id: Some(pid.as_ref().to_string()),
-                    model_id: Some(mid.to_string()),
-                });
+        ConfigOperation::SetCommitConfig(mc) => {
+            fc.commit = mc.map(|m| ModelConfig {
+                provider_id: Some(m.provider.as_ref().to_string()),
+                model_id: Some(m.model.to_string()),
+            });
         }
-        ConfigOperation::SetSuggestConfig(suggest) => {
+        ConfigOperation::SetSuggestConfig(mc) => {
             fc.suggest = Some(ModelConfig {
-                provider_id: Some(suggest.provider.as_ref().to_string()),
-                model_id: Some(suggest.model.to_string()),
+                provider_id: Some(mc.provider.as_ref().to_string()),
+                model_id: Some(mc.model.to_string()),
             });
         }
         ConfigOperation::SetReasoningEffort(effort) => {
@@ -229,12 +225,12 @@ mod tests {
 
     #[test]
     fn test_apply_config_op_set_model() {
-        use forge_domain::{ModelId, ProviderId};
+        use forge_domain::{ModelConfig as DomainModelConfig, ProviderId, ModelId};
 
         let mut fixture = ForgeConfig::default();
         apply_config_op(
             &mut fixture,
-            ConfigOperation::SetSessionConfig(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet")),
+            ConfigOperation::SetSessionConfig(DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet"))),
         );
 
         let actual_provider = fixture
@@ -252,10 +248,11 @@ mod tests {
 
     #[test]
     fn test_apply_config_op_set_model_matching_provider() {
-        use forge_domain::{ModelId, ProviderId};
+        use forge_config::ModelConfig as ForgeCfgModelConfig;
+        use forge_domain::{ModelConfig as DomainModelConfig, ProviderId, ModelId};
 
         let mut fixture = ForgeConfig {
-            session: Some(ModelConfig {
+            session: Some(ForgeCfgModelConfig {
                 provider_id: Some("anthropic".to_string()),
                 model_id: None,
             }),
@@ -265,8 +262,7 @@ mod tests {
         apply_config_op(
             &mut fixture,
             ConfigOperation::SetSessionConfig(
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
+                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet-20241022")),
             ),
         );
 
@@ -278,10 +274,11 @@ mod tests {
 
     #[test]
     fn test_apply_config_op_set_model_different_provider_replaces_session() {
-        use forge_domain::{ModelId, ProviderId};
+        use forge_config::ModelConfig as ForgeCfgModelConfig;
+        use forge_domain::{ModelConfig as DomainModelConfig, ProviderId, ModelId};
 
         let mut fixture = ForgeConfig {
-            session: Some(ModelConfig {
+            session: Some(ForgeCfgModelConfig {
                 provider_id: Some("openai".to_string()),
                 model_id: Some("gpt-4".to_string()),
             }),
@@ -291,8 +288,7 @@ mod tests {
         apply_config_op(
             &mut fixture,
             ConfigOperation::SetSessionConfig(
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
+                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3-5-sonnet-20241022")),
             ),
         );
 

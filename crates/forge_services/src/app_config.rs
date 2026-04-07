@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::{AppConfigService, EnvironmentInfra};
-use forge_domain::{
-    CommitConfig, ConfigOperation, Effort, ModelId, ProviderId, ProviderRepository, SuggestConfig,
-};
+use forge_domain::{ConfigOperation, Effort, ModelConfig, ModelId, ProviderId, ProviderRepository};
 use tracing::debug;
 
 /// Service for managing user preferences for default providers and models.
@@ -71,20 +69,22 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
         }
     }
 
-    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>> {
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>> {
         let config = self.infra.get_config()?;
-        Ok(config.commit.clone().map(|mc| CommitConfig {
-            provider: mc.provider_id.map(ProviderId::from),
-            model: mc.model_id.map(ModelId::new),
+        Ok(config.commit.clone().and_then(|mc| {
+            mc.provider_id.zip(mc.model_id).map(|(pid, mid)| ModelConfig {
+                provider: ProviderId::from(pid),
+                model: ModelId::new(mid),
+            })
         }))
     }
 
-    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>> {
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>> {
         let config = self.infra.get_config()?;
         Ok(config.suggest.clone().and_then(|mc| {
             mc.provider_id
                 .zip(mc.model_id)
-                .map(|(pid, mid)| SuggestConfig {
+                .map(|(pid, mid)| ModelConfig {
                     provider: ProviderId::from(pid),
                     model: ModelId::new(mid),
                 })
@@ -122,9 +122,12 @@ mod tests {
 
     use forge_config::{ForgeConfig, ModelConfig};
     use forge_domain::{
-        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality, MigrationResult,
-        Model, ModelId, ModelSource, Provider, ProviderId, ProviderResponse, ProviderTemplate,
+        AnyProvider, ChatRepository, ConfigOperation, Environment, InputModality,
+        MigrationResult, Model, ModelId, ModelSource, Provider, ProviderId, ProviderResponse,
+        ProviderTemplate,
     };
+    // Alias to avoid collision with forge_config::ModelConfig used in test fixtures
+    use forge_domain::ModelConfig as DomainModelConfig;
     use pretty_assertions::assert_eq;
     use url::Url;
 
@@ -220,33 +223,30 @@ mod tests {
                 let mut config = config.lock().unwrap();
                 for op in ops {
                     match op {
-                        ConfigOperation::SetSessionConfig(pid, mid) => {
-                            let pid_str = pid.as_ref().to_string();
-                            let mid_str = mid.to_string();
+                        ConfigOperation::SetSessionConfig(mc) => {
+                            let pid_str = mc.provider.as_ref().to_string();
+                            let mid_str = mc.model.to_string();
                             config.session = Some(match config.session.take() {
-                                Some(mc) if mc.provider_id.as_deref() == Some(&pid_str) => {
-                                    mc.model_id(mid_str)
+                                Some(existing) if existing.provider_id.as_deref() == Some(&pid_str) => {
+                                    existing.model_id(mid_str)
                                 }
                                 _ => ModelConfig::default()
                                     .provider_id(pid_str)
                                     .model_id(mid_str),
                             });
                         }
-                        ConfigOperation::SetCommitConfig(commit) => {
-                            config.commit =
-                                commit.provider.as_ref().zip(commit.model.as_ref()).map(
-                                    |(pid, mid)| {
-                                        ModelConfig::default()
-                                            .provider_id(pid.as_ref().to_string())
-                                            .model_id(mid.to_string())
-                                    },
-                                );
+                        ConfigOperation::SetCommitConfig(mc) => {
+                            config.commit = mc.map(|m| {
+                                ModelConfig::default()
+                                    .provider_id(m.provider.as_ref().to_string())
+                                    .model_id(m.model.to_string())
+                            });
                         }
-                        ConfigOperation::SetSuggestConfig(suggest) => {
+                        ConfigOperation::SetSuggestConfig(mc) => {
                             config.suggest = Some(
                                 ModelConfig::default()
-                                    .provider_id(suggest.provider.as_ref().to_string())
-                                    .model_id(suggest.model.to_string()),
+                                    .provider_id(mc.provider.as_ref().to_string())
+                                    .model_id(mc.model.to_string()),
                             );
                         }
                         ConfigOperation::SetReasoningEffort(_) => {
@@ -368,8 +368,7 @@ mod tests {
 
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3"),
+                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3")),
             )])
             .await?;
         let actual = service.get_default_provider().await?;
@@ -390,8 +389,7 @@ mod tests {
         // Set OpenAI as the default provider in config (with a model)
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::OPENAI,
-                ModelId::new("gpt-4"),
+                DomainModelConfig::new(ProviderId::OPENAI, ModelId::new("gpt-4")),
             )])
             .await?;
 
@@ -410,8 +408,7 @@ mod tests {
 
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3"),
+                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::new("claude-3")),
             )])
             .await?;
 
@@ -441,8 +438,7 @@ mod tests {
         // Set OpenAI as the default provider first, then set model atomically
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::OPENAI,
-                "gpt-4".to_string().into(),
+                DomainModelConfig::new(ProviderId::OPENAI, ModelId::new("gpt-4")),
             )])
             .await?;
         let actual = service
@@ -462,8 +458,7 @@ mod tests {
         // Set provider and model atomically
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::OPENAI,
-                "gpt-4".to_string().into(),
+                DomainModelConfig::new(ProviderId::OPENAI, ModelId::from("gpt-4".to_string())),
             )])
             .await?;
 
@@ -484,16 +479,14 @@ mod tests {
         // Set model for OpenAI first
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::OPENAI,
-                "gpt-4".to_string().into(),
+                DomainModelConfig::new(ProviderId::OPENAI, ModelId::from("gpt-4".to_string())),
             )])
             .await?;
 
         // Then switch to Anthropic with its model
         service
             .update_config(vec![ConfigOperation::SetSessionConfig(
-                ProviderId::ANTHROPIC,
-                "claude-3".to_string().into(),
+                DomainModelConfig::new(ProviderId::ANTHROPIC, ModelId::from("claude-3".to_string())),
             )])
             .await?;
 

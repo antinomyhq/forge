@@ -9,6 +9,7 @@ use futures::stream::BoxStream;
 use url::Url;
 
 use crate::*;
+
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
     /// Provides a list of files in the current working directory for auto
@@ -149,11 +150,11 @@ pub trait API: Sync + Send {
 
     /// Gets the commit configuration (provider and model for commit message
     /// generation).
-    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::CommitConfig>>;
+    async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>>;
 
     /// Gets the suggest configuration (provider and model for command
     /// suggestion generation).
-    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::SuggestConfig>>;
+    async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>>;
 
     /// Gets the current reasoning effort setting.
     async fn get_reasoning_effort(&self) -> anyhow::Result<Option<Effort>>;

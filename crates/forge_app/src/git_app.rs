@@ -311,12 +311,12 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> GitApp<
         // Resolve provider and model: commit config takes priority over agent defaults.
         // If the configured provider is unavailable (e.g. logged out), fall back to the
         // agent's provider/model with a warning.
-        let (provider, model) = match commit_config.and_then(|c| c.provider.zip(c.model)) {
-            Some((provider_id, commit_model)) => {
-                match self.services.get_provider(provider_id).await {
+        let (provider, model) = match commit_config {
+            Some(mc) => {
+                match self.services.get_provider(mc.provider).await {
                     Ok(provider) => {
                         match self.services.refresh_provider_credential(provider).await {
-                            Ok(provider) => (provider, commit_model),
+                            Ok(provider) => (provider, mc.model),
                             Err(err) => {
                                 tracing::warn!(
                                     error = %err,
