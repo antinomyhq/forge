@@ -24,7 +24,7 @@ use crate::agent_definition::AgentDefinition;
 ///
 /// ## Directory Resolution
 /// - **Built-in agents**: Embedded in application binary
-/// - **Global agents**: `{HOME}/.forge/agents/*.md`
+/// - **Global agents**: `~/forge/agents/*.md`
 /// - **CWD agents**: `./.forge/agents/*.md` (relative to current working
 ///   directory)
 ///
