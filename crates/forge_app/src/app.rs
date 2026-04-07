@@ -156,12 +156,15 @@ impl<S: Services> ForgeApp<S> {
             .on_response(
                 tracing_handler
                     .clone()
-                    .and(CompactionHandler::new(agent.clone(), environment.clone()))
-                    .and(PendingTodosHandler::new()),
+                    .and(CompactionHandler::new(agent.clone(), environment.clone())),
             )
             .on_toolcall_start(tracing_handler.clone())
             .on_toolcall_end(tracing_handler.clone())
-            .on_end(tracing_handler.and(title_handler));
+            .on_end(
+                tracing_handler
+                    .and(title_handler)
+                    .and(PendingTodosHandler::new()),
+            );
 
         let retry_config = forge_config.retry.clone().unwrap_or_default();
 

@@ -267,6 +267,7 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             // Fire the Request lifecycle event
+            let request_count_before_hook = context.messages.len();
             let request_event = LifecycleEvent::Request(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
@@ -275,6 +276,18 @@ impl<S: AgentService> Orchestrator<S> {
             self.hook
                 .handle(&request_event, &mut self.conversation)
                 .await?;
+            let request_count_after_hook = self
+                .conversation
+                .context
+                .as_ref()
+                .map(|ctx| ctx.messages.len())
+                .unwrap_or(request_count_before_hook);
+            // Sync context from conversation if Request hook added messages
+            if request_count_after_hook > request_count_before_hook {
+                if let Some(updated_context) = &self.conversation.context {
+                    context = updated_context.clone();
+                }
+            }
 
             let message = crate::retry::retry_with_config(
                 &self.retry_config,
@@ -307,6 +320,7 @@ impl<S: AgentService> Orchestrator<S> {
             .await?;
 
             // Fire the Response lifecycle event
+            let message_count_before_hook = context.messages.len();
             let response_event = LifecycleEvent::Response(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
@@ -315,11 +329,21 @@ impl<S: AgentService> Orchestrator<S> {
             self.hook
                 .handle(&response_event, &mut self.conversation)
                 .await?;
+            let message_count_after_hook = self
+                .conversation
+                .context
+                .as_ref()
+                .map(|ctx| ctx.messages.len())
+                .unwrap_or(message_count_before_hook);
+            // If hook added messages (e.g., reminders), don't complete - allow loop to
+            // continue
+            let hook_added_messages = message_count_after_hook > message_count_before_hook;
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
-            // finish reason with tool calls.
-            is_complete =
-                message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
+            // finish reason with tool calls. Don't complete if hook added messages.
+            is_complete = message.finish_reason == Some(FinishReason::Stop)
+                && message.tool_calls.is_empty()
+                && !hook_added_messages;
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
@@ -411,21 +435,45 @@ impl<S: AgentService> Orchestrator<S> {
             tool_context.with_metrics(|metrics| {
                 self.conversation.metrics = metrics.clone();
             })?;
+
+            // If completing (should_yield due to is_complete), fire End hook and check if
+            // it adds messages
+            if should_yield && is_complete {
+                let end_count_before = self
+                    .conversation
+                    .context
+                    .as_ref()
+                    .map(|ctx| ctx.messages.len())
+                    .unwrap_or(0);
+                self.hook
+                    .handle(
+                        &LifecycleEvent::End(EventData::new(
+                            self.agent.clone(),
+                            model_id.clone(),
+                            EndPayload,
+                        )),
+                        &mut self.conversation,
+                    )
+                    .await?;
+                self.services.update(self.conversation.clone()).await?;
+
+                // Check if End hook added messages - if so, continue the loop
+                let end_count_after = self
+                    .conversation
+                    .context
+                    .as_ref()
+                    .map(|ctx| ctx.messages.len())
+                    .unwrap_or(end_count_before);
+                if end_count_after > end_count_before {
+                    // End hook added messages, sync context and continue
+                    if let Some(updated_context) = &self.conversation.context {
+                        context = updated_context.clone();
+                    }
+                    should_yield = false;
+                    is_complete = false;
+                }
+            }
         }
-
-        // Fire the End lifecycle event (title will be set here by the hook)
-        self.hook
-            .handle(
-                &LifecycleEvent::End(EventData::new(
-                    self.agent.clone(),
-                    model_id.clone(),
-                    EndPayload,
-                )),
-                &mut self.conversation,
-            )
-            .await?;
-
-        self.services.update(self.conversation.clone()).await?;
 
         // Signal Task Completion
         if is_complete {

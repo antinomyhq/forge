@@ -385,6 +385,10 @@ async fn test_multiple_consecutive_tool_calls() {
             ChatCompletionMessage::assistant("Reading 3").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Reading 4").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Completing Task").finish_reason(FinishReason::Stop),
+            // Extra responses for doom loop reminder iterations (detector triggers on each request
+            // after 4th tool call)
+            ChatCompletionMessage::assistant("Acknowledged").finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Task complete").finish_reason(FinishReason::Stop),
         ]);
 
     let _ = ctx.run("Read a file").await;
@@ -419,6 +423,10 @@ async fn test_doom_loop_detection_adds_user_reminder_after_repeated_calls_on_nex
             ChatCompletionMessage::assistant("Call 3").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Call 4").add_tool_call(tool_call.clone()),
             ChatCompletionMessage::assistant("Done").finish_reason(FinishReason::Stop),
+            // Extra responses for doom loop reminder iterations (detector triggers on each request
+            // after 4th tool call)
+            ChatCompletionMessage::assistant("Noted").finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant("Actually done now").finish_reason(FinishReason::Stop),
         ]);
 
     ctx.run("Test doom loop").await.unwrap();
@@ -598,6 +606,10 @@ async fn test_todo_enforcement_injects_reminder() {
     // Test: When the orchestrator receives a Stop response but there are pending
     // todos, the PendingTodosHandler hook should inject a formatted reminder
     // message into the context listing all outstanding items.
+    // NOTE: Since the End hook now adds reminders and triggers the outer loop
+    // to continue, the orchestrator will loop until todos are completed. We
+    // provide enough mock responses to verify the reminder is injected, and
+    // allow the test to exhaust mock responses (which is expected).
     use forge_domain::{Metrics, Todo, TodoStatus};
 
     let mut ctx = TestContext::default()
@@ -605,12 +617,20 @@ async fn test_todo_enforcement_injects_reminder() {
             // LLM tries to finish but has pending todos - reminder will be injected
             ChatCompletionMessage::assistant(Content::full("Task is done"))
                 .finish_reason(FinishReason::Stop),
+            // Second response after the first reminder is injected
+            // Handler won't add duplicate reminder, so this will complete
+            ChatCompletionMessage::assistant(Content::full(
+                "I see there are pending todos. Let me continue.",
+            ))
+            .finish_reason(FinishReason::Stop),
         ])
         .initial_metrics(Metrics::default().todos(vec![
             Todo::new("Pending task 1").status(TodoStatus::Pending),
             Todo::new("In progress task").status(TodoStatus::InProgress),
         ]));
 
+    // Run the orchestrator - after first reminder, handler won't add duplicates
+    // so the second response will complete successfully
     ctx.run("Complete this task").await.unwrap();
 
     let messages = ctx.output.context_messages();
@@ -636,7 +656,6 @@ async fn test_todo_enforcement_injects_reminder() {
         "Reminder should list in-progress items with status"
     );
 }
-
 #[tokio::test]
 async fn test_complete_when_no_pending_todos() {
     // Test: is_complete = true when there are no pending todos (only

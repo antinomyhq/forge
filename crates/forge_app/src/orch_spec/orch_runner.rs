@@ -138,7 +138,7 @@ impl Runner {
         .hook(Arc::new(
             Hook::default()
                 .on_request(DoomLoopDetector::default())
-                .on_response(PendingTodosHandler::new()),
+                .on_end(PendingTodosHandler::new()),
         ))
         .sender(tx);
 

@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, FinishReason, ResponsePayload, Template,
-    TodoStatus,
+    ContextMessage, Conversation, EndPayload, EventData, EventHandle, Template, TodoStatus,
 };
 use forge_template::Element;
 use serde::Serialize;
@@ -38,25 +37,28 @@ impl PendingTodosHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<ResponsePayload>> for PendingTodosHandler {
+impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
     async fn handle(
         &self,
-        event: &EventData<ResponsePayload>,
+        _event: &EventData<EndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        let message = &event.payload.message;
-
-        // Only act when the model signals completion (stop + no tool calls)
-        let is_complete =
-            message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
-
-        if !is_complete {
-            return Ok(());
-        }
-
         let pending_todos = conversation.metrics.get_active_todos();
         if pending_todos.is_empty() {
             return Ok(());
+        }
+
+        // Check if a reminder was already added to avoid duplicates
+        if let Some(context) = &conversation.context {
+            let has_existing_reminder = context.messages.iter().any(|entry| {
+                entry
+                    .message
+                    .content()
+                    .map_or(false, |content| content.contains("pending todo items"))
+            });
+            if has_existing_reminder {
+                return Ok(());
+            }
         }
 
         let todo_items: Vec<TodoReminderItem> = pending_todos
@@ -91,8 +93,8 @@ impl EventHandle<EventData<ResponsePayload>> for PendingTodosHandler {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Agent, ChatCompletionMessageFull, Context, Conversation, EventData, EventHandle,
-        FinishReason, Metrics, ModelId, ResponsePayload, Todo, TodoStatus, ToolCallFull, ToolName,
+        Agent, Context, Conversation, EndPayload, EventData, EventHandle, Metrics, ModelId, Todo,
+        TodoStatus,
     };
     use pretty_assertions::assert_eq;
 
@@ -113,34 +115,14 @@ mod tests {
         conversation
     }
 
-    fn fixture_event(
-        finish_reason: Option<FinishReason>,
-        has_tool_calls: bool,
-    ) -> EventData<ResponsePayload> {
-        let mut message = ChatCompletionMessageFull {
-            content: String::new(),
-            thought_signature: None,
-            reasoning: None,
-            reasoning_details: None,
-            tool_calls: vec![],
-            usage: Default::default(),
-            finish_reason,
-            phase: None,
-        };
-        if has_tool_calls {
-            message.tool_calls = vec![ToolCallFull::new(ToolName::from("test-tool"))];
-        }
-        EventData::new(
-            fixture_agent(),
-            ModelId::new("test-model"),
-            ResponsePayload::new(message),
-        )
+    fn fixture_event() -> EventData<EndPayload> {
+        EventData::new(fixture_agent(), ModelId::new("test-model"), EndPayload)
     }
 
     #[tokio::test]
     async fn test_no_pending_todos_does_nothing() {
         let handler = PendingTodosHandler::new();
-        let event = fixture_event(Some(FinishReason::Stop), false);
+        let event = fixture_event();
         let mut conversation = fixture_conversation(vec![]);
 
         let initial_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -154,7 +136,7 @@ mod tests {
     #[tokio::test]
     async fn test_pending_todos_injects_reminder() {
         let handler = PendingTodosHandler::new();
-        let event = fixture_event(Some(FinishReason::Stop), false);
+        let event = fixture_event();
         let mut conversation = fixture_conversation(vec![
             Todo::new("Fix the build").status(TodoStatus::Pending),
             Todo::new("Write tests").status(TodoStatus::InProgress),
@@ -170,7 +152,7 @@ mod tests {
     #[tokio::test]
     async fn test_reminder_contains_formatted_list() {
         let handler = PendingTodosHandler::new();
-        let event = fixture_event(Some(FinishReason::Stop), false);
+        let event = fixture_event();
         let mut conversation = fixture_conversation(vec![
             Todo::new("Fix the build").status(TodoStatus::Pending),
             Todo::new("Write tests").status(TodoStatus::InProgress),
@@ -185,39 +167,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tool_calls_present_does_not_trigger() {
-        let handler = PendingTodosHandler::new();
-        let event = fixture_event(Some(FinishReason::Stop), true);
-        let mut conversation =
-            fixture_conversation(vec![Todo::new("Fix the build").status(TodoStatus::Pending)]);
-
-        let initial_msg_count = conversation.context.as_ref().unwrap().messages.len();
-        handler.handle(&event, &mut conversation).await.unwrap();
-
-        let actual = conversation.context.as_ref().unwrap().messages.len();
-        let expected = initial_msg_count;
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_non_stop_finish_reason_does_not_trigger() {
-        let handler = PendingTodosHandler::new();
-        let event = fixture_event(Some(FinishReason::Length), false);
-        let mut conversation =
-            fixture_conversation(vec![Todo::new("Fix the build").status(TodoStatus::Pending)]);
-
-        let initial_msg_count = conversation.context.as_ref().unwrap().messages.len();
-        handler.handle(&event, &mut conversation).await.unwrap();
-
-        let actual = conversation.context.as_ref().unwrap().messages.len();
-        let expected = initial_msg_count;
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
     async fn test_completed_todos_not_included() {
         let handler = PendingTodosHandler::new();
-        let event = fixture_event(Some(FinishReason::Stop), false);
+        let event = fixture_event();
         let mut conversation = fixture_conversation(vec![
             Todo::new("Completed task").status(TodoStatus::Completed),
             Todo::new("Cancelled task").status(TodoStatus::Cancelled),
