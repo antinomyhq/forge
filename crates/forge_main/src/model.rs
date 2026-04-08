@@ -92,6 +92,7 @@ impl ForgeCommandManager {
                 | "dump"
                 | "model"
                 | "tools"
+                | "provider"
                 | "login"
                 | "logout"
                 | "retry"
@@ -269,10 +270,9 @@ impl ForgeCommandManager {
             "/sage" => Ok(SlashCommand::Sage),
             "/help" => Ok(SlashCommand::Help),
             "/model" => Ok(SlashCommand::Model),
-            "/provider" => Ok(SlashCommand::Provider),
+            "/provider" | "/login" => Ok(SlashCommand::Login),
             "/tools" => Ok(SlashCommand::Tools),
             "/agent" => Ok(SlashCommand::Agent),
-            "/login" => Ok(SlashCommand::Login),
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
@@ -391,10 +391,6 @@ pub enum SlashCommand {
     /// This can be triggered with the '/model' command.
     #[strum(props(usage = "Switch to a different model"))]
     Model,
-    /// Switch or select the active provider
-    /// This can be triggered with the '/provider' command.
-    #[strum(props(usage = "Switch to a different provider"))]
-    Provider,
     /// List all available tools with their descriptions and schema
     /// This can be triggered with the '/tools' command.
     #[strum(props(usage = "List all available tools with their descriptions and schema"))]
@@ -469,7 +465,6 @@ impl SlashCommand {
             SlashCommand::Commit { .. } => "commit",
             SlashCommand::Dump { .. } => "dump",
             SlashCommand::Model => "model",
-            SlashCommand::Provider => "provider",
             SlashCommand::Tools => "tools",
             SlashCommand::Custom(event) => &event.name,
             SlashCommand::Shell(_) => "!shell",

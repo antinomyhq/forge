@@ -590,19 +590,17 @@
       "properties": {
         "model_id": {
           "description": "The model to use for this operation.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         },
         "provider_id": {
           "description": "The provider to use for this operation.",
-          "type": [
-            "string",
-            "null"
-          ]
+          "type": "string"
         }
-      }
+      },
+      "required": [
+        "provider_id",
+        "model_id"
+      ]
     },
     "ProviderAuthMethod": {
       "description": "Authentication method supported by a provider.\n\nOnly the simple (non-OAuth) methods are available here; providers that\nrequire OAuth device or authorization-code flows must be configured via the\nfile-based `provider.json` override instead.",
