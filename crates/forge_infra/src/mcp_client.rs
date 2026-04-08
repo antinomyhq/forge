@@ -333,7 +333,10 @@ impl ForgeMcpClient {
                 client_id: credentials.0,
                 token_response: credentials.1,
             };
-            let _ = save_store.save(stored).await;
+            save_store
+                .save(stored)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to save credentials: {}", e))?;
         }
 
         tracing::info!(
@@ -598,18 +601,9 @@ fn resolve_http_templates(
 /// * `server_url` - The URL of the MCP server to authenticate with
 /// * `env` - The environment for file system paths
 pub async fn mcp_auth(server_url: &str, env: &Environment) -> anyhow::Result<()> {
-    use rmcp::transport::auth::{AuthorizationManager, CredentialStore, OAuthState};
+    use rmcp::transport::auth::{CredentialStore, OAuthState};
 
     use crate::auth::McpTokenStorage;
-
-    let credential_store = McpTokenStorage::new(server_url.to_string(), env.clone());
-
-    // Create AuthorizationManager with credential store
-    let mut auth_manager = AuthorizationManager::new(server_url)
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create OAuth manager: {}", e))?;
-
-    auth_manager.set_credential_store(credential_store);
 
     // Start fresh OAuth flow via OAuthState
     let mut oauth_state = OAuthState::new(server_url, None)

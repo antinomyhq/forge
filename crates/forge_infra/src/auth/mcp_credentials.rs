@@ -82,9 +82,10 @@ impl McpCredentialStore {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mut perms = std::fs::metadata(&path)?.permissions();
+            let metadata = fs::metadata(&path).await?;
+            let mut perms = metadata.permissions();
             perms.set_mode(0o600);
-            std::fs::set_permissions(&path, perms)?;
+            fs::set_permissions(&path, perms).await?;
         }
         Ok(())
     }
