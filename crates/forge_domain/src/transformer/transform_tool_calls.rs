@@ -48,16 +48,17 @@ impl Transformer for TransformToolCalls {
                             crate::ToolValue::Image(image) => {
                                 // Attach image to the preceding user message
                                 // if possible, otherwise create a new one
-                                let attached = new_messages.iter_mut().rev().any(|entry| {
-                                    if let ContextMessage::Text(ref mut msg) = entry.message
-                                        && msg.role == Role::User
-                                    {
-                                        msg.images.push(image.clone());
-                                        return true;
+                                let last_user = new_messages.iter_mut().rev().find_map(|entry| {
+                                    if let ContextMessage::Text(ref mut msg) = entry.message {
+                                        if msg.role == Role::User {
+                                            return Some(msg);
+                                        }
                                     }
-                                    false
+                                    None
                                 });
-                                if !attached {
+                                if let Some(user_msg) = last_user {
+                                    user_msg.images.push(image);
+                                } else {
                                     let msg = TextMessage::new(Role::User, "[image attachment]")
                                         .add_image(image);
                                     new_messages.push(ContextMessage::Text(msg).into());

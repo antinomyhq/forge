@@ -227,6 +227,9 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                         }));
                     }
                     Role::Assistant => {
+                        // Note: images on assistant messages are intentionally not
+                        // serialized — only user messages carry image attachments.
+                        // The API does not support images in assistant content.
                         if !message.content.trim().is_empty() {
                             items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
                                 r#type: oai::MessageType::Message,

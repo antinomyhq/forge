@@ -687,25 +687,18 @@ mod tests {
             })
             .into(),
             forge_domain::MessageEntry {
-                message: ContextMessage::Text(forge_domain::TextMessage {
-                    role: Role::Assistant,
-                    content: "Assistant response".to_string(),
-                    raw_content: None,
-                    tool_calls: Some(vec![ToolCallFull {
-                        name: ToolName::new("another_tool"),
-                        call_id: Some(ToolCallId::new("call_456".to_string())),
-                        arguments: forge_domain::ToolCallArguments::from(
-                            serde_json::json!({"param": "value"}),
-                        ),
-                        thought_signature: None,
-                    }]),
-                    model: Some(forge_domain::ModelId::from("gpt-4")),
-                    thought_signature: None,
-                    reasoning_details: None,
-                    droppable: false,
-                    phase: None,
-                    images: vec![],
-                }),
+                message: ContextMessage::Text(
+                    forge_domain::TextMessage::new(Role::Assistant, "Assistant response")
+                        .tool_calls(vec![ToolCallFull {
+                            name: ToolName::new("another_tool"),
+                            call_id: Some(ToolCallId::new("call_456".to_string())),
+                            arguments: forge_domain::ToolCallArguments::from(
+                                serde_json::json!({"param": "value"}),
+                            ),
+                            thought_signature: None,
+                        }])
+                        .model(forge_domain::ModelId::from("gpt-4")),
+                ),
                 usage: Some(Usage {
                     prompt_tokens: forge_domain::TokenCount::Actual(100),
                     completion_tokens: forge_domain::TokenCount::Actual(50),
