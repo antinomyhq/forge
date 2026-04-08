@@ -404,6 +404,24 @@ impl<
         self.services.get_provider(provider_id).await
     }
 
+    async fn mcp_auth(&self, server_url: &str) -> Result<()> {
+        let env = self.services.get_environment().clone();
+        forge_infra::mcp_auth(server_url, &env).await
+    }
+
+    async fn mcp_logout(&self, server_url: Option<&str>) -> Result<()> {
+        let env = self.services.get_environment().clone();
+        match server_url {
+            Some(url) => forge_infra::mcp_logout(url, &env).await,
+            None => forge_infra::mcp_logout_all(&env).await,
+        }
+    }
+
+    async fn mcp_auth_status(&self, server_url: &str) -> Result<String> {
+        let env = self.services.get_environment().clone();
+        Ok(forge_infra::mcp_auth_status(server_url, &env).await)
+    }
+
     fn hydrate_channel(&self) -> Result<()> {
         self.infra.hydrate();
         Ok(())

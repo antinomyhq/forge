@@ -538,6 +538,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                     self.api.reload_mcp().await?;
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
+                McpCommand::Login(args) => {
+                    self.handle_mcp_login(&args.name).await?;
+                }
+                McpCommand::Logout(args) => {
+                    self.handle_mcp_logout(&args.name).await?;
+                }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
                 // Only initialize state (agent/provider/model resolution).
@@ -547,10 +553,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.init_state(false).await?;
 
                 self.on_info(porcelain, conversation_id).await?;
-                return Ok(());
-            }
-            TopLevelCommand::Env => {
-                self.on_env().await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -822,6 +824,122 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             "Successfully deleted conversation '{}'",
             conversation_id
         )))?;
+        Ok(())
+    }
+
+    /// Handle `mcp login <name>` command.
+    ///
+    /// Triggers the OAuth authentication flow for the specified MCP server.
+    /// Uses the API layer which delegates to rmcp's OAuth state machine
+    /// for metadata discovery, dynamic registration, PKCE, and token exchange.
+    async fn handle_mcp_login(&mut self, name: &str) -> anyhow::Result<()> {
+        let server_name = forge_api::ServerName::from(name.to_string());
+        let config = self.api.read_mcp_config(None).await?;
+        let server = config.mcp_servers.get(&server_name);
+
+        match server {
+            Some(forge_domain::McpServerConfig::Http(http)) => {
+                // Check auth status first
+                let status = self.api.mcp_auth_status(&http.url).await?;
+                if status == "authenticated" {
+                    self.writeln_title(TitleFormat::info(
+                        format!("MCP server '{}' is already authenticated. Use 'mcp logout {}' first to re-authenticate.", name, name)
+                    ))?;
+                    return Ok(());
+                }
+
+                // Force re-auth by removing any stale credentials
+                let _ = self.api.mcp_logout(Some(&http.url)).await;
+
+                // Run the OAuth flow (opens browser, waits for callback)
+                match self.api.mcp_auth(&http.url).await {
+                    Ok(()) => {
+                        self.writeln_title(TitleFormat::info(format!(
+                            "Successfully authenticated with MCP server '{}'",
+                            name
+                        )))?;
+                        // Reload MCP to reconnect with new credentials
+                        self.spinner.start(Some("Reloading MCPs"))?;
+                        match self.api.reload_mcp().await {
+                            Ok(()) => {
+                                self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+                            }
+                            Err(e) => {
+                                self.writeln_title(TitleFormat::error(format!(
+                                    "MCP reload failed: {}",
+                                    e
+                                )))?;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        self.writeln_title(TitleFormat::error(format!(
+                            "Authentication with MCP server '{}' failed: {}",
+                            name, e
+                        )))?;
+                    }
+                }
+            }
+            Some(_) => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "MCP server '{}' is not an HTTP server (OAuth only applies to HTTP servers)",
+                    name
+                )))?;
+            }
+            None => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "MCP server '{}' not found. Use 'mcp list' to see available servers.",
+                    name
+                )))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle `mcp logout <name>` command.
+    ///
+    /// Removes stored OAuth credentials for the specified MCP server
+    /// or all servers if "all" is specified.
+    /// Automatically reloads MCPs after logout to reflect auth state change.
+    async fn handle_mcp_logout(&mut self, name: &str) -> anyhow::Result<()> {
+        if name == "all" {
+            self.api.mcp_logout(None).await?;
+            self.writeln_title(TitleFormat::info("Removed all MCP OAuth credentials"))?;
+        } else {
+            let server_name = forge_api::ServerName::from(name.to_string());
+            let config = self.api.read_mcp_config(None).await?;
+            let server = config.mcp_servers.get(&server_name);
+
+            match server {
+                Some(forge_domain::McpServerConfig::Http(http)) => {
+                    self.api.mcp_logout(Some(&http.url)).await?;
+                    self.writeln_title(TitleFormat::info(format!(
+                        "Removed OAuth credentials for MCP server '{}'",
+                        name
+                    )))?;
+                }
+                Some(_) => {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "MCP server '{}' is not an HTTP server",
+                        name
+                    )))?;
+                    return Ok(());
+                }
+                None => {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "MCP server '{}' not found. Use 'mcp list' to see available servers.",
+                        name
+                    )))?;
+                    return Ok(());
+                }
+            }
+        }
+
+        // Reload MCPs to reflect auth state change
+        self.spinner.start(Some("Reloading MCPs"))?;
+        self.api.reload_mcp().await?;
+        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+
         Ok(())
     }
 
@@ -1325,69 +1443,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     /// Lists current configuration values
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let model = self
-            .get_agent_model(None)
-            .await
-            .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| markers::EMPTY.to_string());
-        let provider = self
-            .get_provider(None)
-            .await
-            .ok()
-            .map(|p| p.id.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let commit_config = self.api.get_commit_config().await.ok().flatten();
-        let commit_provider = commit_config
-            .as_ref()
-            .map(|c| c.provider.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let commit_model = commit_config
-            .as_ref()
-            .map(|c| c.model.as_str().to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
+        // Get the effective resolved config
+        let config = &self.config;
 
-        let suggest_config = self.api.get_suggest_config().await.ok().flatten();
-        let suggest_provider = suggest_config
-            .as_ref()
-            .map(|c| c.provider.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let suggest_model = suggest_config
-            .as_ref()
-            .map(|c| c.model.as_str().to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-
-        let reasoning_effort = self
-            .api
-            .get_reasoning_effort()
-            .await
-            .ok()
-            .flatten()
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-
-        let info = Info::new()
-            .add_title("SESSION")
-            .add_key_value("Model", model)
-            .add_key_value("Provider", provider)
-            .add_title("COMMIT")
-            .add_key_value("Model", commit_model)
-            .add_key_value("Provider", commit_provider)
-            .add_title("SUGGEST")
-            .add_key_value("Model", suggest_model)
-            .add_key_value("Provider", suggest_provider)
-            .add_title("REASONING")
-            .add_key_value("Effort", reasoning_effort);
+        // Serialize to TOML pretty format
+        let config_toml = toml_edit::ser::to_string_pretty(config)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?;
 
         if porcelain {
-            self.writeln(
-                Porcelain::from(&info)
-                    .into_long()
-                    .drop_col(0)
-                    .uppercase_headers(),
-            )?;
+            // For porcelain mode, output raw TOML without highlighting
+            self.writeln(config_toml)?;
         } else {
-            self.writeln(info)?;
+            // For human-readable mode, add a title and syntax-highlight the TOML
+            self.writeln("\nCONFIGURATION\n".bold().dimmed())?;
+            let highlighted =
+                forge_display::SyntaxHighlighter::default().highlight(&config_toml, "toml");
+            self.writeln(highlighted)?;
         }
+
         Ok(())
     }
 
@@ -1555,14 +1628,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             self.writeln(info)?;
         }
 
-        Ok(())
-    }
-
-    async fn on_env(&mut self) -> anyhow::Result<()> {
-        let env = self.api.environment();
-        let config = &self.config;
-        let info = Info::from(&env).extend(Info::from(config));
-        self.writeln(info)?;
         Ok(())
     }
 
@@ -1867,9 +1932,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
             SlashCommand::Info => {
                 self.on_info(false, self.state.conversation_id).await?;
-            }
-            SlashCommand::Env => {
-                self.on_env().await?;
             }
             SlashCommand::Usage => {
                 self.on_usage().await?;
@@ -3681,17 +3743,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .map(|val| val == "1")
             .unwrap_or(true); // Default to true
 
-        // Get currency symbol from environment variable, default to "$"
-        let currency_symbol =
-            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
-
-        // Get conversion ratio from environment variable, default to 1.0
-        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
-            .ok()
-            .and_then(|val| val.parse::<f64>().ok())
-            .unwrap_or(1.0);
-
-        let rprompt = ZshRPrompt::default()
+        let rprompt = ZshRPrompt::from_config(&self.config)
             .agent(
                 std::env::var("_FORGE_ACTIVE_AGENT")
                     .ok()
@@ -3701,9 +3753,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
-            .use_nerd_font(use_nerd_font)
-            .currency_symbol(currency_symbol)
-            .conversion_ratio(conversion_ratio);
+            .use_nerd_font(use_nerd_font);
 
         Some(rprompt.to_string())
     }

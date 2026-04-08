@@ -451,8 +451,9 @@ where
         &self,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
+        environment: &Environment,
     ) -> anyhow::Result<F::Client> {
-        self.infra.connect(config, env_vars).await
+        self.infra.connect(config, env_vars, environment).await
     }
 }
 
