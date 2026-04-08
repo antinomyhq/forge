@@ -470,6 +470,7 @@ impl From<forge_domain::ToolDefinition> for FunctionDeclaration {
 }
 
 impl From<ContextMessage> for Content {
+    #[allow(deprecated)]
     fn from(message: ContextMessage) -> Self {
         match message {
             ContextMessage::Text(text_message) => Content::from(text_message),

@@ -55,26 +55,19 @@ mod tests {
         // Create a context with stringified tool call arguments (like from old dump)
         let context = Context::default()
             .add_message(ContextMessage::system("You are Forge."))
-            .add_message(ContextMessage::Text(TextMessage {
-                role: Role::Assistant,
-                content: "I'll read the file.".to_string(),
-                raw_content: None,
-                tool_calls: Some(vec![ToolCallFull {
-                    name: ToolName::new("read"),
-                    call_id: Some(ToolCallId::new("call_001")),
-                    // This is what an old dump would have - stringified JSON
-                    arguments: ToolCallArguments::from_json(
-                        r#"{"file_path": "/test/path", "start_line": 1}"#,
-                    ),
-                    thought_signature: None,
-                }]),
-                thought_signature: None,
-                model: None,
-                reasoning_details: None,
-                droppable: false,
-                phase: None,
-                images: vec![],
-            }));
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "I'll read the file.").tool_calls(vec![
+                    ToolCallFull {
+                        name: ToolName::new("read"),
+                        call_id: Some(ToolCallId::new("call_001")),
+                        // This is what an old dump would have - stringified JSON
+                        arguments: ToolCallArguments::from_json(
+                            r#"{"file_path": "/test/path", "start_line": 1}"#,
+                        ),
+                        thought_signature: None,
+                    },
+                ]),
+            ));
 
         // Apply the transformer
         let mut transformer = NormalizeToolCallArguments::new();
@@ -133,26 +126,19 @@ mod tests {
         // Test that already Parsed arguments stay as Parsed
         let context = Context::default()
             .add_message(ContextMessage::system("You are Forge."))
-            .add_message(ContextMessage::Text(TextMessage {
-                role: Role::Assistant,
-                content: "I'll read the file.".to_string(),
-                raw_content: None,
-                tool_calls: Some(vec![ToolCallFull {
-                    name: ToolName::new("read"),
-                    call_id: Some(ToolCallId::new("call_001")),
-                    arguments: ToolCallArguments::Parsed(json!({
-                        "file_path": "/test/path",
-                        "start_line": 1
-                    })),
-                    thought_signature: None,
-                }]),
-                thought_signature: None,
-                model: None,
-                reasoning_details: None,
-                droppable: false,
-                phase: None,
-                images: vec![],
-            }));
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "I'll read the file.").tool_calls(vec![
+                    ToolCallFull {
+                        name: ToolName::new("read"),
+                        call_id: Some(ToolCallId::new("call_001")),
+                        arguments: ToolCallArguments::Parsed(json!({
+                            "file_path": "/test/path",
+                            "start_line": 1
+                        })),
+                        thought_signature: None,
+                    },
+                ]),
+            ));
 
         let mut transformer = NormalizeToolCallArguments::new();
         let normalized = transformer.transform(context);

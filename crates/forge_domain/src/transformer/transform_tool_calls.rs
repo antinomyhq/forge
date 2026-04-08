@@ -33,21 +33,9 @@ impl Transformer for TransformToolCalls {
                     if text_msg.role == Role::Assistant && text_msg.tool_calls.is_some() =>
                 {
                     // Add the assistant message without tool calls
-                    new_messages.push(
-                        ContextMessage::Text(TextMessage {
-                            role: text_msg.role,
-                            content: text_msg.content.clone(),
-                            raw_content: text_msg.raw_content.clone(),
-                            tool_calls: None,
-                            thought_signature: text_msg.thought_signature.clone(),
-                            reasoning_details: text_msg.reasoning_details.clone(),
-                            model: text_msg.model.clone(),
-                            droppable: text_msg.droppable,
-                            phase: text_msg.phase,
-                            images: text_msg.images.clone(),
-                        })
-                        .into(),
-                    );
+                    let mut msg = text_msg.clone();
+                    msg.tool_calls = None;
+                    new_messages.push(ContextMessage::Text(msg).into());
                 }
                 ContextMessage::Tool(tool_result) => {
                     // Convert tool results to user messages

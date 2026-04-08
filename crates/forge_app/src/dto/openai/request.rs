@@ -443,6 +443,7 @@ impl From<ToolCallFull> for ToolCall {
 }
 
 impl From<ContextMessage> for Message {
+    #[allow(deprecated)]
     fn from(value: ContextMessage) -> Self {
         match value {
             ContextMessage::Text(chat_message) => Message {

@@ -232,6 +232,7 @@ pub struct Message {
 
 impl TryFrom<ContextMessage> for Message {
     type Error = anyhow::Error;
+    #[allow(deprecated)]
     fn try_from(value: ContextMessage) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
             ContextMessage::Text(chat_message) => {

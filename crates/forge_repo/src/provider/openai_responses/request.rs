@@ -180,6 +180,7 @@ fn codex_tool_parameters(schema: &schemars::Schema) -> anyhow::Result<serde_json
 /// - tools + tool_choice
 /// - max_tokens, temperature, top_p
 impl FromDomain<ChatContext> for oai::CreateResponse {
+    #[allow(deprecated)]
     fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
         let prompt_cache_key = context.conversation_id.as_ref().map(ToString::to_string);
 
@@ -1205,6 +1206,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_codex_request_with_image_input_is_supported() -> anyhow::Result<()> {
         use forge_domain::Image;
 

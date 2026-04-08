@@ -285,6 +285,7 @@ fn create_message_usage_section(usage: &crate::message::Usage) -> Element {
     usage_div
 }
 
+#[allow(deprecated)]
 fn create_conversation_context_section(conversation: &Conversation) -> Element {
     let section = Element::new("div.section").append(Element::new("h2").text("Messages"));
 

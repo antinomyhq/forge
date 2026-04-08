@@ -214,6 +214,7 @@ pub struct TodoChange {
     pub kind: TodoChangeKind,
 }
 
+#[allow(deprecated)]
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
         let mut messages = vec![];
@@ -883,6 +884,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_context_summary_includes_image_note() {
         let fixture = context(vec![
             user("User message"),

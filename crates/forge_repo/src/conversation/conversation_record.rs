@@ -317,6 +317,8 @@ pub(super) struct TextMessageRecord {
     reasoning_details: Option<Vec<ReasoningFullRecord>>,
     #[serde(default, skip_serializing_if = "is_false")]
     droppable: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    images: Vec<ImageRecord>,
 }
 
 /// Helper function for serde to skip serializing false boolean values
@@ -341,6 +343,7 @@ impl From<&forge_domain::TextMessage> for TextMessageRecord {
                 .as_ref()
                 .map(|details| details.iter().map(ReasoningFullRecord::from).collect()),
             droppable: msg.droppable,
+            images: msg.images.iter().map(ImageRecord::from).collect(),
         }
     }
 }
@@ -363,7 +366,7 @@ impl TryFrom<TextMessageRecord> for forge_domain::TextMessage {
                 .map(|details| details.into_iter().map(Into::into).collect()),
             droppable: record.droppable,
             phase: None,
-            images: Vec::new(),
+            images: record.images.into_iter().map(Into::into).collect(),
         })
     }
 }
@@ -502,6 +505,7 @@ pub(super) enum ContextMessageValueRecord {
 }
 
 impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
+    #[allow(deprecated)]
     fn from(value: &forge_domain::ContextMessage) -> Self {
         match value {
             forge_domain::ContextMessage::Text(msg) => Self::Text(TextMessageRecord::from(msg)),
@@ -516,6 +520,7 @@ impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
 impl TryFrom<ContextMessageValueRecord> for forge_domain::ContextMessage {
     type Error = anyhow::Error;
 
+    #[allow(deprecated)]
     fn try_from(record: ContextMessageValueRecord) -> anyhow::Result<Self> {
         Ok(match record {
             ContextMessageValueRecord::Text(msg) => Self::Text(msg.try_into()?),
@@ -988,23 +993,22 @@ impl TryFrom<ConversationRecord> for forge_domain::Conversation {
         let id = ConversationId::parse(conversation_id.clone())
             .with_context(|| format!("Failed to parse conversation ID: {}", conversation_id))?;
 
-        let context = if let Some(context_str) = record.context {
-            Some(
-                serde_json::from_str::<ContextRecord>(&context_str)
-                    .with_context(|| {
-                        format!(
-                            "Failed to deserialize context for conversation {}",
-                            conversation_id
-                        )
-                    })?
-                    .try_into()
-                    .with_context(|| {
-                        format!(
-                            "Failed to convert context record to domain type for conversation {}",
-                            conversation_id
-                        )
-                    })?,
-            )
+        let context: Option<Context> = if let Some(context_str) = record.context {
+            let ctx: Context = serde_json::from_str::<ContextRecord>(&context_str)
+                .with_context(|| {
+                    format!(
+                        "Failed to deserialize context for conversation {}",
+                        conversation_id
+                    )
+                })?
+                .try_into()
+                .with_context(|| {
+                    format!(
+                        "Failed to convert context record to domain type for conversation {}",
+                        conversation_id
+                    )
+                })?;
+            Some(ctx.merge_standalone_images())
         } else {
             None
         };
@@ -1026,5 +1030,24 @@ impl TryFrom<ConversationRecord> for forge_domain::Conversation {
                 forge_domain::MetaData::new(record.created_at.and_utc())
                     .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
             ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_text_message_record_round_trip_with_images() {
+        let image = forge_domain::Image::new_base64("iVBORw0KGgo=".to_string(), "image/png");
+        let fixture = forge_domain::TextMessage::new(forge_domain::Role::User, "Look at this")
+            .add_image(image);
+
+        let record = TextMessageRecord::from(&fixture);
+        let actual: forge_domain::TextMessage = record.try_into().unwrap();
+
+        assert_eq!(actual, fixture);
     }
 }

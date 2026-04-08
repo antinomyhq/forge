@@ -672,6 +672,7 @@ impl FromDomain<Vec<forge_domain::ContextMessage>> for aws_sdk_bedrockruntime::t
 
 /// Converts a domain ContextMessage to a Bedrock Message
 impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types::Message {
+    #[allow(deprecated)]
     fn from_domain(msg: forge_domain::ContextMessage) -> anyhow::Result<Self> {
         use anyhow::Context as _;
         use aws_sdk_bedrockruntime::primitives::Blob;
