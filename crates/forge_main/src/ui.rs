@@ -3727,8 +3727,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .filter(|text| !text.trim().is_empty())
             .and_then(|str| ConversationId::from_str(str.as_str()).ok());
 
+        let agent_id = std::env::var("_FORGE_ACTIVE_AGENT")
+            .ok()
+            .filter(|text| !text.trim().is_empty())
+            .map(AgentId::new);
+
         // Make IO calls in parallel
-        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
+        let (model_id, conversation) = tokio::join!(self.get_agent_model(agent_id.clone()), async {
             if let Some(cid) = cid {
                 self.api.conversation(&cid).await.ok().flatten()
             } else {
@@ -3755,12 +3760,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .unwrap_or(true); // Default to true
 
         let rprompt = ZshRPrompt::from_config(&self.config)
-            .agent(
-                std::env::var("_FORGE_ACTIVE_AGENT")
-                    .ok()
-                    .filter(|text| !text.trim().is_empty())
-                    .map(AgentId::new),
-            )
+            .agent(agent_id)
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
