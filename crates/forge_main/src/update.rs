@@ -13,7 +13,7 @@ use update_informer::{Check, Version, registry};
 async fn execute_update_command(api: Arc<impl API>, auto_update: bool) {
     // Spawn a new task that won't block the main application
     let output = api
-        .execute_shell_command_raw("curl -fsSL https://forgecode.dev/cli | sh")
+        .execute_shell_command_raw("curl -fsSL https://raw.githubusercontent.com/Zetkolink/forgecode/main/scripts/install.sh | sh")
         .await;
 
     match output {
@@ -78,7 +78,7 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
         return;
     }
 
-    let informer = update_informer::new(registry::GitHub, "antinomyhq/forge", VERSION)
+    let informer = update_informer::new(registry::GitHub, "Zetkolink/forgecode", VERSION)
         .interval(frequency.into());
 
     if let Some(version) = informer.check_version().ok().flatten()
