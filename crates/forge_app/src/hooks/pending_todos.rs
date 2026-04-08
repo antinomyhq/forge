@@ -121,7 +121,7 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
         )?;
 
         if let Some(context) = conversation.context.as_mut() {
-            let content = Element::new("system_reminder").cdata(reminder);
+            let content = Element::new("system_reminder").text(reminder);
             context
                 .messages
                 .push(ContextMessage::user(content, None).into());

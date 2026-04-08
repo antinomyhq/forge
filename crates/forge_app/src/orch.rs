@@ -429,6 +429,8 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             }
         }
 
+        self.services.update(self.conversation.clone()).await?;
+
         // Signal Task Completion
         if is_complete {
             self.send(ChatResponse::TaskComplete).await?;
