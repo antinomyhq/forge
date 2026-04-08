@@ -6,9 +6,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
-    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload,
-    ResponsePayload, Role, StartPayload, StopBlocked, ToolCallArguments, ToolcallEndPayload,
-    ToolcallStartPayload, UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
+    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload, ResponsePayload,
+    Role, StartPayload, StopBlocked, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload,
+    UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
 };
 use forge_template::Element;
 use regex::Regex;
@@ -598,23 +598,23 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
         }
 
         // Extract the last assistant message text for the Stop hook payload.
-        let last_assistant_message = conversation
-            .context
-            .as_ref()
-            .and_then(|ctx| {
-                ctx.messages
-                    .iter()
-                    .rev()
-                    .find(|m| m.has_role(Role::Assistant))
-                    .and_then(|m| m.content())
-                    .map(|s| s.to_string())
-            });
+        let last_assistant_message = conversation.context.as_ref().and_then(|ctx| {
+            ctx.messages
+                .iter()
+                .rev()
+                .find(|m| m.has_role(Role::Assistant))
+                .and_then(|m| m.content())
+                .map(|s| s.to_string())
+        });
 
         let input = HookInput {
             hook_event_name: "Stop".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::Stop { stop_hook_active: was_active, last_assistant_message },
+            event_data: HookEventInput::Stop {
+                stop_hook_active: was_active,
+                last_assistant_message,
+            },
         };
 
         let results = self.execute_hooks(&hooks, &input).await;
@@ -1364,7 +1364,8 @@ mod tests {
     // Tests: UserPromptSubmit blocking must return Err(PromptSuppressed)
     // =========================================================================
 
-    /// Helper: creates a UserHookHandler with a given infra and UserPromptSubmit config.
+    /// Helper: creates a UserHookHandler with a given infra and
+    /// UserPromptSubmit config.
     fn prompt_submit_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
         let json =
             r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
@@ -1379,9 +1380,7 @@ mod tests {
     }
 
     /// Helper: creates a RequestPayload EventData with the given request_count.
-    fn request_event(
-        request_count: usize,
-    ) -> EventData<forge_domain::RequestPayload> {
+    fn request_event(request_count: usize) -> EventData<forge_domain::RequestPayload> {
         use forge_domain::{Agent, ModelId, ProviderId};
         let agent = Agent::new(
             "test-agent",
@@ -1395,7 +1394,8 @@ mod tests {
         )
     }
 
-    /// Helper: creates a Conversation with a context containing one user message.
+    /// Helper: creates a Conversation with a context containing one user
+    /// message.
     fn conversation_with_user_msg(msg: &str) -> forge_domain::Conversation {
         let mut conv = forge_domain::Conversation::generate();
         let mut ctx = forge_domain::Context::default();
@@ -1437,7 +1437,10 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.downcast_ref::<forge_domain::PromptSuppressed>().is_some());
+        assert!(
+            err.downcast_ref::<forge_domain::PromptSuppressed>()
+                .is_some()
+        );
         assert!(err.to_string().contains("policy violation"));
 
         // Feedback should have been injected into conversation
@@ -1480,7 +1483,10 @@ mod tests {
 
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.downcast_ref::<forge_domain::PromptSuppressed>().is_some());
+        assert!(
+            err.downcast_ref::<forge_domain::PromptSuppressed>()
+                .is_some()
+        );
         assert!(err.to_string().contains("Content policy"));
     }
 
@@ -1515,10 +1521,12 @@ mod tests {
         let result = handler.handle(&mut event, &mut conversation).await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .downcast_ref::<forge_domain::PromptSuppressed>()
-            .is_some());
+        assert!(
+            result
+                .unwrap_err()
+                .downcast_ref::<forge_domain::PromptSuppressed>()
+                .is_some()
+        );
     }
 
     #[tokio::test]
@@ -1819,10 +1827,10 @@ mod tests {
     // BUG-3 Tests: PostToolUse feedback must use <important> wrapper
     // =========================================================================
 
-    /// Helper: creates a UserHookHandler with PostToolUse config and given infra.
+    /// Helper: creates a UserHookHandler with PostToolUse config and given
+    /// infra.
     fn post_tool_use_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
-        let json =
-            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let json = r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         UserHookHandler::new(
             infra,
@@ -1833,7 +1841,8 @@ mod tests {
         )
     }
 
-    /// Helper: creates a ToolcallEndPayload EventData with a successful tool result.
+    /// Helper: creates a ToolcallEndPayload EventData with a successful tool
+    /// result.
     fn toolcall_end_event(
         tool_name: &str,
         is_error: bool,
@@ -2007,7 +2016,8 @@ mod tests {
             }
         }
 
-        let json = r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let json =
+            r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         let handler = UserHookHandler::new(
             FailureBlockInfra,
@@ -2056,10 +2066,7 @@ mod tests {
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
-        handler
-            .handle(&mut event, &mut conversation)
-            .await
-            .unwrap();
+        handler.handle(&mut event, &mut conversation).await.unwrap();
 
         let ctx = conversation.context.as_ref().unwrap();
         let last_msg = ctx.messages.last().unwrap();
