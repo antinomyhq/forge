@@ -77,7 +77,8 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
                             .filter(|line| line.starts_with("- ["))
                             .map(|line| {
                                 // Extract content after "- [STATUS] "
-                                line.split_once("] ").map(|x| x.1)
+                                line.split_once("] ")
+                                    .map(|x| x.1)
                                     .map(|s| s.to_string())
                                     .unwrap_or_default()
                             })
