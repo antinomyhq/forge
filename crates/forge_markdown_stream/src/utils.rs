@@ -1,7 +1,8 @@
 //! Utility functions for the markdown renderer.
 
-use streamdown_ansi::utils::{ansi_collapse, extract_ansi_codes, visible, visible_length};
-use unicode_width::UnicodeWidthChar;
+use streamdown_ansi::utils::{extract_ansi_codes, parse_sgr_params, visible, visible_length};
+use unicode_segmentation::UnicodeSegmentation;
+use unicode_width::UnicodeWidthStr;
 
 /// Terminal theme mode (dark or light).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +38,7 @@ struct WrapSegment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum WrapAtom {
     Escape(String),
-    Char(char),
+    Grapheme(String),
 }
 
 /// Wraps ANSI-styled text while preserving explicit whitespace between words.
@@ -182,18 +183,18 @@ fn take_prefix_fitting(text: &str, max_width: usize) -> Option<String> {
     for atom in parse_atoms(text) {
         match atom {
             WrapAtom::Escape(sequence) => result.push_str(&sequence),
-            WrapAtom::Char(ch) => {
-                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
-                if consumed_visible && width + char_width > max_width {
+            WrapAtom::Grapheme(grapheme) => {
+                let grapheme_width = UnicodeWidthStr::width(grapheme.as_str());
+                if consumed_visible && width + grapheme_width > max_width {
                     break;
                 }
-                if !consumed_visible && char_width > max_width {
-                    result.push(ch);
+                if !consumed_visible && grapheme_width > max_width {
+                    result.push_str(&grapheme);
                     break;
                 }
 
-                result.push(ch);
-                width += char_width;
+                result.push_str(&grapheme);
+                width += grapheme_width;
                 consumed_visible = true;
             }
         }
@@ -229,8 +230,8 @@ fn wrap_chunks(text: &str) -> Vec<WrapChunk> {
     for atom in parse_atoms(text) {
         match atom {
             WrapAtom::Escape(sequence) => current.push_str(&sequence),
-            WrapAtom::Char(ch) => {
-                let is_whitespace = ch.is_whitespace();
+            WrapAtom::Grapheme(grapheme) => {
+                let is_whitespace = grapheme.chars().all(char::is_whitespace);
                 match current_is_whitespace {
                     Some(kind) if kind != is_whitespace => {
                         chunks.push(WrapChunk {
@@ -245,7 +246,7 @@ fn wrap_chunks(text: &str) -> Vec<WrapChunk> {
                     _ => {}
                 }
 
-                current.push(ch);
+                current.push_str(&grapheme);
             }
         }
     }
@@ -269,9 +270,17 @@ fn parse_atoms(text: &str) -> Vec<WrapAtom> {
 
     while index < bytes.len() {
         if bytes[index] != 0x1b {
-            let ch = text[index..].chars().next().expect("slice should start at char boundary");
-            atoms.push(WrapAtom::Char(ch));
-            index += ch.len_utf8();
+            let next_escape = bytes[index..]
+                .iter()
+                .position(|byte| *byte == 0x1b)
+                .map(|offset| index + offset)
+                .unwrap_or(bytes.len());
+
+            for grapheme in text[index..next_escape].graphemes(true) {
+                atoms.push(WrapAtom::Grapheme(grapheme.to_string()));
+            }
+
+            index = next_escape;
             continue;
         }
 
@@ -315,7 +324,108 @@ fn parse_osc_escape(bytes: &[u8], start: usize) -> usize {
 
 fn apply_style_transition(current_style: &mut Vec<String>, text: &str) {
     current_style.extend(extract_ansi_codes(text));
-    *current_style = ansi_collapse(current_style, "");
+    *current_style = collapse_ansi_codes(current_style);
+}
+
+fn collapse_ansi_codes(code_list: &[String]) -> Vec<String> {
+    let mut bold = false;
+    let mut italic = false;
+    let mut underline = false;
+    let mut strikeout = false;
+    let mut dim = false;
+    let mut fg_color: Option<String> = None;
+    let mut bg_color: Option<String> = None;
+
+    for code in code_list {
+        let params = parse_sgr_params(code);
+        let mut index = 0;
+
+        while index < params.len() {
+            match params[index] {
+                0 => {
+                    bold = false;
+                    italic = false;
+                    underline = false;
+                    strikeout = false;
+                    dim = false;
+                    fg_color = None;
+                    bg_color = None;
+                }
+                1 => bold = true,
+                2 => dim = true,
+                3 => italic = true,
+                4 => underline = true,
+                9 => strikeout = true,
+                22 => {
+                    bold = false;
+                    dim = false;
+                }
+                23 => italic = false,
+                24 => underline = false,
+                29 => strikeout = false,
+                30..=37 | 90..=97 => fg_color = Some(format!("\x1b[{}m", params[index])),
+                39 => fg_color = None,
+                40..=47 | 100..=107 => bg_color = Some(format!("\x1b[{}m", params[index])),
+                49 => bg_color = None,
+                38 => {
+                    if index + 4 < params.len() && params[index + 1] == 2 {
+                        fg_color = Some(format!(
+                            "\x1b[38;2;{};{};{}m",
+                            params[index + 2],
+                            params[index + 3],
+                            params[index + 4]
+                        ));
+                        index += 4;
+                    }
+                }
+                48 => {
+                    if index + 4 < params.len() && params[index + 1] == 2 {
+                        bg_color = Some(format!(
+                            "\x1b[48;2;{};{};{}m",
+                            params[index + 2],
+                            params[index + 3],
+                            params[index + 4]
+                        ));
+                        index += 4;
+                    }
+                }
+                _ => {}
+            }
+
+            index += 1;
+        }
+    }
+
+    let mut result = Vec::new();
+    let mut sgr_parts = Vec::new();
+
+    if bold {
+        sgr_parts.push("1");
+    }
+    if dim {
+        sgr_parts.push("2");
+    }
+    if italic {
+        sgr_parts.push("3");
+    }
+    if underline {
+        sgr_parts.push("4");
+    }
+    if strikeout {
+        sgr_parts.push("9");
+    }
+
+    if !sgr_parts.is_empty() {
+        result.push(format!("\x1b[{}m", sgr_parts.join(";")));
+    }
+    if let Some(fg_color) = fg_color {
+        result.push(fg_color);
+    }
+    if let Some(bg_color) = bg_color {
+        result.push(bg_color);
+    }
+
+    result
 }
 
 fn push_wrapped_line(
@@ -409,5 +519,32 @@ mod tests {
         let expected = vec!["link".to_string(), "(https://x.co)".to_string()];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_simple_wrap_preserving_spaces_keeps_grapheme_clusters_intact() {
+        let fixture = "👨‍👩‍👧‍👦 a\u{0301} 한글";
+        let actual = simple_wrap_preserving_spaces(fixture, 2);
+        let expected = vec![
+            "👨‍👩‍👧‍👦".to_string(),
+            "a\u{0301}".to_string(),
+            "한".to_string(),
+            "글".to_string(),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_wrap_text_preserving_spaces_reapplies_ansi_style_after_wrap() {
+        let fixture = "\x1b[31mabcdef\x1b[39m";
+        let actual = wrap_text_preserving_spaces(fixture, 3, 3, "", "");
+        let expected_visible = vec!["abc".to_string(), "def".to_string()];
+        let actual_visible = actual.iter().map(|line| visible(line)).collect::<Vec<_>>();
+
+        assert_eq!(actual_visible, expected_visible);
+        assert!(actual[0].contains("\x1b[31m"));
+        assert!(actual[1].contains("\x1b[31m"));
+        assert!(actual[1].ends_with("\x1b[39m"));
     }
 }
