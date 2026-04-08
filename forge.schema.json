@@ -42,6 +42,24 @@
         }
       ]
     },
+    "currency_conversion_rate": {
+      "description": "Conversion rate applied to costs before display in the shell rprompt.\nThe raw USD cost is multiplied by this value, allowing costs to be shown\nin a local currency. Defaults to `1.0` (no conversion) when absent.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/double"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "currency_symbol": {
+      "description": "Currency symbol displayed in the shell rprompt next to the session cost\n(e.g. `\"$\"`, `\"€\"`, `\"₹\"`). Defaults to `\"$\"` when absent.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "custom_history_path": {
       "description": "Path to the conversation history file; defaults to the global history\nlocation when absent.",
       "type": [

@@ -265,6 +265,17 @@ pub struct ForgeConfig {
     /// selection.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub providers: Vec<ProviderEntry>,
+
+    /// Currency symbol displayed in the shell rprompt next to the session cost
+    /// (e.g. `"$"`, `"€"`, `"₹"`). Defaults to `"$"` when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub currency_symbol: Option<String>,
+
+    /// Conversion rate applied to costs before display in the shell rprompt.
+    /// The raw USD cost is multiplied by this value, allowing costs to be shown
+    /// in a local currency. Defaults to `1.0` (no conversion) when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub currency_conversion_rate: Option<Decimal>,
 }
 
 impl ForgeConfig {
