@@ -1,6 +1,9 @@
 services:
   workspace-server:
-    build: .
+    image: ghcr.io/zetkolink/forgecode/workspace-server:latest
+    # To build locally instead of pulling from GHCR, comment the image line above
+    # and uncomment the next line:
+    # build: .
     ports:
       - "50051:50051"
     environment:
