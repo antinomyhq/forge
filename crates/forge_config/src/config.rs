@@ -10,6 +10,7 @@ use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
 use crate::{
     AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
+    UserHookConfig,
 };
 
 /// Wire protocol a provider uses for chat completions.
@@ -265,6 +266,13 @@ pub struct ForgeConfig {
     /// selection.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub providers: Vec<ProviderEntry>,
+
+    /// User hook configuration loaded from the `[hooks]` section.
+    ///
+    /// Maps lifecycle event names (e.g. `PreToolUse`, `Stop`) to lists of
+    /// matcher groups that execute shell commands at each event point.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hooks: Option<UserHookConfig>,
 }
 
 impl ForgeConfig {
@@ -336,5 +344,39 @@ mod tests {
         let actual = ConfigReader::default().read_toml(&toml).build().unwrap();
 
         assert_eq!(actual.temperature, fixture.temperature);
+    }
+
+    #[test]
+    fn test_hooks_toml_round_trip() {
+        use crate::{UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType};
+
+        let mut events = std::collections::HashMap::new();
+        events.insert(
+            UserHookEventName::PreToolUse,
+            vec![UserHookMatcherGroup {
+                matcher: Some("Bash".to_string()),
+                hooks: vec![UserHookEntry {
+                    hook_type: UserHookType::Command,
+                    command: Some("check.sh".to_string()),
+                    timeout: Some(5000),
+                }],
+            }],
+        );
+        let fixture = ForgeConfig {
+            hooks: Some(UserHookConfig { events }),
+            ..Default::default()
+        };
+
+        let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
+        let actual: ForgeConfig = toml_edit::de::from_str(&toml).unwrap();
+
+        assert_eq!(actual.hooks, fixture.hooks);
+    }
+
+    #[test]
+    fn test_config_without_hooks_parses() {
+        let toml = "restricted = false\ntool_supported = true\n";
+        let actual: ForgeConfig = toml_edit::de::from_str(toml).unwrap();
+        assert_eq!(actual.hooks, None);
     }
 }

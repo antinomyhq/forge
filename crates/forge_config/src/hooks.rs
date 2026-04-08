@@ -58,7 +58,8 @@ pub enum UserHookEventName {
     PostToolUseFailure,
     /// Fired when the agent finishes responding. Can block stop to continue.
     Stop,
-    /// Fired when a notification is sent.
+    /// FIXME: Fired when a notification is sent; no lifecycle point fires this
+    /// event and no handler exists yet.
     Notification,
     /// Fired when a session starts or resumes.
     SessionStart,
@@ -66,17 +67,19 @@ pub enum UserHookEventName {
     SessionEnd,
     /// Fired when a user prompt is submitted.
     UserPromptSubmit,
-    /// Fired before context compaction.
+    /// FIXME: Fired before context compaction; no lifecycle point fires this
+    /// event and no handler exists yet.
     PreCompact,
-    /// Fired after context compaction.
+    /// FIXME: Fired after context compaction; no lifecycle point fires this
+    /// event and no handler exists yet.
     PostCompact,
-    /// Fired when a subagent starts.
+    /// FIXME: Fired when a subagent starts; no lifecycle point fires this
     SubagentStart,
-    /// Fired when a subagent stops.
+    /// FIXME: Fired when a subagent stops; no lifecycle point fires this
     SubagentStop,
-    /// Fired when a permission is requested.
+    /// FIXME: no lifecycle point fires this
     PermissionRequest,
-    /// Fired during setup.
+    /// FIXME: no lifecycle point fires this
     Setup,
 }
 
@@ -141,14 +144,7 @@ mod tests {
 
     #[test]
     fn test_deserialize_pre_tool_use_hook() {
-        let toml = r#"
-[[PreToolUse]]
-matcher = "Bash"
-
-  [[PreToolUse.hooks]]
-  type = "command"
-  command = "echo 'blocked'"
-"#;
+        let toml = include_str!("fixtures/hook_pre_tool_use.toml");
         let actual: UserHookConfig = toml_edit::de::from_str(toml).unwrap();
         let groups = actual.get_groups(&UserHookEventName::PreToolUse);
 
@@ -164,26 +160,7 @@ matcher = "Bash"
 
     #[test]
     fn test_deserialize_multiple_events() {
-        let toml = r#"
-[[PreToolUse]]
-matcher = "Bash"
-
-  [[PreToolUse.hooks]]
-  type = "command"
-  command = "pre.sh"
-
-[[PostToolUse]]
-
-  [[PostToolUse.hooks]]
-  type = "command"
-  command = "post.sh"
-
-[[Stop]]
-
-  [[Stop.hooks]]
-  type = "command"
-  command = "stop.sh"
-"#;
+        let toml = include_str!("fixtures/hook_multiple_events.toml");
         let actual: UserHookConfig = toml_edit::de::from_str(toml).unwrap();
 
         assert_eq!(actual.get_groups(&UserHookEventName::PreToolUse).len(), 1);
@@ -198,14 +175,7 @@ matcher = "Bash"
 
     #[test]
     fn test_deserialize_hook_with_timeout() {
-        let toml = r#"
-[[PreToolUse]]
-
-  [[PreToolUse.hooks]]
-  type = "command"
-  command = "slow.sh"
-  timeout = 30000
-"#;
+        let toml = include_str!("fixtures/hook_with_timeout.toml");
         let actual: UserHookConfig = toml_edit::de::from_str(toml).unwrap();
         let groups = actual.get_groups(&UserHookEventName::PreToolUse);
 
@@ -214,13 +184,7 @@ matcher = "Bash"
 
     #[test]
     fn test_no_matcher_group_fires_unconditionally() {
-        let toml = r#"
-[[PostToolUse]]
-
-  [[PostToolUse.hooks]]
-  type = "command"
-  command = "always.sh"
-"#;
+        let toml = include_str!("fixtures/hook_no_matcher.toml");
         let actual: UserHookConfig = toml_edit::de::from_str(toml).unwrap();
         let groups = actual.get_groups(&UserHookEventName::PostToolUse);
 

@@ -1,5 +1,0 @@
-{
-  "PreToolUse": [
-    { "matcher": "Bash", "hooks": [{ "type": "command", "command": "hook1.sh" }] }
-  ]
-}

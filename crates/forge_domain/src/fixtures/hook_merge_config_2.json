@@ -1,8 +1,0 @@
-{
-  "PreToolUse": [
-    { "matcher": "Write", "hooks": [{ "type": "command", "command": "hook2.sh" }] }
-  ],
-  "Stop": [
-    { "hooks": [{ "type": "command", "command": "stop.sh" }] }
-  ]
-}
