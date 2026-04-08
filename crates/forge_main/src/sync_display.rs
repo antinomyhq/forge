@@ -49,7 +49,7 @@ impl SyncProgressDisplay for SyncProgress {
                     current, total, file_word
                 ))
             }
-            Self::Completed { uploaded_files, total_files, failed_files } => {
+            Self::Completed { uploaded_files, total_files, failed_files, failed_details } => {
                 if *uploaded_files == 0 && *failed_files == 0 {
                     Some(format!(
                         "Index up to date [{} {}]",
@@ -62,10 +62,14 @@ impl SyncProgressDisplay for SyncProgress {
                         pluralize(*uploaded_files),
                     ))
                 } else {
-                    Some(format!(
+                    let mut msg = format!(
                         "Sync completed with errors [{uploaded_files}/{total_files} {} updated, {failed_files} failed]",
                         pluralize(*uploaded_files),
-                    ))
+                    );
+                    for detail in failed_details {
+                        msg.push_str(&format!("\n    {} - {}", detail.path, detail.reason));
+                    }
+                    Some(msg)
                 }
             }
         }
@@ -127,7 +131,7 @@ mod tests {
     #[test]
     fn test_completed_no_uploads() {
         let fixture =
-            SyncProgress::Completed { uploaded_files: 0, total_files: 100, failed_files: 0 };
+            SyncProgress::Completed { uploaded_files: 0, total_files: 100, failed_files: 0, failed_details: vec![] };
         let actual = fixture.message();
         let expected = Some("Index up to date [100 files]".to_string());
         assert_eq!(actual, expected);
@@ -136,7 +140,7 @@ mod tests {
     #[test]
     fn test_completed_with_uploads() {
         let fixture =
-            SyncProgress::Completed { uploaded_files: 5, total_files: 100, failed_files: 0 };
+            SyncProgress::Completed { uploaded_files: 5, total_files: 100, failed_files: 0, failed_details: vec![] };
         let actual = fixture.message();
         let expected = Some("Sync completed successfully [5/100 files updated]".to_string());
         assert_eq!(actual, expected);
@@ -145,10 +149,30 @@ mod tests {
     #[test]
     fn test_completed_with_failures() {
         let fixture =
-            SyncProgress::Completed { uploaded_files: 5, total_files: 100, failed_files: 3 };
+            SyncProgress::Completed { uploaded_files: 5, total_files: 100, failed_files: 3, failed_details: vec![] };
         let actual = fixture.message();
         let expected =
             Some("Sync completed with errors [5/100 files updated, 3 failed]".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_completed_with_failure_details() {
+        use forge_domain::SyncFailureDetail;
+        let fixture = SyncProgress::Completed {
+            uploaded_files: 5,
+            total_files: 100,
+            failed_files: 2,
+            failed_details: vec![
+                SyncFailureDetail::new("src/foo.json", "embedding failed"),
+                SyncFailureDetail::new("src/bar.json", "failed to read file"),
+            ],
+        };
+        let actual = fixture.message();
+        let expected = Some(
+            "Sync completed with errors [5/100 files updated, 2 failed]\n    src/foo.json - embedding failed\n    src/bar.json - failed to read file"
+                .to_string(),
+        );
         assert_eq!(actual, expected);
     }
 

@@ -5,6 +5,22 @@ use uuid::Uuid;
 
 use crate::WorkspaceId;
 
+/// Detail about a single file that failed during sync.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SyncFailureDetail {
+    /// Relative path of the file that failed
+    pub path: String,
+    /// Short human-readable reason for the failure
+    pub reason: String,
+}
+
+impl SyncFailureDetail {
+    /// Creates a new sync failure detail.
+    pub fn new(path: impl Into<String>, reason: impl Into<String>) -> Self {
+        Self { path: path.into(), reason: reason.into() }
+    }
+}
+
 /// Progress events emitted during workspace indexing
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncProgress {
@@ -58,6 +74,8 @@ pub enum SyncProgress {
         uploaded_files: usize,
         /// Number of files that failed to sync
         failed_files: usize,
+        /// Details of failed files: (relative_path, short_reason)
+        failed_details: Vec<SyncFailureDetail>,
     },
 }
 

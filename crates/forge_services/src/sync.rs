@@ -3,7 +3,10 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_app::{FileReaderInfra, SyncProgressCounter, WorkspaceStatus, compute_hash};
-use forge_domain::{ApiKey, FileHash, SyncProgress, UserId, WorkspaceId, WorkspaceIndexRepository};
+use forge_domain::{
+    ApiKey, FileHash, SyncFailureDetail, SyncProgress, UserId, WorkspaceId,
+    WorkspaceIndexRepository,
+};
 use futures::stream::{Stream, StreamExt};
 use tracing::{info, warn};
 
@@ -41,6 +44,44 @@ fn extract_failed_statuses<T>(results: &[Result<T>]) -> Vec<forge_domain::FileSt
             )
         })
         .collect()
+}
+
+/// Extracts a concise reason from an anyhow error chain, looking for the most
+/// informative inner cause.
+fn extract_short_reason(err: &anyhow::Error) -> String {
+    // Walk the chain and pick the deepest cause (most specific)
+    let root = err.chain().last().unwrap_or(err.as_ref());
+    let msg = root.to_string();
+
+    // Try to extract a short message from gRPC-style errors
+    // Format: message: "Embedding failed for /path: actual reason"
+    if let Some(start) = msg.find("message: \"") {
+        let rest = &msg[start + 10..];
+        if let Some(end) = rest.find('"') {
+            let inner = &rest[..end];
+            // Strip "Prefix for /path: " pattern to get just the reason
+            if let Some(colon_pos) = inner.rfind(": ") {
+                return inner[colon_pos + 2..].to_string();
+            }
+            return inner.to_string();
+        }
+    }
+
+    // Truncate long messages
+    if msg.len() > 120 {
+        format!("{}...", &msg[..120])
+    } else {
+        msg
+    }
+}
+
+/// Strips `workspace_root` prefix from `path` to produce a relative path
+/// string for display.
+fn make_relative(path: &std::path::Path, workspace_root: &std::path::Path) -> String {
+    path.strip_prefix(workspace_root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Handles all sync operations for a workspace.
@@ -138,6 +179,17 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
             .iter()
             .filter(|s| s.status == forge_domain::SyncStatus::Failed)
             .count();
+        let mut failed_details: Vec<SyncFailureDetail> = statuses
+            .iter()
+            .filter(|s| s.status == forge_domain::SyncStatus::Failed)
+            .map(|s| {
+                let rel = make_relative(
+                    std::path::Path::new(&s.path),
+                    &self.workspace_root,
+                );
+                SyncFailureDetail::new(rel, "failed to read file")
+            })
+            .collect();
 
         // Compute total number of affected files
         let total_file_changes = added + deleted + modified;
@@ -163,6 +215,13 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
             }
             Err(e) => {
                 warn!(workspace_id = %self.workspace_id, error = ?e, "Failed to delete files during sync");
+                let reason = extract_short_reason(&e);
+                for path in &sync_paths.delete {
+                    failed_details.push(SyncFailureDetail::new(
+                        make_relative(path, &self.workspace_root),
+                        &reason,
+                    ));
+                }
                 failed_files += sync_paths.delete.len();
             }
         }
@@ -174,12 +233,17 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
             match result {
-                Ok(count) => {
+                Ok((count, _path)) => {
                     counter.complete(count);
                     emit(counter.sync_progress()).await;
                 }
-                Err(e) => {
-                    warn!(workspace_id = %self.workspace_id, error = ?e, "Failed to upload file during sync");
+                Err((path, e)) => {
+                    let reason = extract_short_reason(&e);
+                    warn!(workspace_id = %self.workspace_id, path = %path.display(), reason = %reason, "Failed to upload file during sync");
+                    failed_details.push(SyncFailureDetail::new(
+                        make_relative(&path, &self.workspace_root),
+                        reason,
+                    ));
                     failed_files += 1;
                     // Continue processing remaining uploads
                 }
@@ -196,6 +260,7 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
             total_files: total_file_count,
             uploaded_files: total_file_changes,
             failed_files,
+            failed_details,
         })
         .await;
 
@@ -272,7 +337,7 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
     fn upload_files(
         &self,
         paths: Vec<PathBuf>,
-    ) -> impl Stream<Item = Result<usize, anyhow::Error>> + Send {
+    ) -> impl Stream<Item = Result<(usize, PathBuf), (PathBuf, anyhow::Error)>> + Send {
         let user_id = self.user_id.clone();
         let workspace_id = self.workspace_id.clone();
         let token = self.token.clone();
@@ -293,7 +358,8 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
                         .await
                         .with_context(|| {
                             format!("Failed to read file '{}' for upload", file_path.display())
-                        })?;
+                        })
+                        .map_err(|e| (file_path.clone(), e))?;
                     let path_str = file_path.to_string_lossy().into_owned();
                     let file = forge_domain::FileRead::new(path_str, content);
                     let upload = forge_domain::CodeBase::new(
@@ -304,9 +370,10 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
                     infra
                         .upload_files(&upload, &token)
                         .await
-                        .context("Failed to upload files")?;
+                        .context("Failed to upload files")
+                        .map_err(|e| (file_path.clone(), e))?;
                     info!(workspace_id = %workspace_id, path = %file_path.display(), "File sync completed");
-                    Ok::<_, anyhow::Error>(1)
+                    Ok((1, file_path))
                 }
             })
             .buffer_unordered(batch_size)
