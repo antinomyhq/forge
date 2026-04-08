@@ -19,8 +19,8 @@ use crate::tool_registry::ToolRegistry;
 use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentExt, AgentProviderResolver, ConversationService, FileDiscoveryService, ProviderService,
-    Services,
+    AgentExt, AgentProviderResolver, ConversationService, EnvironmentInfra, FileDiscoveryService,
+    ProviderService, Services,
 };
 
 /// Builds a [`TemplateConfig`] from a [`ForgeConfig`].
@@ -44,17 +44,12 @@ pub(crate) fn build_template_config(config: &ForgeConfig) -> forge_domain::Templ
 pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
-    config: ForgeConfig,
 }
 
-impl<S: Services> ForgeApp<S> {
-    /// Creates a new ForgeApp instance with the provided services and config.
-    pub fn new(services: Arc<S>, config: ForgeConfig) -> Self {
-        Self {
-            tool_registry: ToolRegistry::new(services.clone(), config.clone()),
-            services,
-            config,
-        }
+impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeApp<S> {
+    /// Creates a new ForgeApp instance with the provided services.
+    pub fn new(services: Arc<S>) -> Self {
+        Self { tool_registry: ToolRegistry::new(services.clone()), services }
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -73,7 +68,7 @@ impl<S: Services> ForgeApp<S> {
             .ok_or_else(|| forge_domain::Error::ConversationNotFound(chat.conversation_id))?;
 
         // Discover files using the discovery service
-        let forge_config = self.config.clone();
+        let forge_config = self.services.get_config()?;
         let environment = services.get_environment();
 
         let files = services.list_current_directory().await?;
@@ -136,7 +131,7 @@ impl<S: Services> ForgeApp<S> {
 
         // Detect and render externally changed files notification
         let conversation = ChangedFiles::new(services.clone(), agent.clone())
-            .update_file_stats(conversation, forge_config.max_parallel_file_reads)
+            .update_file_stats(conversation)
             .await;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);
@@ -159,14 +154,11 @@ impl<S: Services> ForgeApp<S> {
             .on_toolcall_end(tracing_handler.clone())
             .on_end(tracing_handler.and(title_handler));
 
-        let retry_config = forge_config.retry.clone().unwrap_or_default();
-
         let orch = Orchestrator::new(
             services.clone(),
-            retry_config,
             conversation,
             agent,
-            forge_config,
+            self.services.get_config()?,
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
@@ -229,7 +221,7 @@ impl<S: Services> ForgeApp<S> {
         let original_messages = context.messages.len();
         let original_token_count = *context.token_count();
 
-        let forge_config = self.config.clone();
+        let forge_config = self.services.get_config()?;
 
         // Get agent and apply workflow config
         let agent = self.services.get_agent(&active_agent_id).await?;

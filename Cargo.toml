@@ -126,6 +126,7 @@ rmcp = { version = "0.10.0", features = [
     "transport-sse-client-reqwest",
     "transport-child-process",
     "transport-streamable-http-client-reqwest",
+    "auth",
 ] }
 open = "5.3.2"
 nucleo = "0.5.0"
