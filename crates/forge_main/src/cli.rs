@@ -103,9 +103,6 @@ pub enum TopLevelCommand {
         porcelain: bool,
     },
 
-    /// Display environment information.
-    Env,
-
     /// Get, set, or list configuration values.
     Config(ConfigCommandGroup),
 
