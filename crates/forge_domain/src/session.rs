@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
+use derive_setters::Setters;
 use tokio_util::sync::CancellationToken;
 
 use crate::{AgentId, ConversationId, ModelId};
@@ -17,7 +18,8 @@ pub enum SessionStatus {
     Expired,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Setters)]
+#[setters(strip_option, into)]
 pub struct SessionState {
     pub conversation_id: ConversationId,
     pub agent_id: AgentId,

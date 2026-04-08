@@ -499,6 +499,26 @@ impl From<ToolResult> for MessageContent {
                     };
                     parts.push(content);
                 }
+                ToolValue::FileDiff(file_diff) => {
+                    // Convert FileDiff to text representation
+                    let diff_text = format!(
+                        "File: {}\n\nNew content:\n{}",
+                        file_diff.path, file_diff.new_text
+                    );
+                    parts.push(ContentPart::Text { text: diff_text, cache_control: None });
+                }
+                ToolValue::Markdown(md) => {
+                    parts.push(ContentPart::Text { text: md, cache_control: None });
+                }
+                ToolValue::Pair(llm_value, _) => {
+                    // For OpenAI, use the LLM value (typically XML)
+                    if let Some(text) = llm_value.as_str() {
+                        parts.push(ContentPart::Text {
+                            text: text.to_string(),
+                            cache_control: None,
+                        });
+                    }
+                }
                 ToolValue::Empty => {
                     // Handle empty case if needed
                 }

@@ -9,7 +9,7 @@ use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
-use forge_template::Element;
+use forge_template::{Element, ElementBuilder, Markdown, Output, OutputPart};
 
 use crate::truncation::{
     Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
@@ -152,37 +152,41 @@ impl StreamElement for Stderr {
 fn create_stream_element<T: StreamElement>(
     stream: &T,
     full_output_path: Option<&Path>,
-) -> Option<Element> {
+) -> Option<OutputPart> {
     if stream.head_content().is_empty() {
         return None;
     }
 
-    let mut elem = Element::new(stream.stream_name()).attr("total_lines", stream.total_lines());
+    let mut builder = ElementBuilder::new(stream.stream_name())
+        .attr("total_lines", stream.total_lines().to_string());
 
-    elem = if let Some(((tail, tail_start), tail_end)) = stream
+    if let Some(((tail, tail_start), tail_end)) = stream
         .tail_content()
         .zip(stream.tail_start_line())
         .zip(stream.tail_end_line())
     {
-        elem.append(
-            Element::new("head")
-                .attr("display_lines", format!("1-{}", stream.head_end_line()))
-                .cdata(stream.head_content()),
-        )
-        .append(
-            Element::new("tail")
-                .attr("display_lines", format!("{tail_start}-{tail_end}"))
-                .cdata(tail),
-        )
+        builder = builder
+            .child(
+                ElementBuilder::new("head")
+                    .attr("display_lines", format!("1-{}", stream.head_end_line()))
+                    .cdata(stream.head_content())
+                    .build(),
+            )
+            .child(
+                ElementBuilder::new("tail")
+                    .attr("display_lines", format!("{tail_start}-{tail_end}"))
+                    .cdata(tail)
+                    .build(),
+            );
     } else {
-        elem.cdata(stream.head_content())
-    };
-
-    if let Some(path) = full_output_path {
-        elem = elem.attr("full_output", path.display());
+        builder = builder.cdata(stream.head_content());
     }
 
-    Some(elem)
+    if let Some(path) = full_output_path {
+        builder = builder.attr("full_output", path.display().to_string());
+    }
+
+    Some(builder.build())
 }
 
 /// Creates a validation warning element for syntax errors
@@ -191,22 +195,37 @@ fn create_stream_element<T: StreamElement>(
 /// * `path` - The file path
 /// * `errors` - Vector of syntax errors
 ///
-/// Returns an Element containing the formatted warning with all error details
-fn create_validation_warning(path: &str, errors: &[forge_domain::SyntaxError]) -> Element {
-    Element::new("warning")
-        .append(Element::new("message").text("Syntax validation failed"))
-        .append(Element::new("file").attr("path", path))
-        .append(Element::new("details").text(format!(
-            "The file was written successfully but contains {} syntax error(s)",
-            errors.len()
-        )))
-        .append(errors.iter().map(|error| {
-            Element::new("error")
+/// Returns an OutputPart containing the formatted warning with all error details
+fn create_validation_warning(path: &str, errors: &[forge_domain::SyntaxError]) -> OutputPart {
+    let mut builder = ElementBuilder::new("warning")
+        .child(ElementBuilder::new("message").text("Syntax validation failed").build())
+        .child(ElementBuilder::new("file").attr("path", path).build())
+        .child(
+            ElementBuilder::new("details")
+                .text(format!(
+                    "The file was written successfully but contains {} syntax error(s)",
+                    errors.len()
+                ))
+                .build(),
+        );
+
+    for error in errors {
+        builder = builder.child(
+            ElementBuilder::new("error")
                 .attr("line", error.line.to_string())
                 .attr("column", error.column.to_string())
                 .cdata(&error.message)
-        }))
-        .append(Element::new("suggestion").text("Review and fix the syntax issues"))
+                .build(),
+        );
+    }
+
+    builder = builder.child(
+        ElementBuilder::new("suggestion")
+            .text("Review and fix the syntax issues")
+            .build(),
+    );
+
+    builder.build()
 }
 
 impl ToolOperation {
@@ -244,14 +263,26 @@ impl ToolOperation {
                 } else {
                     content.to_string()
                 };
-                let elm = Element::new("file")
+                
+                // Build output for both XML and Markdown
+                let output_builder = Output::new()
+                    .h2(format!("File: `{}`", input.file_path))
+                    .blank_line()
+                    .text(format!("Lines {}-{} of {} total", output.start_line, output.end_line, content.lines().count()))
+                    .blank_line()
+                    .code_block(&content, None);
+                
+                let xml = output_builder.clone()
+                    .element("file")
                     .attr("path", &input.file_path)
                     .attr(
                         "display_lines",
                         format!("{}-{}", output.start_line, output.end_line),
                     )
-                    .attr("total_lines", content.lines().count())
-                    .cdata(content);
+                    .attr("total_lines", content.lines().count().to_string())
+                    .cdata(content)
+                    .done()
+                    .render_xml();
 
                 // Track read operations
                 tracing::info!(
@@ -264,7 +295,8 @@ impl ToolOperation {
                     FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
                 );
 
-                forge_domain::ToolOutput::text(elm)
+                let markdown = output_builder.render_markdown();
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsWrite { input, output } => {
                 let diff_result = DiffFormat::format(
@@ -281,21 +313,64 @@ impl ToolOperation {
                         .content_hash(Some(output.content_hash.clone())),
                 );
 
-                let mut elm = if output.before.as_ref().is_some() {
-                    Element::new("file_overwritten").append(Element::new("file_diff").cdata(diff))
+                let builder = if output.before.as_ref().is_some() {
+                    let mut b = ElementBuilder::new("file_overwritten")
+                        .attr("path", &input.file_path)
+                        .attr("total_lines", input.content.lines().count().to_string())
+                        .child(ElementBuilder::new("file_diff").cdata(&diff).build());
+                    
+                    if !output.errors.is_empty() {
+                        b = b.child(create_validation_warning(&input.file_path, &output.errors));
+                    }
+                    b
                 } else {
-                    Element::new("file_created")
+                    let mut b = ElementBuilder::new("file_created")
+                        .attr("path", &input.file_path)
+                        .attr("total_lines", input.content.lines().count().to_string());
+                    
+                    if !output.errors.is_empty() {
+                        b = b.child(create_validation_warning(&input.file_path, &output.errors));
+                    }
+                    b
                 };
 
-                elm = elm
-                    .attr("path", &input.file_path)
-                    .attr("total_lines", input.content.lines().count());
-
+                // Build markdown output
+                let display_path = format_display_path(Path::new(&input.file_path), env.cwd.as_path());
+                let line_count = input.content.lines().count();
+                
+                let mut md_builder = if output.before.is_some() {
+                    Output::new()
+                        .h2(format!("File Overwritten: `{}`", display_path))
+                        .blank_line()
+                        .kv("Lines", line_count.to_string())
+                        .kv("Changes", format!("+{} lines, -{} lines", diff_result.lines_added(), diff_result.lines_removed()))
+                        .blank_line()
+                } else {
+                    Output::new()
+                        .h2(format!("File Created: `{}`", display_path))
+                        .blank_line()
+                        .kv("Lines", line_count.to_string())
+                        .blank_line()
+                };
+                
                 if !output.errors.is_empty() {
-                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
+                    md_builder = md_builder
+                        .h3("⚠️ Validation Warnings")
+                        .blank_line()
+                        .list(output.errors.iter().map(|e| format!("{:?}", e)))
+                        .blank_line();
+                }
+                
+                if output.before.is_some() {
+                    md_builder = md_builder
+                        .h3("Diff")
+                        .blank_line()
+                        .code_block(&diff, Some("diff"));
                 }
 
-                forge_domain::ToolOutput::text(elm)
+                let xml = Output::new().part(builder.build()).render_xml();
+                let markdown = md_builder.render_markdown();
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsRemove { input, output } => {
                 // None since file was removed
@@ -309,10 +384,20 @@ impl ToolOperation {
                 );
 
                 let display_path = format_display_path(Path::new(&input.path), env.cwd.as_path());
-                let elem = Element::new("file_removed")
+                let output_builder = Output::new()
+                    .h2(format!("File: `{}`", display_path))
+                    .text("✓ File removed successfully");
+                
+                let xml = Output::new()
+                    .element("file_removed")
                     .attr("path", display_path)
-                    .attr("status", "completed");
-                forge_domain::ToolOutput::text(elem)
+                    .attr("status", "completed")
+                    .done()
+                    .render_xml();
+                
+                let markdown = output_builder.render_markdown();
+
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
 
             ToolOperation::FsSearch { input, output } => match output {
@@ -339,57 +424,115 @@ impl ToolOperation {
                         "0-0".to_string()
                     };
 
+                    let reason = match truncated_output.strategy {
+                        TruncationMode::Byte => {
+                            Some(format!(
+                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
+                                env.max_search_result_bytes
+                            ))
+                        }
+                        TruncationMode::Line => {
+                            Some(format!(
+                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
+                            ))
+                        }
+                        TruncationMode::Full => None,
+                    };
+                    
+                    // Build XML for LLM
                     let mut elm = Element::new("search_results")
                         .attr("path", input.path.as_deref().unwrap_or("."))
-                        .attr("max_bytes_allowed", env.max_search_result_bytes)
-                        .attr("total_lines", truncated_output.total)
-                        .attr("display_lines", display_lines);
+                        .attr("max_bytes_allowed", env.max_search_result_bytes.to_string())
+                        .attr("total_lines", truncated_output.total.to_string())
+                        .attr("display_lines", &display_lines);
 
                     elm = elm.attr("pattern", &input.pattern);
                     elm = elm.attr_if_some("glob", input.glob.as_ref());
                     elm = elm.attr_if_some("file_type", input.file_type.as_ref());
 
-                    match truncated_output.strategy {
-                        TruncationMode::Byte => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
-                                env.max_search_result_bytes
-                            );
-                            elm = elm.attr("reason", reason);
-                        }
-                        TruncationMode::Line => {
-                            let reason = format!(
-                                "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
-                            );
-                            elm = elm.attr("reason", reason);
-                        }
-                        TruncationMode::Full => {}
-                    };
+                    if let Some(reason) = &reason {
+                        elm = elm.attr("reason", reason);
+                    }
                     elm = elm.cdata(truncated_output.data.join("\n"));
 
-                    forge_domain::ToolOutput::text(elm)
+                    // Build Markdown for display
+                    let content = truncated_output.data.join("\n");
+                    let mut md = Markdown::new()
+                        .bold("Search Results")
+                        .blank_line()
+                        .kv_code("Pattern", &input.pattern)
+                        .kv_code("Path", input.path.as_deref().unwrap_or("."));
+
+                    if let Some(glob) = &input.glob {
+                        md = md.kv_code("Glob", glob);
+                    }
+                    if let Some(file_type) = &input.file_type {
+                        md = md.kv_code("File Type", file_type);
+                    }
+
+                    md = md
+                        .kv(
+                            "Results",
+                            format!(
+                                "{} total lines, displaying lines {}",
+                                truncated_output.total, display_lines
+                            ),
+                        )
+                        .blank_line();
+
+                    if let Some(reason) = reason {
+                        md = md.line(format!("⚠️ *{}*", reason));
+                    }
+
+                    if !content.trim().is_empty() {
+                        md = md.code_block(content, None);
+                    } else {
+                        md = md.italic("No matches found");
+                    }
+
+                    forge_domain::ToolOutput::from_element_and_markdown(elm, md)
                 }
                 None => {
+                    // Build XML for LLM
                     let mut elm = Element::new("search_results");
-                    elm = elm.attr_if_some("path", input.path);
+                    elm = elm.attr_if_some("path", input.path.as_ref());
                     elm = elm.attr("pattern", &input.pattern);
-                    elm = elm.attr_if_some("glob", input.glob);
+                    elm = elm.attr_if_some("glob", input.glob.as_ref());
                     elm = elm.attr_if_some("file_type", input.file_type.as_ref());
-                    forge_domain::ToolOutput::text(elm)
+
+                    // Build Markdown for display
+                    let mut md = Markdown::new()
+                        .bold("Search Results")
+                        .blank_line()
+                        .kv_code("Pattern", &input.pattern);
+
+                    if let Some(path) = &input.path {
+                        md = md.kv_code("Path", path);
+                    }
+                    if let Some(glob) = &input.glob {
+                        md = md.kv_code("Glob", glob);
+                    }
+                    if let Some(file_type) = &input.file_type {
+                        md = md.kv_code("File Type", file_type);
+                    }
+
+                    md = md.blank_line().italic("No matches found");
+
+                    forge_domain::ToolOutput::from_element_and_markdown(elm, md)
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
                 let total_results: usize = output.queries.iter().map(|q| q.results.len()).sum();
-                let mut root = Element::new("sem_search_results");
+                let mut root_builder = ElementBuilder::new("sem_search_results");
 
                 if output.queries.is_empty() || total_results == 0 {
-                    root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
+                    root_builder = root_builder.text("No results found for query. Try refining your search with more specific terms or different keywords.");
                 } else {
                     for query_result in &output.queries {
-                        let query_elm = Element::new("query_result")
+                        let mut query_builder = ElementBuilder::new("query_result")
                             .attr("query", &query_result.query)
                             .attr("use_case", &query_result.use_case)
-                            .attr("results", query_result.results.len());
+                            .attr("results", query_result.results.len().to_string());
 
                         let mut grouped_by_path: HashMap<&str, Vec<_>> = HashMap::new();
 
@@ -405,8 +548,6 @@ impl ToolOperation {
                         let mut grouped_chunks: Vec<_> = grouped_by_path.into_iter().collect();
                         grouped_chunks.sort_by(|a, b| a.0.cmp(b.0));
 
-                        let mut result_elm = Vec::new();
-
                         // Process each file path
                         for (path, mut chunks) in grouped_chunks {
                             // Sort chunks by start line
@@ -420,27 +561,45 @@ impl ToolOperation {
                             }
 
                             let data = content_parts.join("\n...\n");
-                            let element = Element::new("file").attr("path", path).cdata(data);
-                            result_elm.push(element);
+                            query_builder = query_builder.child(
+                                ElementBuilder::new("file")
+                                    .attr("path", path)
+                                    .cdata(data)
+                                    .build()
+                            );
                         }
 
-                        root = root.append(query_elm.append(result_elm));
+                        root_builder = root_builder.child(query_builder.build());
                     }
                 }
 
-                forge_domain::ToolOutput::text(root)
+                let xml = Output::new().part(root_builder.build()).render_xml();
+                
+                // Generate markdown for ACP display
+                let query = output.queries.first().map(|q| q.query.as_str()).unwrap_or("search");
+                let markdown = Output::new()
+                    .h2(format!("Semantic Search: `{}`", query))
+                    .kv("Total results", total_results.to_string())
+                    .text(if total_results == 0 {
+                        "No results found. Try refining your search."
+                    } else {
+                        "✓ Found relevant code sections"
+                    })
+                    .render_markdown();
+
+                forge_domain::ToolOutput::paired(xml, markdown)
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
 
-                let mut elm = Element::new("file_diff")
+                let mut builder = ElementBuilder::new("file_diff")
                     .attr("path", &input.file_path)
-                    .attr("total_lines", output.after.lines().count())
+                    .attr("total_lines", output.after.lines().count().to_string())
                     .cdata(diff);
 
                 if !output.errors.is_empty() {
-                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
+                    builder = builder.child(create_validation_warning(&input.file_path, &output.errors));
                 }
 
                 *metrics = metrics.clone().insert(
@@ -451,7 +610,21 @@ impl ToolOperation {
                         .content_hash(Some(output.content_hash.clone())),
                 );
 
-                forge_domain::ToolOutput::text(elm)
+                // Create a FileDiff for IDE display (ACP)
+                let file_diff = forge_domain::FileDiff {
+                    path: input.file_path.clone(),
+                    old_text: Some(output.before.clone()),
+                    new_text: output.after.clone(),
+                };
+
+                // Return a Pair: XML text for LLM, FileDiff for IDE
+                forge_domain::ToolOutput {
+                    is_error: false,
+                    values: vec![forge_domain::ToolValue::Pair(
+                        Box::new(forge_domain::ToolValue::Text(Output::new().part(builder.build()).render_xml())),
+                        Box::new(forge_domain::ToolValue::FileDiff(file_diff)),
+                    )],
+                }
             }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state
@@ -472,38 +645,66 @@ impl ToolOperation {
 
                 match (&output.before_undo, &output.after_undo) {
                     (None, None) => {
-                        let elm = Element::new("file_undo")
-                            .attr("path", input.path)
-                            .attr("status", "no_changes");
-                        forge_domain::ToolOutput::text(elm)
+                        let xml = Output::new()
+                            .element("file_undo")
+                            .attr("path", &input.path)
+                            .attr("status", "no_changes")
+                            .done()
+                            .render_xml();
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("unchanged (no changes to undo)")
+                            .render_markdown();
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (None, Some(after)) => {
-                        let elm = Element::new("file_undo")
-                            .attr("path", input.path)
+                        let xml = Output::new()
+                            .element("file_undo")
+                            .attr("path", &input.path)
                             .attr("status", "created")
-                            .attr("total_lines", after.lines().count())
-                            .cdata(after);
-                        forge_domain::ToolOutput::text(elm)
+                            .attr("total_lines", after.lines().count().to_string())
+                            .cdata(after)
+                            .done()
+                            .render_xml();
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("✓ created (undid removal)")
+                            .render_markdown();
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (Some(before), None) => {
-                        let elm = Element::new("file_undo")
-                            .attr("path", input.path)
+                        let xml = Output::new()
+                            .element("file_undo")
+                            .attr("path", &input.path)
                             .attr("status", "removed")
-                            .attr("total_lines", before.lines().count())
-                            .cdata(before);
-                        forge_domain::ToolOutput::text(elm)
+                            .attr("total_lines", before.lines().count().to_string())
+                            .cdata(before)
+                            .done()
+                            .render_xml();
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("✓ removed (undid creation)")
+                            .render_markdown();
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                     (Some(before), Some(after)) => {
                         // This diff is between modified state (before_undo) and snapshot
                         // state (after_undo)
                         let diff = DiffFormat::format(before, after);
 
-                        let elm = Element::new("file_undo")
-                            .attr("path", input.path)
+                        let xml = Output::new()
+                            .element("file_undo")
+                            .attr("path", &input.path)
                             .attr("status", "restored")
-                            .cdata(strip_ansi_codes(diff.diff()));
+                            .cdata(strip_ansi_codes(diff.diff()))
+                            .done()
+                            .render_xml();
+                        let markdown = Output::new()
+                            .h2(format!("Undo: `{}`", input.path))
+                            .text("✓ restored to previous state")
+                            .render_markdown();
 
-                        forge_domain::ToolOutput::text(elm)
+                        forge_domain::ToolOutput::paired(xml, markdown)
                     }
                 }
             }
@@ -514,39 +715,44 @@ impl ToolOperation {
                 };
                 let truncated_content =
                     truncate_fetch_content(&output.content, env.fetch_truncation_limit);
-                let mut elm = Element::new("http_response")
+                
+                let mut builder = ElementBuilder::new("http_response")
                     .attr("url", &input.url)
-                    .attr("status_code", output.code)
-                    .attr("start_char", 0)
+                    .attr("status_code", output.code.to_string())
+                    .attr("start_char", "0")
                     .attr(
                         "end_char",
-                        env.fetch_truncation_limit.min(output.content.len()),
+                        env.fetch_truncation_limit.min(output.content.len()).to_string(),
                     )
-                    .attr("total_chars", output.content.len())
-                    .attr("content_type", content_type);
+                    .attr("total_chars", output.content.len().to_string())
+                    .attr("content_type", content_type)
+                    .child(ElementBuilder::new("body").cdata(truncated_content.content).build());
 
-                elm = elm.append(Element::new("body").cdata(truncated_content.content));
                 if let Some(path) = content_files.stdout {
-                    elm = elm.append(Element::new("truncated").text(
-                        format!(
-                            "Content is truncated to {} chars, remaining content can be read from path: {}",
-                            env.fetch_truncation_limit, path.display())
-                    ));
+                    builder = builder.child(
+                        ElementBuilder::new("truncated")
+                            .text(format!(
+                                "Content is truncated to {} chars, remaining content can be read from path: {}",
+                                env.fetch_truncation_limit, path.display()
+                            ))
+                            .build()
+                    );
                 }
 
+                let elm = Output::new().part(builder.build()).render_xml();
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Shell { output } => {
-                let mut parent_elem = Element::new("shell_output")
+                let mut parent_builder = ElementBuilder::new("shell_output")
                     .attr("command", &output.output.command)
                     .attr("shell", &output.shell);
 
                 if let Some(description) = &output.description {
-                    parent_elem = parent_elem.attr("description", description);
+                    parent_builder = parent_builder.attr("description", description);
                 }
 
                 if let Some(exit_code) = output.output.exit_code {
-                    parent_elem = parent_elem.attr("exit_code", exit_code);
+                    parent_builder = parent_builder.attr("exit_code", exit_code.to_string());
                 }
 
                 let truncated_output = truncate_shell_output(
@@ -557,58 +763,72 @@ impl ToolOperation {
                     env.stdout_max_line_length,
                 );
 
-                let stdout_elem = create_stream_element(
+                if let Some(stdout_elem) = create_stream_element(
                     &truncated_output.stdout,
                     content_files.stdout.as_deref(),
-                );
+                ) {
+                    parent_builder = parent_builder.child(stdout_elem);
+                }
 
-                let stderr_elem = create_stream_element(
+                if let Some(stderr_elem) = create_stream_element(
                     &truncated_output.stderr,
                     content_files.stderr.as_deref(),
-                );
+                ) {
+                    parent_builder = parent_builder.child(stderr_elem);
+                }
 
-                parent_elem = parent_elem.append(stdout_elem);
-                parent_elem = parent_elem.append(stderr_elem);
-
+                let parent_elem = Output::new().part(parent_builder.build()).render_xml();
                 forge_domain::ToolOutput::text(parent_elem)
             }
             ToolOperation::FollowUp { output } => match output {
                 None => {
-                    let elm = Element::new("interrupted").text("No feedback provided");
+                    let elm = Output::new()
+                        .element("interrupted")
+                        .text("No feedback provided")
+                        .done()
+                        .render_xml();
                     forge_domain::ToolOutput::text(elm)
                 }
                 Some(content) => {
-                    let elm = Element::new("feedback").text(content);
+                    let elm = Output::new()
+                        .element("feedback")
+                        .text(content)
+                        .done()
+                        .render_xml();
                     forge_domain::ToolOutput::text(elm)
                 }
             },
             ToolOperation::PlanCreate { input, output } => {
-                let elm = Element::new("plan_created")
+                let elm = Output::new()
+                    .element("plan_created")
                     .attr("path", output.path.display().to_string())
                     .attr("plan_name", input.plan_name)
-                    .attr("version", input.version);
+                    .attr("version", input.version.to_string())
+                    .done()
+                    .render_xml();
 
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Skill { output } => {
-                let mut elm = Element::new("skill_details");
+                let mut command_builder = ElementBuilder::new("command");
+                if let Some(path) = output.path {
+                    command_builder = command_builder.attr("location", path.display().to_string());
+                }
+                command_builder = command_builder.cdata(output.command);
 
-                elm = elm.append({
-                    let mut elm = Element::new("command");
-                    if let Some(path) = output.path {
-                        elm = elm.attr("location", path.display().to_string());
-                    }
-
-                    elm.cdata(output.command)
-                });
+                let mut skill_builder = ElementBuilder::new("skill_details")
+                    .child(command_builder.build());
 
                 // Insert Resources
-                if !output.resources.is_empty() {
-                    elm = elm.append(output.resources.iter().map(|resource| {
-                        Element::new("resource").text(resource.display().to_string())
-                    }));
+                for resource in &output.resources {
+                    skill_builder = skill_builder.child(
+                        ElementBuilder::new("resource")
+                            .text(resource.display().to_string())
+                            .build()
+                    );
                 }
 
+                let elm = Output::new().part(skill_builder.build()).render_xml();
                 forge_domain::ToolOutput::text(elm)
             }
         }
@@ -656,6 +876,30 @@ mod tests {
             }
             ToolValue::AI { value, .. } => {
                 writeln!(result, "{}", value).unwrap();
+            }
+            ToolValue::FileDiff(file_diff) => {
+                writeln!(
+                    result,
+                    "FileDiff: {} (old: {}, new: {})",
+                    file_diff.path,
+                    file_diff.old_text.as_ref().map_or(0, |t| t.len()),
+                    file_diff.new_text.len()
+                )
+                .unwrap();
+            }
+            ToolValue::Markdown(md) => {
+                writeln!(result, "Markdown: {}", md).unwrap();
+            }
+            ToolValue::Pair(llm, _display) => {
+                // For tests, just show the LLM value
+                match *llm {
+                    ToolValue::Text(txt) => {
+                        writeln!(result, "{}", txt).unwrap();
+                    }
+                    _ => {
+                        writeln!(result, "Pair (LLM value not text)").unwrap();
+                    }
+                }
             }
         });
 

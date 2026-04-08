@@ -149,6 +149,9 @@ pub enum TopLevelCommand {
     /// VS Code integration commands.
     #[command(subcommand)]
     Vscode(VscodeCommand),
+
+    /// Agent Communication Protocol server commands.
+    Acp(AcpCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -713,6 +716,20 @@ impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
 pub enum VscodeCommand {
     /// Install the Forge VS Code extension.
     InstallExtension,
+}
+
+/// Command group for ACP server management.
+#[derive(Parser, Debug, Clone)]
+pub struct AcpCommandGroup {
+    #[command(subcommand)]
+    pub command: AcpCommand,
+}
+
+/// ACP server commands.
+#[derive(Subcommand, Debug, Clone)]
+pub enum AcpCommand {
+    /// Start the ACP server over stdio.
+    Start,
 }
 
 #[cfg(test)]

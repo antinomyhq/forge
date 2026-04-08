@@ -376,6 +376,13 @@ pub(super) enum ToolValueRecord {
         conversation_id: String,
     },
     Image(ImageRecord),
+    FileDiff {
+        path: String,
+        old_text: Option<String>,
+        new_text: String,
+    },
+    Markdown(String),
+    Pair(Box<ToolValueRecord>, Box<ToolValueRecord>),
     Empty,
 }
 
@@ -388,6 +395,15 @@ impl From<&forge_domain::ToolValue> for ToolValueRecord {
                 conversation_id: conversation_id.into_string(),
             },
             forge_domain::ToolValue::Image(img) => Self::Image(ImageRecord::from(img)),
+            forge_domain::ToolValue::FileDiff(file_diff) => Self::FileDiff {
+                path: file_diff.path.clone(),
+                old_text: file_diff.old_text.clone(),
+                new_text: file_diff.new_text.clone(),
+            },
+            forge_domain::ToolValue::Markdown(md) => Self::Markdown(md.clone()),
+            forge_domain::ToolValue::Pair(llm, display) => {
+                Self::Pair(Box::new(llm.as_ref().into()), Box::new(display.as_ref().into()))
+            }
             forge_domain::ToolValue::Empty => Self::Empty,
         }
     }
@@ -404,6 +420,13 @@ impl TryFrom<ToolValueRecord> for forge_domain::ToolValue {
                 conversation_id: ConversationId::parse(conversation_id)?,
             },
             ToolValueRecord::Image(img) => Self::Image(img.into()),
+            ToolValueRecord::FileDiff { path, old_text, new_text } => {
+                Self::FileDiff(forge_domain::FileDiff { path, old_text, new_text })
+            }
+            ToolValueRecord::Markdown(md) => Self::Markdown(md),
+            ToolValueRecord::Pair(llm, display) => {
+                Self::Pair(Box::new((*llm).try_into()?), Box::new((*display).try_into()?))
+            }
             ToolValueRecord::Empty => Self::Empty,
         })
     }

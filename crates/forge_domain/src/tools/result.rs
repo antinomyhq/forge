@@ -1,5 +1,5 @@
 use derive_setters::Setters;
-use forge_template::Element;
+use forge_template::{Element, ElementBuilder, Output};
 use serde::{Deserialize, Serialize};
 
 use crate::{ConversationId, Image, ToolCallFull, ToolCallId, ToolName};
@@ -58,9 +58,20 @@ impl ToolResult {
                 }
 
                 self.output = ToolOutput::text(
-                    Element::new("tool_call_error")
-                        .append(Element::new("cause").cdata(message.join("\n")))
-                        .append(Element::new("reflection").text(REFLECTION_PROMPT)),
+                    Output::new()
+                        .element("tool_call_error")
+                        .child(
+                            ElementBuilder::new("cause")
+                                .cdata(message.join("\n"))
+                                .build()
+                        )
+                        .child(
+                            ElementBuilder::new("reflection")
+                                .text(REFLECTION_PROMPT)
+                                .build()
+                        )
+                        .done()
+                        .render_xml(),
                 )
                 .is_error(true);
             }
@@ -105,6 +116,53 @@ impl ToolOutput {
         ToolOutput { is_error: false, values: vec![ToolValue::Image(img)] }
     }
 
+    /// Creates a ToolOutput with a Markdown value
+    pub fn markdown(md: impl ToString) -> Self {
+        ToolOutput { is_error: false, values: vec![ToolValue::Markdown(md.to_string())] }
+    }
+
+    /// Creates a paired output with XML for LLM and Markdown for display
+    pub fn paired(xml: impl ToString, markdown: impl ToString) -> Self {
+        ToolOutput {
+            is_error: false,
+            values: vec![ToolValue::Pair(
+                Box::new(ToolValue::Text(xml.to_string())),
+                Box::new(ToolValue::Markdown(markdown.to_string())),
+            )],
+        }
+    }
+
+    /// Creates a paired output from an Output and Markdown string
+    pub fn from_output_and_markdown(output: &Output, markdown: impl ToString) -> Self {
+        Self::paired(output.render_xml(), markdown.to_string())
+    }
+    
+    /// Creates a paired output from an Output (renders both XML and Markdown)
+    pub fn from_output(output: &Output) -> Self {
+        Self::paired(output.render_xml(), output.render_markdown())
+    }
+
+    /// Creates a paired output from an Element and Markdown builder.
+    /// The Element provides XML for LLM, the Markdown provides display format.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use forge_template::{Element, Markdown};
+    ///
+    /// let elm = Element::new("search_results")
+    ///     .attr("pattern", "*.rs")
+    ///     .text("file.rs");
+    ///
+    /// let md = Markdown::new()
+    ///     .bold("Search Results")
+    ///     .kv_code("Pattern", "*.rs");
+    ///
+    /// let output = ToolOutput::from_element_and_markdown(elm, md);
+    /// ```
+    pub fn from_element_and_markdown(element: Element, markdown: forge_template::Markdown) -> Self {
+        Self::paired(element.render(), markdown.render())
+    }
+
     pub fn combine_mut(&mut self, value: ToolOutput) {
         self.values.extend(value.values);
     }
@@ -130,6 +188,17 @@ where
     }
 }
 
+/// Represents a file diff with old and new content
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub struct FileDiff {
+    /// Path to the file
+    pub path: String,
+    /// Old content of the file (None if file is new)
+    pub old_text: Option<String>,
+    /// New content of the file
+    pub new_text: String,
+}
+
 /// Like serde_json::Value, ToolValue represents all the primitive values that
 /// tools can produce.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
@@ -141,6 +210,11 @@ pub enum ToolValue {
         conversation_id: ConversationId,
     },
     Image(Image),
+    FileDiff(FileDiff),
+    /// Markdown-formatted text for display in IDE
+    Markdown(String),
+    /// Paired value: first for LLM (XML), second for display (Markdown)
+    Pair(Box<ToolValue>, Box<ToolValue>),
     #[default]
     Empty,
 }
@@ -154,12 +228,39 @@ impl ToolValue {
         ToolValue::Image(img)
     }
 
+    pub fn pair(llm_value: ToolValue, display_value: ToolValue) -> Self {
+        ToolValue::Pair(Box::new(llm_value), Box::new(display_value))
+    }
+
+    /// Gets the LLM value from a Pair, or returns self if not a Pair.
+    ///
+    /// This is used when sending content to the AI model.
+    pub fn llm_value(&self) -> &ToolValue {
+        match self {
+            ToolValue::Pair(llm, _) => llm.as_ref(),
+            _ => self,
+        }
+    }
+
+    /// Gets the display value from a Pair, or returns self if not a Pair.
+    ///
+    /// This is used when rendering content for IDE/user display.
+    pub fn display_value(&self) -> &ToolValue {
+        match self {
+            ToolValue::Pair(_, display) => display.as_ref(),
+            _ => self,
+        }
+    }
+
     pub fn as_str(&self) -> Option<&str> {
         match self {
             ToolValue::Text(text) => Some(text),
             ToolValue::Image(_) => None,
+            ToolValue::FileDiff(_) => None,
             ToolValue::Empty => None,
             ToolValue::AI { value, .. } => Some(value),
+            ToolValue::Markdown(md) => Some(md),
+            ToolValue::Pair(_, display) => display.as_str(),
         }
     }
 }

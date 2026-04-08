@@ -1,5 +1,6 @@
+pub mod acp_runner;
 pub mod banner;
-mod cli;
+pub mod cli;
 mod completer;
 mod conversation_selector;
 mod display_constants;

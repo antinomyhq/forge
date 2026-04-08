@@ -7,6 +7,7 @@ mod forge_repo;
 mod fs_snap;
 mod fuzzy_search;
 mod provider;
+mod session;
 mod skill;
 mod validation;
 

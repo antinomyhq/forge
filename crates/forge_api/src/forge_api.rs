@@ -396,7 +396,8 @@ impl<
         Ok(())
     }
     async fn acp_start_stdio(&self) -> Result<()> {
-        unimplemented!("WIP")
+        let acp_app = forge_app::AcpApp::new(self.services.clone());
+        acp_app.start_stdio().await
     }
 }
 
