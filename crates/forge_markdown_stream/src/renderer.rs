@@ -2,6 +2,7 @@
 
 use std::io::{self, Write};
 
+use streamdown_ansi::utils::visible_length;
 use streamdown_parser::ParseEvent;
 
 use crate::code::CodeHighlighter;
@@ -257,8 +258,13 @@ impl<W: Write> Renderer<W> {
                 let width = self.current_width();
                 // Parse inline formatting (bold, italic, etc.) in blockquote content
                 let rendered_content = render_inline_content(text, &self.theme);
-                let wrapped =
-                    wrap_text_preserving_spaces(&rendered_content, width, &margin, &margin);
+                let wrapped = wrap_text_preserving_spaces(
+                    &rendered_content,
+                    width.saturating_sub(visible_length(&margin)),
+                    width.saturating_sub(visible_length(&margin)),
+                    &margin,
+                    &margin,
+                );
                 if wrapped.is_empty() {
                     self.writeln(&margin)?;
                 } else {

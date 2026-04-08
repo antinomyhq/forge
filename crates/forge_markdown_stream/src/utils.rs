@@ -1,6 +1,7 @@
 //! Utility functions for the markdown renderer.
 
 use streamdown_ansi::utils::{ansi_collapse, extract_ansi_codes, visible, visible_length};
+use unicode_width::UnicodeWidthChar;
 
 /// Terminal theme mode (dark or light).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -33,17 +34,24 @@ struct WrapSegment {
     word: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum WrapAtom {
+    Escape(String),
+    Char(char),
+}
+
 /// Wraps ANSI-styled text while preserving explicit whitespace between words.
 ///
 /// Unlike the upstream streamdown wrapper, this keeps the original separator
 /// string between tokens instead of reconstructing it from CJK heuristics.
 pub(crate) fn wrap_text_preserving_spaces(
     text: &str,
-    width: usize,
+    first_width: usize,
+    next_width: usize,
     first_prefix: &str,
     next_prefix: &str,
 ) -> Vec<String> {
-    if width == 0 {
+    if first_width == 0 && next_width == 0 {
         return Vec::new();
     }
 
@@ -55,18 +63,18 @@ pub(crate) fn wrap_text_preserving_spaces(
     let mut lines = Vec::new();
     let mut current_line = String::new();
     let mut current_style: Vec<String> = Vec::new();
+    let mut current_width = first_width;
 
     for segment in segments {
+        let line_width = visible_length(&current_line);
         let separator = if current_line.is_empty() {
             ""
         } else {
             segment.separator.as_str()
         };
-        let separator_width = visible_length(separator);
-        let word_width = visible_length(&segment.word);
-        let line_width = visible_length(&current_line);
+        let combined_width = visible_length(separator) + visible_length(&segment.word);
 
-        if current_line.is_empty() || line_width + separator_width + word_width <= width {
+        if !current_line.is_empty() && line_width + combined_width <= current_width {
             current_line.push_str(separator);
             apply_style_transition(&mut current_style, separator);
             current_line.push_str(&segment.word);
@@ -74,11 +82,28 @@ pub(crate) fn wrap_text_preserving_spaces(
             continue;
         }
 
-        push_wrapped_line(&mut lines, &current_line, first_prefix, next_prefix);
+        if current_line.is_empty() && visible_length(&segment.word) <= current_width {
+            current_line.push_str(&segment.word);
+            apply_style_transition(&mut current_style, &segment.word);
+            continue;
+        }
 
-        current_line = current_style.join("");
-        current_line.push_str(&segment.word);
-        apply_style_transition(&mut current_style, &segment.word);
+        if !current_line.is_empty() {
+            push_wrapped_line(&mut lines, &current_line, first_prefix, next_prefix);
+            current_line = current_style.join("");
+            current_width = next_width;
+        }
+
+        append_wrapped_word(
+            &mut lines,
+            &mut current_line,
+            &mut current_style,
+            &segment.word,
+            &mut current_width,
+            next_width,
+            first_prefix,
+            next_prefix,
+        );
     }
 
     push_wrapped_line(&mut lines, &current_line, first_prefix, next_prefix);
@@ -92,12 +117,89 @@ pub(crate) fn simple_wrap_preserving_spaces(text: &str, width: usize) -> Vec<Str
         return vec![text.to_string()];
     }
 
-    let lines = wrap_text_preserving_spaces(text, width, "", "");
+    let lines = wrap_text_preserving_spaces(text, width, width, "", "");
     if lines.is_empty() {
         vec![String::new()]
     } else {
         lines
     }
+}
+
+fn append_wrapped_word(
+    lines: &mut Vec<String>,
+    current_line: &mut String,
+    current_style: &mut Vec<String>,
+    word: &str,
+    current_width: &mut usize,
+    next_width: usize,
+    first_prefix: &str,
+    next_prefix: &str,
+) {
+    let mut remainder = word.to_string();
+
+    while !remainder.is_empty() {
+        let line_width = visible_length(current_line);
+        let mut available = current_width.saturating_sub(line_width);
+
+        if available == 0 {
+            push_wrapped_line(lines, current_line, first_prefix, next_prefix);
+            *current_line = current_style.join("");
+            *current_width = next_width;
+            available = (*current_width).max(1);
+        }
+
+        if visible_length(&remainder) <= available {
+            current_line.push_str(&remainder);
+            apply_style_transition(current_style, &remainder);
+            break;
+        }
+
+        let prefix = take_prefix_fitting(&remainder, available)
+            .or_else(|| take_prefix_fitting(&remainder, 1))
+            .unwrap_or_else(|| remainder.clone());
+
+        current_line.push_str(&prefix);
+        apply_style_transition(current_style, &prefix);
+        remainder = remainder[prefix.len()..].to_string();
+
+        if !remainder.is_empty() {
+            push_wrapped_line(lines, current_line, first_prefix, next_prefix);
+            *current_line = current_style.join("");
+            *current_width = next_width;
+        }
+    }
+}
+
+fn take_prefix_fitting(text: &str, max_width: usize) -> Option<String> {
+    if text.is_empty() {
+        return None;
+    }
+
+    let mut width = 0;
+    let mut result = String::new();
+    let mut consumed_visible = false;
+
+    for atom in parse_atoms(text) {
+        match atom {
+            WrapAtom::Escape(sequence) => result.push_str(&sequence),
+            WrapAtom::Char(ch) => {
+                let char_width = UnicodeWidthChar::width(ch).unwrap_or(0);
+                if consumed_visible && width + char_width > max_width {
+                    break;
+                }
+                if !consumed_visible && char_width > max_width {
+                    result.push(ch);
+                    break;
+                }
+
+                result.push(ch);
+                width += char_width;
+                consumed_visible = true;
+            }
+        }
+    }
+
+    if result.is_empty() { None } else { Some(result) }
 }
 
 fn wrap_segments(text: &str) -> Vec<WrapSegment> {
@@ -123,53 +225,92 @@ fn wrap_chunks(text: &str) -> Vec<WrapChunk> {
     let mut chunks = Vec::new();
     let mut current = String::new();
     let mut current_is_whitespace = None;
-    let mut in_escape = false;
-    let mut escape_buf = String::new();
 
-    for ch in text.chars() {
-        if in_escape {
-            escape_buf.push(ch);
-            if ch == 'm' {
-                current.push_str(&escape_buf);
-                escape_buf.clear();
-                in_escape = false;
+    for atom in parse_atoms(text) {
+        match atom {
+            WrapAtom::Escape(sequence) => current.push_str(&sequence),
+            WrapAtom::Char(ch) => {
+                let is_whitespace = ch.is_whitespace();
+                match current_is_whitespace {
+                    Some(kind) if kind != is_whitespace => {
+                        chunks.push(WrapChunk {
+                            content: std::mem::take(&mut current),
+                            is_whitespace: kind,
+                        });
+                        current_is_whitespace = Some(is_whitespace);
+                    }
+                    None => {
+                        current_is_whitespace = Some(is_whitespace);
+                    }
+                    _ => {}
+                }
+
+                current.push(ch);
             }
-            continue;
         }
-
-        if ch == '\x1b' {
-            in_escape = true;
-            escape_buf.push(ch);
-            continue;
-        }
-
-        let is_whitespace = ch.is_whitespace();
-        match current_is_whitespace {
-            Some(kind) if kind != is_whitespace => {
-                chunks
-                    .push(WrapChunk { content: std::mem::take(&mut current), is_whitespace: kind });
-                current_is_whitespace = Some(is_whitespace);
-            }
-            None => {
-                current_is_whitespace = Some(is_whitespace);
-            }
-            _ => {}
-        }
-
-        current.push(ch);
-    }
-
-    if !escape_buf.is_empty() {
-        current.push_str(&escape_buf);
     }
 
     if let Some(is_whitespace) = current_is_whitespace
         && !current.is_empty()
     {
-        chunks.push(WrapChunk { content: current, is_whitespace });
+        chunks.push(WrapChunk {
+            content: current,
+            is_whitespace,
+        });
     }
 
     chunks
+}
+
+fn parse_atoms(text: &str) -> Vec<WrapAtom> {
+    let mut atoms = Vec::new();
+    let bytes = text.as_bytes();
+    let mut index = 0;
+
+    while index < bytes.len() {
+        if bytes[index] != 0x1b {
+            let ch = text[index..].chars().next().expect("slice should start at char boundary");
+            atoms.push(WrapAtom::Char(ch));
+            index += ch.len_utf8();
+            continue;
+        }
+
+        let end = match bytes.get(index + 1) {
+            Some(b'[') => parse_csi_escape(bytes, index),
+            Some(b']') => parse_osc_escape(bytes, index),
+            Some(_) => (index + 2).min(bytes.len()),
+            None => bytes.len(),
+        };
+        atoms.push(WrapAtom::Escape(text[index..end].to_string()));
+        index = end;
+    }
+
+    atoms
+}
+
+fn parse_csi_escape(bytes: &[u8], start: usize) -> usize {
+    let mut index = start + 2;
+    while index < bytes.len() {
+        if (0x40..=0x7e).contains(&bytes[index]) {
+            return index + 1;
+        }
+        index += 1;
+    }
+    bytes.len()
+}
+
+fn parse_osc_escape(bytes: &[u8], start: usize) -> usize {
+    let mut index = start + 2;
+    while index < bytes.len() {
+        if bytes[index] == 0x07 {
+            return index + 1;
+        }
+        if bytes[index] == 0x1b && bytes.get(index + 1) == Some(&b'\\') {
+            return index + 2;
+        }
+        index += 1;
+    }
+    bytes.len()
 }
 
 fn apply_style_transition(current_style: &mut Vec<String>, text: &str) {
@@ -198,6 +339,7 @@ fn push_wrapped_line(
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use streamdown_ansi::utils::visible;
 
     use super::{simple_wrap_preserving_spaces, wrap_text_preserving_spaces};
 
@@ -216,9 +358,23 @@ mod tests {
     }
 
     #[test]
+    fn test_simple_wrap_preserving_spaces_splits_long_tokens() {
+        let fixture = "supercalifragilistic";
+        let actual = simple_wrap_preserving_spaces(fixture, 5);
+        let expected = vec![
+            "super".to_string(),
+            "calif".to_string(),
+            "ragil".to_string(),
+            "istic".to_string(),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_wrap_text_preserving_spaces_keeps_multiple_spaces_on_same_line() {
         let fixture = "한글  공백 보존";
-        let actual = wrap_text_preserving_spaces(fixture, 40, "", "");
+        let actual = wrap_text_preserving_spaces(fixture, 40, 40, "", "");
         let expected = vec!["한글  공백 보존".to_string()];
 
         assert_eq!(actual, expected);
@@ -227,12 +383,30 @@ mod tests {
     #[test]
     fn test_wrap_text_preserving_spaces_applies_prefixes_after_wrap() {
         let fixture = "한글 공백 검증";
-        let actual = wrap_text_preserving_spaces(fixture, 8, "> ", "  ");
+        let actual = wrap_text_preserving_spaces(fixture, 4, 4, "> ", "  ");
         let expected = vec![
             "> 한글".to_string(),
             "  공백".to_string(),
             "  검증".to_string(),
         ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_wrap_text_preserving_spaces_preserves_link_separator_after_osc_escape() {
+        let fixture = concat!(
+            "\x1b]8;;https://example.com\x1b\\",
+            "link",
+            "\x1b]8;;\x1b\\",
+            " ",
+            "\x1b[34m(https://x.co)\x1b[39m"
+        );
+        let actual = wrap_text_preserving_spaces(fixture, 4, 14, "", "")
+            .into_iter()
+            .map(|line| visible(&line))
+            .collect::<Vec<_>>();
+        let expected = vec!["link".to_string(), "(https://x.co)".to_string()];
 
         assert_eq!(actual, expected);
     }

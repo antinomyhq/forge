@@ -213,6 +213,17 @@ mod tests {
     }
 
     #[test]
+    fn test_h3_wrapping_splits_long_tokens() {
+        let actual = render_with_width(3, "supercalifragilistic", 12);
+
+        insta::assert_snapshot!(actual, @r"
+          <dim><h3>###</h3></dim> <h3>supercal</h3>
+          <dim><h3>###</h3></dim> <h3>ifragili</h3>
+          <dim><h3>###</h3></dim> <h3>stic</h3>
+        ");
+    }
+
+    #[test]
     fn test_special_characters() {
         insta::assert_snapshot!(render(2, "Hello & Goodbye < World >"), @"<dim><h2>##</h2></dim> <h2>Hello & Goodbye < World ></h2>");
     }

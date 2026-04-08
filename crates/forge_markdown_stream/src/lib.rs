@@ -186,4 +186,34 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_streaming_renderer_wraps_blockquotes_with_prefix_width_and_long_tokens() {
+        let fixture = "> supercalifragilistic\n> 한글 공백\n";
+        let actual = fixture_rendered_output(fixture, 10);
+        let expected = concat!(
+            "│ super\n",
+            "│ calif\n",
+            "│ ragil\n",
+            "│ istic\n",
+            "│ 한글\n",
+            "│ 공백"
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_streaming_renderer_wraps_blockquote_links_without_losing_separator() {
+        let fixture = "> [링크](https://example.com/very/long/path) 설명\n";
+        let actual = fixture_rendered_output(fixture, 20);
+        let expected = concat!(
+            "│ 링크\n",
+            "│ (https://exampl\n",
+            "│ e.com/very/long\n",
+            "│ /path) 설명"
+        );
+
+        assert_eq!(actual, expected);
+    }
 }
