@@ -2,10 +2,9 @@ use gh_workflow::*;
 
 /// Creates a step to setup the Protobuf compiler.
 ///
-/// This step is reusable across all CI workflows that need protobuf
-/// compilation.
-pub fn setup_protoc() -> Step<Use> {
+/// Installs protoc via apt-get on Linux runners. This replaces
+/// `arduino/setup-protoc` which is deprecated (Node.js 20).
+pub fn setup_protoc() -> Step<Run> {
     Step::new("Setup Protobuf Compiler")
-        .uses("arduino", "setup-protoc", "v3")
-        .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}"))
+        .run("sudo apt-get install -y protobuf-compiler")
 }
