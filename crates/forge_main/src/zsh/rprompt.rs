@@ -37,17 +37,11 @@ pub struct ZshRPrompt {
 }
 impl ZshRPrompt {
     /// Constructs a [`ZshRPrompt`] with currency settings populated from the
-    /// provided [`ForgeConfig`]. Fields absent from the config fall back to
-    /// the struct's defaults.
+    /// provided [`ForgeConfig`].
     pub fn from_config(config: &ForgeConfig) -> Self {
-        let mut rprompt = Self::default();
-        if let Some(ref symbol) = config.currency_symbol {
-            rprompt = rprompt.currency_symbol(symbol.clone());
-        }
-        if let Some(rate) = config.currency_conversion_rate {
-            rprompt = rprompt.conversion_ratio(rate.value());
-        }
-        rprompt
+        Self::default()
+            .currency_symbol(config.currency_symbol.clone())
+            .conversion_ratio(config.currency_conversion_rate.value())
     }
 }
 
