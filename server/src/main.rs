@@ -58,13 +58,13 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Build gRPC service
-    let service = ForgeServiceImpl {
-        db: Arc::new(db),
-        qdrant: Arc::new(qdrant),
-        embedder: Arc::new(embedder),
-        chunk_min_size: config.chunk_min_size,
-        chunk_max_size: config.chunk_max_size,
-    };
+    let service = ForgeServiceImpl::new(
+        Arc::new(db),
+        Arc::new(qdrant),
+        Arc::new(embedder),
+        config.chunk_min_size,
+        config.chunk_max_size,
+    );
 
     let addr = config.listen_addr.parse()?;
     info!(addr = %addr, "gRPC server listening");

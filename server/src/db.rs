@@ -6,6 +6,9 @@ use rusqlite::Connection;
 /// Row returned from workspace queries.
 pub struct WorkspaceRow {
     pub workspace_id: String,
+    /// Owner user_id — used for ownership verification.
+    #[allow(dead_code)]
+    pub user_id: String,
     pub working_dir: String,
     pub min_chunk_size: u32,
     pub max_chunk_size: u32,
@@ -37,7 +40,7 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS api_keys (
                 key TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+                created_at TEXT NOT NULL DEFAULT (strftime('%s', 'now'))
             );
 
             CREATE TABLE IF NOT EXISTS workspaces (
@@ -46,7 +49,7 @@ impl Database {
                 working_dir TEXT NOT NULL,
                 min_chunk_size INTEGER NOT NULL DEFAULT 100,
                 max_chunk_size INTEGER NOT NULL DEFAULT 1500,
-                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_at TEXT NOT NULL DEFAULT (strftime('%s', 'now')),
                 UNIQUE(user_id, working_dir)
             );
 
@@ -55,7 +58,7 @@ impl Database {
                 file_path TEXT NOT NULL,
                 file_hash TEXT NOT NULL,
                 node_id TEXT NOT NULL,
-                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (strftime('%s', 'now')),
                 PRIMARY KEY (workspace_id, file_path),
                 FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id)
             );",
@@ -128,13 +131,20 @@ impl Database {
                 return Ok((ws_id, wd, created, false));
             }
 
-            // Create new workspace
+            // Create new workspace — created_at via SQL DEFAULT (strftime('%s', 'now'))
             let workspace_id = uuid::Uuid::new_v4().to_string();
-            let created_at = chrono_now();
             conn.execute(
-                "INSERT INTO workspaces (workspace_id, user_id, working_dir, min_chunk_size, max_chunk_size, created_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                rusqlite::params![workspace_id, user_id, working_dir, min_chunk_size, max_chunk_size, created_at],
+                "INSERT INTO workspaces (workspace_id, user_id, working_dir, min_chunk_size, max_chunk_size) VALUES (?1, ?2, ?3, ?4, ?5)",
+                rusqlite::params![workspace_id, user_id, working_dir, min_chunk_size, max_chunk_size],
             )?;
+
+            // Read back created_at to return consistent value
+            let created_at: String = conn.query_row(
+                "SELECT created_at FROM workspaces WHERE workspace_id = ?1",
+                rusqlite::params![workspace_id],
+                |row| row.get(0),
+            )?;
+
             Ok((workspace_id, working_dir, created_at, true))
         })
         .await?
@@ -156,12 +166,12 @@ impl Database {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
             conn.execute(
-                "INSERT INTO file_refs (workspace_id, file_path, file_hash, node_id, updated_at)
-                 VALUES (?1, ?2, ?3, ?4, datetime('now'))
+                "INSERT INTO file_refs (workspace_id, file_path, file_hash, node_id)
+                 VALUES (?1, ?2, ?3, ?4)
                  ON CONFLICT(workspace_id, file_path) DO UPDATE SET
                     file_hash = excluded.file_hash,
                     node_id = excluded.node_id,
-                    updated_at = excluded.updated_at",
+                    updated_at = strftime('%s', 'now')",
                 rusqlite::params![workspace_id, file_path, file_hash, node_id],
             )?;
             Ok(())
@@ -171,6 +181,7 @@ impl Database {
 
     /// Deletes file references for the given paths in a workspace.
     ///
+    /// Uses a transaction to ensure atomicity — either all paths are deleted or none.
     /// Returns the number of deleted rows.
     pub async fn delete_file_refs(
         &self,
@@ -181,14 +192,16 @@ impl Database {
         let workspace_id = workspace_id.to_string();
         let file_paths = file_paths.to_vec();
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
+            let mut conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
+            let tx = conn.transaction()?;
             let mut deleted = 0usize;
             for path in &file_paths {
-                deleted += conn.execute(
+                deleted += tx.execute(
                     "DELETE FROM file_refs WHERE workspace_id = ?1 AND file_path = ?2",
                     rusqlite::params![workspace_id, path],
                 )?;
             }
+            tx.commit()?;
             Ok(deleted)
         })
         .await?
@@ -232,7 +245,7 @@ impl Database {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
             let mut stmt = conn.prepare(
-                "SELECT w.workspace_id, w.working_dir, w.min_chunk_size, w.max_chunk_size, w.created_at,
+                "SELECT w.workspace_id, w.user_id, w.working_dir, w.min_chunk_size, w.max_chunk_size, w.created_at,
                         COALESCE((SELECT COUNT(*) FROM file_refs f WHERE f.workspace_id = w.workspace_id), 0)
                  FROM workspaces w WHERE w.user_id = ?1",
             )?;
@@ -240,11 +253,12 @@ impl Database {
                 .query_map(rusqlite::params![user_id], |row| {
                     Ok(WorkspaceRow {
                         workspace_id: row.get(0)?,
-                        working_dir: row.get(1)?,
-                        min_chunk_size: row.get(2)?,
-                        max_chunk_size: row.get(3)?,
-                        created_at: row.get(4)?,
-                        node_count: row.get(5)?,
+                        user_id: row.get(1)?,
+                        working_dir: row.get(2)?,
+                        min_chunk_size: row.get(3)?,
+                        max_chunk_size: row.get(4)?,
+                        created_at: row.get(5)?,
+                        node_count: row.get(6)?,
                     })
                 })?
                 .collect::<std::result::Result<Vec<_>, _>>()?;
@@ -260,7 +274,7 @@ impl Database {
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
             let mut stmt = conn.prepare(
-                "SELECT w.workspace_id, w.working_dir, w.min_chunk_size, w.max_chunk_size, w.created_at,
+                "SELECT w.workspace_id, w.user_id, w.working_dir, w.min_chunk_size, w.max_chunk_size, w.created_at,
                         COALESCE((SELECT COUNT(*) FROM file_refs f WHERE f.workspace_id = w.workspace_id), 0)
                  FROM workspaces w WHERE w.workspace_id = ?1",
             )?;
@@ -268,11 +282,12 @@ impl Database {
                 .query_row(rusqlite::params![workspace_id], |row| {
                     Ok(WorkspaceRow {
                         workspace_id: row.get(0)?,
-                        working_dir: row.get(1)?,
-                        min_chunk_size: row.get(2)?,
-                        max_chunk_size: row.get(3)?,
-                        created_at: row.get(4)?,
-                        node_count: row.get(5)?,
+                        user_id: row.get(1)?,
+                        working_dir: row.get(2)?,
+                        min_chunk_size: row.get(3)?,
+                        max_chunk_size: row.get(4)?,
+                        created_at: row.get(5)?,
+                        node_count: row.get(6)?,
                     })
                 })
                 .ok();
@@ -281,33 +296,42 @@ impl Database {
         .await?
     }
 
-    /// Deletes a workspace and all its file references.
+    /// Deletes a workspace and all its file references in a single transaction.
     pub async fn delete_workspace(&self, workspace_id: &str) -> Result<()> {
         let conn = self.conn.clone();
         let workspace_id = workspace_id.to_string();
         tokio::task::spawn_blocking(move || {
-            let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
-            conn.execute(
+            let mut conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
+            let tx = conn.transaction()?;
+            tx.execute(
                 "DELETE FROM file_refs WHERE workspace_id = ?1",
                 rusqlite::params![workspace_id],
             )?;
-            conn.execute(
+            tx.execute(
                 "DELETE FROM workspaces WHERE workspace_id = ?1",
                 rusqlite::params![workspace_id],
             )?;
+            tx.commit()?;
             Ok(())
         })
         .await?
     }
-}
 
-/// Returns the current UTC time as an ISO 8601 string.
-fn chrono_now() -> String {
-    use std::time::SystemTime;
-    let now = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap_or_default();
-    let secs = now.as_secs();
-    // Simple ISO 8601 format without external chrono dependency
-    format!("{secs}")
+    /// Checks if a workspace belongs to the given user.
+    pub async fn verify_workspace_owner(&self, workspace_id: &str, user_id: &str) -> Result<bool> {
+        let conn = self.conn.clone();
+        let workspace_id = workspace_id.to_string();
+        let user_id = user_id.to_string();
+        tokio::task::spawn_blocking(move || {
+            let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
+            let mut stmt = conn.prepare(
+                "SELECT 1 FROM workspaces WHERE workspace_id = ?1 AND user_id = ?2",
+            )?;
+            let exists = stmt
+                .query_row(rusqlite::params![workspace_id, user_id], |_| Ok(()))
+                .is_ok();
+            Ok(exists)
+        })
+        .await?
+    }
 }

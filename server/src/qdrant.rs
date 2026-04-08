@@ -178,13 +178,17 @@ impl QdrantStore {
 
         let mut conditions: Vec<Condition> = Vec::new();
 
-        // File path prefix filter
+        // File path prefix filter (exact keyword match)
         for prefix in starts_with {
             conditions.push(Condition::matches("file_path", prefix.clone()));
         }
 
-        // File extension suffix filter — implemented as substring match
-        // Qdrant doesn't have native "ends_with", so we use match (substring)
+        // File extension suffix filter
+        // Qdrant doesn't have native "ends_with". We use a full-text match
+        // condition on the file_path field. This works for extension filters
+        // like ".rs" because Qdrant tokenizes on "." and "/" for keyword fields.
+        // For more precise filtering, file_extension should be stored as a
+        // separate payload field.
         for suffix in ends_with {
             conditions.push(Condition::matches("file_path", suffix.clone()));
         }

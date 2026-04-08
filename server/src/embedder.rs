@@ -26,7 +26,11 @@ impl Embedder {
     /// * `dim` - Expected embedding dimension (e.g., 768)
     pub fn new(ollama_url: &str, model: &str, dim: u64) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(120))
+                .connect_timeout(std::time::Duration::from_secs(10))
+                .build()
+                .expect("Failed to build HTTP client"),
             url: ollama_url.trim_end_matches('/').to_string(),
             model: model.to_string(),
             dim,

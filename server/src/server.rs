@@ -18,11 +18,31 @@ use crate::qdrant::{ChunkPoint, QdrantStore};
 /// Handles all RPC methods defined in `forge.proto`, backed by
 /// SQLite (metadata), Qdrant (vectors), and Ollama (embeddings).
 pub struct ForgeServiceImpl {
-    pub db: Arc<Database>,
-    pub qdrant: Arc<QdrantStore>,
-    pub embedder: Arc<Embedder>,
-    pub chunk_min_size: u32,
-    pub chunk_max_size: u32,
+    db: Arc<Database>,
+    qdrant: Arc<QdrantStore>,
+    embedder: Arc<Embedder>,
+    chunk_min_size: u32,
+    chunk_max_size: u32,
+}
+
+impl ForgeServiceImpl {
+    /// Creates a new gRPC service instance.
+    ///
+    /// # Arguments
+    /// * `db` - SQLite database for metadata
+    /// * `qdrant` - Qdrant vector store
+    /// * `embedder` - Ollama embedding client
+    /// * `chunk_min_size` - Default minimum chunk size in bytes
+    /// * `chunk_max_size` - Default maximum chunk size in bytes
+    pub fn new(
+        db: Arc<Database>,
+        qdrant: Arc<QdrantStore>,
+        embedder: Arc<Embedder>,
+        chunk_min_size: u32,
+        chunk_max_size: u32,
+    ) -> Self {
+        Self { db, qdrant, embedder, chunk_min_size, chunk_max_size }
+    }
 }
 
 /// Computes SHA-256 hex hash of file content.
@@ -56,6 +76,44 @@ fn workspace_row_to_proto(row: WorkspaceRow) -> Workspace {
     }
 }
 
+/// Extracts `workspace_id` string from an optional proto `WorkspaceId`.
+fn extract_workspace_id(ws_id: Option<WorkspaceId>) -> Result<String, Status> {
+    ws_id
+        .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))
+        .map(|w| w.id)
+}
+
+/// Authenticates the request and verifies the user owns the workspace.
+///
+/// Returns the `user_id` on success.
+async fn authenticate_and_verify_owner<T>(
+    db: &Database,
+    request: &Request<T>,
+    workspace_id: &str,
+) -> Result<String, Status> {
+    let user_id = authenticate(db, request).await?;
+    let owns = db
+        .verify_workspace_owner(workspace_id, &user_id)
+        .await
+        .map_err(|e| Status::internal(format!("Ownership check failed: {e}")))?;
+    if !owns {
+        return Err(Status::permission_denied("Workspace does not belong to this user"));
+    }
+    Ok(user_id)
+}
+
+/// Extension trait to convert `anyhow::Result` into `tonic::Status`.
+trait IntoStatus<T> {
+    /// Maps the error into `Status::internal` with the given context message.
+    fn into_status(self, msg: &str) -> Result<T, Status>;
+}
+
+impl<T> IntoStatus<T> for anyhow::Result<T> {
+    fn into_status(self, msg: &str) -> Result<T, Status> {
+        self.map_err(|e| Status::internal(format!("{msg}: {e}")))
+    }
+}
+
 #[tonic::async_trait]
 impl ForgeService for ForgeServiceImpl {
     /// Creates a new API key (bootstrap method — no auth required).
@@ -70,7 +128,7 @@ impl ForgeService for ForgeServiceImpl {
             .db
             .create_api_key(user_id_input)
             .await
-            .map_err(|e| Status::internal(format!("Failed to create API key: {e}")))?;
+            .into_status("Failed to create API key")?;
 
         info!(user_id = %user_id, "API key created");
 
@@ -107,19 +165,17 @@ impl ForgeService for ForgeServiceImpl {
             .db
             .create_workspace(&user_id, &ws_def.working_dir, min_chunk, max_chunk)
             .await
-            .map_err(|e| Status::internal(format!("Failed to create workspace: {e}")))?;
+            .into_status("Failed to create workspace")?;
 
         // Create Qdrant collection for new workspaces
         if is_new {
             self.qdrant
                 .ensure_collection(&workspace_id)
                 .await
-                .map_err(|e| Status::internal(format!("Failed to create Qdrant collection: {e}")))?;
+                .into_status("Failed to create Qdrant collection")?;
         }
 
         info!(workspace_id = %workspace_id, working_dir = %working_dir, is_new = is_new, "Workspace ready");
-
-        let created_at_ts = parse_timestamp(&created_at);
 
         Ok(Response::new(CreateWorkspaceResponse {
             workspace: Some(Workspace {
@@ -130,12 +186,12 @@ impl ForgeService for ForgeServiceImpl {
                 last_updated: None,
                 min_chunk_size: min_chunk,
                 max_chunk_size: max_chunk,
-                created_at: created_at_ts,
+                created_at: parse_timestamp(&created_at),
             }),
         }))
     }
 
-    /// Uploads files: chunks → embeds → upserts into Qdrant.
+    /// Uploads files: chunks -> embeds -> upserts into Qdrant.
     ///
     /// For each file:
     /// 1. Compute SHA-256 hash of the full content (for ListFiles compatibility)
@@ -148,13 +204,10 @@ impl ForgeService for ForgeServiceImpl {
         &self,
         request: Request<UploadFilesRequest>,
     ) -> Result<Response<UploadFilesResponse>, Status> {
-        let _user_id = authenticate(&self.db, &request).await?;
+        let req_ref = request.get_ref();
+        let workspace_id = extract_workspace_id(req_ref.workspace_id.clone())?;
+        authenticate_and_verify_owner(&self.db, &request, &workspace_id).await?;
         let req = request.into_inner();
-
-        let workspace_id = req
-            .workspace_id
-            .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))?
-            .id;
 
         let content = req
             .content
@@ -189,7 +242,7 @@ impl ForgeService for ForgeServiceImpl {
                 self.db
                     .upsert_file_ref(&workspace_id, &file.path, &file_hash, &node_id)
                     .await
-                    .map_err(|e| Status::internal(format!("Failed to store file ref: {e}")))?;
+                    .into_status("Failed to store file ref")?;
                 all_node_ids.push(node_id);
                 continue;
             }
@@ -220,14 +273,14 @@ impl ForgeService for ForgeServiceImpl {
                 .qdrant
                 .upsert_chunks(&workspace_id, chunk_points)
                 .await
-                .map_err(|e| Status::internal(format!("Qdrant upsert failed: {e}")))?;
+                .into_status("Qdrant upsert failed")?;
 
             // Step 6: Store file ref in SQLite with the first node_id
             let primary_node_id = node_ids.first().cloned().unwrap_or_default();
             self.db
                 .upsert_file_ref(&workspace_id, &file.path, &file_hash, &primary_node_id)
                 .await
-                .map_err(|e| Status::internal(format!("Failed to store file ref: {e}")))?;
+                .into_status("Failed to store file ref")?;
 
             all_node_ids.extend(node_ids);
         }
@@ -251,19 +304,15 @@ impl ForgeService for ForgeServiceImpl {
         &self,
         request: Request<ListFilesRequest>,
     ) -> Result<Response<ListFilesResponse>, Status> {
-        let _user_id = authenticate(&self.db, &request).await?;
-        let req = request.into_inner();
-
-        let workspace_id = req
-            .workspace_id
-            .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))?
-            .id;
+        let req_ref = request.get_ref();
+        let workspace_id = extract_workspace_id(req_ref.workspace_id.clone())?;
+        authenticate_and_verify_owner(&self.db, &request, &workspace_id).await?;
 
         let refs = self
             .db
             .list_file_refs(&workspace_id)
             .await
-            .map_err(|e| Status::internal(format!("Failed to list files: {e}")))?;
+            .into_status("Failed to list files")?;
 
         let files: Vec<FileRefNode> = refs
             .into_iter()
@@ -286,26 +335,23 @@ impl ForgeService for ForgeServiceImpl {
         &self,
         request: Request<DeleteFilesRequest>,
     ) -> Result<Response<DeleteFilesResponse>, Status> {
-        let _user_id = authenticate(&self.db, &request).await?;
+        let req_ref = request.get_ref();
+        let workspace_id = extract_workspace_id(req_ref.workspace_id.clone())?;
+        authenticate_and_verify_owner(&self.db, &request, &workspace_id).await?;
         let req = request.into_inner();
-
-        let workspace_id = req
-            .workspace_id
-            .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))?
-            .id;
 
         // Delete from Qdrant
         let deleted_nodes = self
             .qdrant
             .delete_by_file_paths(&workspace_id, &req.file_paths)
             .await
-            .map_err(|e| Status::internal(format!("Failed to delete from Qdrant: {e}")))?;
+            .into_status("Failed to delete from Qdrant")?;
 
         // Delete from SQLite
         self.db
             .delete_file_refs(&workspace_id, &req.file_paths)
             .await
-            .map_err(|e| Status::internal(format!("Failed to delete file refs: {e}")))?;
+            .into_status("Failed to delete file refs")?;
 
         info!(workspace_id = %workspace_id, deleted = deleted_nodes, "Files deleted");
 
@@ -315,18 +361,15 @@ impl ForgeService for ForgeServiceImpl {
         }))
     }
 
-    /// Semantic search: embed query → ANN search in Qdrant → return FileChunk nodes.
+    /// Semantic search: embed query -> ANN search in Qdrant -> return FileChunk nodes.
     async fn search(
         &self,
         request: Request<SearchRequest>,
     ) -> Result<Response<SearchResponse>, Status> {
-        let _user_id = authenticate(&self.db, &request).await?;
+        let req_ref = request.get_ref();
+        let workspace_id = extract_workspace_id(req_ref.workspace_id.clone())?;
+        authenticate_and_verify_owner(&self.db, &request, &workspace_id).await?;
         let req = request.into_inner();
-
-        let workspace_id = req
-            .workspace_id
-            .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))?
-            .id;
 
         let query = req.query.unwrap_or_default();
 
@@ -342,7 +385,7 @@ impl ForgeService for ForgeServiceImpl {
             .embedder
             .embed_single(&prompt)
             .await
-            .map_err(|e| Status::internal(format!("Failed to embed search query: {e}")))?;
+            .into_status("Failed to embed search query")?;
 
         // Search Qdrant
         let hits = self
@@ -355,7 +398,7 @@ impl ForgeService for ForgeServiceImpl {
                 &query.ends_with,
             )
             .await
-            .map_err(|e| Status::internal(format!("Qdrant search failed: {e}")))?;
+            .into_status("Qdrant search failed")?;
 
         // Map results to proto QueryItems
         let items: Vec<QueryItem> = hits
@@ -410,7 +453,7 @@ impl ForgeService for ForgeServiceImpl {
             .db
             .list_workspaces_for_user(&user_id)
             .await
-            .map_err(|e| Status::internal(format!("Failed to list workspaces: {e}")))?;
+            .into_status("Failed to list workspaces")?;
 
         let workspaces: Vec<Workspace> = rows.into_iter().map(workspace_row_to_proto).collect();
 
@@ -422,19 +465,15 @@ impl ForgeService for ForgeServiceImpl {
         &self,
         request: Request<GetWorkspaceInfoRequest>,
     ) -> Result<Response<GetWorkspaceInfoResponse>, Status> {
-        let _user_id = authenticate(&self.db, &request).await?;
-        let req = request.into_inner();
-
-        let workspace_id = req
-            .workspace_id
-            .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))?
-            .id;
+        let req_ref = request.get_ref();
+        let workspace_id = extract_workspace_id(req_ref.workspace_id.clone())?;
+        authenticate_and_verify_owner(&self.db, &request, &workspace_id).await?;
 
         let workspace = self
             .db
             .get_workspace(&workspace_id)
             .await
-            .map_err(|e| Status::internal(format!("Failed to get workspace: {e}")))?;
+            .into_status("Failed to get workspace")?;
 
         Ok(Response::new(GetWorkspaceInfoResponse {
             workspace: workspace.map(workspace_row_to_proto),
@@ -446,13 +485,9 @@ impl ForgeService for ForgeServiceImpl {
         &self,
         request: Request<DeleteWorkspaceRequest>,
     ) -> Result<Response<DeleteWorkspaceResponse>, Status> {
-        let _user_id = authenticate(&self.db, &request).await?;
-        let req = request.into_inner();
-
-        let workspace_id = req
-            .workspace_id
-            .ok_or_else(|| Status::invalid_argument("Missing workspace_id"))?
-            .id;
+        let req_ref = request.get_ref();
+        let workspace_id = extract_workspace_id(req_ref.workspace_id.clone())?;
+        authenticate_and_verify_owner(&self.db, &request, &workspace_id).await?;
 
         // Delete Qdrant collection
         if let Err(e) = self.qdrant.delete_collection(&workspace_id).await {
@@ -463,7 +498,7 @@ impl ForgeService for ForgeServiceImpl {
         self.db
             .delete_workspace(&workspace_id)
             .await
-            .map_err(|e| Status::internal(format!("Failed to delete workspace: {e}")))?;
+            .into_status("Failed to delete workspace")?;
 
         info!(workspace_id = %workspace_id, "Workspace deleted");
 
