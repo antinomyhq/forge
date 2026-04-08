@@ -56,7 +56,10 @@ impl<P: ConsoleWriter> SharedSpinner<P> {
     }
 
     /// Returns whether the spinner is currently active (running).
-    #[cfg(test)]
+    ///
+    /// Currently used only in tests but kept public for consistency with
+    /// `SpinnerManager::is_active()` and potential debugging/logging use.
+    #[allow(dead_code)]
     pub fn is_active(&self) -> bool {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).is_active()
     }
