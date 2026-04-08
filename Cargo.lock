@@ -2019,6 +2019,8 @@ dependencies = [
  "strip-ansi-escapes",
  "syntect",
  "termimad",
+ "terminal-colorsaurus",
+ "two-face",
 ]
 
 [[package]]
@@ -2203,6 +2205,7 @@ dependencies = [
  "tiny_http",
  "tokio",
  "tokio-stream",
+ "toml_edit 0.25.10+spec-1.1.0",
  "tracing",
  "update-informer",
  "url",
@@ -6967,6 +6970,17 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "two-face"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b285c51f8a6ade109ed4566d33ac4fb289fb5d6cf87ed70908a5eaf65e948e34"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "syntect",
+]
 
 [[package]]
 name = "typeid"
