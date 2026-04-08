@@ -60,7 +60,8 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
         // This prevents duplicate reminders while still allowing new reminders
         // when todos change (e.g., some completed but others still pending)
         let should_add_reminder = if let Some(context) = &conversation.context {
-            // Find the most recent reminder message by looking for the template content pattern
+            // Find the most recent reminder message by looking for the template content
+            // pattern
             let last_reminder_todos: Option<HashSet<String>> = context
                 .messages
                 .iter()
@@ -76,8 +77,7 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
                             .filter(|line| line.starts_with("- ["))
                             .map(|line| {
                                 // Extract content after "- [STATUS] "
-                                line.splitn(2, "] ")
-                                    .nth(1)
+                                line.split_once("] ").map(|x| x.1)
                                     .map(|s| s.to_string())
                                     .unwrap_or_default()
                             })
@@ -227,9 +227,8 @@ mod tests {
     async fn test_reminder_not_duplicated_for_same_todos() {
         let handler = PendingTodosHandler::new();
         let event = fixture_event();
-        let mut conversation = fixture_conversation(vec![
-            Todo::new("Fix the build").status(TodoStatus::Pending),
-        ]);
+        let mut conversation =
+            fixture_conversation(vec![Todo::new("Fix the build").status(TodoStatus::Pending)]);
 
         // First call should inject a reminder
         handler.handle(&event, &mut conversation).await.unwrap();
@@ -258,14 +257,11 @@ mod tests {
 
         // Simulate LLM completing one todo but leaving another pending
         // Update the conversation metrics with different todos
-        conversation.metrics = conversation
-            .metrics
-            .clone()
-            .todos(vec![
-                Todo::new("Fix the build").status(TodoStatus::Completed),
-                Todo::new("Write tests").status(TodoStatus::InProgress),
-                Todo::new("Add documentation").status(TodoStatus::Pending),
-            ]);
+        conversation.metrics = conversation.metrics.clone().todos(vec![
+            Todo::new("Fix the build").status(TodoStatus::Completed),
+            Todo::new("Write tests").status(TodoStatus::InProgress),
+            Todo::new("Add documentation").status(TodoStatus::Pending),
+        ]);
 
         // Second call with different pending todos should add a new reminder
         handler.handle(&event, &mut conversation).await.unwrap();
