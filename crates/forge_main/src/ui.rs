@@ -192,6 +192,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         // Update the app config with the new operating agent.
         self.api.set_active_agent(agent.id.clone()).await?;
+
+        // Update model tracking to reflect the new agent's model
+        let model = self.get_agent_model(Some(agent.id.clone())).await;
+        self.update_model(model.clone());
+
         let name = agent.id.as_str().to_case(Case::UpperSnake).bold();
 
         let title = format!(
@@ -199,7 +204,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             agent.title.as_deref().unwrap_or(MISSING_AGENT_TITLE)
         )
         .dimmed();
-        self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
+
+        // Show model info if agent uses a specific model
+        let model_info = model
+            .map(|m| format!(" ∙ model: {m}").dimmed().to_string())
+            .unwrap_or_default();
+
+        self.writeln_title(TitleFormat::action(format!("{name} {title}{model_info}")))?;
 
         Ok(())
     }
