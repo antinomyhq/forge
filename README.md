@@ -368,7 +368,7 @@ Project-local skills override global ones, which override built-in ones. To scaf
 :workspace-info           # Show workspace details
 ```
 
-After running `:sync`, the AI can search your codebase by meaning rather than exact text matches. Indexing sends file content to the workspace server, which defaults to `https://api.forgecode.dev`. Set `FORGE_WORKSPACE_SERVER_URL` to override this if self-hosting.
+After running `:sync`, the AI can search your codebase by meaning rather than exact text matches. Indexing sends file content to the workspace server, which defaults to `http://localhost:50051`. Set `FORGE_WORKSPACE_SERVER_URL` or `services_url` in `.forge.toml` to point to a different server.
 
 ### Quick Reference: All `:` Commands
 
@@ -804,8 +804,8 @@ Override default API endpoints and provider/model settings:
 
 ```bash
 # .env
-FORGE_API_URL=https://api.forgecode.dev  # Custom Forge API URL (default: https://api.forgecode.dev)
-FORGE_WORKSPACE_SERVER_URL=http://localhost:8080  # URL for the indexing server (default: https://api.forgecode.dev/)
+FORGE_SERVICES_URL=http://localhost:50051  # URL for the workspace server (default: http://localhost:50051)
+FORGE_WORKSPACE_SERVER_URL=http://localhost:50051  # Alternative env var for the workspace server URL
 ```
 
 </details>
