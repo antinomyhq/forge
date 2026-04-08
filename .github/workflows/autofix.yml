@@ -41,7 +41,8 @@ jobs:
     - name: Install SQLite
       run: sudo apt-get install -y libsqlite3-dev
     - name: Setup Protobuf Compiler
-      run: if command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y protobuf-compiler; elif command -v brew >/dev/null 2>&1; then brew install protobuf; fi
+      run: if command -v apt-get >/dev/null 2>&1; then sudo apt-get install -y protobuf-compiler; elif command -v brew >/dev/null 2>&1; then brew install protobuf; elif command -v choco >/dev/null 2>&1; then choco install protoc -y; fi
+      shell: bash
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
