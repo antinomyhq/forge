@@ -597,11 +597,24 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             return Ok(());
         }
 
+        // Extract the last assistant message text for the Stop hook payload.
+        let last_assistant_message = conversation
+            .context
+            .as_ref()
+            .and_then(|ctx| {
+                ctx.messages
+                    .iter()
+                    .rev()
+                    .find(|m| m.has_role(Role::Assistant))
+                    .and_then(|m| m.content())
+                    .map(|s| s.to_string())
+            });
+
         let input = HookInput {
             hook_event_name: "Stop".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::Stop { stop_hook_active: was_active },
+            event_data: HookEventInput::Stop { stop_hook_active: was_active, last_assistant_message },
         };
 
         let results = self.execute_hooks(&hooks, &input).await;

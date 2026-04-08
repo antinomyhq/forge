@@ -60,6 +60,9 @@ pub enum HookEventInput {
     Stop {
         /// Whether a Stop hook has already fired (prevents infinite loops).
         stop_hook_active: bool,
+        /// The last assistant message text before the stop event.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        last_assistant_message: Option<String>,
     },
     /// Input for SessionStart events.
     SessionStart {
@@ -258,13 +261,35 @@ mod tests {
             hook_event_name: "Stop".to_string(),
             cwd: "/project".to_string(),
             session_id: None,
-            event_data: HookEventInput::Stop { stop_hook_active: false },
+            event_data: HookEventInput::Stop {
+                stop_hook_active: false,
+                last_assistant_message: None,
+            },
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();
 
         assert_eq!(actual["hook_event_name"], "Stop");
         assert_eq!(actual["stop_hook_active"], false);
+        assert!(actual.get("last_assistant_message").is_none());
+    }
+
+    #[test]
+    fn test_hook_input_serialization_stop_with_last_assistant_message() {
+        let fixture = HookInput {
+            hook_event_name: "Stop".to_string(),
+            cwd: "/project".to_string(),
+            session_id: Some("sess-456".to_string()),
+            event_data: HookEventInput::Stop {
+                stop_hook_active: true,
+                last_assistant_message: Some("Here is the result.".to_string()),
+            },
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        assert_eq!(actual["stop_hook_active"], true);
+        assert_eq!(actual["last_assistant_message"], "Here is the result.");
     }
 
     #[test]
