@@ -64,3 +64,6 @@ frequency = "daily"
 [reasoning]
 enabled = true
 effort = "high"
+
+currency_symbol = "$"
+currency_conversion_rate = 1.0
