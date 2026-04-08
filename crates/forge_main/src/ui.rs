@@ -2418,7 +2418,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.writeln_title(TitleFormat::info(format!(
-            "{provider_id} configured successfully!"
+            "{provider_id} configured successfully"
         )))?;
 
         Ok(())
@@ -2624,10 +2624,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
         }
 
+        // Verify by fetching the configured provider
+        let provider = self.api.get_provider(&provider_id).await?;
+
         self.display_credential_success(provider_id.clone()).await?;
 
-        // Fetch and return the configured provider
-        let provider = self.api.get_provider(&provider_id).await?;
         Ok(provider.into_configured())
     }
 
