@@ -242,7 +242,10 @@ mod tests {
             .build()
             .unwrap();
 
-        let expected = Some(ModelConfig { provider_id: "fake-provider".to_string(), model_id: "fake-model".to_string() });
+        let expected = Some(ModelConfig {
+            provider_id: "fake-provider".to_string(),
+            model_id: "fake-model".to_string(),
+        });
         assert_eq!(actual.session, expected);
     }
 }

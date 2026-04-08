@@ -58,21 +58,22 @@ impl LegacyConfig {
     /// covers, leaving all other fields at their defaults (`None`).
     fn into_forge_config(self) -> ForgeConfig {
         let session = self.provider.as_deref().and_then(|provider_id| {
-            self.model.get(provider_id).cloned().map(|model_id| {
-                ModelConfig { provider_id: provider_id.to_string(), model_id }
-            })
+            self.model
+                .get(provider_id)
+                .cloned()
+                .map(|model_id| ModelConfig { provider_id: provider_id.to_string(), model_id })
         });
 
         let commit = self.commit.and_then(|c| {
-            c.provider.zip(c.model).map(|(provider_id, model_id)| {
-                ModelConfig { provider_id, model_id }
-            })
+            c.provider
+                .zip(c.model)
+                .map(|(provider_id, model_id)| ModelConfig { provider_id, model_id })
         });
 
         let suggest = self.suggest.and_then(|s| {
-            s.provider.zip(s.model).map(|(provider_id, model_id)| {
-                ModelConfig { provider_id, model_id }
-            })
+            s.provider
+                .zip(s.model)
+                .map(|(provider_id, model_id)| ModelConfig { provider_id, model_id })
         });
 
         ForgeConfig { session, commit, suggest, ..Default::default() }
