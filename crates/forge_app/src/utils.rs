@@ -107,6 +107,199 @@ pub fn compute_hash(content: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
+// Merges strict-mode incompatible `allOf` branches into a single schema object.
+fn flatten_all_of_schema(map: &mut serde_json::Map<String, serde_json::Value>) {
+    let Some(serde_json::Value::Array(all_of)) = map.remove("allOf") else {
+        return;
+    };
+
+    for sub_schema in all_of {
+        let serde_json::Value::Object(source) = sub_schema else {
+            continue;
+        };
+
+        merge_schema_object(map, source);
+    }
+}
+
+fn merge_schema_object(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    mut source: serde_json::Map<String, serde_json::Value>,
+) {
+    flatten_all_of_schema(&mut source);
+
+    for (key, value) in source {
+        match target.get_mut(&key) {
+            Some(existing) => merge_schema_keyword(existing, value, &key),
+            None => {
+                target.insert(key, value);
+            }
+        }
+    }
+}
+
+fn merge_schema_keyword(target: &mut serde_json::Value, source: serde_json::Value, key: &str) {
+    match (key, target, source) {
+        (
+            "properties" | "$defs" | "definitions" | "patternProperties",
+            serde_json::Value::Object(target_map),
+            serde_json::Value::Object(source_map),
+        ) => merge_named_schema_map(target_map, source_map),
+        (
+            "required",
+            serde_json::Value::Array(target_values),
+            serde_json::Value::Array(source_values),
+        ) => merge_required_arrays(target_values, source_values),
+        (
+            "enum",
+            serde_json::Value::Array(target_values),
+            serde_json::Value::Array(source_values),
+        ) => merge_enum_arrays(target_values, source_values),
+        (_, serde_json::Value::Object(target_map), serde_json::Value::Object(source_map)) => {
+            merge_schema_object(target_map, source_map);
+        }
+        ("description" | "title", _, _) => {}
+        (_, target_value, source_value) if *target_value == source_value => {}
+        _ => {}
+    }
+}
+
+fn merge_named_schema_map(
+    target: &mut serde_json::Map<String, serde_json::Value>,
+    source: serde_json::Map<String, serde_json::Value>,
+) {
+    for (key, value) in source {
+        match target.get_mut(&key) {
+            Some(existing) => merge_schema_keyword(existing, value, "schema"),
+            None => {
+                target.insert(key, value);
+            }
+        }
+    }
+}
+
+fn merge_required_arrays(target: &mut Vec<serde_json::Value>, source: Vec<serde_json::Value>) {
+    for value in source {
+        if !target.contains(&value) {
+            target.push(value);
+        }
+    }
+
+    if target.iter().all(|value| value.as_str().is_some()) {
+        target.sort_by(|left, right| left.as_str().cmp(&right.as_str()));
+    }
+}
+
+fn merge_enum_arrays(target: &mut Vec<serde_json::Value>, source: Vec<serde_json::Value>) {
+    target.retain(|value| source.contains(value));
+}
+
+fn normalize_named_schema_keyword(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    strict_mode: bool,
+) {
+    let Some(serde_json::Value::Object(named_schemas)) = map.get_mut(key) else {
+        return;
+    };
+
+    for schema in named_schemas.values_mut() {
+        enforce_strict_schema(schema, strict_mode);
+    }
+}
+
+fn normalize_schema_keyword(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    key: &str,
+    strict_mode: bool,
+) {
+    let Some(schema) = map.get_mut(key) else {
+        return;
+    };
+
+    match schema {
+        serde_json::Value::Object(_) | serde_json::Value::Array(_) => {
+            enforce_strict_schema(schema, strict_mode);
+        }
+        serde_json::Value::Bool(_) => {}
+        _ => {}
+    }
+}
+
+fn normalize_schema_keywords(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    strict_mode: bool,
+) {
+    for key in ["properties", "$defs", "definitions", "patternProperties"] {
+        normalize_named_schema_keyword(map, key, strict_mode);
+    }
+
+    for key in [
+        "items",
+        "contains",
+        "not",
+        "if",
+        "then",
+        "else",
+        "additionalProperties",
+        "additionalItems",
+        "unevaluatedProperties",
+    ] {
+        normalize_schema_keyword(map, key, strict_mode);
+    }
+
+    for key in ["allOf", "anyOf", "oneOf", "prefixItems"] {
+        normalize_schema_keyword(map, key, strict_mode);
+    }
+}
+
+fn is_object_schema(map: &serde_json::Map<String, serde_json::Value>) -> bool {
+    map.get("type")
+        .and_then(|value| value.as_str())
+        .is_some_and(|ty| ty == "object")
+        || map.contains_key("properties")
+        || map.contains_key("required")
+        || map.contains_key("additionalProperties")
+}
+
+fn normalize_additional_properties(
+    map: &mut serde_json::Map<String, serde_json::Value>,
+    strict_mode: bool,
+) {
+    match map.get_mut("additionalProperties") {
+        Some(serde_json::Value::Object(additional_props_map)) => {
+            let has_combiners = additional_props_map.contains_key("anyOf")
+                || additional_props_map.contains_key("oneOf")
+                || additional_props_map.contains_key("allOf");
+
+            if !additional_props_map.contains_key("type") && !has_combiners {
+                additional_props_map.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+            }
+
+            let mut additional_props =
+                serde_json::Value::Object(std::mem::take(additional_props_map));
+            enforce_strict_schema(&mut additional_props, strict_mode);
+            map.insert("additionalProperties".to_string(), additional_props);
+        }
+        Some(serde_json::Value::Bool(_)) => {}
+        Some(_) => {
+            map.insert(
+                "additionalProperties".to_string(),
+                serde_json::Value::Bool(false),
+            );
+        }
+        None => {
+            map.insert(
+                "additionalProperties".to_string(),
+                serde_json::Value::Bool(false),
+            );
+        }
+    }
+}
+
 /// Normalizes a JSON schema to meet LLM provider requirements
 ///
 /// Many LLM providers (OpenAI, Anthropic) require that all object types in JSON
@@ -116,41 +309,34 @@ pub fn compute_hash(content: &str) -> String {
 /// Additionally, for OpenAI compatibility, it ensures:
 /// - All objects have a `properties` field (even if empty)
 /// - All objects have a `required` array with all property keys
+/// - `allOf` branches are merged into a single schema object when strict mode
+///   is enabled
 ///
 /// # Arguments
 /// * `schema` - The JSON schema to normalize (will be modified in place)
-/// * `strict_mode` - If true, adds `properties` and `required` fields for
-///   OpenAI compatibility
-///
-/// # Example
-///
-/// ```rust,ignore
-/// use serde_json::json;
-/// use forge_app::utils::normalize_json_schema;
-///
-/// let mut schema = json!({
-///     "type": "object",
-///     "properties": {
-///         "name": { "type": "string" }
-///     }
-/// });
-///
-/// normalize_json_schema(&mut schema, false);
-///
-/// assert_eq!(schema["additionalProperties"], json!(false));
-/// ```
+/// * `strict_mode` - If true, adds `properties`, `required`, and `allOf`
+///   flattening for OpenAI compatibility
 pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) {
     match schema {
         serde_json::Value::Object(map) => {
-            // Check if this is an object type
-            let is_object = map
-                .get("type")
-                .and_then(|value| value.as_str())
-                .is_some_and(|ty| ty == "object")
-                || map.contains_key("properties");
+            if strict_mode {
+                flatten_all_of_schema(map);
+                // Remove unsupported keywords that OpenAI/Codex doesn't allow
+                map.remove("propertyNames");
+            }
+
+            let is_object = is_object_schema(map);
+
+            // If this looks like an object schema but has no explicit type, add it
+            // OpenAI requires all schemas to have a type when they represent objects
+            if is_object && !map.contains_key("type") {
+                map.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("object".to_string()),
+                );
+            }
 
             if is_object {
-                // OpenAI strict mode: ensure properties field exists
                 if strict_mode && !map.contains_key("properties") {
                     map.insert(
                         "properties".to_string(),
@@ -158,13 +344,8 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
                     );
                 }
 
-                // Both OpenAI and Anthropic require this field to be `false` for objects
-                map.insert(
-                    "additionalProperties".to_string(),
-                    serde_json::Value::Bool(false),
-                );
+                normalize_additional_properties(map, strict_mode);
 
-                // OpenAI strict mode: ensure required field exists with all property keys
                 if strict_mode {
                     let required_keys = map
                         .get("properties")
@@ -188,13 +369,6 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
                 }
             }
 
-            // OpenAI strict mode: convert "nullable: true" to anyOf with null type.
-            // OpenAI does not support the "nullable" keyword; instead, nullable
-            // schemas must be expressed as anyOf: [<original_schema>, {type: "null"}].
-            // The description is kept at the top level alongside the anyOf.
-            // Additionally, schemars' AddNullable transform adds `null` to enum
-            // arrays for nullable enums, which must be stripped from the non-null
-            // branch.
             if strict_mode
                 && map
                     .get("nullable")
@@ -203,19 +377,14 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
             {
                 map.remove("nullable");
 
-                // Remove null from enum array if present (added by AddNullable)
                 if let Some(serde_json::Value::Array(enum_values)) = map.get_mut("enum") {
                     enum_values.retain(|v| !v.is_null());
                 }
 
-                // Extract description to keep at the top level
                 let description = map.remove("description");
-
-                // Build the non-null branch from remaining keys
                 let non_null_branch = serde_json::Value::Object(std::mem::take(map));
                 let null_branch = serde_json::json!({"type": "null"});
 
-                // Replace the current map contents with an anyOf wrapper
                 if let Some(desc) = description {
                     map.insert("description".to_string(), desc);
                 }
@@ -225,10 +394,7 @@ pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) 
                 );
             }
 
-            // Recursively normalize nested schemas
-            for value in map.values_mut() {
-                enforce_strict_schema(value, strict_mode);
-            }
+            normalize_schema_keywords(map, strict_mode);
         }
         serde_json::Value::Array(items) => {
             for value in items {
@@ -361,6 +527,154 @@ mod tests {
     }
 
     #[test]
+    fn test_dynamic_properties_schema_is_preserved_in_strict_mode() {
+        let mut fixture = json!({
+            "type": "object",
+            "properties": {
+                "pages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "properties": {
+                                "description": "Dynamic page properties",
+                                "type": "object",
+                                "additionalProperties": {
+                                    "anyOf": [
+                                        { "type": "string" },
+                                        { "type": "number" },
+                                        { "type": "null" }
+                                    ]
+                                },
+                                "propertyNames": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "additionalProperties": false
+                    }
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut fixture, true);
+
+        let expected = json!({
+            "type": "object",
+            "properties": {
+                "pages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "properties": {
+                                "description": "Dynamic page properties",
+                                "type": "object",
+                                "properties": {},
+                                "additionalProperties": {
+                                    "anyOf": [
+                                        { "type": "string" },
+                                        { "type": "number" },
+                                        { "type": "null" }
+                                    ]
+                                },
+                                "required": []
+                            }
+                        },
+                        "additionalProperties": false,
+                        "required": ["properties"]
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "required": ["pages"]
+        });
+
+        assert_eq!(fixture, expected);
+    }
+
+    #[test]
+    fn test_all_of_is_flattened_in_strict_mode() {
+        let mut fixture = json!({
+            "type": "object",
+            "properties": {
+                "rich_text": {
+                    "type": "array",
+                    "items": {
+                        "allOf": [
+                            {
+                                "type": "object",
+                                "properties": {
+                                    "text": { "type": "string" }
+                                }
+                            },
+                            {
+                                "description": "Rich text item"
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut fixture, true);
+
+        let expected = json!({
+            "type": "object",
+            "properties": {
+                "rich_text": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "text": { "type": "string" }
+                        },
+                        "description": "Rich text item",
+                        "additionalProperties": false,
+                        "required": ["text"]
+                    }
+                }
+            },
+            "additionalProperties": false,
+            "required": ["rich_text"]
+        });
+
+        assert_eq!(fixture, expected);
+    }
+
+    #[test]
+    fn test_all_of_is_preserved_in_non_strict_mode() {
+        let mut fixture = json!({
+            "type": "object",
+            "properties": {
+                "value": {
+                    "allOf": [
+                        { "type": "string" },
+                        { "description": "A value" }
+                    ]
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut fixture, false);
+
+        let expected = json!({
+            "type": "object",
+            "properties": {
+                "value": {
+                    "allOf": [
+                        { "type": "string" },
+                        { "description": "A value" }
+                    ]
+                }
+            },
+            "additionalProperties": false
+        });
+
+        assert_eq!(fixture, expected);
+    }
+
+    #[test]
     fn test_nullable_enum_converted_to_any_of_in_strict_mode() {
         // This matches what schemars AddNullable produces: nullable=true AND
         // null added to enum values array
@@ -447,5 +761,244 @@ mod tests {
         // In non-strict mode, nullable should be preserved as-is
         assert_eq!(schema["properties"]["output_mode"]["nullable"], json!(true));
         assert!(schema["properties"]["output_mode"].get("anyOf").is_none());
+    }
+
+    #[test]
+    fn test_schema_valued_additional_properties_is_normalized() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                            "value": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        // The additionalProperties schema should have been normalized
+        // (additionalProperties: false added to nested schema)
+        assert_eq!(
+            schema["properties"]["metadata"]["additionalProperties"],
+            json!({
+                "type": "object",
+                "properties": {
+                    "value": { "type": "string" }
+                },
+                "additionalProperties": false,
+                "required": ["value"]
+            })
+        );
+    }
+
+    #[test]
+    fn test_notion_mcp_create_comment_schema() {
+        // Simulates the actual Notion MCP create_comment schema that was failing
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "rich_text": {
+                    "type": "array",
+                    "items": {
+                        "anyOf": [
+                            {
+                                "type": "object",
+                                "description": "Text content",
+                                "properties": {
+                                    "text": {
+                                        "type": "object",
+                                        "properties": {
+                                            "content": { "type": "string" }
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "type": "object",
+                                "description": "Mention content",
+                                "properties": {
+                                    "mention": {
+                                        "type": "object",
+                                        "properties": {
+                                            "user": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "id": { "type": "string" }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                "page_id": {
+                    "type": "string"
+                },
+                "discussion_id": {
+                    "type": "string"
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        // Verify the schema is now valid for OpenAI
+        // 1. All objects should have type: "object"
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["properties"]["rich_text"]["type"], "array");
+
+        // 2. Check that the anyOf items have proper types and additionalProperties:
+        //    false
+        let any_of = schema["properties"]["rich_text"]["items"]["anyOf"]
+            .as_array()
+            .unwrap();
+        for branch in any_of {
+            assert_eq!(branch["type"], "object");
+            assert_eq!(branch["additionalProperties"], false);
+            // All nested object properties should also have type and additionalProperties
+            if let Some(props) = branch["properties"].as_object() {
+                for (_, prop_schema) in props {
+                    if let Some(obj) = prop_schema.as_object()
+                        && obj.contains_key("properties")
+                    {
+                        assert!(
+                            prop_schema["type"] == "object",
+                            "Nested object should have type: object"
+                        );
+                    }
+                }
+            }
+        }
+
+        // 3. Verify additionalProperties: false at root level and for objects
+        assert_eq!(schema["additionalProperties"], false);
+        // Note: arrays don't get additionalProperties, only objects do
+        assert_eq!(schema["properties"]["rich_text"]["type"], "array");
+
+        // 4. Verify required fields are set
+        let required = schema["required"].as_array().unwrap();
+        assert!(required.contains(&json!("rich_text")));
+        assert!(required.contains(&json!("page_id")));
+        assert!(required.contains(&json!("discussion_id")));
+    }
+
+    #[test]
+    fn test_property_names_is_removed_in_strict_mode() {
+        // This test ensures we don't regress on propertyNames removal
+        // propertyNames is a JSON Schema keyword that OpenAI/Codex doesn't support
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "dynamic": {
+                    "type": "object",
+                    "propertyNames": {
+                        "type": "string",
+                        "pattern": "^[a-z]+$"
+                    },
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        });
+
+        enforce_strict_schema(&mut schema, true);
+
+        // propertyNames should be completely removed
+        assert!(
+            !schema["properties"]["dynamic"]
+                .as_object()
+                .unwrap()
+                .contains_key("propertyNames"),
+            "propertyNames must be removed in strict mode for OpenAI/Codex compatibility"
+        );
+
+        // The rest of the schema should be preserved
+        assert_eq!(schema["properties"]["dynamic"]["type"], "object");
+        assert_eq!(
+            schema["properties"]["dynamic"]["additionalProperties"]["type"],
+            "string"
+        );
+    }
+
+    /// Integration test that simulates the full Notion MCP workflow:
+    /// 1. Schema arrives from MCP server (with propertyNames)
+    /// 2. Gets normalized for OpenAI/Codex (propertyNames removed)
+    /// 3. Serialized to JSON for API request
+    #[test]
+    fn test_notion_mcp_create_pages_full_schema() {
+        // This is a realistic subset of the Notion MCP create_pages schema
+        // that caused the original error
+        let notion_mcp_schema = json!({
+            "type": "object",
+            "properties": {
+                "pages": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "properties": {
+                                "description": "Dynamic page properties",
+                                "type": "object",
+                                "propertyNames": {
+                                    "type": "string"
+                                },
+                                "additionalProperties": {
+                                    "anyOf": [
+                                        { "type": "string" },
+                                        { "type": "number" },
+                                        { "type": "boolean" }
+                                    ]
+                                }
+                            }
+                        },
+                        "required": ["properties"]
+                    }
+                }
+            },
+            "required": ["pages"]
+        });
+
+        // Step 1: Convert to Schema (like MCP client does)
+        let schema_str = serde_json::to_string(&notion_mcp_schema).unwrap();
+        let mut schema: serde_json::Value = serde_json::from_str(&schema_str).unwrap();
+
+        // Step 2: Normalize for OpenAI/Codex strict mode
+        enforce_strict_schema(&mut schema, true);
+
+        // Step 3: Serialize for API request
+        let api_request_json = serde_json::to_string(&schema).unwrap();
+
+        // Verify: propertyNames should NOT be in the final JSON
+        assert!(
+            !api_request_json.contains("propertyNames"),
+            "Final API request JSON must not contain 'propertyNames'. Schema: {}",
+            api_request_json
+        );
+
+        // Verify: Schema structure is preserved
+        assert_eq!(schema["type"], "object");
+        assert_eq!(schema["properties"]["pages"]["type"], "array");
+        assert_eq!(
+            schema["properties"]["pages"]["items"]["properties"]["properties"]["type"],
+            "object"
+        );
+
+        // Verify: additionalProperties is normalized
+        let additional_props = &schema["properties"]["pages"]["items"]["properties"]["properties"]
+            ["additionalProperties"];
+        assert!(additional_props.is_object() || additional_props.is_boolean());
+
+        // Verify: Required fields are set
+        let required = schema["required"].as_array().unwrap();
+        assert!(required.contains(&json!("pages")));
     }
 }
