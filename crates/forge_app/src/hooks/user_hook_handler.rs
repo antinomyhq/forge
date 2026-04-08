@@ -628,7 +628,7 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             if let Some(context) = conversation.context.as_mut() {
                 let continue_msg = Element::new("important")
                     .text(
-                        "A Stop hook has requested the conversation to continue.
+                        "A Stop hook has requested the conversation to continue. \
                          You MUST acknowledge this and continue working on the task.",
                     )
                     .append(
