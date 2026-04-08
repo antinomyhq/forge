@@ -5,7 +5,7 @@ use std::time::Duration;
 use async_recursion::async_recursion;
 use derive_setters::Setters;
 use forge_config::RetryConfig;
-use forge_domain::{Agent, *};
+use forge_domain::{Agent, PromptSuppressed, StopBlocked, *};
 use forge_template::Element;
 use tokio::sync::Notify;
 use tracing::warn;
@@ -232,6 +232,11 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut request_count = 0;
 
+        // Tracks whether the End lifecycle event has already been fired
+        // inside the loop (e.g. to give the Stop hook a chance to force
+        // continuation). When true, the post-loop End event is skipped.
+        let mut end_event_fired = false;
+
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.agent.max_requests_per_turn;
         let tool_context =
@@ -242,15 +247,29 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Fire the Request lifecycle event
+            // Fire the Request lifecycle event.
+            // A UserPromptSubmit hook may suppress the prompt by returning
+            // PromptSuppressed. In that case, we exit the loop cleanly
+            // without making the LLM call.
             let mut request_event = LifecycleEvent::Request(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
                 RequestPayload::new(request_count),
             ));
-            self.hook
+            if let Err(e) = self
+                .hook
                 .handle(&mut request_event, &mut self.conversation)
-                .await?;
+                .await
+            {
+                if e.downcast_ref::<PromptSuppressed>().is_some() {
+                    // Prompt was blocked by a UserPromptSubmit hook.
+                    // Persist the conversation (which now contains the feedback
+                    // message) and exit cleanly.
+                    self.services.update(self.conversation.clone()).await?;
+                    break;
+                }
+                return Err(e);
+            }
 
             let message = crate::retry::retry_with_config(
                 &self.retry_config,
@@ -387,19 +406,57 @@ impl<S: AgentService> Orchestrator<S> {
             tool_context.with_metrics(|metrics| {
                 self.conversation.metrics = metrics.clone();
             })?;
+
+            // If the agent is about to stop (task complete), fire the End
+            // event inside the loop so a Stop hook can force continuation.
+            if should_yield && is_complete {
+                let end_result = self
+                    .hook
+                    .handle(
+                        &mut LifecycleEvent::End(EventData::new(
+                            self.agent.clone(),
+                            model_id.clone(),
+                            EndPayload,
+                        )),
+                        &mut self.conversation,
+                    )
+                    .await;
+                match end_result {
+                    Err(e) if e.downcast_ref::<StopBlocked>().is_some() => {
+                        // Stop hook wants to continue — re-enter the loop.
+                        // Update context from conversation (handler may have
+                        // injected a continue message).
+                        if let Some(updated_context) = &self.conversation.context {
+                            context = updated_context.clone();
+                        }
+                        should_yield = false;
+                        is_complete = false;
+                        end_event_fired = true;
+                        continue;
+                    }
+                    Err(e) => return Err(e),
+                    Ok(()) => {
+                        end_event_fired = true;
+                    }
+                }
+            }
         }
 
-        // Fire the End lifecycle event (title will be set here by the hook)
-        self.hook
-            .handle(
-                &mut LifecycleEvent::End(EventData::new(
-                    self.agent.clone(),
-                    model_id.clone(),
-                    EndPayload,
-                )),
-                &mut self.conversation,
-            )
-            .await?;
+        // Fire the End lifecycle event if it wasn't already fired inside the
+        // loop (e.g. when yielding due to a tool requesting follow-up, or
+        // when the Stop hook did not block).
+        if !end_event_fired {
+            self.hook
+                .handle(
+                    &mut LifecycleEvent::End(EventData::new(
+                        self.agent.clone(),
+                        model_id.clone(),
+                        EndPayload,
+                    )),
+                    &mut self.conversation,
+                )
+                .await?;
+        }
 
         self.services.update(self.conversation.clone()).await?;
 

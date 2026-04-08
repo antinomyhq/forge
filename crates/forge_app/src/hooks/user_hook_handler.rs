@@ -6,9 +6,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
-    HookExecutionResult, HookInput, HookOutput, RequestPayload, ResponsePayload, Role,
-    StartPayload, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload, UserHookConfig,
-    UserHookEntry, UserHookEventName, UserHookMatcherGroup,
+    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload,
+    ResponsePayload, Role, StartPayload, StopBlocked, ToolCallArguments, ToolcallEndPayload,
+    ToolcallStartPayload, UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
 };
 use forge_template::Element;
 use regex::Regex;
@@ -98,13 +98,17 @@ impl<I> UserHookHandler<I> {
                         false
                     }
                 },
-                (Some(_), None) => {
-                    // Matcher specified but no subject to match against; skip
-                    false
-                }
                 (None, _) => {
                     // No matcher means unconditional match
                     true
+                }
+                (Some(x), _) if x.is_empty() => {
+                    // Empty matcher is treated as unconditional (same as None)
+                    true
+                }
+                (Some(_), None) => {
+                    // Matcher specified but no subject to match against; skip
+                    false
                 }
             };
 
@@ -354,15 +358,24 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             );
             // Inject feedback so the model sees why the prompt was flagged.
             if let Some(context) = conversation.context.as_mut() {
-                let feedback_msg = Element::new("hook_feedback")
-                    .append(Element::new("event").text("UserPromptSubmit"))
-                    .append(Element::new("status").text("blocked"))
-                    .append(Element::new("reason").text(&reason))
+                let feedback_msg = Element::new("important")
+                    .text(
+                        "A UserPromptSubmit hook has blocked this prompt. \
+                         You MUST acknowledge this in your next response.",
+                    )
+                    .append(
+                        Element::new("hook_feedback")
+                            .append(Element::new("event").text("UserPromptSubmit"))
+                            .append(Element::new("status").text("blocked"))
+                            .append(Element::new("reason").text(&reason)),
+                    )
                     .render();
                 context
                     .messages
                     .push(ContextMessage::user(feedback_msg, None).into());
             }
+            // Signal the orchestrator to suppress this prompt entirely.
+            return Err(anyhow::Error::from(PromptSuppressed(reason)));
         }
 
         Ok(())
@@ -405,12 +418,22 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
 
         let tool_input =
             serde_json::to_value(&event.payload.tool_call.arguments).unwrap_or_default();
+        let tool_use_id = event
+            .payload
+            .tool_call
+            .call_id
+            .as_ref()
+            .map(|id| id.as_str().to_string());
 
         let input = HookInput {
             hook_event_name: "PreToolUse".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::PreToolUse { tool_name: tool_name.clone(), tool_input },
+            event_data: HookEventInput::PreToolUse {
+                tool_name: tool_name.clone(),
+                tool_input,
+                tool_use_id,
+            },
         };
 
         let results = self.execute_hooks(&hooks, &input).await;
@@ -477,6 +500,12 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
         let tool_input =
             serde_json::to_value(&event.payload.tool_call.arguments).unwrap_or_default();
         let tool_response = serde_json::to_value(&event.payload.result.output).unwrap_or_default();
+        let tool_use_id = event
+            .payload
+            .tool_call
+            .call_id
+            .as_ref()
+            .map(|id| id.as_str().to_string());
 
         let input = HookInput {
             hook_event_name: event_name.to_string(),
@@ -486,6 +515,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
                 tool_name: tool_name.to_string(),
                 tool_input,
                 tool_response,
+                tool_use_id,
             },
         };
 
@@ -501,11 +531,18 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
             );
             // Inject feedback as a user message
             if let Some(context) = conversation.context.as_mut() {
-                let feedback_msg = Element::new("hook_feedback")
-                    .append(Element::new("event").text(event_name.to_string()))
-                    .append(Element::new("tool").text(tool_name))
-                    .append(Element::new("status").text("blocked"))
-                    .append(Element::new("reason").text(&reason))
+                let feedback_msg = Element::new("important")
+                    .text(
+                        "A post-tool-use hook has flagged the following. \
+                         You MUST acknowledge this in your next response.",
+                    )
+                    .append(
+                        Element::new("hook_feedback")
+                            .append(Element::new("event").text(event_name.to_string()))
+                            .append(Element::new("tool").text(tool_name))
+                            .append(Element::new("status").text("blocked"))
+                            .append(Element::new("reason").text(&reason)),
+                    )
                     .render();
                 context
                     .messages
@@ -576,18 +613,30 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             );
             // Inject a message to continue the conversation
             if let Some(context) = conversation.context.as_mut() {
-                let continue_msg = Element::new("hook_feedback")
-                    .append(Element::new("event").text("Stop"))
-                    .append(Element::new("status").text("continue"))
-                    .append(Element::new("reason").text(&reason))
+                let continue_msg = Element::new("important")
+                    .text(
+                        "A Stop hook has requested the conversation to continue.
+                         You MUST acknowledge this and continue working on the task.",
+                    )
+                    .append(
+                        Element::new("hook_feedback")
+                            .append(Element::new("event").text("Stop"))
+                            .append(Element::new("status").text("continue"))
+                            .append(Element::new("reason").text(&reason)),
+                    )
                     .render();
                 context
                     .messages
                     .push(forge_domain::ContextMessage::user(continue_msg, None).into());
             }
+            // Keep stop_hook_active as true so the next Stop invocation
+            // sends stop_hook_active: true to the hook script, allowing it
+            // to detect re-entry and avoid infinite loops.
+            // Signal the orchestrator to continue the conversation
+            return Err(anyhow::Error::from(StopBlocked(reason)));
         }
 
-        // Reset the stop hook active flag
+        // Non-blocking: reset the stop hook active flag
         self.stop_hook_active.store(false, Ordering::SeqCst);
 
         Ok(())
@@ -695,6 +744,22 @@ mod tests {
         let groups = vec![make_group(Some("Bash"), &["block.sh"])];
         let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, None);
         assert!(actual.is_empty());
+    }
+
+    #[test]
+    fn test_find_matching_hooks_empty_matcher_fires_without_subject() {
+        let groups = vec![make_group(Some(""), &["stop-hook.sh"])];
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, None);
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].command, Some("stop-hook.sh".to_string()));
+    }
+
+    #[test]
+    fn test_find_matching_hooks_empty_matcher_fires_with_subject() {
+        let groups = vec![make_group(Some(""), &["pre-tool.sh"])];
+        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"));
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].command, Some("pre-tool.sh".to_string()));
     }
 
     #[test]
@@ -1280,5 +1345,713 @@ mod tests {
         }];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
         assert_eq!(actual, Some("primary".to_string()));
+    }
+
+    // =========================================================================
+    // Tests: UserPromptSubmit blocking must return Err(PromptSuppressed)
+    // =========================================================================
+
+    /// Helper: creates a UserHookHandler with a given infra and UserPromptSubmit config.
+    fn prompt_submit_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
+        let json =
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        UserHookHandler::new(
+            infra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
+        )
+    }
+
+    /// Helper: creates a RequestPayload EventData with the given request_count.
+    fn request_event(
+        request_count: usize,
+    ) -> EventData<forge_domain::RequestPayload> {
+        use forge_domain::{Agent, ModelId, ProviderId};
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            forge_domain::RequestPayload::new(request_count),
+        )
+    }
+
+    /// Helper: creates a Conversation with a context containing one user message.
+    fn conversation_with_user_msg(msg: &str) -> forge_domain::Conversation {
+        let mut conv = forge_domain::Conversation::generate();
+        let mut ctx = forge_domain::Context::default();
+        ctx.messages
+            .push(forge_domain::ContextMessage::user(msg.to_string(), None).into());
+        conv.context = Some(ctx);
+        conv
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_block_exit2_returns_error() {
+        // TC16: exit code 2 must return PromptSuppressed error.
+        #[derive(Clone)]
+        struct BlockExit2;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for BlockExit2 {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "policy violation".to_string(),
+                })
+            }
+        }
+
+        let handler = prompt_submit_handler(BlockExit2);
+        let mut event = request_event(0);
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.downcast_ref::<forge_domain::PromptSuppressed>().is_some());
+        assert!(err.to_string().contains("policy violation"));
+
+        // Feedback should have been injected into conversation
+        let ctx = conversation.context.as_ref().unwrap();
+        let last_msg = ctx.messages.last().unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("<important>"));
+        assert!(content.contains("policy violation"));
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_block_json_decision_returns_error() {
+        // JSON {"decision":"block","reason":"Content policy"} must block.
+        #[derive(Clone)]
+        struct JsonBlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for JsonBlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: r#"{"decision":"block","reason":"Content policy"}"#.to_string(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let handler = prompt_submit_handler(JsonBlockInfra);
+        let mut event = request_event(0);
+        let mut conversation = conversation_with_user_msg("test");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.downcast_ref::<forge_domain::PromptSuppressed>().is_some());
+        assert!(err.to_string().contains("Content policy"));
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_block_continue_false_returns_error() {
+        // {"continue":false,"reason":"Blocked by admin"} must block.
+        #[derive(Clone)]
+        struct ContinueFalseInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for ContinueFalseInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: r#"{"continue":false,"reason":"Blocked by admin"}"#.to_string(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let handler = prompt_submit_handler(ContinueFalseInfra);
+        let mut event = request_event(0);
+        let mut conversation = conversation_with_user_msg("test");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .downcast_ref::<forge_domain::PromptSuppressed>()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_allow_returns_ok() {
+        // Exit 0 + empty stdout => allow, no feedback injected.
+        let handler = prompt_submit_handler(NullInfra);
+        let mut event = request_event(0);
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count);
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_non_blocking_error_returns_ok() {
+        // Exit code 1 is a non-blocking error — must NOT block.
+        #[derive(Clone)]
+        struct Exit1Infra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for Exit1Infra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(1),
+                    stdout: String::new(),
+                    stderr: "some error".to_string(),
+                })
+            }
+        }
+
+        let handler = prompt_submit_handler(Exit1Infra);
+        let mut event = request_event(0);
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_skipped_on_subsequent_requests() {
+        // request_count > 0 means it's a retry, not a user prompt.
+        let handler = prompt_submit_handler(NullInfra);
+        let mut event = request_event(1); // subsequent request
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count);
+    }
+
+    // =========================================================================
+    // BUG-2 Tests: Stop hook blocking must return Err(StopBlocked)
+    // =========================================================================
+
+    /// Helper: creates a UserHookHandler with Stop config and a given infra.
+    fn stop_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
+        let json = r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        UserHookHandler::new(
+            infra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
+        )
+    }
+
+    /// Helper: creates an EndPayload EventData.
+    fn end_event() -> EventData<forge_domain::EndPayload> {
+        use forge_domain::{Agent, ModelId, ProviderId};
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        EventData::new(agent, ModelId::new("test-model"), forge_domain::EndPayload)
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_block_returns_stop_blocked_error() {
+        #[derive(Clone)]
+        struct StopBlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for StopBlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "keep working".to_string(),
+                })
+            }
+        }
+
+        let handler = stop_handler(StopBlockInfra);
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.downcast_ref::<forge_domain::StopBlocked>().is_some());
+        assert!(err.to_string().contains("keep working"));
+
+        // Continue message should be injected
+        let ctx = conversation.context.as_ref().unwrap();
+        let last_msg = ctx.messages.last().unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("<important>"));
+        assert!(content.contains("continue"));
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_allow_returns_ok() {
+        let handler = stop_handler(NullInfra);
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        // No continue message should be injected
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count);
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_active_guard_prevents_reentry() {
+        #[derive(Clone)]
+        struct StopBlockInfra2;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for StopBlockInfra2 {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "keep working".to_string(),
+                })
+            }
+        }
+
+        let handler = stop_handler(StopBlockInfra2);
+
+        // Simulate stop_hook_active already being true (re-entrant)
+        handler
+            .stop_hook_active
+            .store(true, std::sync::atomic::Ordering::SeqCst);
+
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+
+        // Second call should be a no-op (guard prevents re-entry)
+        let result = handler.handle(&mut event, &mut conversation).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_active_flag_reset_after_completion() {
+        let handler = stop_handler(NullInfra);
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+
+        // After a successful (non-blocking) call, flag should be reset
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+        let actual = handler
+            .stop_hook_active
+            .load(std::sync::atomic::Ordering::SeqCst);
+        assert!(!actual);
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_block_json_continue_false() {
+        #[derive(Clone)]
+        struct StopJsonBlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for StopJsonBlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: r#"{"continue":false,"stopReason":"keep working"}"#.to_string(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let handler = stop_handler(StopJsonBlockInfra);
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.downcast_ref::<forge_domain::StopBlocked>().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_session_end_hooks_still_fire_on_block() {
+        // When Stop blocks, SessionEnd hooks (fired before Stop) should still
+        // have executed. We verify by configuring both SessionEnd and Stop hooks
+        // and checking that the handler processes both.
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
+
+        #[derive(Clone)]
+        struct CountingInfra {
+            call_count: Arc<AtomicU32>,
+        }
+
+        #[async_trait::async_trait]
+        impl HookCommandService for CountingInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                self.call_count.fetch_add(1, AtomicOrdering::SeqCst);
+                // Return blocking for Stop hooks (exit 2)
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "blocked".to_string(),
+                })
+            }
+        }
+
+        // Config with both SessionEnd and Stop hooks
+        let json = r#"{
+            "SessionEnd": [{"hooks": [{"type": "command", "command": "echo session-end"}]}],
+            "Stop": [{"hooks": [{"type": "command", "command": "echo stop"}]}]
+        }"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        let call_count = Arc::new(AtomicU32::new(0));
+        let handler = UserHookHandler::new(
+            CountingInfra { call_count: call_count.clone() },
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
+        );
+
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        // Stop hook blocks => StopBlocked error
+        assert!(result.is_err());
+        // Both SessionEnd AND Stop hooks should have been called (2 total)
+        let actual = call_count.load(AtomicOrdering::SeqCst);
+        assert_eq!(actual, 2);
+    }
+
+    // =========================================================================
+    // BUG-3 Tests: PostToolUse feedback must use <important> wrapper
+    // =========================================================================
+
+    /// Helper: creates a UserHookHandler with PostToolUse config and given infra.
+    fn post_tool_use_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
+        let json =
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        UserHookHandler::new(
+            infra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
+        )
+    }
+
+    /// Helper: creates a ToolcallEndPayload EventData with a successful tool result.
+    fn toolcall_end_event(
+        tool_name: &str,
+        is_error: bool,
+    ) -> EventData<forge_domain::ToolcallEndPayload> {
+        use forge_domain::{Agent, ModelId, ProviderId, ToolCallFull, ToolResult};
+        let agent = Agent::new(
+            "test-agent",
+            ProviderId::from("test-provider".to_string()),
+            ModelId::new("test-model"),
+        );
+        let tool_call = ToolCallFull::new(tool_name);
+        let result = if is_error {
+            ToolResult::new(tool_name).failure(anyhow::anyhow!("tool failed"))
+        } else {
+            ToolResult::new(tool_name).success("output data")
+        };
+        EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            forge_domain::ToolcallEndPayload::new(tool_call, result),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_block_injects_important_feedback() {
+        #[derive(Clone)]
+        struct PostToolBlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for PostToolBlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "sensitive data detected".to_string(),
+                })
+            }
+        }
+
+        let handler = post_tool_use_handler(PostToolBlockInfra);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        // PostToolUse does NOT block execution — always Ok
+        assert!(result.is_ok());
+
+        // But feedback should be injected
+        let ctx = conversation.context.as_ref().unwrap();
+        let last_msg = ctx.messages.last().unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("<important>"));
+        assert!(content.contains("sensitive data detected"));
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_block_json_injects_feedback() {
+        #[derive(Clone)]
+        struct PostToolJsonBlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for PostToolJsonBlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: r#"{"decision":"block","reason":"PII detected"}"#.to_string(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let handler = post_tool_use_handler(PostToolJsonBlockInfra);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        let ctx = conversation.context.as_ref().unwrap();
+        let last_msg = ctx.messages.last().unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("PII detected"));
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_allow_no_feedback() {
+        let handler = post_tool_use_handler(NullInfra);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count);
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_non_blocking_error_no_feedback() {
+        #[derive(Clone)]
+        struct Exit1PostInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for Exit1PostInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(1),
+                    stdout: String::new(),
+                    stderr: "non-blocking error".to_string(),
+                })
+            }
+        }
+
+        let handler = post_tool_use_handler(Exit1PostInfra);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count);
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_failure_event_fires_separately() {
+        // PostToolUseFailure is a separate event from PostToolUse.
+        // Configure only PostToolUseFailure hooks and fire with is_error=true.
+        #[derive(Clone)]
+        struct FailureBlockInfra;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for FailureBlockInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "error flagged".to_string(),
+                })
+            }
+        }
+
+        let json = r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        let handler = UserHookHandler::new(
+            FailureBlockInfra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
+        );
+
+        let mut event = toolcall_end_event("shell", true);
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        let ctx = conversation.context.as_ref().unwrap();
+        let last_msg = ctx.messages.last().unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("error flagged"));
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_feedback_contains_tool_name() {
+        #[derive(Clone)]
+        struct PostToolBlockInfra2;
+
+        #[async_trait::async_trait]
+        impl HookCommandService for PostToolBlockInfra2 {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                _: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "flagged".to_string(),
+                })
+            }
+        }
+
+        let handler = post_tool_use_handler(PostToolBlockInfra2);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+
+        handler
+            .handle(&mut event, &mut conversation)
+            .await
+            .unwrap();
+
+        let ctx = conversation.context.as_ref().unwrap();
+        let last_msg = ctx.messages.last().unwrap();
+        let content = last_msg.content().unwrap();
+        // The feedback should reference the tool name
+        assert!(content.contains("shell"));
     }
 }

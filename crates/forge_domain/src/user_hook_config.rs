@@ -77,6 +77,14 @@ pub enum UserHookEventName {
     /// FIXME: Fired after context compaction; no lifecycle point fires this
     /// event and no handler exists yet.
     PostCompact,
+    /// FIXME: Fired when a subagent starts; no lifecycle point fires this
+    SubagentStart,
+    /// FIXME: Fired when a subagent stops; no lifecycle point fires this
+    SubagentStop,
+    /// FIXME: no lifecycle point fires this
+    PermissionRequest,
+    /// FIXME: no lifecycle point fires this
+    Setup,
 }
 
 /// A matcher group pairs an optional regex matcher with a list of hook
@@ -84,8 +92,8 @@ pub enum UserHookEventName {
 ///
 /// When a lifecycle event fires, only matcher groups whose `matcher` regex
 /// matches the relevant event context (e.g., tool name) will have their hooks
-/// executed. If `matcher` is `None`, all hooks in this group fire
-/// unconditionally.
+/// executed. If `matcher` is `None` (or an empty string, which is normalized
+/// to `None`), all hooks in this group fire unconditionally.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct UserHookMatcherGroup {
     /// Optional regex pattern to match against (e.g., tool name for

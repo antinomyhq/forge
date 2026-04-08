@@ -40,6 +40,9 @@ pub enum HookEventInput {
         tool_name: String,
         /// Tool call arguments as a JSON value.
         tool_input: Value,
+        /// Unique identifier for this tool call.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_use_id: Option<String>,
     },
     /// Input for PostToolUse events.
     PostToolUse {
@@ -49,6 +52,9 @@ pub enum HookEventInput {
         tool_input: Value,
         /// Tool output/response as a JSON value.
         tool_response: Value,
+        /// Unique identifier for this tool call.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        tool_use_id: Option<String>,
     },
     /// Input for Stop events.
     Stop {
@@ -215,6 +221,7 @@ mod tests {
             event_data: HookEventInput::PreToolUse {
                 tool_name: "Bash".to_string(),
                 tool_input: serde_json::json!({"command": "ls"}),
+                tool_use_id: None,
             },
         };
 
@@ -224,6 +231,25 @@ mod tests {
         assert_eq!(actual["cwd"], "/project");
         assert_eq!(actual["tool_name"], "Bash");
         assert_eq!(actual["tool_input"]["command"], "ls");
+        assert!(actual.get("tool_use_id").is_none());
+    }
+
+    #[test]
+    fn test_hook_input_serialization_pre_tool_use_with_tool_use_id() {
+        let fixture = HookInput {
+            hook_event_name: "PreToolUse".to_string(),
+            cwd: "/project".to_string(),
+            session_id: Some("sess-123".to_string()),
+            event_data: HookEventInput::PreToolUse {
+                tool_name: "Bash".to_string(),
+                tool_input: serde_json::json!({"command": "ls"}),
+                tool_use_id: Some("forge_call_id_abc123".to_string()),
+            },
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        assert_eq!(actual["tool_use_id"], "forge_call_id_abc123");
     }
 
     #[test]

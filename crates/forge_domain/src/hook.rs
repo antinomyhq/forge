@@ -398,6 +398,38 @@ where
     }
 }
 
+/// Error indicating a UserPromptSubmit hook blocked the prompt.
+///
+/// When a UserPromptSubmit hook exits with code 2 or returns a blocking JSON
+/// decision, the handler returns this error to signal the orchestrator that
+/// the prompt should be suppressed (the LLM call must not proceed).
+#[derive(Debug)]
+pub struct PromptSuppressed(pub String);
+
+impl std::fmt::Display for PromptSuppressed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Prompt suppressed by hook: {}", self.0)
+    }
+}
+
+impl std::error::Error for PromptSuppressed {}
+
+/// Error indicating a Stop hook blocked the agent from stopping.
+///
+/// When a Stop hook exits with code 2 or returns a blocking JSON decision,
+/// the handler returns this error to signal the orchestrator that the agent
+/// should continue working instead of stopping.
+#[derive(Debug)]
+pub struct StopBlocked(pub String);
+
+impl std::fmt::Display for StopBlocked {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Stop blocked by hook: {}", self.0)
+    }
+}
+
+impl std::error::Error for StopBlocked {}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
