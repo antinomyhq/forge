@@ -51,10 +51,7 @@ mod tests {
         let actual = service.get_user_hook_config().await.unwrap();
 
         assert!(!actual.is_empty());
-        assert_eq!(
-            actual.get_groups(&UserHookEventName::PreToolUse).len(),
-            1
-        );
+        assert_eq!(actual.get_groups(&UserHookEventName::PreToolUse).len(), 1);
     }
 
     #[tokio::test]

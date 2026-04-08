@@ -46,9 +46,7 @@ impl UserHookConfig {
 
 /// Supported hook event names that map to lifecycle points in the
 /// orchestrator.
-#[derive(
-    Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, JsonSchema, Dummy,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display, JsonSchema, Dummy)]
 pub enum UserHookEventName {
     /// Fired before a tool call executes. Can block execution.
     PreToolUse,

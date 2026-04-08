@@ -4,14 +4,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
-use forge_config::{
-    UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup,
-};
+use forge_config::{UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup};
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
-    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload,
-    ResponsePayload, Role, StartPayload, StopBlocked, ToolCallArguments, ToolcallEndPayload,
-    ToolcallStartPayload,
+    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload, ResponsePayload,
+    Role, StartPayload, StopBlocked, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload,
 };
 use forge_template::Element;
 use regex::Regex;
@@ -664,9 +661,7 @@ mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
 
-    use forge_config::{
-        UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType,
-    };
+    use forge_config::{UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType};
     use forge_domain::{CommandOutput, HookExecutionResult};
     use pretty_assertions::assert_eq;
 

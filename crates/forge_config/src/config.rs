@@ -9,8 +9,8 @@ use serde::{Deserialize, Serialize};
 use crate::reader::ConfigReader;
 use crate::writer::ConfigWriter;
 use crate::{
-    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig, Update,
-    UserHookConfig,
+    AutoDumpFormat, Compact, Decimal, HttpConfig, ModelConfig, ReasoningConfig, RetryConfig,
+    Update, UserHookConfig,
 };
 
 /// Wire protocol a provider uses for chat completions.
@@ -348,7 +348,9 @@ mod tests {
 
     #[test]
     fn test_hooks_toml_round_trip() {
-        use crate::{UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType};
+        use crate::{
+            UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup, UserHookType,
+        };
 
         let mut events = std::collections::HashMap::new();
         events.insert(
@@ -362,10 +364,7 @@ mod tests {
                 }],
             }],
         );
-        let fixture = ForgeConfig {
-            hooks: Some(UserHookConfig { events }),
-            ..Default::default()
-        };
+        let fixture = ForgeConfig { hooks: Some(UserHookConfig { events }), ..Default::default() };
 
         let toml = toml_edit::ser::to_string_pretty(&fixture).unwrap();
         let actual: ForgeConfig = toml_edit::de::from_str(&toml).unwrap();
