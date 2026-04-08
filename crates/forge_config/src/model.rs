@@ -18,12 +18,6 @@ pub struct ModelConfig {
     pub model_id: String,
 }
 
-impl Default for ModelConfig {
-    fn default() -> Self {
-        Self { provider_id: String::new(), model_id: String::new() }
-    }
-}
-
 impl ModelConfig {
     /// Creates a new ModelConfig with the given provider and model IDs.
     pub fn new(provider_id: impl Into<String>, model_id: impl Into<String>) -> Self {

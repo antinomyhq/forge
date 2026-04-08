@@ -207,25 +207,21 @@ mod tests {
                         ConfigOperation::SetSessionConfig(mc) => {
                             let pid_str = mc.provider.as_ref().to_string();
                             let mid_str = mc.model.to_string();
-                            config.session = Some(
-                                ModelConfig::default()
-                                    .provider_id(pid_str)
-                                    .model_id(mid_str),
-                            );
+                            config.session = Some(ModelConfig::new(pid_str, mid_str));
                         }
                         ConfigOperation::SetCommitConfig(mc) => {
                             config.commit = mc.map(|m| {
-                                ModelConfig::default()
-                                    .provider_id(m.provider.as_ref().to_string())
-                                    .model_id(m.model.to_string())
+                                ModelConfig::new(
+                                    m.provider.as_ref().to_string(),
+                                    m.model.to_string(),
+                                )
                             });
                         }
                         ConfigOperation::SetSuggestConfig(mc) => {
-                            config.suggest = Some(
-                                ModelConfig::default()
-                                    .provider_id(mc.provider.as_ref().to_string())
-                                    .model_id(mc.model.to_string()),
-                            );
+                            config.suggest = Some(ModelConfig::new(
+                                mc.provider.as_ref().to_string(),
+                                mc.model.to_string(),
+                            ));
                         }
                         ConfigOperation::SetReasoningEffort(_) => {
                             // No-op in tests
