@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Effort, ModelConfig};
 
+//FIXME: Drop Option and use new-types for model and provider ids
 /// Domain-level session configuration pairing a provider with a model.
 ///
 /// Used to represent an active session, decoupled from the on-disk

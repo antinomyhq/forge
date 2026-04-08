@@ -198,8 +198,8 @@ mod tests {
         // it on top of the embedded defaults. The default values must survive.
         let legacy = ForgeConfig {
             session: Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
+                provider_id: "anthropic".to_string(),
+                model_id: "claude-3".to_string(),
             }),
             ..Default::default()
         };
@@ -216,8 +216,8 @@ mod tests {
         assert_eq!(
             actual.session,
             Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
+                provider_id: "anthropic".to_string(),
+                model_id: "claude-3".to_string(),
             })
         );
 
@@ -242,10 +242,7 @@ mod tests {
             .build()
             .unwrap();
 
-        let expected = Some(ModelConfig {
-            provider_id: Some("fake-provider".to_string()),
-            model_id: Some("fake-model".to_string()),
-        });
+        let expected = Some(ModelConfig { provider_id: "fake-provider".to_string(), model_id: "fake-model".to_string() });
         assert_eq!(actual.session, expected);
     }
 }
