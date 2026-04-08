@@ -2207,7 +2207,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
         // Header row (non-selectable via header_lines=1)
-        rows.push(ModelRow { model_id: None, provider_id: None, display: all_lines[0].to_string() });
+        rows.push(ModelRow {
+            model_id: None,
+            provider_id: None,
+            display: all_lines[0].to_string(),
+        });
         // Data rows
         for (i, line) in all_lines.iter().skip(1).enumerate() {
             let entry = model_entries.get(i);
@@ -2880,9 +2884,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         if needs_model_selection {
             self.writeln_title(TitleFormat::info("Please select a new model"))?;
-            let selected = self
-                .on_model_selection(Some(provider.id.clone()))
-                .await?;
+            let selected = self.on_model_selection(Some(provider.id.clone())).await?;
             if selected.is_none() {
                 // User cancelled — preserve existing config untouched
                 return Ok(());
@@ -3545,7 +3547,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         match args.field {
             ConfigSetField::Model { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider_with_model(provider, Some(model)).await?;
+                self.activate_provider_with_model(provider, Some(model))
+                    .await?;
             }
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
