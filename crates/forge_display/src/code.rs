@@ -135,7 +135,7 @@ impl CodeBlockParser {
 
     /// Get the extracted code blocks.
     #[cfg(test)]
-    pub fn blocks(&self) -> &[CodeBlock] {
+    pub(crate) fn blocks(&self) -> &[CodeBlock] {
         &self.blocks
     }
 
@@ -148,7 +148,6 @@ impl CodeBlockParser {
         rendered
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -286,5 +285,4 @@ mod tests {
         assert!(actual1.contains("let x = 1"));
         assert!(actual2.contains("print('hello')"));
     }
-
 }
