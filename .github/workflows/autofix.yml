@@ -34,7 +34,7 @@ jobs:
     name: Lint Fix
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
@@ -51,8 +51,13 @@ jobs:
       run: cargo +nightly fmt --all
     - name: Cargo Clippy
       run: cargo +nightly clippy --all-features --all-targets --workspace --fix --allow-dirty -- -D warnings
-    - name: Autofix
-      uses: autofix-ci/action@7a166d7532b277f34e16238930461bf77f9d7ed8
+    - name: Commit and push fixes
+      run: |-
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add -A
+        git diff --staged --quiet || git commit -m "style: auto-fix lint and formatting"
+        git push
 concurrency:
   group: autofix-${{github.ref}}
   cancel-in-progress: false

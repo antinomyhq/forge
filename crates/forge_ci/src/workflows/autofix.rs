@@ -8,7 +8,7 @@ use crate::steps::setup_protoc;
 /// Generate the autofix workflow
 pub fn generate_autofix_workflow() {
     let lint_fix_job = Job::new("Lint Fix")
-        .permissions(Permissions::default().contents(Level::Read))
+        .permissions(Permissions::default().contents(Level::Write))
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(Step::new("Install SQLite").run("sudo apt-get install -y libsqlite3-dev"))
         .add_step(setup_protoc())
@@ -20,11 +20,14 @@ pub fn generate_autofix_workflow() {
         )
         .add_step(Step::new("Cargo Fmt").run(jobs::fmt_cmd(true)))
         .add_step(Step::new("Cargo Clippy").run(jobs::clippy_cmd(true)))
-        .add_step(Step::new("Autofix").uses(
-            "autofix-ci",
-            "action",
-            "7a166d7532b277f34e16238930461bf77f9d7ed8",
-        ));
+        .add_step(
+            Step::new("Commit and push fixes")
+                .run(r#"git config user.name "github-actions[bot]"
+git config user.email "github-actions[bot]@users.noreply.github.com"
+git add -A
+git diff --staged --quiet || git commit -m "style: auto-fix lint and formatting"
+git push"#),
+        );
 
     let events = Event::default()
         .push(Push::default().add_branch("main"))
