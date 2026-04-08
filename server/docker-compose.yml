@@ -1,0 +1,40 @@
+services:
+  workspace-server:
+    build: .
+    ports:
+      - "50051:50051"
+    environment:
+      LISTEN_ADDR: "0.0.0.0:50051"
+      QDRANT_URL: "http://qdrant:6334"
+      OLLAMA_URL: "http://ollama:11434"
+      EMBEDDING_MODEL: "nomic-embed-text"
+      EMBEDDING_DIM: "768"
+      DB_PATH: "/data/forge-server.db"
+      RUST_LOG: "info"
+    volumes:
+      - server_data:/data
+    depends_on:
+      qdrant:
+        condition: service_started
+      ollama:
+        condition: service_started
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  server_data:
+  qdrant_data:
+  ollama_data:
