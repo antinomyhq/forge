@@ -142,6 +142,13 @@ pub enum TopLevelCommand {
     #[command(subcommand)]
     Vscode(VscodeCommand),
 
+    /// Paste image from clipboard and return the @[path] string.
+    PasteImage {
+        /// Optional path to save the image to.
+        #[arg(long, short = 'o')]
+        output: Option<PathBuf>,
+    },
+
     /// Update forge to the latest version.
     Update(UpdateArgs),
 
