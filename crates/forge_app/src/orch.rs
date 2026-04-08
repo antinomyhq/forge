@@ -297,6 +297,16 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             )
             .await?;
 
+            // Fire the Response lifecycle event
+            let response_event = LifecycleEvent::Response(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                ResponsePayload::new(message.clone()),
+            ));
+            self.hook
+                .handle(&response_event, &mut self.conversation)
+                .await?;
+
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
             is_complete =
