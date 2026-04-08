@@ -6,6 +6,8 @@ use qdrant_client::qdrant::{
     Value, UpsertPointsBuilder,
 };
 
+const DELETE_BATCH_SIZE: usize = 100;
+
 /// A point to be upserted into Qdrant, representing a single file chunk.
 pub struct ChunkPoint {
     /// Unique point ID (UUID string)
@@ -127,6 +129,8 @@ impl QdrantStore {
 
     /// Deletes all points matching any of the given file paths.
     ///
+    /// Batches the delete operations by `DELETE_BATCH_SIZE` paths at a time
+    /// instead of one giant OR filter.
     /// Returns the number of file paths processed (not exact point count).
     pub async fn delete_by_file_paths(
         &self,
@@ -139,21 +143,23 @@ impl QdrantStore {
 
         let collection = Self::collection_name(workspace_id);
 
-        let filter = Filter::any(
-            paths
-                .iter()
-                .map(|p| Condition::matches("file_path", p.clone()))
-                .collect::<Vec<_>>(),
-        );
+        for batch in paths.chunks(DELETE_BATCH_SIZE) {
+            let filter = Filter::any(
+                batch
+                    .iter()
+                    .map(|p| Condition::matches("file_path", p.clone()))
+                    .collect::<Vec<_>>(),
+            );
 
-        self.client
-            .delete_points(
-                DeletePointsBuilder::new(&collection)
-                    .points(filter)
-                    .wait(true),
-            )
-            .await
-            .context("Failed to delete points from Qdrant")?;
+            self.client
+                .delete_points(
+                    DeletePointsBuilder::new(&collection)
+                        .points(filter)
+                        .wait(true),
+                )
+                .await
+                .context("Failed to delete points from Qdrant")?;
+        }
 
         Ok(paths.len() as u32)
     }

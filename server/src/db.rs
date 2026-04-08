@@ -2,6 +2,14 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
 use rusqlite::Connection;
+use sha2::{Digest, Sha256};
+
+/// Hashes an API key using SHA-256 for secure storage.
+fn hash_api_key(key: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(key.as_bytes());
+    hex::encode(hasher.finalize())
+}
 
 /// Row returned from workspace queries.
 pub struct WorkspaceRow {
@@ -78,11 +86,12 @@ impl Database {
             let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
             let user_id = user_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
             let key = uuid::Uuid::new_v4().to_string();
+            let key_hash = hash_api_key(&key);
             conn.execute(
                 "INSERT INTO api_keys (key, user_id) VALUES (?1, ?2)",
-                rusqlite::params![key, user_id],
+                rusqlite::params![key_hash, user_id],
             )?;
-            Ok((user_id, key))
+            Ok((user_id, key)) // Return the raw key to the user, store hash
         })
         .await?
     }
@@ -92,12 +101,12 @@ impl Database {
     /// Returns `None` if the key is not found.
     pub async fn validate_api_key(&self, key: &str) -> Result<Option<String>> {
         let conn = self.conn.clone();
-        let key = key.to_string();
+        let key_hash = hash_api_key(key);
         tokio::task::spawn_blocking(move || {
             let conn = conn.lock().map_err(|e| anyhow::anyhow!("DB lock poisoned: {e}"))?;
             let mut stmt = conn.prepare("SELECT user_id FROM api_keys WHERE key = ?1")?;
             let result = stmt
-                .query_row(rusqlite::params![key], |row| row.get::<_, String>(0))
+                .query_row(rusqlite::params![key_hash], |row| row.get::<_, String>(0))
                 .ok();
             Ok(result)
         })

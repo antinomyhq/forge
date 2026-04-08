@@ -7,45 +7,45 @@ edition = "2021"
 
 [dependencies]
 # gRPC
-tonic = "0.12"
-prost = "0.13"
-prost-types = "0.13"
+tonic = "0.12.3"
+prost = "0.13.5"
+prost-types = "0.13.5"
 
 # Async runtime
-tokio = { version = "1", features = ["full"] }
+tokio = { version = "1.51", features = ["full"] }
 
 # Vector database
-qdrant-client = "1"
+qdrant-client = "1.17"
 
 # HTTP client (Ollama API)
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12.28", features = ["json"] }
 
 # SQLite
-rusqlite = { version = "0.31", features = ["bundled"] }
+rusqlite = { version = "0.31.0", features = ["bundled"] }
 
 # UUID generation
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1.23", features = ["v4"] }
 
 # Hashing (must match forge client's compute_hash)
-sha2 = "0.10"
-hex = "0.4"
+sha2 = "0.10.9"
+hex = "0.4.3"
 
 # Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 # Error handling
-anyhow = "1"
+anyhow = "1.0"
 
 # Logging
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 
 # CLI arguments
-clap = { version = "4", features = ["derive", "env"] }
+clap = { version = "4.6", features = ["derive", "env"] }
 
 [build-dependencies]
-tonic-build = "0.12"
+tonic-build = "0.12.3"
 
 [dev-dependencies]
-pretty_assertions = "1"
+pretty_assertions = "1.4"

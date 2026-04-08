@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
+/// Maximum number of texts per single Ollama embedding request.
+const EMBED_BATCH_SIZE: usize = 20;
+
 /// Client for Ollama embedding API.
 ///
 /// Generates vector embeddings using a locally-running Ollama instance.
@@ -75,46 +78,53 @@ impl Embedder {
     /// Embeds multiple texts in a single batch request.
     ///
     /// Returns one vector per input text, in the same order.
+    /// Splits inputs into chunks of `EMBED_BATCH_SIZE` to avoid overwhelming Ollama.
     pub async fn embed_batch(&self, texts: &[String]) -> Result<Vec<Vec<f32>>> {
         if texts.is_empty() {
             return Ok(vec![]);
         }
 
-        let resp: EmbedResponse = self
-            .client
-            .post(format!("{}/api/embed", self.url))
-            .json(&serde_json::json!({
-                "model": self.model,
-                "input": texts,
-            }))
-            .send()
-            .await
-            .context("Failed to reach Ollama for batch embedding")?
-            .error_for_status()
-            .context("Ollama batch embedding request failed")?
-            .json()
-            .await
-            .context("Failed to parse Ollama batch embedding response")?;
+        let mut all_embeddings = Vec::with_capacity(texts.len());
 
-        if resp.embeddings.len() != texts.len() {
-            anyhow::bail!(
-                "Ollama returned {} embeddings for {} inputs",
-                resp.embeddings.len(),
-                texts.len()
-            );
-        }
+        for batch in texts.chunks(EMBED_BATCH_SIZE) {
+            let resp: EmbedResponse = self
+                .client
+                .post(format!("{}/api/embed", self.url))
+                .json(&serde_json::json!({
+                    "model": self.model,
+                    "input": batch,
+                }))
+                .send()
+                .await
+                .context("Failed to reach Ollama for batch embedding")?
+                .error_for_status()
+                .context("Ollama batch embedding request failed")?
+                .json()
+                .await
+                .context("Failed to parse Ollama batch embedding response")?;
 
-        for (i, vec) in resp.embeddings.iter().enumerate() {
-            if vec.len() != self.dim as usize {
+            if resp.embeddings.len() != batch.len() {
                 anyhow::bail!(
-                    "Embedding dimension mismatch at index {i}: expected {}, got {}",
-                    self.dim,
-                    vec.len()
+                    "Ollama returned {} embeddings for {} inputs",
+                    resp.embeddings.len(),
+                    batch.len()
                 );
             }
+
+            for (i, vec) in resp.embeddings.iter().enumerate() {
+                if vec.len() != self.dim as usize {
+                    anyhow::bail!(
+                        "Embedding dimension mismatch at index {i}: expected {}, got {}",
+                        self.dim,
+                        vec.len()
+                    );
+                }
+            }
+
+            all_embeddings.extend(resp.embeddings);
         }
 
-        Ok(resp.embeddings)
+        Ok(all_embeddings)
     }
 
     /// Checks that Ollama is reachable.

@@ -23,6 +23,8 @@ pub struct ForgeServiceImpl {
     embedder: Arc<Embedder>,
     chunk_min_size: u32,
     chunk_max_size: u32,
+    /// Tracks the last time an API key was created for rate limiting.
+    last_key_created: std::sync::Mutex<std::time::Instant>,
 }
 
 impl ForgeServiceImpl {
@@ -41,7 +43,16 @@ impl ForgeServiceImpl {
         chunk_min_size: u32,
         chunk_max_size: u32,
     ) -> Self {
-        Self { db, qdrant, embedder, chunk_min_size, chunk_max_size }
+        Self {
+            db,
+            qdrant,
+            embedder,
+            chunk_min_size,
+            chunk_max_size,
+            last_key_created: std::sync::Mutex::new(
+                std::time::Instant::now() - std::time::Duration::from_secs(10),
+            ),
+        }
     }
 }
 
@@ -121,6 +132,20 @@ impl ForgeService for ForgeServiceImpl {
         &self,
         request: Request<CreateApiKeyRequest>,
     ) -> Result<Response<CreateApiKeyResponse>, Status> {
+        // Rate limit: max 1 key per second
+        {
+            let mut last = self
+                .last_key_created
+                .lock()
+                .map_err(|_| Status::internal("Rate limit lock poisoned"))?;
+            if last.elapsed() < std::time::Duration::from_secs(1) {
+                return Err(Status::resource_exhausted(
+                    "Rate limited: wait before creating another API key",
+                ));
+            }
+            *last = std::time::Instant::now();
+        }
+
         let req = request.into_inner();
         let user_id_input = req.user_id.as_ref().map(|u| u.id.as_str());
 
@@ -572,5 +597,34 @@ impl ForgeService for ForgeServiceImpl {
         _request: Request<SelectSkillRequest>,
     ) -> Result<Response<SelectSkillResponse>, Status> {
         Err(Status::unimplemented("SelectSkill is not supported"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use super::compute_hash;
+
+    #[test]
+    fn test_compute_hash_matches_forge_client() {
+        // Test vector: must match crates/forge_app/src/utils.rs compute_hash
+        let content = "fn main() {\n    println!(\"Hello, world!\");\n}";
+        let actual = compute_hash(content);
+        // SHA-256 of the above content as lowercase hex
+        let expected = {
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(content.as_bytes());
+            hex::encode(h.finalize())
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compute_hash_empty_string() {
+        let actual = compute_hash("");
+        // SHA-256 of empty string
+        let expected = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+        assert_eq!(actual, expected);
     }
 }
