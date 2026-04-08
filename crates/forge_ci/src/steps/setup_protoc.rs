@@ -5,6 +5,5 @@ use gh_workflow::*;
 /// Installs protoc via apt-get on Linux runners. This replaces
 /// `arduino/setup-protoc` which is deprecated (Node.js 20).
 pub fn setup_protoc() -> Step<Run> {
-    Step::new("Setup Protobuf Compiler")
-        .run("sudo apt-get install -y protobuf-compiler")
+    Step::new("Setup Protobuf Compiler").run("sudo apt-get install -y protobuf-compiler")
 }
