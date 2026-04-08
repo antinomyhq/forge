@@ -356,9 +356,7 @@ Key decisions:
 - Merged imports from both branches
 - Combined test cases
 - Regenerated lock files
-- [other significant decisions from plan]
-
-Co-Authored-By: ForgeCode <noreply@users.noreply.github.com>"
+- [other significant decisions from plan]"
 ```
 
 ## Decision Tracking

@@ -124,7 +124,6 @@ Always verify changes by running tests and linting the codebase
 
 - Safely assume git is pre-installed
 - Safely assume github cli (gh) is pre-installed
-- Always use `Co-Authored-By: ForgeCode <noreply@users.noreply.github.com>` for git commits and Github comments
 
 ## Service Implementation Guidelines
 

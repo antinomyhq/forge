@@ -144,12 +144,10 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> GitApp<
         let cwd = self.services.get_environment().cwd;
         let flags = if has_staged_files { "" } else { " -a" };
 
-        // Set ForgeCode as the committer while keeping the user as the author
-        // by prefixing the command with environment variables
         // Escape single quotes in the message by replacing ' with '\''
         let escaped_message = message.replace('\'', r"'\''");
         let commit_command = format!(
-            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@users.noreply.github.com' git commit {flags} -m '{escaped_message}'"
+            "git commit {flags} -m '{escaped_message}'"
         );
 
         let commit_result = self
