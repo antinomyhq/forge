@@ -230,8 +230,8 @@ impl QdrantStore {
                 };
                 let file_path = payload.get("file_path")?.as_str()?.to_string();
                 let content = payload.get("content")?.as_str()?.to_string();
-                let start_line = payload.get("start_line")?.as_integer()? as u32;
-                let end_line = payload.get("end_line")?.as_integer()? as u32;
+                let start_line = u32::try_from(payload.get("start_line")?.as_integer()?).unwrap_or(0);
+                let end_line = u32::try_from(payload.get("end_line")?.as_integer()?).unwrap_or(0);
 
                 Some(SearchHit {
                     id,

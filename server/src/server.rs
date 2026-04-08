@@ -403,7 +403,7 @@ impl ForgeService for ForgeServiceImpl {
             .ok_or_else(|| Status::invalid_argument("Missing search prompt"))?;
 
         let top_k = query.top_k.unwrap_or(10);
-        let limit = query.limit.unwrap_or(top_k);
+        let limit = query.limit.unwrap_or(top_k).min(top_k).max(1);
 
         // Embed the query
         let vector = self
