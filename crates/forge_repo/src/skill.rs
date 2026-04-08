@@ -98,7 +98,8 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> SkillR
         let cwd_skills = self.load_skills_from_dir(&cwd_dir).await?;
         skills.extend(cwd_skills);
 
-        // Resolve conflicts by keeping the last occurrence (CWD > Agents > Global > Built-in)
+        // Resolve conflicts by keeping the last occurrence (CWD > Agents > Global >
+        // Built-in)
         let skills = resolve_skill_conflicts(skills);
 
         // Render all skills with environment context
