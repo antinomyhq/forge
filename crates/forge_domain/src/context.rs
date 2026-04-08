@@ -547,11 +547,10 @@ impl Context {
                 };
                 // Find preceding user message to merge into
                 let target = self.messages[..i].iter_mut().rev().find_map(|e| {
-                    if let ContextMessage::Text(ref mut m) = e.message {
-                        if m.role == Role::User {
+                    if let ContextMessage::Text(ref mut m) = e.message
+                        && m.role == Role::User {
                             return Some(m);
                         }
-                    }
                     None
                 });
                 if let Some(msg) = target {
@@ -569,11 +568,10 @@ impl Context {
     /// If no user message exists, creates a new one with empty text.
     fn attach_image_to_last_user_message(&mut self, image: Image) {
         let target = self.messages.iter_mut().rev().find_map(|entry| {
-            if let ContextMessage::Text(ref mut text_msg) = entry.message {
-                if text_msg.role == Role::User {
+            if let ContextMessage::Text(ref mut text_msg) = entry.message
+                && text_msg.role == Role::User {
                     return Some(text_msg);
                 }
-            }
             None
         });
         if let Some(text_msg) = target {
@@ -1883,7 +1881,8 @@ mod tests {
 
         let actual = fixture.add_base64_url(image.clone());
 
-        // Should still be 1 message (image attached to existing user message, not standalone)
+        // Should still be 1 message (image attached to existing user message, not
+        // standalone)
         assert_eq!(actual.messages.len(), 1);
         if let ContextMessage::Text(msg) = &*actual.messages[0] {
             assert_eq!(msg.images.len(), 1);
