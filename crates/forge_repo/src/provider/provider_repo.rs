@@ -206,14 +206,20 @@ pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
 }
 
-impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + HttpInfra>
+    ForgeProviderRepository<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
-    ForgeProviderRepository<F>
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra,
+> ForgeProviderRepository<F>
 {
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
@@ -229,6 +235,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     fn get_config_provider_configs(&self) -> Vec<ProviderConfig> {
         self.infra
             .get_config()
+            .unwrap_or_default()
             .providers
             .into_iter()
             .map(Into::into)
@@ -520,8 +527,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
-    for ForgeProviderRepository<F>
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra
+        + Sync,
+> ProviderRepository for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await)
@@ -812,18 +824,15 @@ mod env_tests {
             env
         }
 
-        fn get_config(&self) -> forge_config::ForgeConfig {
-            forge_config::ConfigReader::default()
-                .read_defaults()
-                .build()
-                .unwrap()
-        }
-
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
         ) -> anyhow::Result<()> {
             Ok(())
+        }
+
+        fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+            Ok(forge_config::ForgeConfig::default())
         }
 
         fn get_env_var(&self, key: &str) -> Option<String> {
@@ -883,6 +892,10 @@ mod env_tests {
                 let mut guard = self.credentials.lock().await;
                 *guard = Some(creds);
             }
+            Ok(())
+        }
+
+        async fn append(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -1311,18 +1324,15 @@ mod env_tests {
                 env
             }
 
-            fn get_config(&self) -> forge_config::ForgeConfig {
-                forge_config::ConfigReader::default()
-                    .read_defaults()
-                    .build()
-                    .unwrap()
-            }
-
             async fn update_environment(
                 &self,
                 _ops: Vec<forge_domain::ConfigOperation>,
             ) -> anyhow::Result<()> {
                 Ok(())
+            }
+
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+                Ok(forge_config::ForgeConfig::default())
             }
 
             fn get_env_var(&self, key: &str) -> Option<String> {
@@ -1368,6 +1378,10 @@ mod env_tests {
         #[async_trait::async_trait]
         impl FileWriterInfra for CustomMockInfra {
             async fn write(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn append(&self, _path: &std::path::Path, _content: Bytes) -> anyhow::Result<()> {
                 Ok(())
             }
 

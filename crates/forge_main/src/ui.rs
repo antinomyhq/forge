@@ -11,11 +11,12 @@ use console::style;
 use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
-    ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
+    ChatResponse, CodeRequest, ConfigOperation, Conversation, ConversationId, DeviceCodeRequest,
+    Event, InterruptionReason, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
+use forge_config::ForgeConfig;
 use forge_display::MarkdownFormat;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
@@ -98,7 +99,7 @@ fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> 
     }
 }
 
-pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
+pub struct UI<A: ConsoleWriter, F: Fn(ForgeConfig) -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -107,11 +108,12 @@ pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
     command: Arc<ForgeCommandManager>,
     cli: Cli,
     spinner: SharedSpinner<A>,
+    config: ForgeConfig,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -125,14 +127,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
         self.spinner.ewrite_ln(title)
-    }
-
-    /// Retrieve available models
-    async fn get_models(&mut self) -> Result<Vec<Model>> {
-        self.spinner.start(Some("Loading"))?;
-        let models = self.api.get_models().await?;
-        self.spinner.stop(None)?;
-        Ok(models)
     }
 
     /// Helper to get provider for an optional agent, defaulting to the current
@@ -163,7 +157,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Handle creating a new conversation
     async fn on_new(&mut self) -> Result<()> {
-        self.api = Arc::new((self.new_api)());
+        let config = forge_config::ForgeConfig::read().unwrap_or_default();
+        self.config = config.clone();
+        self.api = Arc::new((self.new_api)(config));
         self.init_state(false).await?;
 
         // Set agent if provided via CLI
@@ -208,22 +204,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    pub fn init(cli: Cli, f: F) -> Result<Self> {
+    /// Initialises the UI with the provided CLI arguments and API factory.
+    ///
+    /// # Arguments
+    /// * `cli` - Parsed command-line arguments
+    /// * `config` - Pre-read application configuration for the initial API
+    ///   instance
+    /// * `f` - Factory closure invoked once at startup and again on each `/new`
+    ///   command; receives the latest [`ForgeConfig`] so that config changes
+    ///   from `forge config set` are reflected in new conversations
+    pub fn init(cli: Cli, config: ForgeConfig, f: F) -> Result<Self> {
         // Parse CLI arguments first to get flags
-        let api = Arc::new(f());
+        let api = Arc::new(f(config.clone()));
         let env = api.environment();
-        let config = api.get_config();
         let command = Arc::new(ForgeCommandManager::default());
         let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
             new_api: Arc::new(f),
-            console: Console::new(env.clone(), config.custom_history_path, command.clone()),
+            console: Console::new(
+                env.clone(),
+                config.custom_history_path.clone(),
+                command.clone(),
+            ),
             cli,
             command,
             spinner,
             markdown: MarkdownFormat::new(),
+            config,
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
     }
@@ -529,6 +538,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.api.reload_mcp().await?;
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
+                McpCommand::Login(args) => {
+                    self.handle_mcp_login(&args.name).await?;
+                }
+                McpCommand::Logout(args) => {
+                    self.handle_mcp_logout(&args.name).await?;
+                }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
                 // Only initialize state (agent/provider/model resolution).
@@ -649,6 +664,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Commit(commit_group) => {
+                self.init_state(false).await?;
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
                 if preview {
@@ -812,6 +828,122 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "Successfully deleted conversation '{}'",
             conversation_id
         )))?;
+        Ok(())
+    }
+
+    /// Handle `mcp login <name>` command.
+    ///
+    /// Triggers the OAuth authentication flow for the specified MCP server.
+    /// Uses the API layer which delegates to rmcp's OAuth state machine
+    /// for metadata discovery, dynamic registration, PKCE, and token exchange.
+    async fn handle_mcp_login(&mut self, name: &str) -> anyhow::Result<()> {
+        let server_name = forge_api::ServerName::from(name.to_string());
+        let config = self.api.read_mcp_config(None).await?;
+        let server = config.mcp_servers.get(&server_name);
+
+        match server {
+            Some(forge_domain::McpServerConfig::Http(http)) => {
+                // Check auth status first
+                let status = self.api.mcp_auth_status(&http.url).await?;
+                if status == "authenticated" {
+                    self.writeln_title(TitleFormat::info(
+                        format!("MCP server '{}' is already authenticated. Use 'mcp logout {}' first to re-authenticate.", name, name)
+                    ))?;
+                    return Ok(());
+                }
+
+                // Force re-auth by removing any stale credentials
+                let _ = self.api.mcp_logout(Some(&http.url)).await;
+
+                // Run the OAuth flow (opens browser, waits for callback)
+                match self.api.mcp_auth(&http.url).await {
+                    Ok(()) => {
+                        self.writeln_title(TitleFormat::info(format!(
+                            "Successfully authenticated with MCP server '{}'",
+                            name
+                        )))?;
+                        // Reload MCP to reconnect with new credentials
+                        self.spinner.start(Some("Reloading MCPs"))?;
+                        match self.api.reload_mcp().await {
+                            Ok(()) => {
+                                self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+                            }
+                            Err(e) => {
+                                self.writeln_title(TitleFormat::error(format!(
+                                    "MCP reload failed: {}",
+                                    e
+                                )))?;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        self.writeln_title(TitleFormat::error(format!(
+                            "Authentication with MCP server '{}' failed: {}",
+                            name, e
+                        )))?;
+                    }
+                }
+            }
+            Some(_) => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "MCP server '{}' is not an HTTP server (OAuth only applies to HTTP servers)",
+                    name
+                )))?;
+            }
+            None => {
+                self.writeln_title(TitleFormat::error(format!(
+                    "MCP server '{}' not found. Use 'mcp list' to see available servers.",
+                    name
+                )))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle `mcp logout <name>` command.
+    ///
+    /// Removes stored OAuth credentials for the specified MCP server
+    /// or all servers if "all" is specified.
+    /// Automatically reloads MCPs after logout to reflect auth state change.
+    async fn handle_mcp_logout(&mut self, name: &str) -> anyhow::Result<()> {
+        if name == "all" {
+            self.api.mcp_logout(None).await?;
+            self.writeln_title(TitleFormat::info("Removed all MCP OAuth credentials"))?;
+        } else {
+            let server_name = forge_api::ServerName::from(name.to_string());
+            let config = self.api.read_mcp_config(None).await?;
+            let server = config.mcp_servers.get(&server_name);
+
+            match server {
+                Some(forge_domain::McpServerConfig::Http(http)) => {
+                    self.api.mcp_logout(Some(&http.url)).await?;
+                    self.writeln_title(TitleFormat::info(format!(
+                        "Removed OAuth credentials for MCP server '{}'",
+                        name
+                    )))?;
+                }
+                Some(_) => {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "MCP server '{}' is not an HTTP server",
+                        name
+                    )))?;
+                    return Ok(());
+                }
+                None => {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "MCP server '{}' not found. Use 'mcp list' to see available servers.",
+                        name
+                    )))?;
+                    return Ok(());
+                }
+            }
+        }
+
+        // Reload MCPs to reflect auth state change
+        self.spinner.start(Some("Reloading MCPs"))?;
+        self.api.reload_mcp().await?;
+        self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+
         Ok(())
     }
 
@@ -1329,13 +1461,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let commit_config = self.api.get_commit_config().await.ok().flatten();
         let commit_provider = commit_config
             .as_ref()
-            .and_then(|c| c.provider.as_ref())
-            .map(|p| p.to_string())
+            .map(|c| c.provider.to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
         let commit_model = commit_config
             .as_ref()
-            .and_then(|c| c.model.as_ref())
-            .map(|m| m.as_str().to_string())
+            .map(|c| c.model.as_str().to_string())
             .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let suggest_config = self.api.get_suggest_config().await.ok().flatten();
@@ -1552,8 +1682,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_env(&mut self) -> anyhow::Result<()> {
         let env = self.api.environment();
-        let config = self.api.get_config();
-        let info = Info::from(&env).extend(Info::from(&config));
+        let config = &self.config;
+        let info = Info::from(&env).extend(Info::from(config));
         self.writeln(info)?;
         Ok(())
     }
@@ -1748,7 +1878,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Loading Conversations"))?;
-        let max_conversations = self.api.get_config().max_conversations;
+        let max_conversations = self.config.max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.stop(None)?;
 
@@ -1782,7 +1912,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conversations(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let max_conversations = self.api.get_config().max_conversations;
+        let max_conversations = self.config.max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
 
         if conversations.is_empty() {
@@ -1899,7 +2029,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_custom_event(event.into()).await?;
             }
             SlashCommand::Model => {
-                self.on_model_selection(None).await?;
+                self.on_model_selection(None, None).await?;
             }
             SlashCommand::Provider => {
                 self.on_provider_selection().await?;
@@ -2074,12 +2204,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_filter: Option<ProviderId>,
     ) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
-        if self.api.get_default_provider().await.is_err() {
-            self.on_provider_selection().await?;
+        if provider_filter.is_none() && self.api.get_default_provider().await.is_err() {
+            if !self.on_provider_selection().await? {
+                return Ok(None);
+            }
 
-            // Check if a model was already selected during provider activation
-            // Return None to signal the model selection is complete and message was already
-            // printed
+            // Provider activation may have already completed model selection.
+            // If it did not, continue below and show the full cross-provider
+            // model list.
             if self.api.get_default_model().await.is_some() {
                 return Ok(None);
             }
@@ -2401,22 +2533,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn display_credential_success(
-        &mut self,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<bool> {
+    async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.writeln_title(TitleFormat::info(format!(
             "{provider_id} configured successfully!"
         )))?;
 
-        // Prompt user to set as active provider
-        let should_set_active = ForgeWidget::confirm(format!(
-            "Would you like to set {provider_id} as the active provider?"
-        ))
-        .with_default(true)
-        .prompt()?;
-
-        Ok(should_set_active.unwrap_or(false))
+        Ok(())
     }
 
     async fn handle_code_flow(
@@ -2579,8 +2701,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(None), // User cancelled
         };
 
-        self.spinner.start(Some("Initiating authentication..."))?;
+        // Show warning for Claude Code provider about account ban risk
+        if provider_id == ProviderId::CLAUDE_CODE {
+            self.writeln_title(
+                TitleFormat::warning(
+                    "Using Claude Code subscription in third-party tools violates Anthropic's Terms of Service."
+                )
+                .sub_title("Your account may be suspended or banned. Continue at your own risk."),
+            )?;
 
+            let confirmed = ForgeWidget::confirm("Do you want to continue with this provider?")
+                .with_default(false)
+                .prompt()?;
+
+            if !confirmed.unwrap_or(false) {
+                return Ok(None);
+            }
+        }
+
+        self.spinner.start(Some("Initiating authentication..."))?;
         // Initiate the authentication flow
         let auth_request = self
             .api
@@ -2602,11 +2741,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        let should_set_active = self.display_credential_success(provider_id.clone()).await?;
-
-        if !should_set_active {
-            return Ok(None);
-        }
+        self.display_credential_success(provider_id.clone()).await?;
 
         // Fetch and return the configured provider
         let provider = self.api.get_provider(&provider_id).await?;
@@ -2736,6 +2871,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_model_selection(
         &mut self,
         provider_filter: Option<ProviderId>,
+        provider_to_activate: Option<ProviderId>,
     ) -> Result<Option<ModelId>> {
         // Select a model
         let model_option = self.select_model(provider_filter).await?;
@@ -2746,8 +2882,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(None),
         };
 
-        // Update the operating model via API
-        self.api.set_default_model(model.clone()).await?;
+        // If we have a provider to activate, write both atomically
+        if let Some(provider_id) = provider_to_activate {
+            self.api
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider_id, model.clone()),
+                )])
+                .await?;
+        } else {
+            // Resolve the active provider so we can build a SetModel op
+            let provider_id = self.api.get_default_provider().await?.id;
+            self.api
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider_id, model.clone()),
+                )])
+                .await?;
+        }
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -2757,15 +2907,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(Some(model))
     }
 
-    async fn on_provider_selection(&mut self) -> Result<()> {
+    async fn on_provider_selection(&mut self) -> Result<bool> {
         // Select a provider
         // If no provider was selected (user canceled), return early
         let any_provider = match self.select_provider().await? {
             Some(provider) => provider,
-            None => return Ok(()),
+            None => return Ok(false),
         };
 
-        self.activate_provider(any_provider).await
+        self.activate_provider(any_provider).await?;
+        // Check if provider was actually saved — if user cancelled model selection
+        // inside activate_provider, nothing was written
+        Ok(self.api.get_default_provider().await.is_ok())
     }
 
     /// Activates a provider by configuring it if needed, setting it as default,
@@ -2812,21 +2965,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider: Provider<Url>,
         model: Option<ModelId>,
     ) -> Result<()> {
-        // Set the provider via API
-        self.api.set_default_provider(provider.id.clone()).await?;
-
-        self.writeln_title(
-            TitleFormat::action(format!("{}", provider.id))
-                .sub_title("is now the default provider"),
-        )?;
-
         // If a model was pre-selected (e.g. from :model), validate and set it
         // directly without prompting
         if let Some(model) = model {
             let model_id = self
                 .validate_model(model.as_str(), Some(&provider.id))
                 .await?;
-            self.api.set_default_model(model_id.clone()).await?;
+            self.api
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider.id.clone(), model_id.clone()),
+                )])
+                .await?;
+            self.writeln_title(
+                TitleFormat::action(format!("{}", provider.id))
+                    .sub_title("is now the default provider"),
+            )?;
             self.writeln_title(
                 TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
             )?;
@@ -2835,18 +2988,47 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
-        if let Some(current_model) = current_model {
-            let models = self.get_models().await?;
-            let model_available = models.iter().any(|m| m.id == current_model);
+        let (needs_model_selection, compatible_model) = match current_model {
+            None => (true, None),
+            Some(current_model) => {
+                let provider_models = self.api.get_all_provider_models().await?;
+                let model_available = provider_models
+                    .iter()
+                    .find(|pm| pm.provider_id == provider.id)
+                    .map(|pm| pm.models.iter().any(|m| m.id == current_model))
+                    .unwrap_or(false);
+                if model_available {
+                    (false, Some(current_model))
+                } else {
+                    (true, None)
+                }
+            }
+        };
 
-            if !model_available {
-                // Prompt user to select a new model, scoped to the activated provider
-                self.writeln_title(TitleFormat::info("Please select a new model"))?;
-                self.on_model_selection(Some(provider.id.clone())).await?;
+        if needs_model_selection {
+            self.writeln_title(TitleFormat::info("Please select a new model"))?;
+            let selected = self
+                .on_model_selection(Some(provider.id.clone()), Some(provider.id.clone()))
+                .await?;
+            if selected.is_none() {
+                // User cancelled — preserve existing config untouched
+                return Ok(());
             }
         } else {
-            // No model set, select one now scoped to the activated provider
-            self.on_model_selection(Some(provider.id.clone())).await?;
+            // The current model is compatible with the new provider — write both
+            // atomically so the session always stores a consistent pair.
+            let model =
+                compatible_model.expect("compatible_model is Some when !needs_model_selection");
+            self.api
+                .update_config(vec![ConfigOperation::SetSessionConfig(
+                    forge_domain::ModelConfig::new(provider.id.clone(), model),
+                )])
+                .await?;
+
+            self.writeln_title(
+                TitleFormat::action(format!("{}", provider.id))
+                    .sub_title("is now the default provider"),
+            )?;
         }
 
         Ok(())
@@ -2954,17 +3136,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Ensure we have a model selected before proceeding with initialization
         let active_agent = self.api.get_active_agent().await;
 
-        let mut operating_model = self.get_agent_model(active_agent.clone()).await;
-        if operating_model.is_none() {
-            // Use the model returned from selection instead of re-fetching
-            operating_model = self.on_model_selection(None).await?;
-        }
-
         // Validate provider is configured before loading agents
         // If provider is set in config but not configured (no credentials), prompt user
         // to login
-        if self.api.get_default_provider().await.is_err() {
-            self.on_provider_selection().await?;
+        if self.api.get_default_provider().await.is_err() && !self.on_provider_selection().await? {
+            return Ok(());
+        }
+
+        let mut operating_model = self.get_agent_model(active_agent.clone()).await;
+        if operating_model.is_none() {
+            // Use the model returned from selection instead of re-fetching
+            operating_model = self.on_model_selection(None, None).await?;
         }
 
         if first {
@@ -2975,7 +3157,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
-            on_update(self.api.clone(), self.api.get_config().updates.as_ref()).await;
+            on_update(self.api.clone(), self.config.updates.as_ref()).await;
         }
 
         // Execute independent operations in parallel to improve performance
@@ -3134,7 +3316,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.get_config().auto_open_dump {
+                    if self.config.auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 } else {
@@ -3158,7 +3340,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             .sub_title(subtitle),
                     )?;
 
-                    if self.api.get_config().auto_open_dump {
+                    if self.config.auto_open_dump {
                         open::that(path.as_str()).ok();
                     }
                 };
@@ -3239,8 +3421,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self
-                    .api
-                    .get_config()
+                    .config
                     .retry
                     .as_ref()
                     .is_some_and(|r| r.suppress_errors)
@@ -3281,7 +3462,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
                 }
-                if let Some(format) = self.api.get_config().auto_dump {
+                if let Some(format) = self.config.auto_dump.clone() {
                     let html = matches!(format, forge_config::AutoDumpFormat::Html);
                     self.on_dump(html).await?;
                 }
@@ -3495,7 +3676,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ConfigSetField::Model { model } => {
                 let model_id = self.validate_model(model.as_str(), None).await?;
-                self.api.set_default_model(model_id.clone()).await?;
+                // Resolve the active provider so we can build a SetModel op
+                let provider_id = self.api.get_default_provider().await?.id;
+                self.api
+                    .update_config(vec![ConfigOperation::SetSessionConfig(
+                        forge_domain::ModelConfig::new(provider_id, model_id.clone()),
+                    )])
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
@@ -3503,10 +3690,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let commit_config = forge_domain::CommitConfig::default()
-                    .provider(provider.clone())
-                    .model(validated_model.clone());
-                self.api.set_commit_config(commit_config).await?;
+                let commit_config =
+                    forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
+                self.api
+                    .update_config(vec![ConfigOperation::SetCommitConfig(Some(commit_config))])
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(validated_model.as_str())
                         .sub_title(format!("is now the commit model for provider '{provider}'")),
@@ -3515,17 +3703,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ConfigSetField::Suggest { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
                 let validated_model = self.validate_model(model.as_str(), Some(&provider)).await?;
-                let suggest_config = forge_domain::SuggestConfig {
-                    provider: provider.clone(),
-                    model: validated_model.clone(),
-                };
-                self.api.set_suggest_config(suggest_config).await?;
+                let suggest_config =
+                    forge_domain::ModelConfig::new(provider.clone(), validated_model.clone());
+                self.api
+                    .update_config(vec![ConfigOperation::SetSuggestConfig(suggest_config)])
+                    .await?;
                 self.writeln_title(TitleFormat::action(validated_model.as_str()).sub_title(
                     format!("is now the suggest model for provider '{provider}'"),
                 ))?;
             }
             ConfigSetField::ReasoningEffort { effort } => {
-                self.api.set_reasoning_effort(effort.clone()).await?;
+                self.api
+                    .update_config(vec![ConfigOperation::SetReasoningEffort(effort.clone())])
+                    .await?;
                 self.writeln_title(
                     TitleFormat::action(effort.to_string())
                         .sub_title("is now the reasoning effort"),
@@ -3568,16 +3758,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let commit_config = self.api.get_commit_config().await?;
                 match commit_config {
                     Some(config) => {
-                        let provider = config
-                            .provider
-                            .map(|p| p.as_ref().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        let model = config
-                            .model
-                            .map(|m| m.as_str().to_string())
-                            .unwrap_or_else(|| "Not set".to_string());
-                        self.writeln(provider)?;
-                        self.writeln(model)?;
+                        self.writeln(config.provider.as_ref())?;
+                        self.writeln(config.model.as_str().to_string())?;
                     }
                     None => self.writeln("Commit: Not set")?,
                 }

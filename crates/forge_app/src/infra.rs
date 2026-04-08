@@ -4,7 +4,6 @@ use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
-use forge_config::ForgeConfig;
 use forge_domain::{
     AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
     OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
@@ -20,8 +19,7 @@ use crate::{WalkedFile, Walker};
 /// Infrastructure trait for accessing environment configuration, system
 /// variables, and persisted application configuration.
 pub trait EnvironmentInfra: Send + Sync {
-    /// The fully-resolved configuration type returned by
-    /// [`EnvironmentInfra::get_config`].
+    /// The fully-resolved configuration type stored by the implementation.
     type Config: Clone + Send + Sync;
 
     fn get_env_var(&self, key: &str) -> Option<String>;
@@ -30,12 +28,12 @@ pub trait EnvironmentInfra: Send + Sync {
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
 
-    /// Returns the full [`ForgeConfig`] for the current session.
+    /// Returns the latest fully-resolved configuration, re-reading from disk
+    /// if a prior `update_environment` call has invalidated the cache.
     ///
-    /// Callers that need configuration values previously carried on
-    /// [`Environment`] (e.g. `retry_config`, `tool_timeout_secs`,
-    /// `session`, etc.) must call this method instead.
-    fn get_config(&self) -> ForgeConfig;
+    /// # Errors
+    /// Returns an error if the disk read fails.
+    fn get_config(&self) -> anyhow::Result<Self::Config>;
 
     /// Applies a list of configuration operations to the persisted config.
     ///
@@ -110,6 +108,10 @@ pub trait FileReaderInfra: Send + Sync {
 pub trait FileWriterInfra: Send + Sync {
     /// Writes the content of a file at the specified path.
     async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
+
+    /// Appends content to a file at the specified path, creating it if it does
+    /// not exist.
+    async fn append(&self, path: &Path, contents: Bytes) -> anyhow::Result<()>;
 
     /// Writes content to a temporary file with the given prefix and extension,
     /// and returns its path. The file will be kept (not deleted) after
@@ -214,6 +216,7 @@ pub trait McpServerInfra: Send + Sync + 'static {
         &self,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
+        environment: &Environment,
     ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories

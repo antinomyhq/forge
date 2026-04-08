@@ -51,7 +51,14 @@ pub struct ForgeRepo<F> {
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + GrpcInfra
+        + HttpInfra,
+> ForgeRepo<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -140,8 +147,14 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
-    ChatRepository for ForgeRepo<F>
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra
+        + Send
+        + Sync,
+> ChatRepository for ForgeRepo<F>
 {
     async fn chat(
         &self,
@@ -158,8 +171,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
-    ProviderRepository for ForgeRepo<F>
+impl<
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
+        + FileReaderInfra
+        + FileWriterInfra
+        + HttpInfra
+        + Send
+        + Sync,
+> ProviderRepository for ForgeRepo<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await
@@ -189,14 +208,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + Send + Sync> EnvironmentInfra for ForgeRepo<F> {
+impl<F: EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync> EnvironmentInfra
+    for ForgeRepo<F>
+{
     type Config = forge_config::ForgeConfig;
 
     fn get_environment(&self) -> Environment {
         self.infra.get_environment()
     }
 
-    fn get_config(&self) -> forge_config::ForgeConfig {
+    fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
         self.infra.get_config()
     }
 
@@ -317,6 +338,9 @@ where
     async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
         self.infra.write(path, contents).await
     }
+    async fn append(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+        self.infra.append(path, contents).await
+    }
     async fn write_temp(&self, prefix: &str, ext: &str, content: &str) -> anyhow::Result<PathBuf> {
         self.infra.write_temp(prefix, ext, content).await
     }
@@ -427,8 +451,9 @@ where
         &self,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
+        environment: &Environment,
     ) -> anyhow::Result<F::Client> {
-        self.infra.connect(config, env_vars).await
+        self.infra.connect(config, env_vars, environment).await
     }
 }
 

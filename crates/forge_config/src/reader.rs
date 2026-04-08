@@ -49,8 +49,14 @@ impl ConfigReader {
         Self::base_path().join(".forge.toml")
     }
 
-    /// Returns the base directory for all Forge config files (`~/forge`).
+    /// Returns the base directory for all Forge config files.
+    ///
+    /// If the `FORGE_CONFIG` environment variable is set, its value is used
+    /// directly as the base path. Otherwise defaults to `~/forge`.
     pub fn base_path() -> PathBuf {
+        if let Ok(path) = std::env::var("FORGE_CONFIG") {
+            return PathBuf::from(path);
+        }
         dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
     }
 
@@ -162,6 +168,21 @@ mod tests {
                 unsafe { std::env::remove_var(key) };
             }
         }
+    }
+
+    #[test]
+    fn test_base_path_uses_forge_config_env_var() {
+        let _guard = EnvGuard::set(&[("FORGE_CONFIG", "/custom/forge/dir")]);
+        let actual = ConfigReader::base_path();
+        let expected = PathBuf::from("/custom/forge/dir");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
+        let actual = ConfigReader::base_path();
+        // Without FORGE_CONFIG set the path must end with "forge"
+        assert_eq!(actual.file_name().unwrap(), "forge");
     }
 
     #[test]
