@@ -4256,7 +4256,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         if let Some(result) = result {
             self.writeln_title(
                 TitleFormat::warning("Forge no longer reads API keys from environment variables.")
-                    .sub_title("Learn more: https://github.com/Zetkolink/forgecode#custom-providers"),
+                    .sub_title(
+                        "Learn more: https://github.com/Zetkolink/forgecode#custom-providers",
+                    ),
             )?;
 
             let count = result.migrated_providers.len();

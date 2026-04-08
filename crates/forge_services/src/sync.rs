@@ -183,10 +183,7 @@ impl<F: 'static + WorkspaceIndexRepository + FileReaderInfra, D: FileDiscovery +
             .iter()
             .filter(|s| s.status == forge_domain::SyncStatus::Failed)
             .map(|s| {
-                let rel = make_relative(
-                    std::path::Path::new(&s.path),
-                    &self.workspace_root,
-                );
+                let rel = make_relative(std::path::Path::new(&s.path), &self.workspace_root);
                 SyncFailureDetail::new(rel, "failed to read file")
             })
             .collect();

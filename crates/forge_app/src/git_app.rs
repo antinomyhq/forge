@@ -146,9 +146,7 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> GitApp<
 
         // Escape single quotes in the message by replacing ' with '\''
         let escaped_message = message.replace('\'', r"'\''");
-        let commit_command = format!(
-            "git commit {flags} -m '{escaped_message}'"
-        );
+        let commit_command = format!("git commit {flags} -m '{escaped_message}'");
 
         let commit_result = self
             .services
