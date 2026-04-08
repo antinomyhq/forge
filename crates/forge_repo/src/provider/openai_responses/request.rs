@@ -180,6 +180,7 @@ fn codex_tool_parameters(schema: &schemars::Schema) -> anyhow::Result<serde_json
 /// - tools + tool_choice
 /// - max_tokens, temperature, top_p
 impl FromDomain<ChatContext> for oai::CreateResponse {
+    #[allow(deprecated)]
     fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
         let prompt_cache_key = context.conversation_id.as_ref().map(ToString::to_string);
 
@@ -202,14 +203,33 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                         }
                     }
                     Role::User => {
+                        let content = if message.images.is_empty() {
+                            oai::EasyInputContent::Text(message.content)
+                        } else {
+                            let mut parts =
+                                vec![oai::InputContent::InputText(oai::InputTextContent {
+                                    text: message.content,
+                                })];
+                            for image in message.images {
+                                parts.push(oai::InputContent::InputImage(oai::InputImageContent {
+                                    detail: oai::ImageDetail::Auto,
+                                    file_id: None,
+                                    image_url: Some(image.url().clone()),
+                                }));
+                            }
+                            oai::EasyInputContent::ContentList(parts)
+                        };
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
                             r#type: oai::MessageType::Message,
                             role: oai::Role::User,
-                            content: oai::EasyInputContent::Text(message.content),
+                            content,
                             phase: None,
                         }));
                     }
                     Role::Assistant => {
+                        // Note: images on assistant messages are intentionally not
+                        // serialized — only user messages carry image attachments.
+                        // The API does not support images in assistant content.
                         if !message.content.trim().is_empty() {
                             items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
                                 r#type: oai::MessageType::Message,
@@ -1189,6 +1209,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_codex_request_with_image_input_is_supported() -> anyhow::Result<()> {
         use forge_domain::Image;
 

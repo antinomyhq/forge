@@ -50,13 +50,14 @@ impl Transformer for ImageHandling {
                 crate::ToolValue::AI { .. } => {}
             });
 
-        // Step 2: Insert all images at the end
+        // Step 2: Insert images as multimodal user messages (text + image)
         images.into_iter().for_each(|(id, image)| {
-            value.messages.push(
-                ContextMessage::user(format!("[Here is the image attachment for ID {id}]"), None)
-                    .into(),
-            );
-            value.messages.push(ContextMessage::Image(image).into());
+            let msg = crate::TextMessage::new(
+                crate::Role::User,
+                format!("[Here is the image attachment for ID {id}]"),
+            )
+            .add_image(image);
+            value.messages.push(ContextMessage::Text(msg).into());
         });
 
         value

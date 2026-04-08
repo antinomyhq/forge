@@ -443,11 +443,24 @@ impl From<ToolCallFull> for ToolCall {
 }
 
 impl From<ContextMessage> for Message {
+    #[allow(deprecated)]
     fn from(value: ContextMessage) -> Self {
         match value {
             ContextMessage::Text(chat_message) => Message {
                 role: chat_message.role.into(),
-                content: Some(MessageContent::Text(chat_message.content)),
+                content: Some(if chat_message.images.is_empty() {
+                    MessageContent::Text(chat_message.content)
+                } else {
+                    let mut parts =
+                        vec![ContentPart::Text { text: chat_message.content, cache_control: None }];
+                    for image in chat_message.images {
+                        parts.push(ContentPart::ImageUrl {
+                            image_url: ImageUrl { url: image.url().clone(), detail: None },
+                            cache_control: None,
+                        });
+                    }
+                    MessageContent::Parts(parts)
+                }),
                 name: None,
                 tool_call_id: None,
                 tool_calls: chat_message

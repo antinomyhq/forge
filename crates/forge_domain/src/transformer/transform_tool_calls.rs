@@ -1,5 +1,5 @@
 use super::Transformer;
-use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
+use crate::{Context, ContextMessage, MessageEntry, ModelId, Role, TextMessage};
 
 pub struct TransformToolCalls {
     pub model: Option<ModelId>,
@@ -25,7 +25,7 @@ impl Transformer for TransformToolCalls {
         // format We need to find assistant messages with tool calls and tool
         // result messages
 
-        let mut new_messages = Vec::new();
+        let mut new_messages: Vec<MessageEntry> = Vec::new();
 
         for message in value.messages.into_iter() {
             match &*message {
@@ -33,20 +33,9 @@ impl Transformer for TransformToolCalls {
                     if text_msg.role == Role::Assistant && text_msg.tool_calls.is_some() =>
                 {
                     // Add the assistant message without tool calls
-                    new_messages.push(
-                        ContextMessage::Text(TextMessage {
-                            role: text_msg.role,
-                            content: text_msg.content.clone(),
-                            raw_content: text_msg.raw_content.clone(),
-                            tool_calls: None,
-                            thought_signature: text_msg.thought_signature.clone(),
-                            reasoning_details: text_msg.reasoning_details.clone(),
-                            model: text_msg.model.clone(),
-                            droppable: text_msg.droppable,
-                            phase: text_msg.phase,
-                        })
-                        .into(),
-                    );
+                    let mut msg = text_msg.clone();
+                    msg.tool_calls = None;
+                    new_messages.push(ContextMessage::Text(msg).into());
                 }
                 ContextMessage::Tool(tool_result) => {
                     // Convert tool results to user messages
@@ -57,7 +46,23 @@ impl Transformer for TransformToolCalls {
                                     .push(ContextMessage::user(text, self.model.clone()).into());
                             }
                             crate::ToolValue::Image(image) => {
-                                new_messages.push(ContextMessage::Image(image).into());
+                                // Attach image to the preceding user message
+                                // if possible, otherwise create a new one
+                                let last_user = new_messages.iter_mut().rev().find_map(|entry| {
+                                    if let ContextMessage::Text(ref mut msg) = entry.message
+                                        && msg.role == Role::User
+                                    {
+                                        return Some(msg);
+                                    }
+                                    None
+                                });
+                                if let Some(user_msg) = last_user {
+                                    user_msg.images.push(image);
+                                } else {
+                                    let msg = TextMessage::new(Role::User, "[image attachment]")
+                                        .add_image(image);
+                                    new_messages.push(ContextMessage::Text(msg).into());
+                                }
                             }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => new_messages

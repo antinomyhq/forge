@@ -214,6 +214,7 @@ pub struct TodoChange {
     pub kind: TodoChangeKind,
 }
 
+#[allow(deprecated)]
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
         let mut messages = vec![];
@@ -274,7 +275,9 @@ impl From<&Context> for ContextSummary {
                         tool_results.insert(call_id, tool_result);
                     }
                 }
-                ContextMessage::Image(_) => {}
+                ContextMessage::Image(_) => {
+                    buffer.push(SummaryMessage::Text("[1 image(s) attached]".to_string()));
+                }
             }
         }
 
@@ -309,6 +312,14 @@ fn extract_summary_messages(text_msg: &TextMessage, current_todos: &[Todo]) -> V
     // Add content block if there's text content
     if !text_msg.content.is_empty() {
         blocks.push(SummaryMessage::Text(text_msg.content.clone()));
+    }
+
+    // Note image attachments in summary so LLM knows they existed
+    if !text_msg.images.is_empty() {
+        blocks.push(SummaryMessage::Text(format!(
+            "[{} image(s) attached]",
+            text_msg.images.len()
+        )));
     }
 
     // Add tool call blocks if present
@@ -873,7 +884,8 @@ mod tests {
     }
 
     #[test]
-    fn test_context_summary_ignores_image_messages() {
+    #[allow(deprecated)]
+    fn test_context_summary_includes_image_note() {
         let fixture = context(vec![
             user("User message"),
             ContextMessage::Image(crate::Image::new_base64(
@@ -886,7 +898,13 @@ mod tests {
         let actual = ContextSummary::from(&fixture);
 
         let expected = ContextSummary::new(vec![
-            SummaryBlock::new(Role::User, vec![Block::content("User message")]),
+            SummaryBlock::new(
+                Role::User,
+                vec![
+                    Block::content("User message"),
+                    Block::content("[1 image(s) attached]"),
+                ],
+            ),
             SummaryBlock::new(Role::Assistant, vec![Block::content("Assistant")]),
         ]);
 

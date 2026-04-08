@@ -259,17 +259,7 @@ mod tests {
     use super::*;
 
     fn create_assistant_message(tool_call: &ToolCallFull) -> TextMessage {
-        TextMessage {
-            role: Role::Assistant,
-            content: String::new(),
-            raw_content: None,
-            tool_calls: Some(vec![tool_call.clone()]),
-            thought_signature: None,
-            model: None,
-            reasoning_details: None,
-            droppable: false,
-            phase: None,
-        }
+        TextMessage::new(Role::Assistant, "").tool_calls(vec![tool_call.clone()])
     }
 
     fn create_conversation_with_messages(messages: Vec<TextMessage>) -> Conversation {
@@ -395,41 +385,9 @@ mod tests {
 
     #[test]
     fn test_extract_assistant_messages() {
-        let assistant_msg_1 = TextMessage {
-            role: Role::Assistant,
-            content: "Response 1".to_string(),
-            raw_content: None,
-            tool_calls: None,
-            thought_signature: None,
-            model: None,
-            reasoning_details: None,
-            droppable: false,
-            phase: None,
-        };
-
-        let user_msg = TextMessage {
-            role: Role::User,
-            content: "Question".to_string(),
-            raw_content: None,
-            tool_calls: None,
-            thought_signature: None,
-            model: None,
-            reasoning_details: None,
-            droppable: false,
-            phase: None,
-        };
-
-        let assistant_msg_2 = TextMessage {
-            role: Role::Assistant,
-            content: "Response 2".to_string(),
-            raw_content: None,
-            tool_calls: None,
-            thought_signature: None,
-            model: None,
-            reasoning_details: None,
-            droppable: false,
-            phase: None,
-        };
+        let assistant_msg_1 = TextMessage::new(Role::Assistant, "Response 1");
+        let user_msg = TextMessage::new(Role::User, "Question");
+        let assistant_msg_2 = TextMessage::new(Role::Assistant, "Response 2");
 
         let messages = [
             ContextMessage::Text(assistant_msg_1.clone()),

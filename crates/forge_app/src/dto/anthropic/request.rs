@@ -232,6 +232,7 @@ pub struct Message {
 
 impl TryFrom<ContextMessage> for Message {
     type Error = anyhow::Error;
+    #[allow(deprecated)]
     fn try_from(value: ContextMessage) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
             ContextMessage::Text(chat_message) => {
@@ -258,6 +259,9 @@ impl TryFrom<ContextMessage> for Message {
                 if !chat_message.content.is_empty() {
                     // NOTE: Anthropic does not allow empty text content.
                     content.push(Content::Text { text: chat_message.content, cache_control: None });
+                }
+                for image in chat_message.images {
+                    content.push(Content::from(image));
                 }
                 if let Some(tool_calls) = chat_message.tool_calls {
                     for tool_call in tool_calls {

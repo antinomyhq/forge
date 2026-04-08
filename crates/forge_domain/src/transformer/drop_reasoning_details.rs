@@ -151,6 +151,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(deprecated)]
     fn test_drop_reasoning_details_preserves_non_text_messages() {
         let reasoning_details = vec![ReasoningFull {
             text: Some("User reasoning".to_string()),

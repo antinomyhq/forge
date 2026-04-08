@@ -30,12 +30,12 @@ messages:
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"
-  - image:
-      url: "data:image/png;base64,test123"
-      mime_type: image/png
+      images:
+        - url: "data:image/png;base64,test123"
+          mime_type: image/png
   - text:
       role: User
       content: "[Here is the image attachment for ID 1]"
-  - image:
-      url: "data:image/jpeg;base64,test456"
-      mime_type: image/jpeg
+      images:
+        - url: "data:image/jpeg;base64,test456"
+          mime_type: image/jpeg

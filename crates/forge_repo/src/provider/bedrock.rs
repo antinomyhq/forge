@@ -672,6 +672,7 @@ impl FromDomain<Vec<forge_domain::ContextMessage>> for aws_sdk_bedrockruntime::t
 
 /// Converts a domain ContextMessage to a Bedrock Message
 impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types::Message {
+    #[allow(deprecated)]
     fn from_domain(msg: forge_domain::ContextMessage) -> anyhow::Result<Self> {
         use anyhow::Context as _;
         use aws_sdk_bedrockruntime::primitives::Blob;
@@ -725,6 +726,21 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                 // Add text content if not empty
                 if !text_msg.content.is_empty() {
                     content_blocks.push(ContentBlock::Text(text_msg.content.clone()));
+                }
+
+                // Add image content blocks
+                for image in &text_msg.images {
+                    let image_block = ImageBlock::builder()
+                        .source(ImageSource::Bytes(Blob::new(
+                            base64::Engine::decode(
+                                &base64::engine::general_purpose::STANDARD,
+                                image.data(),
+                            )
+                            .with_context(|| "Failed to decode base64 image data")?,
+                        )))
+                        .build()
+                        .map_err(|e| anyhow::anyhow!("Failed to build image block: {}", e))?;
+                    content_blocks.push(ContentBlock::Image(image_block));
                 }
 
                 // Add tool calls if present

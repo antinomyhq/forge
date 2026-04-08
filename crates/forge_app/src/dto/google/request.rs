@@ -470,6 +470,7 @@ impl From<forge_domain::ToolDefinition> for FunctionDeclaration {
 }
 
 impl From<ContextMessage> for Content {
+    #[allow(deprecated)]
     fn from(message: ContextMessage) -> Self {
         match message {
             ContextMessage::Text(text_message) => Content::from(text_message),
@@ -497,6 +498,11 @@ impl From<forge_domain::TextMessage> for Content {
                 thought_signature: text_message.thought_signature.clone(),
                 cache_control: None,
             });
+        }
+
+        // Add image parts if present
+        for image in text_message.images {
+            parts.push(Part::from(image));
         }
 
         // Add function calls if present

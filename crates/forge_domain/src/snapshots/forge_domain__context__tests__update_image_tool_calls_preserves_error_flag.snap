@@ -13,6 +13,6 @@ messages:
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"
-  - image:
-      url: "data:image/png;base64,test123"
-      mime_type: image/png
+      images:
+        - url: "data:image/png;base64,test123"
+          mime_type: image/png
