@@ -125,9 +125,11 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract version from release tag
+    - name: Extract version and repository name
       id: version
-      run: echo "tag=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+      run: |
+        echo "tag=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+        echo "repo=${GITHUB_REPOSITORY,,}" >> $GITHUB_OUTPUT
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
@@ -136,8 +138,8 @@ jobs:
         push: true
         platforms: linux/amd64
         tags: |
-          ghcr.io/${{ github.repository }}/workspace-server:${{ steps.version.outputs.tag }}
-          ghcr.io/${{ github.repository }}/workspace-server:latest
+          ghcr.io/${{ steps.version.outputs.repo }}/workspace-server:${{ steps.version.outputs.tag }}
+          ghcr.io/${{ steps.version.outputs.repo }}/workspace-server:latest
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
