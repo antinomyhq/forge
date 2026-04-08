@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use async_trait::async_trait;
 use forge_domain::{
     ContextMessage, Conversation, EndPayload, EventData, EventHandle, Template, TodoStatus,
@@ -48,17 +50,55 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
             return Ok(());
         }
 
-        // Check if a reminder was already added to avoid duplicates
-        if let Some(context) = &conversation.context {
-            let has_existing_reminder = context.messages.iter().any(|entry| {
-                entry
-                    .message
-                    .content()
-                    .is_some_and(|content| content.contains("pending todo items"))
-            });
-            if has_existing_reminder {
-                return Ok(());
+        // Build a set of current pending todo contents for comparison
+        let current_todo_set: HashSet<String> = pending_todos
+            .iter()
+            .map(|todo| todo.content.clone())
+            .collect();
+
+        // Check if we already have a reminder with the exact same set of todos
+        // This prevents duplicate reminders while still allowing new reminders
+        // when todos change (e.g., some completed but others still pending)
+        let should_add_reminder = if let Some(context) = &conversation.context {
+            // Find the most recent reminder message by looking for the template content pattern
+            let last_reminder_todos: Option<HashSet<String>> = context
+                .messages
+                .iter()
+                .rev()
+                .filter_map(|entry| {
+                    let content = entry.message.content()?;
+                    // Check if this is a pending todos reminder
+                    if content.contains("You have pending todo items") {
+                        // Extract todo items from the reminder message
+                        // Format: "- [STATUS] Content"
+                        let todos: HashSet<String> = content
+                            .lines()
+                            .filter(|line| line.starts_with("- ["))
+                            .map(|line| {
+                                // Extract content after "- [STATUS] "
+                                line.splitn(2, "] ")
+                                    .nth(1)
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_default()
+                            })
+                            .collect();
+                        Some(todos)
+                    } else {
+                        None
+                    }
+                })
+                .next();
+
+            match last_reminder_todos {
+                Some(last_todos) => last_todos != current_todo_set,
+                None => true, // No previous reminder found, should add
             }
+        } else {
+            true // No context, should add reminder
+        };
+
+        if !should_add_reminder {
+            return Ok(());
         }
 
         let todo_items: Vec<TodoReminderItem> = pending_todos
@@ -181,5 +221,55 @@ mod tests {
         let actual = conversation.context.as_ref().unwrap().messages.len();
         let expected = initial_msg_count;
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_reminder_not_duplicated_for_same_todos() {
+        let handler = PendingTodosHandler::new();
+        let event = fixture_event();
+        let mut conversation = fixture_conversation(vec![
+            Todo::new("Fix the build").status(TodoStatus::Pending),
+        ]);
+
+        // First call should inject a reminder
+        handler.handle(&event, &mut conversation).await.unwrap();
+        let after_first = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(after_first, 1);
+
+        // Second call with the same pending todos should NOT add another reminder
+        handler.handle(&event, &mut conversation).await.unwrap();
+        let after_second = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(after_second, 1); // Still 1, no duplicate
+    }
+
+    #[tokio::test]
+    async fn test_reminder_added_when_todos_change() {
+        let handler = PendingTodosHandler::new();
+        let event = fixture_event();
+        let mut conversation = fixture_conversation(vec![
+            Todo::new("Fix the build").status(TodoStatus::Pending),
+            Todo::new("Write tests").status(TodoStatus::InProgress),
+        ]);
+
+        // First call should inject a reminder
+        handler.handle(&event, &mut conversation).await.unwrap();
+        let after_first = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(after_first, 1);
+
+        // Simulate LLM completing one todo but leaving another pending
+        // Update the conversation metrics with different todos
+        conversation.metrics = conversation
+            .metrics
+            .clone()
+            .todos(vec![
+                Todo::new("Fix the build").status(TodoStatus::Completed),
+                Todo::new("Write tests").status(TodoStatus::InProgress),
+                Todo::new("Add documentation").status(TodoStatus::Pending),
+            ]);
+
+        // Second call with different pending todos should add a new reminder
+        handler.handle(&event, &mut conversation).await.unwrap();
+        let after_second = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(after_second, 2); // New reminder added because todos changed
     }
 }
