@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::Duration;
 
 use forge_domain::{CommandOutput, HookExecutionResult};
@@ -44,7 +44,7 @@ impl<S: HookCommandService> UserHookExecutor<S> {
         command: &str,
         input_json: &str,
         timeout_duration: Duration,
-        cwd: &PathBuf,
+        cwd: &Path,
         env_vars: &HashMap<String, String>,
     ) -> anyhow::Result<HookExecutionResult> {
         debug!(
@@ -58,7 +58,7 @@ impl<S: HookCommandService> UserHookExecutor<S> {
             timeout_duration,
             self.0.execute_command_with_input(
                 command.to_string(),
-                cwd.clone(),
+                cwd.to_path_buf(),
                 input_json.to_string(),
                 env_vars.clone(),
             ),

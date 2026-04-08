@@ -349,6 +349,10 @@ mod tests {
             env
         }
 
+        fn get_config(&self) -> anyhow::Result<Self::Config> {
+            unimplemented!("not needed for tests")
+        }
+
         async fn update_environment(
             &self,
             _ops: Vec<forge_domain::ConfigOperation>,
