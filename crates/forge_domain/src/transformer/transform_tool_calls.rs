@@ -49,11 +49,10 @@ impl Transformer for TransformToolCalls {
                                 // Attach image to the preceding user message
                                 // if possible, otherwise create a new one
                                 let last_user = new_messages.iter_mut().rev().find_map(|entry| {
-                                    if let ContextMessage::Text(ref mut msg) = entry.message {
-                                        if msg.role == Role::User {
+                                    if let ContextMessage::Text(ref mut msg) = entry.message
+                                        && msg.role == Role::User {
                                             return Some(msg);
                                         }
-                                    }
                                     None
                                 });
                                 if let Some(user_msg) = last_user {
