@@ -415,6 +415,12 @@ pub enum McpCommand {
 
     /// Reload servers and rebuild caches.
     Reload,
+
+    /// Authenticate with an OAuth-enabled MCP server.
+    Login(McpAuthArgs),
+
+    /// Remove stored OAuth credentials for an MCP server.
+    Logout(McpLogoutArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -441,6 +447,19 @@ pub struct McpRemoveArgs {
 #[derive(Parser, Debug, Clone)]
 pub struct McpShowArgs {
     /// Name of the server to show details for.
+    pub name: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct McpAuthArgs {
+    /// Name of the MCP server to authenticate with.
+    pub name: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct McpLogoutArgs {
+    /// Name of the MCP server to remove credentials for, or "all" to
+    /// remove all MCP OAuth credentials.
     pub name: String,
 }
 
