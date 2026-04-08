@@ -189,7 +189,6 @@ mod tests {
             _agent: &Agent,
             _context: &ToolCallContext,
             _call: ToolCallFull,
-            _config: &forge_config::ForgeConfig,
         ) -> ToolResult {
             unreachable!("Not used in tests")
         }

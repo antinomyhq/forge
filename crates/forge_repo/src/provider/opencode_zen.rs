@@ -1,13 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use derive_setters::Setters;
-use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, Provider, ProviderResponse,
     ResultStream,
 };
-use forge_config::RetryConfig;
+use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::ChatRepository;
 use url::Url;
 
@@ -21,24 +19,22 @@ use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 /// - GPT-5 models (gpt-5*) -> OpenAIResponses endpoint
 /// - Gemini models (gemini-*) -> Google endpoint
 /// - Others (GLM, MiniMax, Kimi, etc.) -> OpenAI endpoint
-#[derive(Setters)]
-#[setters(strip_option, into)]
 pub struct OpenCodeZenResponseRepository<F> {
     openai_repo: OpenAIResponseRepository<F>,
     codex_repo: OpenAIResponsesResponseRepository<F>,
     anthropic_repo: AnthropicResponseRepository<F>,
     google_repo: GoogleResponseRepository<F>,
-    retry_config: Arc<RetryConfig>,
 }
 
-impl<F: HttpInfra + Sync> OpenCodeZenResponseRepository<F> {
+impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + Sync>
+    OpenCodeZenResponseRepository<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         Self {
             openai_repo: OpenAIResponseRepository::new(infra.clone()),
             codex_repo: OpenAIResponsesResponseRepository::new(infra.clone()),
             anthropic_repo: AnthropicResponseRepository::new(infra.clone()),
             google_repo: GoogleResponseRepository::new(infra.clone()),
-            retry_config: Arc::new(RetryConfig::default()),
         }
     }
 

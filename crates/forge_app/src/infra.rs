@@ -28,6 +28,13 @@ pub trait EnvironmentInfra: Send + Sync {
     /// Retrieves the current application configuration as an [`Environment`].
     fn get_environment(&self) -> Environment;
 
+    /// Returns the latest fully-resolved configuration, re-reading from disk
+    /// if a prior `update_environment` call has invalidated the cache.
+    ///
+    /// # Errors
+    /// Returns an error if the disk read fails.
+    fn get_config(&self) -> anyhow::Result<Self::Config>;
+
     /// Applies a list of configuration operations to the persisted config.
     ///
     /// Implementations should load the current config, apply each operation in
@@ -231,6 +238,7 @@ pub trait McpServerInfra: Send + Sync + 'static {
         &self,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
+        environment: &Environment,
     ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories

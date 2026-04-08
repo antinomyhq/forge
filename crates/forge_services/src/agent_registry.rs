@@ -3,7 +3,6 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use forge_app::domain::{AgentId, Error, ModelId, ProviderId};
 use forge_app::{AgentRepository, EnvironmentInfra};
-use forge_config::ForgeConfig;
 use forge_domain::Agent;
 use tokio::sync::RwLock;
 
@@ -13,9 +12,6 @@ use tokio::sync::RwLock;
 pub struct ForgeAgentRegistryService<R> {
     // Infrastructure dependency for loading agents
     repository: Arc<R>,
-
-    // Startup configuration snapshot used to resolve default provider/model
-    config: ForgeConfig,
 
     // In-memory storage for agents keyed by AgentId string
     // Lazily initialized on first access
@@ -28,17 +24,18 @@ pub struct ForgeAgentRegistryService<R> {
 
 impl<R> ForgeAgentRegistryService<R> {
     /// Creates a new AgentRegistryService with the given repository
-    pub fn new(repository: Arc<R>, config: ForgeConfig) -> Self {
+    pub fn new(repository: Arc<R>) -> Self {
         Self {
             repository,
-            config,
             agents: RwLock::new(None),
             active_agent_id: RwLock::new(None),
         }
     }
 }
 
-impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
+impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
+    ForgeAgentRegistryService<R>
+{
     /// Lazily initializes and returns the agents map
     /// Loads agents from repository on first call, subsequent calls return
     /// cached value
@@ -70,15 +67,13 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
 
     /// Load agents from repository and populate the in-memory map.
     ///
-    /// Reads the default provider and model from [`ForgeConfig`] and passes
-    /// them to the repository so agents that do not specify their own
-    /// provider/model receive the session-level defaults.
+    /// Reads the default provider and model from the latest [`ForgeConfig`]
+    /// (via `get_config()`) and passes them to the repository so agents that
+    /// do not specify their own provider/model receive the session-level
+    /// defaults.
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        let session = self
-            .config
-            .session
-            .as_ref()
-            .ok_or(Error::NoDefaultProvider)?;
+        let config = self.repository.get_config()?;
+        let session = config.session.as_ref().ok_or(Error::NoDefaultProvider)?;
         let provider_id = session
             .provider_id
             .as_ref()
@@ -104,8 +99,8 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: AgentRepository + EnvironmentInfra + Send + Sync> forge_app::AgentRegistry
-    for ForgeAgentRegistryService<R>
+impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync>
+    forge_app::AgentRegistry for ForgeAgentRegistryService<R>
 {
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         let agent_id = self.active_agent_id.read().await;
