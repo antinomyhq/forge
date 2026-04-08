@@ -1907,7 +1907,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.on_custom_event(event.into()).await?;
             }
             SlashCommand::Model => {
-                self.on_model_selection(None, None).await?;
+                self.on_model_selection(None).await?;
             }
             SlashCommand::Provider => {
                 self.on_provider_selection().await?;
@@ -2074,13 +2074,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     /// selected the model list is scoped to that provider only.
     ///
     /// # Returns
-    /// - `Ok(Some(ModelId))` if a model was selected
+    /// - `Ok(Some((ModelId, ProviderId)))` if a model was selected, carrying
+    ///   both the model and the provider it belongs to
     /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
     async fn select_model(
         &mut self,
         provider_filter: Option<ProviderId>,
-    ) -> Result<Option<ModelId>> {
+    ) -> Result<Option<(ModelId, ProviderId)>> {
         // Check if provider is set otherwise first ask to select a provider
         if provider_filter.is_none() && self.api.get_default_provider().await.is_err() {
             if !self.on_provider_selection().await? {
@@ -2180,21 +2181,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             return Ok(None);
         }
 
-        // Build a flat list of (ModelId, display_line) for the data rows.
+        // Build a flat list of (ModelId, ProviderId) for the data rows.
         // The first line is the header; data rows follow in the same order as
         // the Info entries (sorted by provider, then model within provider).
-        let mut model_ids: Vec<ModelId> = Vec::new();
+        let mut model_entries: Vec<(ModelId, ProviderId)> = Vec::new();
         for pm in &all_provider_models {
             for model in &pm.models {
-                model_ids.push(model.id.clone());
+                model_entries.push((model.id.clone(), pm.provider_id.clone()));
             }
         }
 
         // Create display items: header line first, then data lines paired with
-        // model IDs.
+        // model and provider IDs.
         #[derive(Clone)]
         struct ModelRow {
             model_id: Option<ModelId>,
+            provider_id: Option<ProviderId>,
             display: String,
         }
         impl std::fmt::Display for ModelRow {
@@ -2205,11 +2207,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
         // Header row (non-selectable via header_lines=1)
-        rows.push(ModelRow { model_id: None, display: all_lines[0].to_string() });
+        rows.push(ModelRow { model_id: None, provider_id: None, display: all_lines[0].to_string() });
         // Data rows
         for (i, line) in all_lines.iter().skip(1).enumerate() {
+            let entry = model_entries.get(i);
             rows.push(ModelRow {
-                model_id: model_ids.get(i).cloned(),
+                model_id: entry.map(|(m, _)| m.clone()),
+                provider_id: entry.map(|(_, p)| p.clone()),
                 display: line.to_string(),
             });
         }
@@ -2222,7 +2226,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .and_then(|current| model_entries.iter().position(|(id, _)| id == current))
             .unwrap_or(0);
 
         match ForgeWidget::select("Model", rows)
@@ -2230,7 +2234,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .with_header_lines(1)
             .prompt()?
         {
-            Some(row) => Ok(row.model_id),
+            Some(row) => Ok(row.model_id.zip(row.provider_id)),
             None => Ok(None),
         }
     }
@@ -2745,37 +2749,28 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     // Helper method to handle model selection and update the conversation.
     // When `provider_filter` is `Some`, only models from that provider are shown.
+    // The model and provider returned by the selector are always set as one
+    // atomic operation.
     #[async_recursion::async_recursion]
     async fn on_model_selection(
         &mut self,
         provider_filter: Option<ProviderId>,
-        provider_to_activate: Option<ProviderId>,
     ) -> Result<Option<ModelId>> {
-        // Select a model
-        let model_option = self.select_model(provider_filter).await?;
+        // Select a model; the selector returns both the model and its provider
+        let selection = self.select_model(provider_filter).await?;
 
         // If no model was selected (user canceled), return early
-        let model = match model_option {
-            Some(model) => model,
+        let (model, provider_id) = match selection {
+            Some(pair) => pair,
             None => return Ok(None),
         };
 
-        // If we have a provider to activate, write both atomically
-        if let Some(provider_id) = provider_to_activate {
-            self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(
-                    forge_domain::ModelConfig::new(provider_id, model.clone()),
-                )])
-                .await?;
-        } else {
-            // Resolve the active provider so we can build a SetModel op
-            let provider_id = self.api.get_default_provider().await?.id;
-            self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(
-                    forge_domain::ModelConfig::new(provider_id, model.clone()),
-                )])
-                .await?;
-        }
+        // Set model and provider atomically as a single config operation
+        self.api
+            .update_config(vec![ConfigOperation::SetSessionConfig(
+                forge_domain::ModelConfig::new(provider_id, model.clone()),
+            )])
+            .await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -2886,7 +2881,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         if needs_model_selection {
             self.writeln_title(TitleFormat::info("Please select a new model"))?;
             let selected = self
-                .on_model_selection(Some(provider.id.clone()), Some(provider.id.clone()))
+                .on_model_selection(Some(provider.id.clone()))
                 .await?;
             if selected.is_none() {
                 // User cancelled — preserve existing config untouched
@@ -3024,7 +3019,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let mut operating_model = self.get_agent_model(active_agent.clone()).await;
         if operating_model.is_none() {
             // Use the model returned from selection instead of re-fetching
-            operating_model = self.on_model_selection(None, None).await?;
+            operating_model = self.on_model_selection(None).await?;
         }
 
         if first {
@@ -3548,22 +3543,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider, model } => {
+            ConfigSetField::Model { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider_with_model(provider, model).await?;
-            }
-            ConfigSetField::Model { model } => {
-                let model_id = self.validate_model(model.as_str(), None).await?;
-                // Resolve the active provider so we can build a SetModel op
-                let provider_id = self.api.get_default_provider().await?.id;
-                self.api
-                    .update_config(vec![ConfigOperation::SetSessionConfig(
-                        forge_domain::ModelConfig::new(provider_id, model_id.clone()),
-                    )])
-                    .await?;
-                self.writeln_title(
-                    TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
-                )?;
+                self.activate_provider_with_model(provider, Some(model)).await?;
             }
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider

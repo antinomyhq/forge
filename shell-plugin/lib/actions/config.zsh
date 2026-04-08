@@ -152,10 +152,10 @@ function _forge_action_model() {
             # Switch provider first if it differs from the current one
             # current_provider (fetched above) is the display name, compare against that
             if [[ -n "$provider_display" && "$provider_display" != "$current_provider" ]]; then
-                _forge_exec_interactive config set provider "$provider_id" --model "$model_id"
+                _forge_exec_interactive config set model "$provider_id" "$model_id"
                 return
             fi
-             _forge_exec config set model "$model_id"
+            _forge_exec config set model "$provider_id" "$model_id"
         fi
     )
 }
