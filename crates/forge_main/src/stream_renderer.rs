@@ -55,6 +55,15 @@ impl<P: ConsoleWriter> SharedSpinner<P> {
             .write_ln(message)
     }
 
+    /// Returns whether the spinner is currently active (running).
+    #[cfg(test)]
+    pub fn is_active(&self) -> bool {
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .is_active()
+    }
+
     /// Writes a line to stderr, suspending the spinner if active.
     pub fn ewrite_ln(&self, message: impl ToString) -> Result<()> {
         self.0
@@ -181,14 +190,15 @@ impl<P: ConsoleWriter> StreamDirectWriter<P> {
     fn pause_spinner(&self) {
         let _ = self.spinner.stop(None);
     }
-
-    fn resume_spinner(&self) {
-        let _ = self.spinner.start(None);
-    }
 }
 
 impl<P: ConsoleWriter> Drop for StreamDirectWriter<P> {
     fn drop(&mut self) {
+        // Stop the spinner to prevent indicatif's finish_and_clear() from
+        // erasing content lines. Without this, the spinner remains active
+        // after the writer is dropped (from resume_spinner in write()),
+        // and its background thread can overwrite terminal content.
+        let _ = self.spinner.stop(None);
         let _ = self.printer.flush();
         let _ = self.printer.flush_err();
     }
@@ -206,10 +216,11 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
         self.printer.write(styled.as_bytes())?;
         self.printer.flush()?;
 
-        // Track if we ended on a newline - only safe to show spinner at line start
-        if buf.last() == Some(&b'\n') {
-            self.resume_spinner();
-        }
+        // NOTE: We intentionally do NOT restart the spinner here.
+        // The spinner lifecycle is managed by the UI layer (ToolCallEnd
+        // handler restarts it). Restarting on every newline caused a race
+        // condition where indicatif's finish_and_clear() would erase
+        // content lines when the spinner was later stopped.
 
         // Return `buf.len()`, not `styled.as_bytes().len()`. The `io::Write` contract
         // requires returning how many bytes were consumed from the input buffer, not
@@ -220,5 +231,128 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
 
     fn flush(&mut self) -> io::Result<()> {
         self.printer.flush()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Write;
+    use std::sync::{Arc, Mutex};
+
+    use forge_domain::ConsoleWriter;
+    use forge_spinner::SpinnerManager;
+    use pretty_assertions::assert_eq;
+
+    use super::{SharedSpinner, StreamingWriter};
+
+    /// Mock writer that captures all output into a buffer.
+    #[derive(Clone)]
+    struct MockWriter {
+        stdout: Arc<Mutex<Vec<u8>>>,
+        stderr: Arc<Mutex<Vec<u8>>>,
+    }
+
+    impl MockWriter {
+        fn new() -> Self {
+            Self {
+                stdout: Arc::new(Mutex::new(Vec::new())),
+                stderr: Arc::new(Mutex::new(Vec::new())),
+            }
+        }
+
+        fn stdout_content(&self) -> String {
+            let buf = self.stdout.lock().unwrap();
+            String::from_utf8_lossy(&buf).to_string()
+        }
+    }
+
+    impl ConsoleWriter for MockWriter {
+        fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
+            self.stdout.lock().unwrap().write(buf)
+        }
+
+        fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
+            self.stderr.lock().unwrap().write(buf)
+        }
+
+        fn flush(&self) -> std::io::Result<()> {
+            Ok(())
+        }
+
+        fn flush_err(&self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn fixture(
+    ) -> (StreamingWriter<MockWriter>, SharedSpinner<MockWriter>, MockWriter) {
+        let mock = MockWriter::new();
+        let printer = Arc::new(mock.clone());
+        let spinner = SharedSpinner::new(SpinnerManager::new(printer.clone()));
+        let writer = StreamingWriter::new(spinner.clone(), printer);
+        (writer, spinner, mock)
+    }
+
+    /// After writing content ending with newlines and calling finish(),
+    /// the spinner must be inactive. A lingering active spinner causes
+    /// indicatif's finish_and_clear() to erase content lines when it is
+    /// eventually stopped elsewhere.
+    #[test]
+    fn test_spinner_inactive_after_finish() {
+        let (mut writer, spinner, _mock) = fixture();
+
+        // Start spinner (simulating the state when LLM starts responding)
+        spinner.start(None).unwrap();
+
+        // Write several lines of content — each newline triggers resume_spinner
+        writer.write("Line one\n").unwrap();
+        writer.write("Line two\n").unwrap();
+        writer.write("Line three\n").unwrap();
+
+        // Finish the writer (as happens on TaskComplete)
+        writer.finish().unwrap();
+
+        let actual = spinner.is_active();
+        let expected = false;
+        assert_eq!(actual, expected, "spinner must be inactive after finish()");
+    }
+
+    /// Same invariant but via implicit drop instead of explicit finish().
+    #[test]
+    fn test_spinner_inactive_after_drop() {
+        let (mut writer, spinner, _mock) = fixture();
+
+        spinner.start(None).unwrap();
+
+        writer.write("Line one\n").unwrap();
+        writer.write("Line two\n").unwrap();
+
+        // Drop the writer without calling finish()
+        drop(writer);
+
+        let actual = spinner.is_active();
+        let expected = false;
+        assert_eq!(actual, expected, "spinner must be inactive after drop");
+    }
+
+    /// All content written through StreamingWriter must be preserved
+    /// in the output buffer after finish().
+    #[test]
+    fn test_content_preserved_after_finish() {
+        let (mut writer, _spinner, mock) = fixture();
+
+        writer.write("Hello world\n").unwrap();
+        writer.write("Second line\n").unwrap();
+        writer.finish().unwrap();
+
+        let actual = mock.stdout_content();
+        assert!(
+            actual.contains("Hello world"),
+            "output must contain 'Hello world', got: {actual}"
+        );
+        assert!(
+            actual.contains("Second line"),
+            "output must contain 'Second line', got: {actual}"
+        );
     }
 }
