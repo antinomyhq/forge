@@ -7,19 +7,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Effort, ModelConfig};
 
-/// Domain-level session configuration pairing a provider with a model.
-///
-/// Used to represent an active session, decoupled from the on-disk
-/// configuration format.
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
-#[setters(strip_option, into)]
-pub struct SessionConfig {
-    /// The active provider ID (e.g. `"anthropic"`).
-    pub provider_id: Option<String>,
-    /// The model ID to use with this provider.
-    pub model_id: Option<String>,
-}
-
 /// All discrete mutations that can be applied to the application configuration.
 ///
 /// Instead of replacing the entire config, callers describe exactly which field
