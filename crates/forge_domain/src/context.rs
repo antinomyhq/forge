@@ -564,10 +564,11 @@ impl Context {
                 // Find preceding user message to merge into
                 let merged = (0..i).rev().any(|j| {
                     if let ContextMessage::Text(ref mut text_msg) = self.messages[j].message
-                        && text_msg.role == Role::User {
-                            text_msg.images.push(image.clone());
-                            return true;
-                        }
+                        && text_msg.role == Role::User
+                    {
+                        text_msg.images.push(image.clone());
+                        return true;
+                    }
                     false
                 });
                 if merged {
@@ -586,10 +587,11 @@ impl Context {
         // Find last user message and attach image to it
         let found = self.messages.iter_mut().rev().any(|entry| {
             if let ContextMessage::Text(ref mut text_msg) = entry.message
-                && text_msg.role == Role::User {
-                    text_msg.images.push(image.clone());
-                    return true;
-                }
+                && text_msg.role == Role::User
+            {
+                text_msg.images.push(image.clone());
+                return true;
+            }
             false
         });
         if !found {
