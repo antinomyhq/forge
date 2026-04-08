@@ -1,5 +1,5 @@
 use super::Transformer;
-use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
+use crate::{Context, ContextMessage, MessageEntry, ModelId, Role, TextMessage};
 
 pub struct TransformToolCalls {
     pub model: Option<ModelId>,
@@ -25,7 +25,7 @@ impl Transformer for TransformToolCalls {
         // format We need to find assistant messages with tool calls and tool
         // result messages
 
-        let mut new_messages = Vec::new();
+        let mut new_messages: Vec<MessageEntry> = Vec::new();
 
         for message in value.messages.into_iter() {
             match &*message {
@@ -44,6 +44,7 @@ impl Transformer for TransformToolCalls {
                             model: text_msg.model.clone(),
                             droppable: text_msg.droppable,
                             phase: text_msg.phase,
+                            images: text_msg.images.clone(),
                         })
                         .into(),
                     );
@@ -57,7 +58,22 @@ impl Transformer for TransformToolCalls {
                                     .push(ContextMessage::user(text, self.model.clone()).into());
                             }
                             crate::ToolValue::Image(image) => {
-                                new_messages.push(ContextMessage::Image(image).into());
+                                // Attach image to the preceding user message
+                                // if possible, otherwise create a new one
+                                let attached = new_messages.iter_mut().rev().any(|entry| {
+                                    if let ContextMessage::Text(ref mut msg) = entry.message {
+                                        if msg.role == Role::User {
+                                            msg.images.push(image.clone());
+                                            return true;
+                                        }
+                                    }
+                                    false
+                                });
+                                if !attached {
+                                    let msg = TextMessage::new(Role::User, "[image attachment]")
+                                        .add_image(image);
+                                    new_messages.push(ContextMessage::Text(msg).into());
+                                }
                             }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => new_messages

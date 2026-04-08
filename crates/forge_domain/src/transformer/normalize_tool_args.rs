@@ -73,6 +73,7 @@ mod tests {
                 reasoning_details: None,
                 droppable: false,
                 phase: None,
+                images: vec![],
             }));
 
         // Apply the transformer
@@ -150,6 +151,7 @@ mod tests {
                 reasoning_details: None,
                 droppable: false,
                 phase: None,
+                images: vec![],
             }));
 
         let mut transformer = NormalizeToolCallArguments::new();

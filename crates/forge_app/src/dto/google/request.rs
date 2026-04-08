@@ -499,6 +499,11 @@ impl From<forge_domain::TextMessage> for Content {
             });
         }
 
+        // Add image parts if present
+        for image in text_message.images {
+            parts.push(Part::from(image));
+        }
+
         // Add function calls if present
         if let Some(tool_calls) = text_message.tool_calls {
             parts.extend(tool_calls.into_iter().map(Part::from));

@@ -727,6 +727,21 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                     content_blocks.push(ContentBlock::Text(text_msg.content.clone()));
                 }
 
+                // Add image content blocks
+                for image in &text_msg.images {
+                    let image_block = ImageBlock::builder()
+                        .source(ImageSource::Bytes(Blob::new(
+                            base64::Engine::decode(
+                                &base64::engine::general_purpose::STANDARD,
+                                image.data(),
+                            )
+                            .with_context(|| "Failed to decode base64 image data")?,
+                        )))
+                        .build()
+                        .map_err(|e| anyhow::anyhow!("Failed to build image block: {}", e))?;
+                    content_blocks.push(ContentBlock::Image(image_block));
+                }
+
                 // Add tool calls if present
                 if let Some(tool_calls) = text_msg.tool_calls {
                     for tool_call in tool_calls {

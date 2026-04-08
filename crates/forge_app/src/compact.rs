@@ -511,6 +511,38 @@ mod tests {
     }
 
     #[test]
+    fn test_compaction_removes_images_with_parent_message() {
+        use forge_domain::{ContextMessage, Image, Role, TextMessage};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        let image = Image::new_base64("iVBORw0KGgo=".to_string(), "image/png");
+        let msg_with_image = TextMessage::new(Role::User, "Look at this").add_image(image.clone());
+
+        // Context: [User+image, Assistant, User, Assistant]
+        let context = Context::default()
+            .add_message(ContextMessage::Text(msg_with_image))
+            .add_message(ContextMessage::assistant("I see a cat", None, None, None))
+            .add_message(ContextMessage::user("Write code", None))
+            .add_message(ContextMessage::assistant("Here's code", None, None, None));
+
+        // Compact the first 2 messages (user+image and assistant)
+        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+
+        // After compaction: [U-summary, U, A]
+        // The image from the first user message should be gone (compacted away)
+        for msg in &actual.messages {
+            if let ContextMessage::Text(text_msg) = &**msg {
+                assert!(
+                    text_msg.images.is_empty(),
+                    "Images should be removed with their parent message during compaction"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_compaction_removes_droppable_messages() {
         use forge_domain::{ContextMessage, Role, TextMessage};
 

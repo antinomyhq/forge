@@ -363,6 +363,7 @@ impl TryFrom<TextMessageRecord> for forge_domain::TextMessage {
                 .map(|details| details.into_iter().map(Into::into).collect()),
             droppable: record.droppable,
             phase: None,
+            images: Vec::new(),
         })
     }
 }

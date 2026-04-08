@@ -202,10 +202,26 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                         }
                     }
                     Role::User => {
+                        let content = if message.images.is_empty() {
+                            oai::EasyInputContent::Text(message.content)
+                        } else {
+                            let mut parts =
+                                vec![oai::InputContent::InputText(oai::InputTextContent {
+                                    text: message.content,
+                                })];
+                            for image in message.images {
+                                parts.push(oai::InputContent::InputImage(oai::InputImageContent {
+                                    detail: oai::ImageDetail::Auto,
+                                    file_id: None,
+                                    image_url: Some(image.url().clone()),
+                                }));
+                            }
+                            oai::EasyInputContent::ContentList(parts)
+                        };
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
                             r#type: oai::MessageType::Message,
                             role: oai::Role::User,
-                            content: oai::EasyInputContent::Text(message.content),
+                            content,
                             phase: None,
                         }));
                     }

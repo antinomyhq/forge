@@ -170,6 +170,7 @@ impl ContextMessage {
             model,
             droppable: false,
             phase: None,
+            images: Vec::new(),
         }
         .into()
     }
@@ -185,6 +186,7 @@ impl ContextMessage {
             reasoning_details: None,
             droppable: false,
             phase: None,
+            images: Vec::new(),
         }
         .into()
     }
@@ -207,6 +209,7 @@ impl ContextMessage {
             model: None,
             droppable: false,
             phase: None,
+            images: Vec::new(),
         }
         .into()
     }
@@ -227,7 +230,21 @@ impl ContextMessage {
         match self {
             ContextMessage::Text(message) => message.droppable,
             ContextMessage::Tool(_) => false,
-            ContextMessage::Image(_) => false,
+            // Standalone legacy images are droppable so compaction can clean
+            // them up. New code attaches images to TextMessage.images instead.
+            ContextMessage::Image(_) => true,
+        }
+    }
+
+    /// Returns the images attached to this message.
+    /// For `Text` messages, returns images from the `images` field.
+    /// For legacy standalone `Image` messages, returns a single-element slice.
+    /// For `Tool` messages, returns an empty slice.
+    pub fn images(&self) -> Vec<&Image> {
+        match self {
+            ContextMessage::Text(message) => message.images.iter().collect(),
+            ContextMessage::Image(image) => vec![image],
+            ContextMessage::Tool(_) => vec![],
         }
     }
 
@@ -319,6 +336,13 @@ pub struct TextMessage {
     /// requests.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub phase: Option<MessagePhase>,
+    /// Images attached to this message. When serialized to LLM providers,
+    /// these become multimodal content blocks alongside the text content.
+    /// Images are scoped to the message they belong to and are evicted
+    /// together with it during compaction.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[setters(skip)]
+    pub images: Vec<Image>,
 }
 
 impl TextMessage {
@@ -334,7 +358,19 @@ impl TextMessage {
             reasoning_details: None,
             droppable: false,
             phase: None,
+            images: Vec::new(),
         }
+    }
+
+    /// Appends an image to this message's image attachments.
+    pub fn add_image(mut self, image: Image) -> Self {
+        self.images.push(image);
+        self
+    }
+
+    /// Returns true if this message has any attached images.
+    pub fn has_images(&self) -> bool {
+        !self.images.is_empty()
     }
 
     pub fn has_role(&self, role: Role) -> bool {
@@ -356,6 +392,7 @@ impl TextMessage {
             model,
             droppable: false,
             phase: None,
+            images: Vec::new(),
         }
     }
 }
@@ -449,8 +486,10 @@ impl Context {
             .and_then(|msg| msg.content())
     }
 
+    /// Adds an image to the last user message in the context.
+    /// If no user message exists, creates one with empty text.
     pub fn add_base64_url(mut self, image: Image) -> Self {
-        self.messages.push(ContextMessage::Image(image).into());
+        self.attach_image_to_last_user_message(image);
         self
     }
 
@@ -472,9 +511,13 @@ impl Context {
     }
 
     pub fn add_attachments(self, attachments: Vec<Attachment>, model_id: Option<ModelId>) -> Self {
-        attachments.into_iter().fold(self, |ctx, attachment| {
-            ctx.add_message(match attachment.content {
-                AttachmentContent::Image(image) => ContextMessage::Image(image),
+        attachments
+            .into_iter()
+            .fold(self, |mut ctx, attachment| match attachment.content {
+                AttachmentContent::Image(image) => {
+                    ctx.attach_image_to_last_user_message(image);
+                    ctx
+                }
                 AttachmentContent::FileContent { content, info } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
@@ -489,7 +532,7 @@ impl Context {
                         message = message.model(model);
                     }
 
-                    message.into()
+                    ctx.add_message(ContextMessage::Text(message))
                 }
                 AttachmentContent::DirectoryListing { entries } => {
                     let elm = Element::new("directory_listing")
@@ -505,10 +548,57 @@ impl Context {
                         message = message.model(model);
                     }
 
-                    message.into()
+                    ctx.add_message(ContextMessage::Text(message))
                 }
             })
-        })
+    }
+
+    /// Merges standalone `ContextMessage::Image` entries into the preceding
+    /// user message's `images` field. This is a migration helper for
+    /// conversations persisted before images were part of `TextMessage`.
+    pub fn merge_standalone_images(mut self) -> Self {
+        let mut i = 0;
+        while i < self.messages.len() {
+            if let ContextMessage::Image(image) = &self.messages[i].message {
+                let image = image.clone();
+                // Find preceding user message to merge into
+                let merged = (0..i).rev().any(|j| {
+                    if let ContextMessage::Text(ref mut text_msg) = self.messages[j].message {
+                        if text_msg.role == Role::User {
+                            text_msg.images.push(image.clone());
+                            return true;
+                        }
+                    }
+                    false
+                });
+                if merged {
+                    self.messages.remove(i);
+                    continue; // don't increment, the next element shifted down
+                }
+            }
+            i += 1;
+        }
+        self
+    }
+
+    /// Attaches an image to the last user message in the context.
+    /// If no user message exists, creates a new one with empty text.
+    fn attach_image_to_last_user_message(&mut self, image: Image) {
+        // Find last user message and attach image to it
+        let found = self.messages.iter_mut().rev().any(|entry| {
+            if let ContextMessage::Text(ref mut text_msg) = entry.message {
+                if text_msg.role == Role::User {
+                    text_msg.images.push(image.clone());
+                    return true;
+                }
+            }
+            false
+        });
+        if !found {
+            // No user message exists — create one with empty text and the image
+            let msg = TextMessage::new(Role::User, "").add_image(image);
+            self.messages.push(ContextMessage::Text(msg).into());
+        }
     }
 
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {
@@ -1712,5 +1802,80 @@ mod tests {
         // No duplicate null-signature entry should have been appended.
         let expected = fixture_details;
         assert_eq!(stored, &expected);
+    }
+
+    #[test]
+    fn test_image_attached_to_user_message() {
+        let image = Image::new_base64("iVBORw0KGgo=".to_string(), "image/png");
+        let context =
+            Context::default().add_message(ContextMessage::user("Look at this image", None));
+
+        let mut context = context;
+        context.attach_image_to_last_user_message(image.clone());
+
+        // Image should be part of the user message, not standalone
+        assert_eq!(context.messages.len(), 1);
+        if let ContextMessage::Text(msg) = &*context.messages[0] {
+            assert_eq!(msg.images.len(), 1);
+            assert_eq!(msg.images[0].url(), image.url());
+        } else {
+            panic!("Expected TextMessage");
+        }
+    }
+
+    #[test]
+    fn test_images_scoped_to_their_turn() {
+        let image = Image::new_base64("iVBORw0KGgo=".to_string(), "image/png");
+        let msg = TextMessage::new(Role::User, "Look at this").add_image(image);
+
+        let context = Context::default()
+            .add_message(ContextMessage::Text(msg))
+            .add_message(ContextMessage::assistant("I see a cat", None, None, None))
+            .add_message(ContextMessage::user("Write some code", None));
+
+        // Second user message should have NO images
+        if let ContextMessage::Text(msg) = &*context.messages[2] {
+            assert!(msg.images.is_empty(), "Second turn should have no images");
+        } else {
+            panic!("Expected TextMessage");
+        }
+        // First user message should have the image
+        if let ContextMessage::Text(msg) = &*context.messages[0] {
+            assert_eq!(msg.images.len(), 1, "First turn should have the image");
+        } else {
+            panic!("Expected TextMessage");
+        }
+    }
+
+    #[test]
+    fn test_merge_standalone_images_into_user_message() {
+        let image = Image::new_base64("iVBORw0KGgo=".to_string(), "image/png");
+        // Simulate old format: standalone Image after user message
+        let context = Context::default()
+            .add_message(ContextMessage::user("Look at this", None))
+            .add_message(ContextMessage::Image(image.clone()));
+
+        assert_eq!(context.messages.len(), 2);
+
+        let migrated = context.merge_standalone_images();
+
+        // Standalone image should be merged into the user message
+        assert_eq!(migrated.messages.len(), 1);
+        if let ContextMessage::Text(msg) = &*migrated.messages[0] {
+            assert_eq!(msg.images.len(), 1);
+            assert_eq!(msg.images[0].url(), image.url());
+        } else {
+            panic!("Expected TextMessage");
+        }
+    }
+
+    #[test]
+    fn test_text_message_has_images_helper() {
+        let msg = TextMessage::new(Role::User, "hello");
+        assert!(!msg.has_images());
+
+        let image = Image::new_base64("iVBORw0KGgo=".to_string(), "image/png");
+        let msg = msg.add_image(image);
+        assert!(msg.has_images());
     }
 }

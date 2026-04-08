@@ -704,6 +704,7 @@ mod tests {
                     reasoning_details: None,
                     droppable: false,
                     phase: None,
+                    images: vec![],
                 }),
                 usage: Some(Usage {
                     prompt_tokens: forge_domain::TokenCount::Actual(100),

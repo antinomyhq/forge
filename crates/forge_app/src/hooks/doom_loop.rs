@@ -269,6 +269,7 @@ mod tests {
             reasoning_details: None,
             droppable: false,
             phase: None,
+            images: vec![],
         }
     }
 
@@ -405,6 +406,7 @@ mod tests {
             reasoning_details: None,
             droppable: false,
             phase: None,
+            images: vec![],
         };
 
         let user_msg = TextMessage {
@@ -417,6 +419,7 @@ mod tests {
             reasoning_details: None,
             droppable: false,
             phase: None,
+            images: vec![],
         };
 
         let assistant_msg_2 = TextMessage {
@@ -429,6 +432,7 @@ mod tests {
             reasoning_details: None,
             droppable: false,
             phase: None,
+            images: vec![],
         };
 
         let messages = [

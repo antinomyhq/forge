@@ -259,6 +259,9 @@ impl TryFrom<ContextMessage> for Message {
                     // NOTE: Anthropic does not allow empty text content.
                     content.push(Content::Text { text: chat_message.content, cache_control: None });
                 }
+                for image in chat_message.images {
+                    content.push(Content::from(image));
+                }
                 if let Some(tool_calls) = chat_message.tool_calls {
                     for tool_call in tool_calls {
                         content.push(tool_call.try_into()?);
