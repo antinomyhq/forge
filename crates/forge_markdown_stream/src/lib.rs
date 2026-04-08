@@ -192,10 +192,9 @@ mod tests {
         let fixture = "> supercalifragilistic\n> 한글 공백\n";
         let actual = fixture_rendered_output(fixture, 10);
         let expected = concat!(
-            "│ super\n",
-            "│ calif\n",
-            "│ ragil\n",
-            "│ istic\n",
+            "│ supercal\n",
+            "│ ifragili\n",
+            "│ stic\n",
             "│ 한글\n",
             "│ 공백"
         );
@@ -209,9 +208,22 @@ mod tests {
         let actual = fixture_rendered_output(fixture, 20);
         let expected = concat!(
             "│ 링크\n",
-            "│ (https://exampl\n",
-            "│ e.com/very/long\n",
-            "│ /path) 설명"
+            "│ (https://example.c\n",
+            "│ om/very/long/path)\n",
+            "│ 설명"
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_streaming_renderer_wraps_nested_blockquotes_with_correct_prefix_width() {
+        let fixture = ">> supercalifragilistic\n";
+        let actual = fixture_rendered_output(fixture, 12);
+        let expected = concat!(
+            "│ │ supercal\n",
+            "│ │ ifragili\n",
+            "│ │ stic"
         );
 
         assert_eq!(actual, expected);

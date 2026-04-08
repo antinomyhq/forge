@@ -8,7 +8,7 @@ use streamdown_parser::ParseEvent;
 use crate::code::CodeHighlighter;
 use crate::heading::render_heading;
 use crate::inline::{render_inline_content, render_inline_elements};
-use crate::list::{ListState, render_list_item};
+use crate::list::{render_list_item, ListState};
 use crate::style::InlineStyler;
 use crate::table::render_table;
 use crate::theme::Theme;
@@ -255,13 +255,13 @@ impl<W: Write> Renderer<W> {
 
             ParseEvent::BlockquoteLine(text) => {
                 let margin = self.left_margin();
-                let width = self.current_width();
+                let content_width = self.width.saturating_sub(visible_length(&margin));
                 // Parse inline formatting (bold, italic, etc.) in blockquote content
                 let rendered_content = render_inline_content(text, &self.theme);
                 let wrapped = wrap_text_preserving_spaces(
                     &rendered_content,
-                    width.saturating_sub(visible_length(&margin)),
-                    width.saturating_sub(visible_length(&margin)),
+                    content_width,
+                    content_width,
                     &margin,
                     &margin,
                 );
