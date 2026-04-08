@@ -103,9 +103,6 @@ pub enum TopLevelCommand {
         porcelain: bool,
     },
 
-    /// Display environment information.
-    Env,
-
     /// Get, set, or list configuration values.
     Config(ConfigCommandGroup),
 
@@ -415,6 +412,12 @@ pub enum McpCommand {
 
     /// Reload servers and rebuild caches.
     Reload,
+
+    /// Authenticate with an OAuth-enabled MCP server.
+    Login(McpAuthArgs),
+
+    /// Remove stored OAuth credentials for an MCP server.
+    Logout(McpLogoutArgs),
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -441,6 +444,19 @@ pub struct McpRemoveArgs {
 #[derive(Parser, Debug, Clone)]
 pub struct McpShowArgs {
     /// Name of the server to show details for.
+    pub name: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct McpAuthArgs {
+    /// Name of the MCP server to authenticate with.
+    pub name: String,
+}
+
+#[derive(Parser, Debug, Clone)]
+pub struct McpLogoutArgs {
+    /// Name of the MCP server to remove credentials for, or "all" to
+    /// remove all MCP OAuth credentials.
     pub name: String,
 }
 
@@ -513,20 +529,12 @@ pub struct ConfigGetArgs {
 /// Type-safe subcommands for `forge config set`.
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConfigSetField {
-    /// Set the active model.
+    /// Set the active model and provider atomically.
     Model {
-        /// Model ID to set as default.
-        model: ModelId,
-    },
-    /// Set the active provider.
-    Provider {
         /// Provider ID to set as default.
         provider: ProviderId,
-
-        /// Optional model ID to set simultaneously, skipping interactive model
-        /// selection.
-        #[arg(long)]
-        model: Option<ModelId>,
+        /// Model ID to set as default.
+        model: ModelId,
     },
     /// Set the provider and model for commit message generation.
     Commit {
@@ -835,63 +843,20 @@ mod tests {
     }
 
     #[test]
-    fn test_config_set_with_model() {
-        let fixture = Cli::parse_from([
-            "forge",
-            "config",
-            "set",
-            "model",
-            "anthropic/claude-sonnet-4",
-        ]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => match args.field {
-                    ConfigSetField::Model { model } => Some(model.as_str().to_string()),
-                    _ => None,
-                },
-                _ => None,
-            },
-            _ => None,
-        };
-        let expected = Some("anthropic/claude-sonnet-4".to_string());
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_config_set_with_provider() {
-        let fixture = Cli::parse_from(["forge", "config", "set", "provider", "OpenAI"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Config(config)) => match config.command {
-                ConfigCommand::Set(args) => match args.field {
-                    ConfigSetField::Provider { provider, model } => {
-                        Some((provider.to_string(), model))
-                    }
-                    _ => None,
-                },
-                _ => None,
-            },
-            _ => None,
-        };
-        let expected = Some(("OpenAi".to_string(), None));
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_config_set_with_provider_and_model() {
         let fixture = Cli::parse_from([
             "forge",
             "config",
             "set",
-            "provider",
+            "model",
             "anthropic",
-            "--model",
             "claude-sonnet-4-20250514",
         ]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Config(config)) => match config.command {
                 ConfigCommand::Set(args) => match args.field {
-                    ConfigSetField::Provider { provider, model } => {
-                        Some((provider.to_string(), model.map(|m| m.as_str().to_string())))
+                    ConfigSetField::Model { provider, model } => {
+                        Some((provider.to_string(), model.as_str().to_string()))
                     }
                     _ => None,
                 },
@@ -901,7 +866,7 @@ mod tests {
         };
         let expected = Some((
             "Anthropic".to_string(),
-            Some("claude-sonnet-4-20250514".to_string()),
+            "claude-sonnet-4-20250514".to_string(),
         ));
         assert_eq!(actual, expected);
     }

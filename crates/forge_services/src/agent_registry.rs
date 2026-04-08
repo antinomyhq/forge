@@ -33,7 +33,9 @@ impl<R> ForgeAgentRegistryService<R> {
     }
 }
 
-impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
+impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
+    ForgeAgentRegistryService<R>
+{
     /// Lazily initializes and returns the agents map
     /// Loads agents from repository on first call, subsequent calls return
     /// cached value
@@ -65,24 +67,15 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
 
     /// Load agents from repository and populate the in-memory map.
     ///
-    /// Reads the default provider and model from [`ForgeConfig`] and passes
-    /// them to the repository so agents that do not specify their own
-    /// provider/model receive the session-level defaults.
+    /// Reads the default provider and model from the latest [`ForgeConfig`]
+    /// (via `get_config()`) and passes them to the repository so agents that
+    /// do not specify their own provider/model receive the session-level
+    /// defaults.
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        let config = self.repository.get_config();
-        let session = config.session.as_ref().ok_or(Error::NoDefaultProvider)?;
-        let provider_id = session
-            .provider_id
-            .as_ref()
-            .map(|id| ProviderId::from(id.clone()))
-            .ok_or(Error::NoDefaultProvider)?;
-        let model_id = session
-            .model_id
-            .as_ref()
-            .map(|id| ModelId::new(id.clone()))
-            .ok_or_else(|| {
-                anyhow::anyhow!("No default model configured for provider {}", provider_id)
-            })?;
+        let config = self.repository.get_config()?;
+        let session = config.session.as_ref().ok_or(Error::NoDefaultSession)?;
+        let provider_id = ProviderId::from(session.provider_id.clone());
+        let model_id = ModelId::new(session.model_id.clone());
 
         let agents = self.repository.get_agents(provider_id, model_id).await?;
 
@@ -96,8 +89,8 @@ impl<R: AgentRepository + EnvironmentInfra> ForgeAgentRegistryService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: AgentRepository + EnvironmentInfra + Send + Sync> forge_app::AgentRegistry
-    for ForgeAgentRegistryService<R>
+impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> + Send + Sync>
+    forge_app::AgentRegistry for ForgeAgentRegistryService<R>
 {
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         let agent_id = self.active_agent_id.read().await;

@@ -203,25 +203,32 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
             reqwest::header::CONNECTION,
             HeaderValue::from_static("keep-alive"),
         );
-        debug!(headers = ?Self::sanitize_headers(&headers), "Request Headers");
+        debug!(headers = ?sanitize_headers(&headers), "Request Headers");
         headers
     }
+}
 
-    fn sanitize_headers(headers: &HeaderMap) -> HeaderMap {
-        let sensitive_headers = [AUTHORIZATION.as_str()];
-        headers
-            .iter()
-            .map(|(name, value)| {
-                let name_str = name.as_str().to_lowercase();
-                let value_str = if sensitive_headers.contains(&name_str.as_str()) {
-                    HeaderValue::from_static("[REDACTED]")
-                } else {
-                    value.clone()
-                };
-                (name.clone(), value_str)
-            })
-            .collect()
-    }
+/// Sanitizes headers for logging by redacting sensitive values like
+/// authorization tokens and API keys.
+pub fn sanitize_headers(headers: &HeaderMap) -> HeaderMap {
+    let sensitive_headers = [
+        AUTHORIZATION.as_str(),
+        "x-api-key",
+        "x-goog-api-key",
+        "api-key",
+    ];
+    headers
+        .iter()
+        .map(|(name, value)| {
+            let name_str = name.as_str().to_lowercase();
+            let value_str = if sensitive_headers.contains(&name_str.as_str()) {
+                HeaderValue::from_static("[REDACTED]")
+            } else {
+                value.clone()
+            };
+            (name.clone(), value_str)
+        })
+        .collect()
 }
 
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
@@ -231,7 +238,7 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
             let body_clone = body.clone();
             let debug_path = debug_path.clone();
             tokio::spawn(async move {
-                let _ = file_writer.write(&debug_path, body_clone).await;
+                let _ = file_writer.append(&debug_path, body_clone).await;
             });
         }
     }
@@ -325,6 +332,14 @@ mod tests {
     #[async_trait::async_trait]
     impl FileWriterInfra for MockFileWriter {
         async fn write(&self, path: &std::path::Path, contents: Bytes) -> anyhow::Result<()> {
+            self.writes
+                .lock()
+                .await
+                .push((path.to_path_buf(), contents));
+            Ok(())
+        }
+
+        async fn append(&self, path: &std::path::Path, contents: Bytes) -> anyhow::Result<()> {
             self.writes
                 .lock()
                 .await
@@ -480,5 +495,48 @@ mod tests {
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
         assert_eq!(writes[0].1, body);
+    }
+
+    #[test]
+    fn test_sanitize_headers_redacts_sensitive_values() {
+        use reqwest::header::HeaderValue;
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            AUTHORIZATION,
+            HeaderValue::from_static("Bearer secret-api-key"),
+        );
+        headers.insert("x-api-key", HeaderValue::from_static("another-secret"));
+        headers.insert("x-goog-api-key", HeaderValue::from_static("google-secret"));
+        headers.insert("api-key", HeaderValue::from_static("generic-secret"));
+        headers.insert("x-title", HeaderValue::from_static("forge"));
+        headers.insert("content-type", HeaderValue::from_static("application/json"));
+
+        let sanitized = sanitize_headers(&headers);
+
+        assert_eq!(
+            sanitized.get("authorization"),
+            Some(&HeaderValue::from_static("[REDACTED]"))
+        );
+        assert_eq!(
+            sanitized.get("x-api-key"),
+            Some(&HeaderValue::from_static("[REDACTED]"))
+        );
+        assert_eq!(
+            sanitized.get("x-goog-api-key"),
+            Some(&HeaderValue::from_static("[REDACTED]"))
+        );
+        assert_eq!(
+            sanitized.get("api-key"),
+            Some(&HeaderValue::from_static("[REDACTED]"))
+        );
+        assert_eq!(
+            sanitized.get("x-title"),
+            Some(&HeaderValue::from_static("forge"))
+        );
+        assert_eq!(
+            sanitized.get("content-type"),
+            Some(&HeaderValue::from_static("application/json"))
+        );
     }
 }
