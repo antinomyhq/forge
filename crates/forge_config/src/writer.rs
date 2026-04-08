@@ -31,7 +31,7 @@ impl ConfigWriter {
 
         let config_toml = toml_edit::ser::to_string_pretty(&self.config)?;
         let contents =
-            format!("\"$schema\" = \"https://forgecode.dev/schema.json\"\n\n{config_toml}");
+            format!("\"$schema\" = \"https://raw.githubusercontent.com/Zetkolink/forgecode/main/forge.schema.json\"\n\n{config_toml}");
 
         std::fs::write(path, contents)?;
 

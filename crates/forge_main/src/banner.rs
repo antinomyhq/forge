@@ -131,7 +131,7 @@ fn display_zsh_encouragement() {
             "{} {} {}",
             "·".dimmed(),
             "Learn more:".dimmed(),
-            "https://forgecode.dev/docs/zsh-support".cyan()
+            "https://github.com/Zetkolink/forgecode#zsh-integration".cyan()
         ),
     ]);
     println!("{}", tip);

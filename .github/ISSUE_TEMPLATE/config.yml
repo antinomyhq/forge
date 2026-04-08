@@ -4,8 +4,8 @@ contact_links:
     url: https://discord.gg/kRZBPpkgwq
     about: Join our Discord server for questions, discussions, and community support
   - name: 📖 Documentation
-    url: https://forgecode.dev/docs/
+    url: https://github.com/Zetkolink/forgecode/tree/main/docs
     about: Check out our comprehensive documentation
   - name: ❓ Discussions
-    url: https://github.com/antinomyhq/forge/discussions
+    url: https://github.com/Zetkolink/forgecode/discussions
     about: Ask questions and discuss ideas with the community

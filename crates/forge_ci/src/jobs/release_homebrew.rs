@@ -5,7 +5,7 @@ pub fn release_homebrew_job() -> Job {
     Job::new("homebrew_release")
         .add_step(
             Step::new("Checkout Code").uses("actions", "checkout", "v6")
-                .add_with(("repository", "antinomyhq/homebrew-code-forge"))
+                .add_with(("repository", "Zetkolink/homebrew-forgecode"))
                 .add_with(("ref", "main"))
                 .add_with(("token", "${{ secrets.HOMEBREW_ACCESS }}")),
         )

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Fetches all PR numbers from a GitHub release and outputs their details.
 # Usage: ./fetch-release-data.sh <version> [repo]
-# Example: ./fetch-release-data.sh v1.32.0 antinomyhq/forge
+# Example: ./fetch-release-data.sh v1.32.0 Zetkolink/forgecode
 
 set -euo pipefail
 

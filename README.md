@@ -1,12 +1,10 @@
 <h1 align="center">⚒️ Forge: AI-Enhanced Terminal Development Environment</h1>
 <p align="center">A comprehensive coding agent that integrates AI capabilities with your development environment</p>
 
-<p align="center"><code>curl -fsSL https://forgecode.dev/cli | sh</code></p>
+<p align="center"><code>curl -fsSL https://raw.githubusercontent.com/Zetkolink/forgecode/main/scripts/install.sh | sh</code></p>
 
-[![CI Status](https://img.shields.io/github/actions/workflow/status/antinomyhq/forge/ci.yml?style=for-the-badge)](https://github.com/antinomyhq/forge/actions)
-[![GitHub Release](https://img.shields.io/github/v/release/antinomyhq/forge?style=for-the-badge)](https://github.com/antinomyhq/forge/releases)
-[![Discord](https://img.shields.io/discord/1044859667798568962?style=for-the-badge&cacheSeconds=120&logo=discord)](https://discord.gg/kRZBPpkgwq)
-[![CLA assistant](https://cla-assistant.io/readme/badge/antinomyhq/forge?style=for-the-badge)](https://cla-assistant.io/antinomyhq/forge)
+[![CI Status](https://img.shields.io/github/actions/workflow/status/Zetkolink/forgecode/ci.yml?style=for-the-badge)](https://github.com/Zetkolink/forgecode/actions)
+[![GitHub Release](https://img.shields.io/github/v/release/Zetkolink/forgecode?style=for-the-badge)](https://github.com/Zetkolink/forgecode/releases)
 
 ![Code-Forge Demo](https://assets.antinomy.ai/images/forge_demo_2x.gif)
 
@@ -57,7 +55,7 @@
 To get started with Forge, run the command below:
 
 ```bash
-curl -fsSL https://forgecode.dev/cli | sh
+curl -fsSL https://raw.githubusercontent.com/Zetkolink/forgecode/main/scripts/install.sh | sh
 ```
 
 On first run, Forge will guide you through setting up your AI provider credentials using the interactive login flow. Alternatively, you can configure providers beforehand:
@@ -1090,7 +1088,7 @@ MCP tools can be used as part of multi-agent workflows, allowing specialized age
 
 ## Documentation
 
-For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).
+For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/Zetkolink/forgecode/tree/main/docs).
 
 ---
 
@@ -1098,10 +1096,10 @@ For comprehensive documentation on all features and capabilities, please visit t
 
 ```bash
 # YOLO
-curl -fsSL https://forgecode.dev/cli | sh
+curl -fsSL https://raw.githubusercontent.com/Zetkolink/forgecode/main/scripts/install.sh | sh
 
 # Package managers
-nix run github:antinomyhq/forge # for latest dev branch
+nix run github:Zetkolink/forgecode # for latest dev branch
 ```
 
 ---

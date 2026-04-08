@@ -28,8 +28,7 @@ pub fn release_npm_job() -> Job {
 fn create_npm_matrix() -> Value {
     serde_json::json!({
         "repository": [
-            "antinomyhq/npm-code-forge",
-            "antinomyhq/npm-forgecode"
+            "Zetkolink/npm-forgecode"
         ]
     })
 }

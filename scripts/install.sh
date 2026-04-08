@@ -2,7 +2,7 @@
 # NOTE: POSIX sh compatibility
 # Users are instructed to install ForgeCode by piping this script to 'sh':
 #
-#   curl -fsSL https://forgecode.dev/cli | sh
+#   curl -fsSL https://raw.githubusercontent.com/Zetkolink/forgecode/main/scripts/install.sh | sh
 #
 # When a script is piped to 'sh', the shebang line above is ignored and the
 # system shell (often dash on Ubuntu/WSL) is used. Dash does not support

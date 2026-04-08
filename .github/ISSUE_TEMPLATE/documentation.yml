@@ -31,7 +31,7 @@ body:
     attributes:
       label: Documentation Location
       description: Where is the documentation issue? (URL, file path, or section name)
-      placeholder: https://github.com/antinomyhq/forge/blob/main/docs/...
+      placeholder: https://github.com/Zetkolink/forgecode/blob/main/docs/...
     validations:
       required: true
 
