@@ -70,7 +70,6 @@ pub fn generate_ci_workflow() {
         .add_env(RustFlags::deny("warnings"))
         .on(events)
         .concurrency(Concurrency::default().group("${{ github.workflow }}-${{ github.ref }}"))
-        .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_job("build", build_job)
         .add_job("zsh_rprompt_perf", perf_test_job)
         .add_job("draft_release", draft_release_job)

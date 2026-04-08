@@ -77,7 +77,6 @@ impl From<ReleaseBuilderJob> for Job {
                     .add_with(("use-cross", "${{ matrix.cross }}"))
                     .add_with(("cross-version", "0.2.5"))
                     .add_env(("RUSTFLAGS", "${{ env.RUSTFLAGS }}"))
-                    .add_env(("POSTHOG_API_SECRET", "${{secrets.POSTHOG_API_SECRET}}"))
                     .add_env(("APP_VERSION", value.version.to_string())),
             );
 
