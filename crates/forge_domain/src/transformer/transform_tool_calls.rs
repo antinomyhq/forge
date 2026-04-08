@@ -61,12 +61,11 @@ impl Transformer for TransformToolCalls {
                                 // Attach image to the preceding user message
                                 // if possible, otherwise create a new one
                                 let attached = new_messages.iter_mut().rev().any(|entry| {
-                                    if let ContextMessage::Text(ref mut msg) = entry.message {
-                                        if msg.role == Role::User {
+                                    if let ContextMessage::Text(ref mut msg) = entry.message
+                                        && msg.role == Role::User {
                                             msg.images.push(image.clone());
                                             return true;
                                         }
-                                    }
                                     false
                                 });
                                 if !attached {
