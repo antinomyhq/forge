@@ -403,15 +403,10 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 self.conversation.metrics = metrics.clone();
             })?;
 
-            // If completing (should_yield due to is_complete), fire End hook and check if
+            // If completing (should_yield is due), fire End hook and check if
             // it adds messages
-            if should_yield && is_complete {
-                let end_count_before = self
-                    .conversation
-                    .context
-                    .as_ref()
-                    .map(|ctx| ctx.messages.len())
-                    .unwrap_or(0);
+            if should_yield {
+                let end_count_before = self.conversation.len();
                 self.hook
                     .handle(
                         &LifecycleEvent::End(EventData::new(
@@ -422,22 +417,15 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                         &mut self.conversation,
                     )
                     .await?;
-                self.services.update(self.conversation.clone()).await?;
 
                 // Check if End hook added messages - if so, continue the loop
-                let end_count_after = self
-                    .conversation
-                    .context
-                    .as_ref()
-                    .map(|ctx| ctx.messages.len())
-                    .unwrap_or(end_count_before);
-                if end_count_after > end_count_before {
+                if self.conversation.len() > end_count_before {
+                    self.services.update(self.conversation.clone()).await?;
                     // End hook added messages, sync context and continue
                     if let Some(updated_context) = &self.conversation.context {
                         context = updated_context.clone();
                     }
                     should_yield = false;
-                    is_complete = false;
                 }
             }
         }
