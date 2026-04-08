@@ -149,7 +149,7 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> GitApp<
         // Escape single quotes in the message by replacing ' with '\''
         let escaped_message = message.replace('\'', r"'\''");
         let commit_command = format!(
-            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@forgecode.dev' git commit {flags} -m '{escaped_message}'"
+            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@users.noreply.github.com' git commit {flags} -m '{escaped_message}'"
         );
 
         let commit_result = self

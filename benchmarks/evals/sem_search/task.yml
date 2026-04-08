@@ -1,6 +1,6 @@
 run:
   # Clone into `tmp/task` dir
-  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - git clone --depth=1 --branch main https://github.com/Zetkolink/forgecode .
   - forgee workspace sync
   - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee --provider open_router --model {{model}} -p '{{task}}'
 parallelism: 50
@@ -114,7 +114,7 @@ sources:
       - task: "Lets have upload take a glob pattern for upload"      
       - task: "Check this for security issues: eval(user_input)"
       - task: "Update the vector dimension to be 4096"
-      - task: "Fix this - 'docker run antinomyhq/forge-ce'"      
+      - task: "Fix this - 'docker run Zetkolink/forgecode'"      
       - task: "Document the adapter registration and discovery mechanism"
       - task: "There are multiple places where we throw - \"Conversation not found\" how do u suggest we consolidate and reuse."      
       - task: "Is there a crate for humanizing date time format that we are using?"            
