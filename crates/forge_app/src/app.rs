@@ -148,7 +148,7 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
 
         // Build the on_end hook, conditionally adding PendingTodosHandler based on
         // config
-        let on_end_hook = if forge_config.pending_todos_hook {
+        let on_end_hook = if forge_config.verify_todos {
             tracing_handler
                 .clone()
                 .and(title_handler.clone())

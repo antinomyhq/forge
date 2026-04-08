@@ -269,7 +269,7 @@ pub struct ForgeConfig {
     /// Enables the pending todos hook that checks for incomplete todo items
     /// when a task ends and reminds the LLM about them.
     #[serde(default)]
-    pub pending_todos_hook: bool,
+    pub verify_todos: bool,
 }
 
 impl ForgeConfig {

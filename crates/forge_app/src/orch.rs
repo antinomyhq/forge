@@ -258,8 +258,6 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Fire the Request lifecycle event
-            let request_count_before_hook = context.messages.len();
             let request_event = LifecycleEvent::Request(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
@@ -268,18 +266,6 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             self.hook
                 .handle(&request_event, &mut self.conversation)
                 .await?;
-            let request_count_after_hook = self
-                .conversation
-                .context
-                .as_ref()
-                .map(|ctx| ctx.messages.len())
-                .unwrap_or(request_count_before_hook);
-            // Sync context from conversation if Request hook added messages
-            if request_count_after_hook > request_count_before_hook
-                && let Some(updated_context) = &self.conversation.context
-            {
-                context = updated_context.clone();
-            }
 
             let message = crate::retry::retry_with_config(
                 &self.config.clone().retry.unwrap_or_default(),
@@ -311,31 +297,10 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             )
             .await?;
 
-            // Fire the Response lifecycle event
-            let message_count_before_hook = context.messages.len();
-            let response_event = LifecycleEvent::Response(EventData::new(
-                self.agent.clone(),
-                model_id.clone(),
-                ResponsePayload::new(message.clone()),
-            ));
-            self.hook
-                .handle(&response_event, &mut self.conversation)
-                .await?;
-            let message_count_after_hook = self
-                .conversation
-                .context
-                .as_ref()
-                .map(|ctx| ctx.messages.len())
-                .unwrap_or(message_count_before_hook);
-            // If hook added messages (e.g., reminders), don't complete - allow loop to
-            // continue
-            let hook_added_messages = message_count_after_hook > message_count_before_hook;
-
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
-            // finish reason with tool calls. Don't complete if hook added messages.
+            // finish reason with tool calls.
             is_complete = message.finish_reason == Some(FinishReason::Stop)
-                && message.tool_calls.is_empty()
-                && !hook_added_messages;
+                && message.tool_calls.is_empty();
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
