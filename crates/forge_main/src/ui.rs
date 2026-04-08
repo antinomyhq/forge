@@ -1909,9 +1909,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             SlashCommand::Model => {
                 self.on_model_selection(None).await?;
             }
-            SlashCommand::Provider => {
-                self.on_provider_selection().await?;
-            }
             SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
             }
@@ -2883,7 +2880,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         };
 
         if needs_model_selection {
-            self.writeln_title(TitleFormat::info("Please select a new model"))?;
             let selected = self.on_model_selection(Some(provider.id.clone())).await?;
             if selected.is_none() {
                 // User cancelled — preserve existing config untouched
