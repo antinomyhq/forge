@@ -555,10 +555,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
-            TopLevelCommand::Env => {
-                self.on_env().await?;
-                return Ok(());
-            }
             TopLevelCommand::Banner => {
                 banner::display(true)?;
                 return Ok(());
@@ -1447,69 +1443,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     /// Lists current configuration values
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let model = self
-            .get_agent_model(None)
-            .await
-            .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| markers::EMPTY.to_string());
-        let provider = self
-            .get_provider(None)
-            .await
-            .ok()
-            .map(|p| p.id.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let commit_config = self.api.get_commit_config().await.ok().flatten();
-        let commit_provider = commit_config
-            .as_ref()
-            .map(|c| c.provider.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let commit_model = commit_config
-            .as_ref()
-            .map(|c| c.model.as_str().to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
+        // Get the effective resolved config
+        let config = &self.config;
 
-        let suggest_config = self.api.get_suggest_config().await.ok().flatten();
-        let suggest_provider = suggest_config
-            .as_ref()
-            .map(|c| c.provider.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let suggest_model = suggest_config
-            .as_ref()
-            .map(|c| c.model.as_str().to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-
-        let reasoning_effort = self
-            .api
-            .get_reasoning_effort()
-            .await
-            .ok()
-            .flatten()
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-
-        let info = Info::new()
-            .add_title("SESSION")
-            .add_key_value("Model", model)
-            .add_key_value("Provider", provider)
-            .add_title("COMMIT")
-            .add_key_value("Model", commit_model)
-            .add_key_value("Provider", commit_provider)
-            .add_title("SUGGEST")
-            .add_key_value("Model", suggest_model)
-            .add_key_value("Provider", suggest_provider)
-            .add_title("REASONING")
-            .add_key_value("Effort", reasoning_effort);
+        // Serialize to TOML pretty format
+        let config_toml = toml_edit::ser::to_string_pretty(config)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?;
 
         if porcelain {
-            self.writeln(
-                Porcelain::from(&info)
-                    .into_long()
-                    .drop_col(0)
-                    .uppercase_headers(),
-            )?;
+            // For porcelain mode, output raw TOML without highlighting
+            self.writeln(config_toml)?;
         } else {
-            self.writeln(info)?;
+            // For human-readable mode, add a title and syntax-highlight the TOML
+            self.writeln("\nCONFIGURATION\n".bold().dimmed())?;
+            let highlighted =
+                forge_display::SyntaxHighlighter::default().highlight(&config_toml, "toml");
+            self.writeln(highlighted)?;
         }
+
         Ok(())
     }
 
@@ -1677,14 +1628,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             self.writeln(info)?;
         }
 
-        Ok(())
-    }
-
-    async fn on_env(&mut self) -> anyhow::Result<()> {
-        let env = self.api.environment();
-        let config = &self.config;
-        let info = Info::from(&env).extend(Info::from(config));
-        self.writeln(info)?;
         Ok(())
     }
 
@@ -1989,9 +1932,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
             SlashCommand::Info => {
                 self.on_info(false, self.state.conversation_id).await?;
-            }
-            SlashCommand::Env => {
-                self.on_env().await?;
             }
             SlashCommand::Usage => {
                 self.on_usage().await?;
