@@ -159,6 +159,11 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
         Ok(())
     }
 
+    /// Returns whether the spinner is currently active (running).
+    pub fn is_active(&self) -> bool {
+        self.spinner.is_some()
+    }
+
     /// Resets the elapsed time to zero.
     /// Call this when starting a completely new task/conversation.
     pub fn reset(&mut self) {
