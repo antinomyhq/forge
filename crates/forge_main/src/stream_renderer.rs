@@ -58,10 +58,7 @@ impl<P: ConsoleWriter> SharedSpinner<P> {
     /// Returns whether the spinner is currently active (running).
     #[cfg(test)]
     pub fn is_active(&self) -> bool {
-        self.0
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .is_active()
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).is_active()
     }
 
     /// Writes a line to stderr, suspending the spinner if active.
@@ -284,8 +281,11 @@ mod tests {
         }
     }
 
-    fn fixture(
-    ) -> (StreamingWriter<MockWriter>, SharedSpinner<MockWriter>, MockWriter) {
+    fn fixture() -> (
+        StreamingWriter<MockWriter>,
+        SharedSpinner<MockWriter>,
+        MockWriter,
+    ) {
         let mock = MockWriter::new();
         let printer = Arc::new(mock.clone());
         let spinner = SharedSpinner::new(SpinnerManager::new(printer.clone()));
