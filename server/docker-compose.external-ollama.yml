@@ -1,0 +1,18 @@
+# Override for external Ollama (running on another machine or host)
+# Usage: OLLAMA_URL=http://192.168.31.129:11434 docker compose -f docker-compose.yml -f docker-compose.external-ollama.yml up -d
+#
+# This removes the ollama container and points the server to an external instance.
+
+services:
+  workspace-server:
+    environment:
+      OLLAMA_URL: "${OLLAMA_URL:?Set OLLAMA_URL to your Ollama endpoint, e.g. http://192.168.31.129:11434}"
+    depends_on:
+      qdrant:
+        condition: service_started
+      # ollama dependency removed — using external instance
+
+  ollama:
+    # disable the ollama container
+    profiles:
+      - disabled

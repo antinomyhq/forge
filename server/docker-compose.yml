@@ -1,8 +1,15 @@
+# Full stack: workspace-server + qdrant + ollama
+# Usage: docker compose up -d
+#
+# If Ollama is already running on the network (e.g. another machine),
+# use the override file instead:
+#   OLLAMA_URL=http://192.168.31.129:11434 docker compose -f docker-compose.yml -f docker-compose.external-ollama.yml up -d
+
 services:
   workspace-server:
     image: ghcr.io/zetkolink/forgecode/workspace-server:latest
-    # To build locally instead of pulling from GHCR, comment the image line above
-    # and uncomment the next line:
+    # To build locally instead of pulling from GHCR, comment the image line
+    # above and uncomment the next line:
     # build: .
     ports:
       - "50051:50051"
@@ -21,6 +28,7 @@ services:
         condition: service_started
       ollama:
         condition: service_started
+    restart: unless-stopped
 
   qdrant:
     image: qdrant/qdrant:latest
@@ -29,6 +37,7 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    restart: unless-stopped
 
   ollama:
     image: ollama/ollama:latest
@@ -36,6 +45,7 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
+    restart: unless-stopped
 
 volumes:
   server_data:
