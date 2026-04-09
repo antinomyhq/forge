@@ -52,12 +52,21 @@ impl ConfigReader {
     /// Returns the base directory for all Forge config files.
     ///
     /// If the `FORGE_CONFIG` environment variable is set, its value is used
-    /// directly as the base path. Otherwise defaults to `~/forge`.
+    /// directly as the base path. Otherwise defaults to `~/.forge`.
+    /// Falls back to the legacy `~/forge` path if it exists and `~/.forge`
+    /// does not.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
         }
-        dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+        let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
+        let new_path = home.join(".forge");
+        let legacy_path = home.join("forge");
+        // Prefer the new dotfile path, but fall back to legacy if only it exists
+        if !new_path.exists() && legacy_path.exists() {
+            return legacy_path;
+        }
+        new_path
     }
 
     /// Adds the provided TOML string as a config source without touching the
