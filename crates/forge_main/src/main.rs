@@ -1,13 +1,15 @@
 use std::io::Read;
 use std::panic;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use clap::Parser;
 use forge_api::ForgeAPI;
 use forge_config::ForgeConfig;
 use forge_domain::TitleFormat;
-use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
+use forge_jsonrpc::JsonRpcServer;
+use forge_main::{Cli, Sandbox, TitleDisplayExt, TopLevelCommand, UI, tracker};
 use url::Url;
 
 /// Enables ENABLE_VIRTUAL_TERMINAL_PROCESSING on the stdout console handle.
@@ -90,6 +92,32 @@ async fn run() -> Result<()> {
 
     // Initialize and run the UI
     let mut cli = Cli::parse();
+
+    // Handle JSON-RPC subcommand early (before UI setup)
+    if let Some(TopLevelCommand::JsonRpc(args)) = &cli.subcommands {
+        // Read configuration
+        let config =
+            ForgeConfig::read().context("Failed to read Forge configuration from .forge.toml")?;
+
+        // Parse services_url from config
+        let services_url: Url = config
+            .services_url
+            .parse()
+            .context("services_url in configuration must be a valid URL")?;
+
+        let cwd = args
+            .directory
+            .clone()
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+
+        // Initialize the API
+        let api = Arc::new(ForgeAPI::init(cwd, config, services_url));
+
+        // Create and run the JSON-RPC server (STDIO mode only)
+        let server = JsonRpcServer::new(api);
+        return server.run_stdio().await;
+    }
 
     // Check if there's piped input
     if !atty::is(atty::Stream::Stdin) {
