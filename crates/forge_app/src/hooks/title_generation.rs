@@ -148,7 +148,7 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
                 self.title_tasks.remove(&conversation.id);
             }
             Err(_) => {
-                debug!("Title generation task was cancelled");
+                debug!("Title generation timed out after {:?}", TITLE_GENERATION_TIMEOUT);
                 // Remove so a future StartPayload can retry.
                 self.title_tasks.remove(&conversation.id);
             }
