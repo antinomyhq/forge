@@ -97,12 +97,10 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             // available skills is delivered per-turn via the
             // [`SkillListingHandler`] lifecycle hook (which injects a
             // `<system_reminder>` user message on every request). This means:
-            //   - Sage, Muse, and any user-defined agent now discover skills
-            //     automatically (no need to copy the partial into their
-            //     templates).
-            //   - Mid-session skill creation via `create-skill` is visible
-            //     on the following turn once `SkillCacheInvalidator` clears
-            //     the `SkillFetchService` cache.
+            //   - Sage, Muse, and any user-defined agent now discover skills automatically
+            //     (no need to copy the partial into their templates).
+            //   - Mid-session skill creation via `create-skill` is visible on the following
+            //     turn once `SkillCacheInvalidator` clears the `SkillFetchService` cache.
             //
             // `SystemContext.skills` is still populated (with an empty
             // `Vec::new()`) for backward compatibility with any custom agent
