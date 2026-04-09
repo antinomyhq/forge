@@ -3,17 +3,17 @@ run:
   - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
   - forge workspace init --yes
   - forge workspace sync
-  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' FORGE_SESSION__PROVIDER_ID=open_router FORGE_SESSION__MODEL_ID={{model}} forge -p '{{task}}'
+  - FORGE_DEBUG_REQUESTS='{{dir}}/context.jsonl' FORGE_SESSION__PROVIDER_ID=open_router FORGE_SESSION__MODEL_ID={{model}} forge -p '{{task}}'
 parallelism: 8
-timeout: 120
+timeout: 60
 early_exit: true
 validations:
   - name: "Uses codebase search tool"
     type: shell
-    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'
+    command: grep -q "Codebase Search" '{{dir}}/task.log'
   - name: "Does not call task tool before sem_search"
     type: shell
-    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "task" or .function.name == "sem_search") | .function.name] | index("task") as $t | index("sem_search") as $s | if $t == null then true elif $s == null then true else $s < $t end'
+    command: "python3 -c \"\nimport sys\nlog = open('{{dir}}/task.log').read().splitlines()\ntask_line = next((i for i, l in enumerate(log) if '[Agent]' in l), None)\nsearch_line = next((i for i, l in enumerate(log) if 'Codebase Search' in l), None)\nif task_line is None: sys.exit(0)\nif search_line is None: sys.exit(1)\nsys.exit(0 if search_line < task_line else 1)\n\""
 sources:
   - value:
       # - model: "x-ai/grok-code-fast-1"
