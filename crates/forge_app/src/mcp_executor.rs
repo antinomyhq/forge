@@ -25,11 +25,12 @@ impl<S: McpService> McpExecutor<S> {
         self.services.execute_mcp(input).await
     }
 
+    /// Check whether `tool_name` belongs to any MCP server.
+    ///
+    /// This is a pure in-memory check that does NOT connect to any server.
+    /// Tool names are known either because the server connected during a
+    /// previous call, or because they were declared statically in the config.
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
-        let mcp_servers = self.services.get_mcp_servers().await?;
-        Ok(mcp_servers
-            .get_servers()
-            .values()
-            .any(|tools| tools.iter().any(|tool| tool.name == *tool_name)))
+        self.services.contains_mcp_tool(tool_name).await
     }
 }

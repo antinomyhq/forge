@@ -35,6 +35,7 @@ impl McpServerConfig {
             env: env.unwrap_or_default(),
             timeout: None,
             disable: false,
+            tools: Vec::new(),
         })
     }
 
@@ -45,6 +46,7 @@ impl McpServerConfig {
             headers: BTreeMap::new(),
             timeout: None,
             disable: false,
+            tools: Vec::new(),
         })
     }
 
@@ -60,6 +62,22 @@ impl McpServerConfig {
         match self {
             McpServerConfig::Stdio(_) => "STDIO",
             McpServerConfig::Http(_) => "HTTP",
+        }
+    }
+
+    /// Returns the statically-declared tool names for this server, if any.
+    ///
+    /// Returns `None` when no tools have been declared in the config, meaning
+    /// the real tool list is only known after a live connection is established.
+    pub fn declared_tools(&self) -> Option<&[String]> {
+        let tools = match self {
+            McpServerConfig::Stdio(s) => &s.tools,
+            McpServerConfig::Http(h) => &h.tools,
+        };
+        if tools.is_empty() {
+            None
+        } else {
+            Some(tools.as_slice())
         }
     }
 }
@@ -88,6 +106,17 @@ pub struct McpStdioServer {
     /// remove it from the config.
     #[serde(default)]
     pub disable: bool,
+
+    /// Optional static declaration of tool names exposed by this server.
+    ///
+    /// When present, Forge populates the system-prompt tool list from these
+    /// names **without** establishing a live connection.  The server is only
+    /// connected to when one of its tools is actually invoked.
+    ///
+    /// When absent, the server's tools are unknown until first use and will
+    /// not appear in the system prompt until a tool from this server is called.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
@@ -110,6 +139,17 @@ pub struct McpHttpServer {
     /// remove it from the config.
     #[serde(default)]
     pub disable: bool,
+
+    /// Optional static declaration of tool names exposed by this server.
+    ///
+    /// When present, Forge populates the system-prompt tool list from these
+    /// names **without** establishing a live connection.  The server is only
+    /// connected to when one of its tools is actually invoked.
+    ///
+    /// When absent, the server's tools are unknown until first use and will
+    /// not appear in the system prompt until a tool from this server is called.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
 }
 
 impl McpHttpServer {}

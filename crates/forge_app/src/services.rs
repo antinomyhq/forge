@@ -7,7 +7,7 @@ use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, File, FileInfo,
     FileStatus, Image, McpConfig, McpServers, Model, ModelId, Node, Provider, ProviderId,
-    ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull,
+    ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template, ToolCallFull, ToolName,
     ToolOutput, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use reqwest::Response;
@@ -250,6 +250,13 @@ pub trait McpService: Send + Sync {
     async fn execute_mcp(&self, call: ToolCallFull) -> anyhow::Result<ToolOutput>;
     /// Refresh the MCP cache by fetching fresh data
     async fn reload_mcp(&self) -> anyhow::Result<()>;
+    /// Check whether a tool name belongs to any configured MCP server.
+    ///
+    /// This is intentionally a pure in-memory check: it does NOT establish
+    /// a live connection to any server. Tool names are known either because
+    /// the server already connected during a previous call, or because they
+    /// were declared statically in the MCP config.
+    async fn contains_mcp_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -711,6 +718,10 @@ impl<I: Services> McpService for I {
 
     async fn reload_mcp(&self) -> anyhow::Result<()> {
         self.mcp_service().reload_mcp().await
+    }
+
+    async fn contains_mcp_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
+        self.mcp_service().contains_mcp_tool(tool_name).await
     }
 }
 

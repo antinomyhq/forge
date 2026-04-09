@@ -1,3 +1,4 @@
+pub(crate) mod lazy_client;
 mod manager;
 mod service;
 mod tool;
