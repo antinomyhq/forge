@@ -218,9 +218,10 @@ impl<I> UserHookHandler<I> {
         for (command, result) in results {
             if let Some(output) = result.parse_output()
                 && let Some(ctx) = &output.additional_context
-                    && !ctx.trim().is_empty() {
-                        contexts.push((command.clone(), ctx.clone()));
-                    }
+                && !ctx.trim().is_empty()
+            {
+                contexts.push((command.clone(), ctx.clone()));
+            }
         }
         contexts
     }
