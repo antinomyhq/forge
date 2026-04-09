@@ -2474,7 +2474,7 @@
     "api_key_vars": "OPENCODE_ZEN_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenCode",
-    "url": "https://opencode.ai/zen/v1/chat/completions",
+    "url": "https://opencode.ai/zen",
     "models": [
       {
         "id": "claude-opus-4-6",
@@ -2827,7 +2827,7 @@
     "api_key_vars": "OPENCODE_API_KEY",
     "url_param_vars": [],
     "response_type": "OpenCode",
-    "url": "https://opencode.ai/zen/go/v1/chat/completions",
+    "url": "https://opencode.ai/zen/go",
     "models": [
       {
         "id": "glm-5",
