@@ -241,7 +241,7 @@ impl EventHandle<EventData<RequestPayload>> for DoomLoopDetector {
                 let content = Element::new("system_reminder").cdata(reminder);
                 context
                     .messages
-                    .push(ContextMessage::user(content, None).into());
+                    .push(ContextMessage::system_reminder(content, None).into());
             }
         }
 

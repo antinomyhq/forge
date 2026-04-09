@@ -92,7 +92,22 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 custom_rules.push(rule.as_str());
             });
 
-            let skills = self.services.list_skills().await?;
+            // NOTE: Skills are no longer loaded into the system prompt. Since
+            // Phase 0 of the Claude Code plugins integration, the list of
+            // available skills is delivered per-turn via the
+            // [`SkillListingHandler`] lifecycle hook (which injects a
+            // `<system_reminder>` user message on every request). This means:
+            //   - Sage, Muse, and any user-defined agent now discover skills automatically
+            //     (no need to copy the partial into their templates).
+            //   - Mid-session skill creation via `create-skill` is visible on the following
+            //     turn once `SkillCacheInvalidator` clears the `SkillFetchService` cache.
+            //
+            // `SystemContext.skills` is marked `#[deprecated]` and is left at
+            // its `Default::default()` value (an empty vector) so that any
+            // legacy custom agent template referencing `{{#if skills}}` or
+            // `{{#each skills}}` silently renders nothing. We deliberately
+            // avoid naming the field in the struct literal below to keep
+            // this call site free of deprecation warnings.
 
             // Fetch extension statistics from git
             let extensions = self.fetch_extensions(self.max_extensions).await;
@@ -112,12 +127,14 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 files,
                 custom_rules: custom_rules.join("\n\n"),
                 supports_parallel_tool_calls,
-                skills,
                 model: None,
                 tool_names,
                 extensions,
                 agents: vec![],
                 config: None,
+                // `skills` is deprecated and intentionally left at its
+                // default value; see comment above.
+                ..Default::default()
             };
 
             let static_block = TemplateEngine::default()

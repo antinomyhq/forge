@@ -267,6 +267,16 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 .handle(&request_event, &mut self.conversation)
                 .await?;
 
+            // Sync any mutations the request hook performed on
+            // `self.conversation.context` back into the local `context`
+            // so the next LLM call sees them. This enables hooks like
+            // [`DoomLoopDetector`] and [`SkillListingHandler`] to inject
+            // `<system_reminder>` messages that are visible on the current
+            // turn (rather than being delayed by one iteration).
+            if let Some(updated) = self.conversation.context.clone() {
+                context = updated;
+            }
+
             let message = crate::retry::retry_with_config(
                 &self.config.clone().retry.unwrap_or_default(),
                 || {

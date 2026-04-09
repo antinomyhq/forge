@@ -10,8 +10,8 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::hooks::{
-    CompactionHandler, DoomLoopDetector, PendingTodosHandler, TitleGenerationHandler,
-    TracingHandler,
+    CompactionHandler, DoomLoopDetector, PendingTodosHandler, SkillCacheInvalidator,
+    SkillListingHandler, TitleGenerationHandler, TracingHandler,
 };
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
@@ -157,16 +157,37 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
             tracing_handler.clone().and(title_handler.clone())
         };
 
+        // Determine context window for skill listing budget. Falls back to the
+        // handler's default (~200k) when the active model doesn't advertise a
+        // context length.
+        let skill_listing_handler = {
+            let mut h = SkillListingHandler::new(services.clone());
+            if let Some(ctx_len) = models
+                .iter()
+                .find(|m| m.id == agent.model)
+                .and_then(|m| m.context_length)
+            {
+                h = h.context_tokens(ctx_len);
+            }
+            h
+        };
+        let skill_cache_invalidator = SkillCacheInvalidator::new(services.clone());
+
         let hook = Hook::default()
             .on_start(tracing_handler.clone().and(title_handler))
-            .on_request(tracing_handler.clone().and(DoomLoopDetector::default()))
+            .on_request(
+                tracing_handler
+                    .clone()
+                    .and(DoomLoopDetector::default())
+                    .and(skill_listing_handler),
+            )
             .on_response(
                 tracing_handler
                     .clone()
                     .and(CompactionHandler::new(agent.clone(), environment.clone())),
             )
             .on_toolcall_start(tracing_handler.clone())
-            .on_toolcall_end(tracing_handler)
+            .on_toolcall_end(tracing_handler.clone().and(skill_cache_invalidator))
             .on_end(on_end_hook);
 
         let orch = Orchestrator::new(
