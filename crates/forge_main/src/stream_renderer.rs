@@ -145,6 +145,14 @@ impl<P: ConsoleWriter + 'static> StreamingWriter<P> {
         // in place. This preserves all parser/renderer state (code block
         // context, blockquote depth, list numbering, table rows).
         if current_width != self.last_width {
+            // Pause the spinner before updating the width. During a resize
+            // the terminal reflows content, and the spinner's
+            // `finish_and_clear()` would write stale cursor positions,
+            // erasing visible output. `stop(None)` is idempotent -- it is
+            // a no-op when no spinner is active. The spinner resumes
+            // naturally via `resume_spinner()` on the next newline write.
+            let _ = self.spinner.stop(None);
+
             if let Some(ref mut active) = self.active {
                 active.renderer.set_width(current_width);
             }
