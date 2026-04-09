@@ -91,7 +91,7 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
             .set_compact_model_if_none();
 
         let agent_provider = agent_provider_resolver
-            .get_provider(Some(agent.info.id.clone()))
+            .get_provider(Some(agent.id.clone()))
             .await?;
         let agent_provider = self
             .services

@@ -75,7 +75,7 @@ impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
         let agents = self.repository.get_agents().await?;
         let agents_map = DashMap::new();
         for agent in agents {
-            agents_map.insert(agent.info.id.as_str().to_string(), agent);
+            agents_map.insert(agent.id.as_str().to_string(), agent);
         }
 
         Ok(agents_map)

@@ -227,7 +227,7 @@ impl EventHandle<EventData<RequestPayload>> for DoomLoopDetector {
     ) -> anyhow::Result<()> {
         if let Some(consecutive_calls) = self.detect_from_conversation(conversation) {
             warn!(
-                agent_id = %event.agent.info.id,
+                agent_id = %event.agent.id,
                 request_count = event.payload.request_count,
                 consecutive_calls,
                 "Doom loop detected from conversation context before next request"

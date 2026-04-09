@@ -1089,7 +1089,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     async fn build_agents_info(&self, custom: bool) -> anyhow::Result<Info> {
         let mut agents = self.api.get_agents().await?;
         // Sort agents alphabetically by ID
-        agents.sort_by(|a, b| a.info.id.as_str().cmp(b.info.id.as_str()));
+        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
 
         // Filter agents based on custom flag
         if custom {
@@ -1099,15 +1099,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let mut info = Info::new();
 
         for agent in agents.iter() {
-            let id = agent.info.id.as_str().to_string();
+            let id = agent.id.as_str().to_string();
             let title = agent
-                .info
                 .title
                 .as_deref()
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
-            let provider_name = match self.get_provider(Some(agent.info.id.clone())).await {
+            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
                 Ok(p) => p.id.to_string(),
                 Err(e) => format!("Error: [{}]", e),
             };
@@ -1470,7 +1469,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         self.spinner.start(Some("Loading"))?;
         let all_tools = self.api.get_tools().await?;
         let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| agent.info.id == agent_id);
+        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
         let agent_tools = if let Some(agent) = agent {
             let resolver = ToolResolver::new(all_tools.clone().into());
             resolver

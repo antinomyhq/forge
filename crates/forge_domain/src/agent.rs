@@ -102,13 +102,19 @@ pub fn estimate_token_count(count: usize) -> usize {
     count / 4
 }
 
+
 /// Runtime agent representation with required model and provider
 #[derive(Debug, Clone, PartialEq, Setters, Serialize, Deserialize, JsonSchema)]
 #[setters(strip_option, into)]
 pub struct Agent {
-    /// Lightweight metadata (id, title, description) shared with AgentInfo
-    #[serde(flatten)]
-    pub info: AgentInfo,
+    /// Unique identifier for the agent
+    pub id: AgentId,
+
+    /// Human-readable title for the agent
+    pub title: Option<String>,
+
+    /// Human-readable description of the agent's purpose
+    pub description: Option<String>,
 
     /// Flag to enable/disable tool support for this agent.
     pub tool_supported: Option<bool>,
@@ -182,7 +188,9 @@ impl Agent {
     /// Create a new Agent with required provider and model
     pub fn new(id: impl Into<AgentId>, provider: ProviderId, model: ModelId) -> Self {
         Self {
-            info: AgentInfo { id: id.into(), ..Default::default() },
+            id: id.into(),
+            title: Default::default(),
+            description: Default::default(),
             provider,
             model,
             tool_supported: Default::default(),
@@ -209,13 +217,13 @@ impl Agent {
     ///
     /// Returns an error if the agent has no description
     pub fn tool_definition(&self) -> Result<ToolDefinition> {
-        if self.info.description.is_none()
-            || self.info.description.as_ref().is_none_or(|d| d.is_empty())
+        if self.description.is_none()
+            || self.description.as_ref().is_none_or(|d| d.is_empty())
         {
-            return Err(Error::MissingAgentDescription(self.info.id.clone()));
+            return Err(Error::MissingAgentDescription(self.id.clone()));
         }
-        Ok(ToolDefinition::new(self.info.id.as_str().to_string())
-            .description(self.info.description.clone().unwrap()))
+        Ok(ToolDefinition::new(self.id.as_str().to_string())
+            .description(self.description.clone().unwrap()))
     }
 
     /// Sets the model in compaction config if not already set
@@ -237,8 +245,8 @@ impl Agent {
 
 impl From<Agent> for ToolDefinition {
     fn from(value: Agent) -> Self {
-        let description = value.info.description.unwrap_or_default();
-        let name = ToolName::new(value.info.id);
+        let description = value.description.unwrap_or_default();
+        let name = ToolName::new(value.id);
         ToolDefinition {
             name,
             description,

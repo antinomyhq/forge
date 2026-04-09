@@ -152,7 +152,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
         };
 
         debug!(
-            agent_id = %agent.info.id,
+            agent_id = %agent.id,
             model_id = %model_id,
             tool_supported,
             "Tool support check"

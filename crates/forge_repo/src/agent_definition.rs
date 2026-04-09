@@ -1,6 +1,6 @@
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, AgentInfo, Compact, EventContext, MaxTokens, ModelId, ProviderId,
+    Agent, AgentId, Compact, EventContext, MaxTokens, ModelId, ProviderId,
     ReasoningConfig, SystemContext, Temperature, Template, ToolName, TopK, TopP,
 };
 use schemars::JsonSchema;
@@ -142,11 +142,9 @@ impl AgentDefinition {
     /// * `model_id` - Default model to use when the definition has none
     pub fn into_agent(self, provider_id: ProviderId, model_id: ModelId) -> Agent {
         Agent {
-            info: AgentInfo {
-                id: self.id,
-                title: self.title,
-                description: self.description,
-            },
+            id: self.id,
+            title: self.title,
+            description: self.description,
             tool_supported: self.tool_supported,
             provider: self.provider.unwrap_or(provider_id),
             model: self.model.unwrap_or(model_id),

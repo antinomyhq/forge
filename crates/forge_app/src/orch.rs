@@ -278,7 +278,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 },
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
-                    let agent_id = self.agent.info.id.clone();
+                    let agent_id = self.agent.id.clone();
                     let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
                         let root_cause = error.root_cause();
@@ -380,7 +380,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 if request_count >= max_request_allowed {
                     // Log warning - important for understanding conversation interruptions
                     warn!(
-                        agent_id = %self.agent.info.id,
+                        agent_id = %self.agent.id,
                         model_id = %model_id,
                         request_count,
                         max_request_allowed,
