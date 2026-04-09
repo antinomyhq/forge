@@ -552,7 +552,7 @@ mod tests {
         .unwrap();
         // Test End event
         hook.handle(
-            &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+            &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload::default())),
             &mut conversation,
         )
         .await
@@ -577,7 +577,7 @@ mod tests {
         );
         assert_eq!(
             handled[1],
-            LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload))
+            LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload::default()))
         );
         assert_eq!(
             handled[2],
@@ -668,7 +668,7 @@ mod tests {
 
         let all_events = vec![
             LifecycleEvent::Start(EventData::new(test_agent(), test_model_id(), StartPayload)),
-            LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+            LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload::default())),
             LifecycleEvent::Request(EventData::new(
                 test_agent(),
                 test_model_id(),
@@ -902,7 +902,7 @@ mod tests {
         // Test End event
         combined
             .handle(
-                &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+                &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload::default())),
                 &mut conversation,
             )
             .await
@@ -1139,7 +1139,7 @@ mod tests {
         assert_eq!(*start_title.lock().unwrap(), Some("Started".to_string()));
 
         hook.handle(
-            &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload)),
+            &mut LifecycleEvent::End(EventData::new(test_agent(), test_model_id(), EndPayload::default())),
             &mut conversation,
         )
         .await
