@@ -136,11 +136,19 @@ pub enum Choice {
     },
 }
 
+/// A message returned by a provider, used for both streaming deltas and
+/// non-streaming responses.
+///
+/// `reasoning` and `reasoning_content` are kept as separate private fields
+/// because some providers (e.g. `moonshotai/Kimi-K2.5-TEE`) emit **both**
+/// keys in the same delta object. Using `#[serde(alias)]` would cause a
+/// `duplicate_field` error in that case. Use [`ResponseMessage::reasoning`]
+/// to read the value in preference order.
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseMessage {
     pub content: Option<String>,
-    #[serde(alias = "reasoning_content")]
-    pub reasoning: Option<String>,
+    reasoning: Option<String>,
+    reasoning_content: Option<String>,
     pub role: Option<String>,
     pub tool_calls: Option<Vec<ToolCall>>,
     pub refusal: Option<String>,
@@ -150,6 +158,16 @@ pub struct ResponseMessage {
     pub reasoning_opaque: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub extra_content: Option<ExtraContent>,
+}
+
+impl ResponseMessage {
+    /// Returns the reasoning text, preferring `reasoning` over
+    /// `reasoning_content` when both are present.
+    pub fn reasoning(&self) -> Option<&str> {
+        self.reasoning
+            .as_deref()
+            .or(self.reasoning_content.as_deref())
+    }
 }
 
 impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
@@ -319,8 +337,8 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                     .clone()
                                     .and_then(|s| FinishReason::from_str(&s).ok()),
                             );
-                            if let Some(reasoning) = &message.reasoning {
-                                resp = resp.reasoning(Content::full(reasoning.clone()));
+                            if let Some(reasoning) = message.reasoning() {
+                                resp = resp.reasoning(Content::full(reasoning.to_owned()));
                             }
 
                             if let Some(thought_signature) = message
@@ -387,8 +405,8 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                     .and_then(|s| FinishReason::from_str(&s).ok()),
                             );
 
-                            if let Some(reasoning) = &delta.reasoning {
-                                resp = resp.reasoning(Content::part(reasoning.clone()));
+                            if let Some(reasoning) = delta.reasoning() {
+                                resp = resp.reasoning(Content::part(reasoning.to_owned()));
                             }
 
                             if let Some(thought_signature) = delta
@@ -571,6 +589,17 @@ mod tests {
         assert!(Fixture::test_response_compatibility(event));
     }
 
+    #[tokio::test]
+    async fn test_kimi_k2_both_reasoning_keys_event() {
+        // moonshotai/Kimi-K2.5-TEE emits both "reasoning" and "reasoning_content"
+        // in the same delta object. This must parse without a duplicate_field error.
+        let fixture = load_fixture("chutes_completion_response.json").await;
+        let actual = serde_json::from_value::<Response>(fixture);
+        assert!(actual.is_ok(), "Failed to parse: {:?}", actual.err());
+        let completion_result = ChatCompletionMessage::try_from(actual.unwrap());
+        assert!(completion_result.is_ok());
+    }
+
     #[test]
     fn test_fireworks_response_event_missing_arguments() {
         let event = "{\"id\":\"gen-1749331907-SttL6PXleVHnrdLMABfU\",\"provider\":\"Fireworks\",\"model\":\"qwen/qwen3-235b-a22b\",\"object\":\"chat.completion.chunk\",\"created\":1749331907,\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":null,\"tool_calls\":[{\"index\":0,\"id\":\"call_Wl2L8rrzHwrXSeiciIvU65IS\",\"type\":\"function\",\"function\":{\"name\":\"attempt_completion\"}}]},\"finish_reason\":null,\"native_finish_reason\":null,\"logprobs\":null}]}";
@@ -632,6 +661,7 @@ mod tests {
                 message: ResponseMessage {
                     content: Some("test content".to_string()),
                     reasoning: None,
+                    reasoning_content: None,
                     role: Some("assistant".to_string()),
                     tool_calls: None,
                     refusal: None,
@@ -669,6 +699,7 @@ mod tests {
                 delta: ResponseMessage {
                     content: Some("test content".to_string()),
                     reasoning: None,
+                    reasoning_content: None,
                     role: Some("assistant".to_string()),
                     tool_calls: None,
                     refusal: None,
@@ -706,6 +737,7 @@ mod tests {
                 message: ResponseMessage {
                     content: Some("Hello, world!".to_string()),
                     reasoning: None,
+                    reasoning_content: None,
                     role: Some("assistant".to_string()),
                     tool_calls: None,
                     refusal: None,
