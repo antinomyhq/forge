@@ -565,7 +565,10 @@ mod tests {
 
     struct Fixture;
 
-    fn response_message(reasoning: Option<&str>, reasoning_content: Option<&str>) -> ResponseMessage {
+    fn response_message(
+        reasoning: Option<&str>,
+        reasoning_content: Option<&str>,
+    ) -> ResponseMessage {
         ResponseMessage {
             content: None,
             reasoning: reasoning.map(str::to_owned),
