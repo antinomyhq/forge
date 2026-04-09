@@ -52,13 +52,15 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
         &self.conversation
     }
 
-    // Helper function to get all tool results from a vector of tool calls
+    // Returns tool results and any PostToolUse hook feedback messages.
+    // Feedback messages must be injected into context AFTER append_message
+    // so the LLM sees them in the correct order (after tool results).
     #[async_recursion]
     async fn execute_tool_calls(
         &mut self,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
-    ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
+    ) -> anyhow::Result<(Vec<(ToolCallFull, ToolResult)>, Vec<String>)> {
         let task_tool_name = ToolKind::Task.name();
 
         // Use a case-insensitive comparison since the model may send "Task" or "task".
@@ -98,6 +100,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
         // and hooks).
         let mut other_results: Vec<(ToolCallFull, ToolResult)> =
             Vec::with_capacity(other_calls.len());
+        let mut hook_feedbacks: Vec<String> = Vec::new();
         for tool_call in &other_calls {
             // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
@@ -165,6 +168,13 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 .await?;
             self.drain_hook_warnings(&mut toolcall_end_event).await?;
 
+            // Collect PostToolUse hook feedback to inject after append_message.
+            if let LifecycleEvent::ToolcallEnd(ref data) = toolcall_end_event {
+                if let Some(feedback) = &data.payload.hook_feedback {
+                    hook_feedbacks.push(feedback.clone());
+                }
+            }
+
             // Send the end notification for system tools and not agent as a tool
             if is_system_tool {
                 self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
@@ -187,7 +197,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             })
             .collect();
 
-        Ok(tool_call_records)
+        Ok((tool_call_records, hook_feedbacks))
     }
 
     /// Drains any hook warnings from a lifecycle event and emits them to the
@@ -374,7 +384,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
             // Process tool calls and update context
-            let mut tool_call_records = self
+            let (mut tool_call_records, hook_feedbacks) = self
                 .execute_tool_calls(&message.tool_calls, &tool_context)
                 .await?;
 
@@ -410,6 +420,12 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 tool_call_records,
                 message.phase,
             );
+
+            // Inject PostToolUse hook feedback AFTER the tool results are appended.
+            // This ensures the LLM sees: [tool_result] [hook_feedback], not the reverse.
+            for feedback in hook_feedbacks {
+                context.messages.push(ContextMessage::user(feedback, None).into());
+            }
 
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {

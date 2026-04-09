@@ -98,12 +98,17 @@ pub struct ToolcallEndPayload {
     pub tool_call: ToolCallFull,
     /// The tool result (success or failure)
     pub result: ToolResult,
+    /// Feedback message from a blocking PostToolUse hook, if any.
+    /// Set by the hook handler and read by the orchestrator after
+    /// `append_message` so the message is injected in the correct
+    /// position (after the tool result, not before it).
+    pub hook_feedback: Option<String>,
 }
 
 impl ToolcallEndPayload {
     /// Creates a new tool call end payload
     pub fn new(tool_call: ToolCallFull, result: ToolResult) -> Self {
-        Self { tool_call, result }
+        Self { tool_call, result, hook_feedback: None }
     }
 }
 

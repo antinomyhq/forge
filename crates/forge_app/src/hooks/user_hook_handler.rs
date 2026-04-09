@@ -560,15 +560,23 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
         let contexts = Self::collect_additional_context(&results);
         Self::inject_additional_context(conversation, &event_name.to_string(), &contexts);
 
-        // PostToolUse can provide feedback via blocking
+        // PostToolUse blocking: store the feedback on the event payload.
+        // The orchestrator reads `hook_feedback` after `append_message` and
+        // injects it into context at the correct position — after the tool
+        // result, not before it. This ensures the LLM sees the feedback in
+        // the right order.
         if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
                 tool_name = tool_name.as_str(),
                 event = %event_name,
                 command = command.as_str(),
                 reason = reason.as_str(),
-                "PostToolUse hook blocked with feedback"
+                "PostToolUse hook blocked, storing feedback for orchestrator injection"
             );
+            let content = format!(
+                "{event_name}:{tool_name} hook feedback:\n[{command}]: {reason}"
+            );
+            event.payload.hook_feedback = Some(content.clone());
             event
                 .warnings
                 .push(format!("{event_name}:{tool_name} hook blocked: {reason}"));
@@ -2064,12 +2072,17 @@ mod tests {
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        // PostToolUse does NOT block execution — always Ok
+        // PostToolUse always returns Ok
         assert!(result.is_ok());
 
-        // But warning should be pushed to event.warnings
+        // Warning pushed to event.warnings
         assert_eq!(event.warnings.len(), 1);
         assert!(event.warnings[0].contains("sensitive data detected"));
+
+        // Feedback stored on payload for the orchestrator to inject after append_message
+        let feedback = event.payload.hook_feedback.as_ref().unwrap();
+        assert!(feedback.contains("hook feedback"));
+        assert!(feedback.contains("sensitive data detected"));
     }
 
     #[tokio::test]
@@ -2104,6 +2117,11 @@ mod tests {
         assert!(result.is_ok());
         assert_eq!(event.warnings.len(), 1);
         assert!(event.warnings[0].contains("PII detected"));
+
+        // Feedback stored on payload for the orchestrator to inject after append_message
+        let feedback = event.payload.hook_feedback.as_ref().unwrap();
+        assert!(feedback.contains("hook feedback"));
+        assert!(feedback.contains("PII detected"));
     }
 
     #[tokio::test]
