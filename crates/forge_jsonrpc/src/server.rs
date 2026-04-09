@@ -70,7 +70,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                     let models = api.get_models().await.map_err(map_error)?;
                     let response: Vec<ModelResponse> =
                         models.into_iter().map(ModelResponse::from).collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_models");
@@ -84,7 +84,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                     let agents = api.get_agents().await.map_err(map_error)?;
                     let response: Vec<AgentResponse> =
                         agents.into_iter().map(AgentResponse::from).collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_agents");
@@ -107,7 +107,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                     }
                     let response =
                         ToolsOverviewResponse { enabled: all_tools, disabled: Vec::new() };
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_tools");
@@ -121,7 +121,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                     let files = api.discover().await.map_err(map_error)?;
                     let response: Vec<FileResponse> =
                         files.into_iter().map(FileResponse::from).collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register discover");
@@ -135,7 +135,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                     let providers = api.get_providers().await.map_err(map_error)?;
                     let response: Vec<ProviderResponse> =
                         providers.into_iter().map(ProviderResponse::from).collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_providers");
@@ -151,7 +151,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         .into_iter()
                         .map(ProviderModelsResponse::from)
                         .collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_all_provider_models");
@@ -175,7 +175,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         api_key: None,
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_provider");
@@ -197,7 +197,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         api_key: None,
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_agent_provider");
@@ -216,7 +216,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         api_key: None,
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_default_provider");
@@ -314,7 +314,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                             message_count: c.context.as_ref().map(|ctx| ctx.messages.len()),
                         })
                         .collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_conversations");
@@ -446,7 +446,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         message_count: c.context.as_ref().map(|ctx| ctx.messages.len()),
                     });
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register last_conversation");
@@ -479,7 +479,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         compacted_messages: result.compacted_messages,
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register compact_conversation");
@@ -633,7 +633,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                             created_at: w.created_at.to_rfc3339(),
                         })
                         .collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register list_workspaces");
@@ -658,7 +658,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         created_at: w.created_at.to_rfc3339(),
                     });
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_workspace_info");
@@ -708,7 +708,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                             status: format!("{:?}", s.status),
                         })
                         .collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_workspace_status");
@@ -897,7 +897,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         })
                         .collect();
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register query_workspace");
@@ -925,7 +925,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         .await
                         .map_err(map_error)?;
                     let response = config;
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register read_mcp_config");
@@ -1116,7 +1116,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         auth_provider_id: u.auth_provider_id.into_string(),
                     });
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register user_info");
@@ -1137,7 +1137,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         reset_in: u.usage.reset_in,
                     });
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register user_usage");
@@ -1193,7 +1193,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         },
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register init_provider_auth");
@@ -1310,7 +1310,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                 async move {
                     let auth = api.create_auth_credentials().await.map_err(map_error)?;
                     let response = auth;
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register create_auth_credentials");
@@ -1405,7 +1405,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         exit_code: output.exit_code,
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register execute_shell_command");
@@ -1451,7 +1451,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         .into_iter()
                         .map(|c| CommandResponse { name: c.name, description: c.description })
                         .collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_commands");
@@ -1479,7 +1479,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                             .filter(|r: &Vec<String>| !r.is_empty()),
                         })
                         .collect();
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register get_skills");
@@ -1522,7 +1522,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
                         has_staged_files: result.has_staged_files,
                     };
 
-                    Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                    to_json_response(response)
                 }
             })
             .expect("Failed to register commit");
@@ -1548,7 +1548,7 @@ impl<A: API + 'static> JsonRpcServer<A> {
             .register_method("environment", move |_, _, _| {
                 let env = api.environment();
                 let response = env;
-                Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
+                to_json_response(response)
             })
             .expect("Failed to register environment");
 
