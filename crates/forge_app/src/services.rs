@@ -190,10 +190,8 @@ pub trait AppConfigService: Send + Sync {
     /// provider.
     ///
     /// # Errors
-    /// - Returns `Error::NoDefaultProvider` when no active provider is set and
-    ///   provider_id is None
-    /// - Returns `Error::NoDefaultModel` when no model is configured for the
-    ///   provider
+    /// - Returns `Error::NoDefaultSession` when no provider and model are
+    ///   configured.
     async fn get_provider_model(
         &self,
         provider_id: Option<&forge_domain::ProviderId>,
