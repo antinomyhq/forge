@@ -565,6 +565,63 @@ mod tests {
 
     struct Fixture;
 
+    fn response_message(reasoning: Option<&str>, reasoning_content: Option<&str>) -> ResponseMessage {
+        ResponseMessage {
+            content: None,
+            reasoning: reasoning.map(str::to_owned),
+            reasoning_content: reasoning_content.map(str::to_owned),
+            role: None,
+            tool_calls: None,
+            refusal: None,
+            reasoning_details: None,
+            reasoning_text: None,
+            reasoning_opaque: None,
+            extra_content: None,
+        }
+    }
+
+    #[test]
+    fn test_reasoning_only_reasoning_field() {
+        let fixture = response_message(Some("hello"), None);
+        assert_eq!(fixture.reasoning(), Some("hello"));
+    }
+
+    #[test]
+    fn test_reasoning_only_reasoning_content_field() {
+        let fixture = response_message(None, Some("hello"));
+        assert_eq!(fixture.reasoning(), Some("hello"));
+    }
+
+    #[test]
+    fn test_reasoning_both_returns_longer() {
+        let fixture = response_message(Some("short"), Some("much longer text"));
+        assert_eq!(fixture.reasoning(), Some("much longer text"));
+    }
+
+    #[test]
+    fn test_reasoning_both_equal_length_returns_reasoning() {
+        let fixture = response_message(Some("aaa"), Some("bbb"));
+        assert_eq!(fixture.reasoning(), Some("aaa"));
+    }
+
+    #[test]
+    fn test_reasoning_both_present_one_empty_returns_non_empty() {
+        let fixture = response_message(Some(""), Some("content"));
+        assert_eq!(fixture.reasoning(), Some("content"));
+    }
+
+    #[test]
+    fn test_reasoning_both_empty_returns_none() {
+        let fixture = response_message(Some(""), Some(""));
+        assert_eq!(fixture.reasoning(), None);
+    }
+
+    #[test]
+    fn test_reasoning_neither_present_returns_none() {
+        let fixture = response_message(None, None);
+        assert_eq!(fixture.reasoning(), None);
+    }
+
     async fn load_fixture(filename: &str) -> serde_json::Value {
         let fixture_path = format!("src/dto/openai/fixtures/{}", filename);
         let fixture_content = tokio::fs::read_to_string(&fixture_path)
