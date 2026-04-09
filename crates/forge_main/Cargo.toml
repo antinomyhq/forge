@@ -8,10 +8,6 @@ rust-version.workspace = true
 name = "forge"
 path = "src/main.rs"
 
-[[bin]]
-name = "forge-jsonrpc"
-path = "src/bin/forge-jsonrpc.rs"
-
 [features]
 default = []
 

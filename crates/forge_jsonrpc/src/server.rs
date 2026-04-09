@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use forge_api::API;
 use forge_domain::{
-    AgentId, Conversation, ConversationId, DataGenerationParameters, McpConfig,
-    ProviderId, Scope, UserPrompt,
+    AgentId, Conversation, ConversationId, DataGenerationParameters, McpConfig, ProviderId, Scope,
+    UserPrompt,
 };
 use futures::StreamExt;
 use jsonrpsee::types::ErrorObjectOwned;
@@ -68,10 +68,8 @@ impl<A: API + 'static> JsonRpcServer<A> {
                 let api = api.clone();
                 async move {
                     let models = api.get_models().await.map_err(map_error)?;
-                    let response: Vec<ModelResponse> = models
-                        .into_iter()
-                        .map(ModelResponse::from)
-                        .collect();
+                    let response: Vec<ModelResponse> =
+                        models.into_iter().map(ModelResponse::from).collect();
                     Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
                 }
             })
@@ -84,10 +82,8 @@ impl<A: API + 'static> JsonRpcServer<A> {
                 let api = api.clone();
                 async move {
                     let agents = api.get_agents().await.map_err(map_error)?;
-                    let response: Vec<AgentResponse> = agents
-                        .into_iter()
-                        .map(AgentResponse::from)
-                        .collect();
+                    let response: Vec<AgentResponse> =
+                        agents.into_iter().map(AgentResponse::from).collect();
                     Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
                 }
             })
@@ -123,10 +119,8 @@ impl<A: API + 'static> JsonRpcServer<A> {
                 let api = api.clone();
                 async move {
                     let files = api.discover().await.map_err(map_error)?;
-                    let response: Vec<FileResponse> = files
-                        .into_iter()
-                        .map(FileResponse::from)
-                        .collect();
+                    let response: Vec<FileResponse> =
+                        files.into_iter().map(FileResponse::from).collect();
                     Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
                 }
             })
@@ -139,10 +133,8 @@ impl<A: API + 'static> JsonRpcServer<A> {
                 let api = api.clone();
                 async move {
                     let providers = api.get_providers().await.map_err(map_error)?;
-                    let response: Vec<ProviderResponse> = providers
-                        .into_iter()
-                        .map(ProviderResponse::from)
-                        .collect();
+                    let response: Vec<ProviderResponse> =
+                        providers.into_iter().map(ProviderResponse::from).collect();
                     Ok::<_, ErrorObjectOwned>(to_json_response(response)?)
                 }
             })
@@ -492,90 +484,130 @@ impl<A: API + 'static> JsonRpcServer<A> {
             })
             .expect("Failed to register compact_conversation");
 
-        // chat.stream - method-based streaming for STDIO
+        // chat.stream - subscription-based streaming for real-time updates
         let api = self.api.clone();
         self.module
-            .register_async_method("chat.stream", move |params, _, _| {
-                let api = api.clone();
-                async move {
-                    use forge_domain::ChatRequest;
+            .register_subscription(
+                "chat.stream",
+                "chat.notification",
+                "chat.stream.unsubscribe",
+                move |params, pending, _, _| {
+                    let api = api.clone();
+                    async move {
+                        use forge_domain::ChatRequest;
 
-                    let params: ChatParams = params.parse()?;
-                    let conversation_id = ConversationId::parse(&params.conversation_id)
-                        .map_err(|e| {
-                            ErrorObjectOwned::owned(
-                                ErrorCode::INVALID_PARAMS,
-                                format!("Invalid conversation_id: {}", e),
-                                None::<()>,
-                            )
-                        })?;
+                        let params: ChatParams = params.parse()?;
+                        let conversation_id = ConversationId::parse(&params.conversation_id)
+                            .map_err(|e| {
+                                ErrorObjectOwned::owned(
+                                    ErrorCode::INVALID_PARAMS,
+                                    format!("Invalid conversation_id: {}", e),
+                                    None::<()>,
+                                )
+                            })?;
 
-                    let event = forge_domain::Event::new(forge_domain::EventValue::text(params.message));
-                    let chat_req = ChatRequest::new(event, conversation_id);
+                        let event = forge_domain::Event::new(forge_domain::EventValue::text(
+                            params.message,
+                        ));
+                        let chat_req = ChatRequest::new(event, conversation_id);
 
-                    let mut stream = api.chat(chat_req).await.map_err(map_error)?;
-                    let mut messages = Vec::new();
+                        let stream = api.chat(chat_req).await.map_err(map_error)?;
+                        let sink = pending.accept().await?;
 
-                    while let Some(msg) = stream.next().await {
-                        let msg = msg.map_err(map_error)?;
-                        // Convert ChatResponse to a simple JSON representation
-                        let json_msg = match msg {
-                            forge_domain::ChatResponse::TaskMessage { content, .. } => {
-                                json!({
-                                    "type": "message",
-                                    "content": content.as_str()
-                                })
+                        tokio::spawn(async move {
+                            let mut stream = stream;
+                            while let Some(result) = stream.next().await {
+                                let msg = match result {
+                                    Ok(chat_msg) => {
+                                        let data = match chat_msg {
+                                            forge_domain::ChatResponse::TaskMessage {
+                                                content,
+                                                ..
+                                            } => {
+                                                json!({
+                                                    "type": "message",
+                                                    "content": content.as_str()
+                                                })
+                                            }
+                                            forge_domain::ChatResponse::TaskReasoning {
+                                                content,
+                                            } => {
+                                                json!({
+                                                    "type": "reasoning",
+                                                    "content": content
+                                                })
+                                            }
+                                            forge_domain::ChatResponse::TaskComplete => {
+                                                json!({
+                                                    "type": "complete"
+                                                })
+                                            }
+                                            forge_domain::ChatResponse::ToolCallStart {
+                                                ..
+                                            } => {
+                                                json!({
+                                                    "type": "tool_start"
+                                                })
+                                            }
+                                            forge_domain::ChatResponse::ToolCallEnd(_) => {
+                                                json!({
+                                                    "type": "tool_end"
+                                                })
+                                            }
+                                            forge_domain::ChatResponse::RetryAttempt {
+                                                cause,
+                                                ..
+                                            } => {
+                                                json!({
+                                                    "type": "retry",
+                                                    "cause": cause.as_str()
+                                                })
+                                            }
+                                            forge_domain::ChatResponse::Interrupt { reason } => {
+                                                json!({
+                                                    "type": "interrupt",
+                                                    "reason": format!("{:?}", reason)
+                                                })
+                                            }
+                                        };
+                                        StreamMessage::Chunk { data }
+                                    }
+                                    Err(e) => StreamMessage::Error { message: format!("{:#}", e) },
+                                };
+
+                                let sub_msg =
+                                    SubscriptionMessage::from_json(&msg).unwrap_or_else(|_| {
+                                        SubscriptionMessage::from_json(&json!({"status": "error"}))
+                                            .expect("fallback message should never fail")
+                                    });
+                                if sink.send(sub_msg).await.is_err() {
+                                    debug!("Client disconnected from chat stream");
+                                    break;
+                                }
                             }
-                            forge_domain::ChatResponse::TaskReasoning { content } => {
-                                json!({
-                                    "type": "reasoning",
-                                    "content": content
-                                })
-                            }
-                            forge_domain::ChatResponse::TaskComplete => {
-                                json!({
-                                    "type": "complete"
-                                })
-                            }
-                            forge_domain::ChatResponse::ToolCallStart { .. } => {
-                                json!({
-                                    "type": "tool_start"
-                                })
-                            }
-                            forge_domain::ChatResponse::ToolCallEnd(_) => {
-                                json!({
-                                    "type": "tool_end"
-                                })
-                            }
-                            forge_domain::ChatResponse::RetryAttempt { cause, .. } => {
-                                json!({
-                                    "type": "retry",
-                                    "cause": cause.as_str()
-                                })
-                            }
-                            forge_domain::ChatResponse::Interrupt { reason } => {
-                                json!({
-                                    "type": "interrupt",
-                                    "reason": format!("{:?}", reason)
-                                })
-                            }
-                        };
-                        messages.push(json!({
-                            "type": "chunk",
-                            "data": json_msg
-                        }));
+
+                            let complete_msg =
+                                SubscriptionMessage::from_json(&StreamMessage::Complete)
+                                    .unwrap_or_else(|_| {
+                                        SubscriptionMessage::from_json(
+                                            &json!({"status": "complete"}),
+                                        )
+                                        .unwrap_or_else(
+                                            |_| {
+                                                SubscriptionMessage::from_json(
+                                                    &json!({"done": true}),
+                                                )
+                                                .expect("fallback message should never fail")
+                                            },
+                                        )
+                                    });
+                            let _ = sink.send(complete_msg).await;
+                        });
+
+                        Ok(())
                     }
-
-                    // Add a final complete marker
-                    messages.push(json!({
-                        "type": "complete"
-                    }));
-
-                    Ok::<_, ErrorObjectOwned>(json!({
-                        "stream": messages
-                    }))
-                }
-            })
+                },
+            )
             .expect("Failed to register chat.stream");
     }
 
@@ -796,8 +828,17 @@ impl<A: API + 'static> JsonRpcServer<A> {
                             let complete_msg =
                                 SubscriptionMessage::from_json(&StreamMessage::Complete)
                                     .unwrap_or_else(|_| {
-                                        SubscriptionMessage::from_json(&json!({"status": "complete"}))
-                                            .unwrap_or_else(|_| SubscriptionMessage::from_json(&json!({"done": true})).expect("fallback message should never fail"))
+                                        SubscriptionMessage::from_json(
+                                            &json!({"status": "complete"}),
+                                        )
+                                        .unwrap_or_else(
+                                            |_| {
+                                                SubscriptionMessage::from_json(
+                                                    &json!({"done": true}),
+                                                )
+                                                .expect("fallback message should never fail")
+                                            },
+                                        )
                                     });
                             let _ = sink.send(complete_msg).await;
                         });
@@ -1157,7 +1198,8 @@ impl<A: API + 'static> JsonRpcServer<A> {
             })
             .expect("Failed to register init_provider_auth");
 
-        // complete_provider_auth - Complete provider authentication and save credentials
+        // complete_provider_auth - Complete provider authentication and save
+        // credentials
         let api = self.api.clone();
         self.module
             .register_async_method("complete_provider_auth", move |params, _, _| {
@@ -1178,7 +1220,6 @@ impl<A: API + 'static> JsonRpcServer<A> {
                                     None::<()>,
                                 )
                             })?;
-                            
                             // Parse URL params if provided
                             let url_params = params.url_params.unwrap_or_default();
                             let url_params_map: std::collections::HashMap<_, _> = url_params
@@ -1187,14 +1228,12 @@ impl<A: API + 'static> JsonRpcServer<A> {
                                     (forge_domain::URLParam::from(k), forge_domain::URLParamValue::from(v))
                                 })
                                 .collect();
-                            
                             // Build the API key request
                             let api_key_request = forge_domain::ApiKeyRequest {
                                 required_params: vec![],
                                 existing_params: None,
                                 api_key: None,
                             };
-                            
                             forge_domain::AuthContextResponse::api_key(
                                 api_key_request,
                                 api_key,
@@ -1219,7 +1258,6 @@ impl<A: API + 'static> JsonRpcServer<A> {
                                     None::<()>,
                                 )
                             })?;
-                            
                             // Authorization code flow also requires the original request
                             return Err(ErrorObjectOwned::owned(
                                 -32603,
@@ -1722,9 +1760,10 @@ fn get_method_list() -> Value {
         },
         "chat": {
             "chat.stream": {
-                "description": "Stream chat messages for a conversation (method-based for STDIO)",
+                "description": "Subscribe to real-time chat message stream via notifications",
                 "params": { "$ref": "ChatParams" },
-                "returns": { "type": "object", "properties": { "stream": { "type": "array" } } }
+                "returns": { "type": "subscription" },
+                "notifications": ["chat.notification"]
             }
         },
         "conversations": {

@@ -20,7 +20,6 @@ pub struct MockAPI {
     pub authenticated: bool,
 }
 
-
 #[async_trait::async_trait]
 impl forge_api::API for MockAPI {
     async fn discover(&self) -> anyhow::Result<Vec<forge_domain::File>> {

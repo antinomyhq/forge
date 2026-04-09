@@ -699,6 +699,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.on_zsh_doctor().await?;
                 return Ok(());
             }
+            // JSON-RPC is handled in main.rs before UI initialization
+            TopLevelCommand::JsonRpc(_) => {
+                unreachable!(
+                    "JSON-RPC command should be handled in main.rs before UI initialization"
+                )
+            }
         }
         Ok(())
     }

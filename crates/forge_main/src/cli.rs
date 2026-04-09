@@ -148,6 +148,17 @@ pub enum TopLevelCommand {
 
     /// Run diagnostics on shell environment (alias for `zsh doctor`).
     Doctor,
+
+    /// Start JSON-RPC server over STDIO.
+    JsonRpc(JsonRpcArgs),
+}
+
+/// Arguments for the JSON-RPC server command.
+#[derive(Parser, Debug, Clone)]
+pub struct JsonRpcArgs {
+    /// Working directory for the JSON-RPC server.
+    #[arg(short, long)]
+    pub directory: Option<PathBuf>,
 }
 
 /// Command group for custom command management.

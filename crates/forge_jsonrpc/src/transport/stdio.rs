@@ -4,6 +4,7 @@ use jsonrpsee::server::RpcModule;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tracing::{debug, error, trace};
 
 /// STDIO transport for JSON-RPC
@@ -29,9 +30,13 @@ impl StdioTransport {
         debug!("STDIO transport started (direct mode, no TCP)");
 
         let mut lines = lines;
+        let mut pending_tasks: Vec<JoinHandle<()>> = Vec::new();
 
         while let Ok(Some(line)) = lines.next_line().await {
             trace!("Received line: {}", line);
+
+            // Clean up completed tasks
+            pending_tasks.retain(|h| !h.is_finished());
 
             // Parse the JSON-RPC request
             let request: Value = match serde_json::from_str(&line) {
@@ -53,28 +58,40 @@ impl StdioTransport {
 
             // Execute the request
             let request_str = serde_json::to_string(&request)?;
+            let module = self.module.clone();
+            let stdout_clone = Arc::clone(&stdout);
 
-            match self
-                .module
-                .raw_json_request(&request_str, 1024 * 1024)
-                .await
-            {
-                Ok((response_json, mut rx)) => {
-                    // Write the initial response
-                    let response: Value = serde_json::from_str(&response_json)
-                        .map_err(|e| anyhow::anyhow!("Failed to parse response: {}", e))?;
-                    Self::write_response(&stdout, &response).await?;
+            // Spawn the entire request handling so stdin can continue
+            // reading (or reach EOF) without blocking on the response.
+            let handle = tokio::spawn(async move {
+                match module.raw_json_request(&request_str, 1024 * 1024).await {
+                    Ok((response_json, mut rx)) => {
+                        // Write the initial response
+                        match serde_json::from_str::<Value>(&response_json) {
+                            Ok(response) => {
+                                if let Err(e) = Self::write_response(&stdout_clone, &response).await
+                                {
+                                    error!("Failed to write response: {}", e);
+                                    return;
+                                }
+                            }
+                            Err(e) => {
+                                error!("Failed to parse response: {}", e);
+                                return;
+                            }
+                        }
 
-                    // Forward any subscription notifications to stdout
-                    let stdout_clone = Arc::clone(&stdout);
-                    tokio::spawn(async move {
+                        // Forward any subscription notifications to stdout
                         loop {
                             match rx.recv().await {
                                 Some(notification) => {
                                     match serde_json::from_str::<Value>(&notification) {
                                         Ok(notification_value) => {
-                                            if let Err(e) =
-                                                Self::write_response(&stdout_clone, &notification_value).await
+                                            if let Err(e) = Self::write_response(
+                                                &stdout_clone,
+                                                &notification_value,
+                                            )
+                                            .await
                                             {
                                                 error!("Failed to write notification: {}", e);
                                                 break;
@@ -89,22 +106,32 @@ impl StdioTransport {
                             }
                         }
                         debug!("Notification stream ended");
-                    });
+                    }
+                    Err(e) => {
+                        error!("Failed to execute request: {}", e);
+                        let error_response = serde_json::json!({
+                            "jsonrpc": "2.0",
+                            "id": null,
+                            "error": {
+                                "code": -32603,
+                                "message": format!("Internal error: {}", e)
+                            }
+                        });
+                        let _ = Self::write_response(&stdout_clone, &error_response).await;
+                    }
                 }
-                Err(e) => {
-                    error!("Failed to execute request: {}", e);
-                    let id = request.get("id").cloned();
-                    let error_response = serde_json::json!({
-                        "jsonrpc": "2.0",
-                        "id": id,
-                        "error": {
-                            "code": -32603,
-                            "message": format!("Internal error: {}", e)
-                        }
-                    });
-                    Self::write_response(&stdout, &error_response).await?;
-                }
-            }
+            });
+            pending_tasks.push(handle);
+        }
+
+        // Wait for all in-flight requests and their notification
+        // streams to finish before exiting.
+        debug!(
+            "STDIO stdin closed, waiting for {} pending task(s)",
+            pending_tasks.len()
+        );
+        for handle in pending_tasks {
+            let _ = handle.await;
         }
 
         debug!("STDIO transport stopped");

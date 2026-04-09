@@ -146,8 +146,8 @@ mod tests {
     }
 
     /// Test that subscription notifications are properly forwarded over stdio
-    /// This tests the fix for the critical issue where notifications weren't being
-    /// sent to stdout in stdio transport mode.
+    /// This tests the fix for the critical issue where notifications weren't
+    /// being sent to stdout in stdio transport mode.
     #[test]
     fn test_subscription_notifications_over_stdio() {
         let Ok(mut process) = JsonRpcProcess::spawn() else {
@@ -168,7 +168,10 @@ mod tests {
         ) {
             Ok(resp) => resp,
             Err(e) => {
-                eprintln!("Skipping streaming test - could not create conversation: {}", e);
+                eprintln!(
+                    "Skipping streaming test - could not create conversation: {}",
+                    e
+                );
                 return;
             }
         };
@@ -176,7 +179,10 @@ mod tests {
         let conversation_id = match create_response["result"]["id"].as_str() {
             Some(id) => id,
             None => {
-                eprintln!("Skipping streaming test - no conversation ID in response: {:?}", create_response);
+                eprintln!(
+                    "Skipping streaming test - no conversation ID in response: {:?}",
+                    create_response
+                );
                 return;
             }
         };
@@ -195,7 +201,10 @@ mod tests {
         let request_json = match serde_json::to_string(&subscribe_request) {
             Ok(json) => json,
             Err(e) => {
-                eprintln!("Skipping streaming test - failed to serialize request: {}", e);
+                eprintln!(
+                    "Skipping streaming test - failed to serialize request: {}",
+                    e
+                );
                 return;
             }
         };
@@ -209,7 +218,8 @@ mod tests {
             return;
         }
 
-        // Read the subscription confirmation response (immediate response with subscription ID)
+        // Read the subscription confirmation response (immediate response with
+        // subscription ID)
         let mut reader = std::io::BufReader::new(&mut process.stdout);
         let mut line = String::new();
 
@@ -222,12 +232,16 @@ mod tests {
         let subscription_response: Value = match serde_json::from_str(&line) {
             Ok(v) => v,
             Err(e) => {
-                eprintln!("Skipping streaming test - invalid subscription response: {}", e);
+                eprintln!(
+                    "Skipping streaming test - invalid subscription response: {}",
+                    e
+                );
                 return;
             }
         };
 
-        // Verify the subscription was accepted (result should be null for successful subscription)
+        // Verify the subscription was accepted (result should be null for successful
+        // subscription)
         assert_eq!(subscription_response["jsonrpc"], "2.0");
         assert_eq!(subscription_response["id"], 2);
 

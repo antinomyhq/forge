@@ -48,38 +48,38 @@ pub fn map_error(err: anyhow::Error) -> ErrorObjectOwned {
 /// Map domain errors to JSON-RPC errors
 fn map_domain_error(err: &forge_domain::Error) -> ErrorObjectOwned {
     match err {
-        forge_domain::Error::ConversationNotFound(_) |
-        forge_domain::Error::AgentUndefined(_) |
-        forge_domain::Error::WorkspaceNotFound |
-        forge_domain::Error::HeadAgentUndefined => {
+        forge_domain::Error::ConversationNotFound(_)
+        | forge_domain::Error::AgentUndefined(_)
+        | forge_domain::Error::WorkspaceNotFound
+        | forge_domain::Error::HeadAgentUndefined => {
             ErrorObject::owned(ErrorCode::NOT_FOUND, err.to_string(), None::<()>)
         }
-        forge_domain::Error::ProviderNotAvailable { .. } |
-        forge_domain::Error::EnvironmentVariableNotFound { .. } |
-        forge_domain::Error::AuthTokenNotFound => {
+        forge_domain::Error::ProviderNotAvailable { .. }
+        | forge_domain::Error::EnvironmentVariableNotFound { .. }
+        | forge_domain::Error::AuthTokenNotFound => {
             ErrorObject::owned(ErrorCode::UNAUTHORIZED, err.to_string(), None::<()>)
         }
-        forge_domain::Error::ConversationId(_) |
-        forge_domain::Error::ToolCallArgument { .. } |
-        forge_domain::Error::AgentCallArgument { .. } |
-        forge_domain::Error::ToolCallParse(_) |
-        forge_domain::Error::ToolCallMissingName |
-        forge_domain::Error::ToolCallMissingId |
-        forge_domain::Error::EToolCallArgument(_) |
-        forge_domain::Error::MissingAgentDescription(_) |
-        forge_domain::Error::MissingModel(_) |
-        forge_domain::Error::NoModelDefined(_) |
-        forge_domain::Error::NoDefaultSession => {
+        forge_domain::Error::ConversationId(_)
+        | forge_domain::Error::ToolCallArgument { .. }
+        | forge_domain::Error::AgentCallArgument { .. }
+        | forge_domain::Error::ToolCallParse(_)
+        | forge_domain::Error::ToolCallMissingName
+        | forge_domain::Error::ToolCallMissingId
+        | forge_domain::Error::EToolCallArgument(_)
+        | forge_domain::Error::MissingAgentDescription(_)
+        | forge_domain::Error::MissingModel(_)
+        | forge_domain::Error::NoModelDefined(_)
+        | forge_domain::Error::NoDefaultSession => {
             ErrorObject::owned(ErrorCode::VALIDATION_FAILED, err.to_string(), None::<()>)
         }
-        forge_domain::Error::MaxTurnsReached(_, _) |
-        forge_domain::Error::WorkspaceAlreadyInitialized(_) |
-        forge_domain::Error::SyncFailed { .. } |
-        forge_domain::Error::EmptyCompletion |
-        forge_domain::Error::VertexAiConfiguration { .. } |
-        forge_domain::Error::Retryable(_) |
-        forge_domain::Error::UnsupportedRole(_) |
-        forge_domain::Error::UndefinedVariable(_) => {
+        forge_domain::Error::MaxTurnsReached(_, _)
+        | forge_domain::Error::WorkspaceAlreadyInitialized(_)
+        | forge_domain::Error::SyncFailed { .. }
+        | forge_domain::Error::EmptyCompletion
+        | forge_domain::Error::VertexAiConfiguration { .. }
+        | forge_domain::Error::Retryable(_)
+        | forge_domain::Error::UnsupportedRole(_)
+        | forge_domain::Error::UndefinedVariable(_) => {
             ErrorObject::owned(ErrorCode::INTERNAL_ERROR, err.to_string(), None::<()>)
         }
     }
