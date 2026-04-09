@@ -59,14 +59,19 @@ impl ConfigReader {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
         }
+
         let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
-        let new_path = home.join(".forge");
+        let path = home.join(".forge");
         let legacy_path = home.join("forge");
+
         // Prefer the new dotfile path, but fall back to legacy if only it exists
-        if !new_path.exists() && legacy_path.exists() {
+        if !path.exists() && legacy_path.exists() {
+            tracing::info!("Using legacy path");
             return legacy_path;
         }
-        new_path
+
+        tracing::info!("Using new path");
+        path
     }
 
     /// Adds the provided TOML string as a config source without touching the
