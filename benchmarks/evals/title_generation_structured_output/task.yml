@@ -1,0 +1,58 @@
+# Eval: Title generation returns structured JSON output
+# Tests that the title generation system prompt produces valid JSON {"title": "..."} responses
+# even from models that don't support response_format: json_schema natively.
+# The prompt itself must be sufficient to produce structured output.
+run:
+  - |
+    SYSTEM_PROMPT=$(jq -Rs '.' < "${FORGE_REPO_ROOT}/templates/forge-system-prompt-title-generation.md")
+    RESPONSE=$(curl --silent --max-time 60 --location 'https://opencode.ai/zen/go/v1/chat/completions' \
+      --header "Authorization: Bearer ${OPENCODE_API_KEY}" \
+      --header 'Content-Type: application/json' \
+      --header 'x-title: forge' \
+      --header 'x-app-version: v0.1.0' \
+      --header 'user-agent: Forge' \
+      --header 'http-referer: https://forgecode.dev' \
+      --data "$(jq -n \
+        --argjson system "$SYSTEM_PROMPT" \
+        --arg user_prompt "{{user_prompt}}" \
+        --arg model "{{model}}" \
+        '{
+          messages: [
+            { role: "system", content: $system },
+            { role: "user", content: ("<user_prompt>" + $user_prompt + "</user_prompt>") }
+          ],
+          model: $model,
+          stream: false,
+          temperature: 1.0,
+          reasoning_effort: "none"
+        }')")
+    echo "$RESPONSE"
+
+parallelism: 3
+timeout: 120
+
+validations:
+  - name: "API returns valid response"
+    type: shell
+    command: |
+      jq -e '.choices[0].message.content' > /dev/null 2>&1
+
+  - name: "Response content is valid JSON"
+    type: shell
+    command: |
+      jq -r '.choices[0].message.content' | jq -e '.' > /dev/null 2>&1
+
+  - name: "Response contains title field"
+    type: shell
+    command: |
+      jq -r '.choices[0].message.content' | jq -e '.title' > /dev/null 2>&1
+
+  - name: "Title is a non-empty string"
+    type: shell
+    command: |
+      jq -r '.choices[0].message.content' | jq -e '.title | type == "string" and length > 0' > /dev/null 2>&1
+
+sources:
+  - value:
+      - model: "glm-5.1"
+  - csv: prompts.csv

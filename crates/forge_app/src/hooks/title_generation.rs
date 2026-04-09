@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
@@ -7,10 +8,13 @@ use forge_domain::{
     Conversation, ConversationId, EndPayload, EventData, EventHandle, StartPayload,
 };
 use tokio::sync::oneshot;
+use tokio::time::timeout;
 use tracing::debug;
 
 use crate::agent::AgentService;
 use crate::title_generator::TitleGenerator;
+
+const TITLE_GENERATION_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Per-conversation title generation state.
 enum TitleTask {
@@ -69,8 +73,7 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
             user_prompt.clone(),
             event.model_id.clone(),
             Some(event.agent.provider.clone()),
-        )
-        .reasoning(event.agent.reasoning.clone());
+        );
 
         // `or_insert_with` holds the shard lock for its entire call. Any occupied
         // entry — InProgress, Awaiting, or Done — is left untouched, so at most
@@ -122,8 +125,8 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
         // Await the oneshot receiver. Unlike a raw JoinHandle, a oneshot
         // receiver never panics on poll-after-completion — it simply returns
         // `Err(RecvError)` if the sender was dropped.
-        match rx.await {
-            Ok(Some(title)) => {
+        match timeout(TITLE_GENERATION_TIMEOUT, rx).await {
+            Ok(Ok(Some(title))) => {
                 debug!(
                     conversation_id = %conversation.id,
                     title = %title,
@@ -134,8 +137,13 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
                 self.title_tasks
                     .insert(conversation.id, TitleTask::Done(title));
             }
-            Ok(None) => {
+            Ok(Ok(None)) => {
                 debug!("Title generation returned None");
+                // Remove so a future StartPayload can retry.
+                self.title_tasks.remove(&conversation.id);
+            }
+            Ok(Err(_)) => {
+                debug!("Title generation channel was closed");
                 // Remove so a future StartPayload can retry.
                 self.title_tasks.remove(&conversation.id);
             }
@@ -162,6 +170,10 @@ impl<S> Drop for TitleGenerationHandler<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::time::Duration;
+
     use forge_domain::{
         Agent, ChatCompletionMessage, Context, ContextMessage, Conversation, EventValue, ModelId,
         ProviderId, Role, TextMessage, ToolCallContext, ToolCallFull, ToolResult,
@@ -325,6 +337,41 @@ mod tests {
             .await
             .unwrap();
 
+        assert!(conversation.title.is_none());
+        assert!(!handler.title_tasks.contains_key(&conversation.id));
+    }
+
+    #[tokio::test]
+    async fn test_end_times_out_when_title_generation_hangs() {
+        tokio::time::pause();
+
+        let (handler, conversation) = setup("test message");
+        let handler = Arc::new(handler);
+        let (_tx, rx) = oneshot::channel::<Option<String>>();
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleTask::InProgress(rx));
+
+        let completed = Arc::new(AtomicBool::new(false));
+        let completed_fixture = completed.clone();
+        let handler_fixture = handler.clone();
+        let join = tokio::spawn(async move {
+            let mut conversation = conversation;
+            handler_fixture
+                .handle(&event(EndPayload), &mut conversation)
+                .await
+                .unwrap();
+            completed_fixture.store(true, Ordering::SeqCst);
+            conversation
+        });
+
+        tokio::task::yield_now().await;
+        assert!(!completed.load(Ordering::SeqCst));
+
+        tokio::time::advance(Duration::from_secs(11)).await;
+
+        let conversation = join.await.unwrap();
+        assert!(completed.load(Ordering::SeqCst));
         assert!(conversation.title.is_none());
         assert!(!handler.title_tasks.contains_key(&conversation.id));
     }
