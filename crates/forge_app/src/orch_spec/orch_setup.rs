@@ -26,8 +26,8 @@ const USER_PROMPT: &str = r#"
 /// Exposed publicly so individual tests can mutate the list mid-run to
 /// simulate skill-creation scenarios (e.g. the `create-skill` workflow
 /// producing a new `SKILL.md` halfway through a conversation). The inner
-/// `Mutex` is used by both the [`Runner`](crate::orch_spec::orch_runner::Runner)
-/// and the test author.
+/// `Mutex` is used by both the
+/// [`Runner`](crate::orch_spec::orch_runner::Runner) and the test author.
 #[derive(Clone, Default, Debug)]
 pub struct MockSkillList(pub Arc<Mutex<Vec<Skill>>>);
 

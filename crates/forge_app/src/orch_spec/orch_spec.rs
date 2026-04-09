@@ -730,8 +730,8 @@ async fn test_complete_when_empty_todos() {
 // Tested scenarios:
 // - Non-default agents (e.g. `sage`) also receive the `<system_reminder>`
 //   catalog. This is the bug that Phase 0 was created to fix: previously the
-//   partial was statically rendered only into `forge.md`, so Sage and Muse
-//   were blind to available skills.
+//   partial was statically rendered only into `forge.md`, so Sage and Muse were
+//   blind to available skills.
 // - A skill created mid-session (simulating the `create-skill` workflow) is
 //   visible to the LLM on the *next* turn, without requiring a restart. The
 //   delta cache ensures no duplicate reminders are emitted.
