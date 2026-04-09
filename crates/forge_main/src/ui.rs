@@ -4210,11 +4210,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     }
 
     /// Initialize workspace for a directory without syncing files
-    async fn on_workspace_init(&mut self, path: std::path::PathBuf, yes: bool) -> anyhow::Result<()> {
+    async fn on_workspace_init(
+        &mut self,
+        path: std::path::PathBuf,
+        yes: bool,
+    ) -> anyhow::Result<()> {
         // Ask for user consent before syncing and sharing directory contents
         // with the ForgeCode Service.
         let display_path = path.display().to_string();
-        
+
         let confirmed = if yes {
             Some(true)
         } else {
