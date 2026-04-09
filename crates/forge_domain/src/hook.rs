@@ -32,9 +32,18 @@ impl<P: Send + Sync> EventData<P> {
 #[derive(Debug, PartialEq, Clone, Default)]
 pub struct StartPayload;
 
-/// Payload for the End event
+/// Payload for the End event.
+///
+/// Carries `stop_hook_active` to signal whether the current End event was
+/// triggered by a Stop hook forcing continuation (matching Claude Code's
+/// `stop_hook_active` field). When `true`, hook scripts should allow the
+/// agent to stop to prevent infinite loops.
 #[derive(Debug, PartialEq, Clone, Default)]
-pub struct EndPayload;
+pub struct EndPayload {
+    /// Whether a Stop hook caused this continuation. Sent to hook scripts
+    /// as `stop_hook_active` so they can break re-entrant loops.
+    pub stop_hook_active: bool,
+}
 
 /// Payload for the Request event
 #[derive(Debug, PartialEq, Clone, Setters)]

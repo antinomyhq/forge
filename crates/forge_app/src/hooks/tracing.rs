@@ -240,7 +240,7 @@ mod tests {
     async fn test_tracing_handler_end_with_title() {
         let handler = TracingHandler::new();
         let mut conversation = Conversation::generate().title(Some("Test Title".to_string()));
-        let mut event = EventData::new(test_agent(), test_model_id(), EndPayload);
+        let mut event = EventData::new(test_agent(), test_model_id(), EndPayload::default());
 
         // Should log debug message with title
         handler.handle(&mut event, &mut conversation).await.unwrap();

@@ -299,7 +299,7 @@ mod tests {
             .insert(conversation.id, TitleTask::InProgress(rx));
 
         handler
-            .handle(&mut event(EndPayload), &mut conversation)
+            .handle(&mut event(EndPayload::default()), &mut conversation)
             .await
             .unwrap();
 
@@ -321,7 +321,7 @@ mod tests {
             .insert(conversation.id, TitleTask::InProgress(rx));
 
         handler
-            .handle(&mut event(EndPayload), &mut conversation)
+            .handle(&mut event(EndPayload::default()), &mut conversation)
             .await
             .unwrap();
 

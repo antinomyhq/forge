@@ -5,9 +5,9 @@ use std::time::Duration;
 use async_trait::async_trait;
 use forge_config::{UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup};
 use forge_domain::{
-    Conversation, EndPayload, EventData, EventHandle, HookEventInput, HookExecutionResult,
-    HookInput, HookOutput, PromptSuppressed, RequestPayload, ResponsePayload, Role, StartPayload,
-    ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload,
+    ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
+    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload, ResponsePayload,
+    Role, StartPayload, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload,
 };
 use regex::Regex;
 use serde_json::Value;
@@ -117,11 +117,12 @@ impl<I> UserHookHandler<I> {
 
     /// Executes a list of hook entries and returns their results along with
     /// any warnings for commands that failed to execute.
+    /// Each result is paired with the command string that produced it.
     async fn execute_hooks(
         &self,
         hooks: &[&UserHookEntry],
         input: &HookInput,
-    ) -> (Vec<HookExecutionResult>, Vec<String>)
+    ) -> (Vec<(String, HookExecutionResult)>, Vec<String>)
     where
         I: HookCommandService,
     {
@@ -166,7 +167,7 @@ impl<I> UserHookHandler<I> {
                                 "Hook command '{command}' returned non-blocking error: {detail}"
                             ));
                         }
-                        results.push(result);
+                        results.push((command.clone(), result));
                     }
                     Err(e) => {
                         warn!(
@@ -183,16 +184,17 @@ impl<I> UserHookHandler<I> {
         (results, warnings)
     }
 
-    /// Processes hook results, returning a blocking reason if any hook blocked.
-    fn process_results(results: &[HookExecutionResult]) -> Option<String> {
-        for result in results {
+    /// Processes hook results, returning the blocking command and reason if
+    /// any hook blocked.
+    fn process_results(results: &[(String, HookExecutionResult)]) -> Option<(String, String)> {
+        for (command, result) in results {
             // Exit code 2 = blocking error
             if result.is_blocking_exit() {
                 let message = result
                     .blocking_message()
                     .unwrap_or("Hook blocked execution")
                     .to_string();
-                return Some(message);
+                return Some((command.clone(), message));
             }
 
             // Exit code 0 = check stdout for JSON decisions
@@ -200,16 +202,67 @@ impl<I> UserHookHandler<I> {
                 && output.is_blocking()
             {
                 let reason = output.blocking_reason("Hook blocked execution");
-                return Some(reason);
+                return Some((command.clone(), reason));
             }
         }
 
         None
     }
 
+    /// Collects `additionalContext` strings from all successful hook results,
+    /// paired with the command that produced them.
+    fn collect_additional_context(
+        results: &[(String, HookExecutionResult)],
+    ) -> Vec<(String, String)> {
+        let mut contexts = Vec::new();
+        for (command, result) in results {
+            if let Some(output) = result.parse_output() {
+                if let Some(ctx) = &output.additional_context {
+                    if !ctx.trim().is_empty() {
+                        contexts.push((command.clone(), ctx.clone()));
+                    }
+                }
+            }
+        }
+        contexts
+    }
+
+    /// Injects collected `additionalContext` into the conversation as a plain
+    /// text user message. The format matches Claude Code's transcript format:
+    /// ```text
+    /// {event_name} hook additional context:
+    /// [{command}]: {context}
+    /// ```
+    /// This avoids XML-like tags that LLMs may treat as prompt injection.
+    fn inject_additional_context(
+        conversation: &mut Conversation,
+        event_name: &str,
+        contexts: &[(String, String)],
+    ) {
+        if contexts.is_empty() {
+            return;
+        }
+        if let Some(ctx) = conversation.context.as_mut() {
+            let mut lines = vec![format!("{event_name} hook additional context:")];
+            for (command, context) in contexts {
+                lines.push(format!("[{command}]: {context}"));
+            }
+            let content = lines.join("\n");
+            ctx.messages
+                .push(ContextMessage::user(content, None).into());
+            debug!(
+                event_name = event_name,
+                context_count = contexts.len(),
+                "Injected additional context from hook into conversation"
+            );
+        }
+    }
+
     /// Processes PreToolUse results, extracting updated input if present.
-    fn process_pre_tool_use_output(results: &[HookExecutionResult]) -> PreToolUseDecision {
-        for result in results {
+    fn process_pre_tool_use_output(
+        results: &[(String, HookExecutionResult)],
+    ) -> PreToolUseDecision {
+        for (_command, result) in results {
             // Exit code 2 = blocking error
             if result.is_blocking_exit() {
                 let message = result
@@ -261,7 +314,7 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
     async fn handle(
         &self,
         event: &mut EventData<StartPayload>,
-        _conversation: &mut Conversation,
+        conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if !self.has_hooks(&UserHookEventName::SessionStart) {
             return Ok(());
@@ -284,18 +337,8 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
         let (results, warnings) = self.execute_hooks(&hooks, &input).await;
         event.warnings.extend(warnings);
 
-        // FIXME: SessionStart hooks can provide additional context but not block;
-        // additional_context is detected here but never injected into the conversation.
-        for result in &results {
-            if let Some(output) = result.parse_output()
-                && let Some(context) = &output.additional_context
-            {
-                debug!(
-                    context_len = context.len(),
-                    "SessionStart hook provided additional context"
-                );
-            }
-        }
+        let contexts = Self::collect_additional_context(&results);
+        Self::inject_additional_context(conversation, "SessionStart", &contexts);
 
         Ok(())
     }
@@ -350,8 +393,9 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
         let (results, warnings) = self.execute_hooks(&hooks, &input).await;
         event.warnings.extend(warnings);
 
-        if let Some(reason) = Self::process_results(&results) {
+        if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
+                command = command.as_str(),
                 reason = reason.as_str(),
                 "UserPromptSubmit hook blocked with feedback"
             );
@@ -361,6 +405,9 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             // Signal the orchestrator to suppress this prompt entirely.
             return Err(anyhow::Error::from(PromptSuppressed(reason)));
         }
+
+        let contexts = Self::collect_additional_context(&results);
+        Self::inject_additional_context(conversation, "UserPromptSubmit", &contexts);
 
         Ok(())
     }
@@ -383,7 +430,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
     async fn handle(
         &self,
         event: &mut EventData<ToolcallStartPayload>,
-        _conversation: &mut Conversation,
+        conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if !self.has_hooks(&UserHookEventName::PreToolUse) {
             return Ok(());
@@ -422,6 +469,10 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
 
         let (results, warnings) = self.execute_hooks(&hooks, &input).await;
         event.warnings.extend(warnings);
+
+        let contexts = Self::collect_additional_context(&results);
+        Self::inject_additional_context(conversation, "PreToolUse", &contexts);
+
         let decision = Self::process_pre_tool_use_output(&results);
 
         match decision {
@@ -461,7 +512,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
     async fn handle(
         &self,
         event: &mut EventData<ToolcallEndPayload>,
-        _conversation: &mut Conversation,
+        conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         let is_error = event.payload.result.is_error();
         let event_name = if is_error {
@@ -507,11 +558,15 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
         let (results, warnings) = self.execute_hooks(&hooks, &input).await;
         event.warnings.extend(warnings);
 
+        let contexts = Self::collect_additional_context(&results);
+        Self::inject_additional_context(conversation, &event_name.to_string(), &contexts);
+
         // PostToolUse can provide feedback via blocking
-        if let Some(reason) = Self::process_results(&results) {
+        if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
                 tool_name = tool_name.as_str(),
                 event = %event_name,
+                command = command.as_str(),
                 reason = reason.as_str(),
                 "PostToolUse hook blocked with feedback"
             );
@@ -560,6 +615,8 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             return Ok(());
         }
 
+        let stop_hook_active = event.payload.stop_hook_active;
+
         // Extract the last assistant message text for the Stop hook payload.
         let last_assistant_message = conversation.context.as_ref().and_then(|ctx| {
             ctx.messages
@@ -574,18 +631,38 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             hook_event_name: "Stop".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::Stop { last_assistant_message },
+            event_data: HookEventInput::Stop {
+                stop_hook_active,
+                last_assistant_message },
         };
 
         let (results, stop_warnings) = self.execute_hooks(&hooks, &input).await;
         event.warnings.extend(stop_warnings);
 
-        if let Some(reason) = Self::process_results(&results) {
+        let contexts = Self::collect_additional_context(&results);
+        Self::inject_additional_context(conversation, "Stop", &contexts);
+
+        if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
+                command = command.as_str(),
                 reason = reason.as_str(),
-                "Stop hook blocked (warning only, no continuation)"
+                stop_hook_active = stop_hook_active,
+                "Stop hook blocked, injecting feedback for continuation"
             );
-            event.warnings.push(format!("Stop hook blocked: {reason}"));
+            // Inject the blocking reason as a conversation message. The
+            // orchestrator detects that conversation.len() increased and
+            // resets should_yield to false, causing another LLM turn.
+            // This matches Claude Code's stop-hook continuation behavior.
+            if let Some(ctx) = conversation.context.as_mut() {
+                let content = format!(
+                    "Stop hook feedback:\n[{command}]: {reason}"
+                );
+                ctx.messages
+                    .push(ContextMessage::user(content, None).into());
+            }
+            // Mark the next End invocation as stop_hook_active so hook
+            // scripts can detect re-entrancy and avoid infinite loops.
+            event.payload.stop_hook_active = true;
         }
 
         Ok(())
@@ -729,22 +806,22 @@ mod tests {
 
     #[test]
     fn test_process_pre_tool_use_output_allow_on_success() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: String::new(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Allow));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_exit_2() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(2),
             stdout: String::new(),
             stderr: "Blocked: dangerous command".to_string(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(
             matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("dangerous command"))
@@ -753,68 +830,68 @@ mod tests {
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_deny() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"permissionDecision": "deny", "reason": "Not allowed"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Not allowed"));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_decision() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"decision": "block", "reason": "Blocked by policy"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Blocked by policy"));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_non_blocking_error_allows() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(1),
             stdout: String::new(),
             stderr: "some error".to_string(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Allow));
     }
 
     #[test]
     fn test_process_results_no_blocking() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: String::new(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
         assert!(actual.is_none());
     }
 
     #[test]
     fn test_process_results_blocking_exit_code() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(2),
             stdout: String::new(),
             stderr: "stop reason".to_string(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some("stop reason".to_string()));
+        assert_eq!(actual, Some(("test-cmd".to_string(), "stop reason".to_string())));
     }
 
     #[test]
     fn test_process_results_blocking_json_decision() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"decision": "block", "reason": "keep going"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some("keep going".to_string()));
+        assert_eq!(actual, Some(("test-cmd".to_string(), "keep going".to_string())));
     }
 
     #[test]
@@ -837,11 +914,11 @@ mod tests {
     fn test_process_pre_tool_use_output_allow_with_update_detected() {
         // A hook that returns updatedInput should produce AllowWithUpdate with the
         // correct updated_input value.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map =
             serde_json::Map::from_iter([("command".to_string(), serde_json::json!("echo safe"))]);
@@ -919,11 +996,11 @@ mod tests {
         // When HookOutput has updated_input = None (e.g. only
         // `{"permissionDecision": "allow"}`), AllowWithUpdate should not
         // overwrite the original arguments.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"permissionDecision": "allow"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         // permissionDecision "allow" with no updatedInput => plain Allow
         assert!(matches!(actual, PreToolUseDecision::Allow));
@@ -932,11 +1009,11 @@ mod tests {
     #[test]
     fn test_allow_with_update_empty_object() {
         // updatedInput is an empty object — still a valid update.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"updatedInput": {}}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map = serde_json::Map::new();
         assert!(
@@ -947,11 +1024,11 @@ mod tests {
     #[test]
     fn test_allow_with_update_complex_nested_input() {
         // updatedInput with nested objects and arrays.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"updatedInput": {"file_path": "/safe/path", "options": {"recursive": true, "depth": 3}, "tags": ["a", "b"]}}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map = serde_json::Map::from_iter([
             ("file_path".to_string(), serde_json::json!("/safe/path")),
@@ -970,11 +1047,11 @@ mod tests {
     fn test_block_takes_priority_over_updated_input() {
         // If a hook returns both decision=block AND updatedInput, the block
         // must win because blocking is checked before updatedInput.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"decision": "block", "reason": "nope", "updatedInput": {"command": "echo safe"}}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "nope"));
     }
@@ -982,11 +1059,11 @@ mod tests {
     #[test]
     fn test_deny_takes_priority_over_updated_input() {
         // permissionDecision=deny should block even if updatedInput is present.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"permissionDecision": "deny", "reason": "forbidden", "updatedInput": {"command": "echo safe"}}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "forbidden"));
     }
@@ -994,11 +1071,11 @@ mod tests {
     #[test]
     fn test_exit_code_2_blocks_even_with_updated_input_in_stdout() {
         // Exit code 2 is a hard block regardless of stdout content.
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(2),
             stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
             stderr: "hard block".to_string(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("hard block")));
     }
@@ -1008,16 +1085,16 @@ mod tests {
         // When multiple hooks run and the first returns updatedInput, that
         // result is used (iteration stops at first non-Allow decision).
         let results = vec![
-            HookExecutionResult {
+            ("test-cmd-1".to_string(), HookExecutionResult {
                 exit_code: Some(0),
                 stdout: r#"{"updatedInput": {"command": "first"}}"#.to_string(),
                 stderr: String::new(),
-            },
-            HookExecutionResult {
+            }),
+            ("test-cmd-2".to_string(), HookExecutionResult {
                 exit_code: Some(0),
                 stdout: r#"{"updatedInput": {"command": "second"}}"#.to_string(),
                 stderr: String::new(),
-            },
+            }),
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map =
@@ -1032,16 +1109,16 @@ mod tests {
         // A block from an earlier hook prevents a later hook's updatedInput
         // from being applied.
         let results = vec![
-            HookExecutionResult {
+            ("test-cmd-1".to_string(), HookExecutionResult {
                 exit_code: Some(2),
                 stdout: String::new(),
                 stderr: "blocked first".to_string(),
-            },
-            HookExecutionResult {
+            }),
+            ("test-cmd-2".to_string(), HookExecutionResult {
                 exit_code: Some(0),
                 stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
                 stderr: String::new(),
-            },
+            }),
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("blocked first")));
@@ -1052,16 +1129,16 @@ mod tests {
         // A non-blocking error (exit 1) from the first hook is logged but
         // doesn't prevent a subsequent hook from returning updatedInput.
         let results = vec![
-            HookExecutionResult {
+            ("test-cmd-1".to_string(), HookExecutionResult {
                 exit_code: Some(1),
                 stdout: String::new(),
                 stderr: "warning".to_string(),
-            },
-            HookExecutionResult {
+            }),
+            ("test-cmd-2".to_string(), HookExecutionResult {
                 exit_code: Some(0),
                 stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
                 stderr: String::new(),
-            },
+            }),
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map =
@@ -1251,47 +1328,47 @@ mod tests {
 
     #[test]
     fn test_process_results_blocking_continue_false() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"continue": false, "stopReason": "task complete"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some("task complete".to_string()));
+        assert_eq!(actual, Some(("test-cmd".to_string(), "task complete".to_string())));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_continue_false() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"continue": false, "stopReason": "no more tools"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "no more tools"));
     }
 
     #[test]
     fn test_process_results_stop_reason_fallback() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"decision": "block", "stopReason": "fallback reason"}"#.to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some("fallback reason".to_string()));
+        assert_eq!(actual, Some(("test-cmd".to_string(), "fallback reason".to_string())));
     }
 
     #[test]
     fn test_process_results_reason_over_stop_reason() {
-        let results = vec![HookExecutionResult {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
             exit_code: Some(0),
             stdout: r#"{"decision": "block", "reason": "primary", "stopReason": "secondary"}"#
                 .to_string(),
             stderr: String::new(),
-        }];
+        })];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some("primary".to_string()));
+        assert_eq!(actual, Some(("test-cmd".to_string(), "primary".to_string())));
     }
 
     // =========================================================================
@@ -1524,7 +1601,7 @@ mod tests {
     }
 
     // =========================================================================
-    // Stop hook tests: Stop hooks fire, collect warnings, never block
+    // Stop hook tests: Stop hooks fire and inject feedback for continuation
     // =========================================================================
 
     /// Helper: creates a UserHookHandler with Stop config and a given infra.
@@ -1540,7 +1617,7 @@ mod tests {
         )
     }
 
-    /// Helper: creates an EndPayload EventData.
+    /// Helper: creates an EndPayload EventData with optional stop_hook_active.
     fn end_event() -> EventData<forge_domain::EndPayload> {
         use forge_domain::{Agent, ModelId, ProviderId};
         let agent = Agent::new(
@@ -1548,11 +1625,15 @@ mod tests {
             ProviderId::from("test-provider".to_string()),
             ModelId::new("test-model"),
         );
-        EventData::new(agent, ModelId::new("test-model"), forge_domain::EndPayload)
+        EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            forge_domain::EndPayload { stop_hook_active: false },
+        )
     }
 
     #[tokio::test]
-    async fn test_stop_hook_exit_code_2_produces_warning() {
+    async fn test_stop_hook_exit_code_2_injects_message_and_sets_active() {
         #[derive(Clone)]
         struct StopBlockInfra;
 
@@ -1577,14 +1658,28 @@ mod tests {
         let handler = stop_handler(StopBlockInfra);
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        // Stop hooks no longer block -- result is Ok
+        // Result is Ok (never errors)
         assert!(result.is_ok());
-        // Warning should have been pushed to event.warnings
-        assert!(!event.warnings.is_empty());
-        assert!(event.warnings.iter().any(|w| w.contains("keep working")));
+        // A conversation message should have been injected for continuation
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count + 1);
+        // The injected message should contain the blocking reason
+        let last_msg = conversation
+            .context
+            .as_ref()
+            .unwrap()
+            .messages
+            .last()
+            .unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("keep working"));
+        assert!(content.contains("Stop hook feedback"));
+        // stop_hook_active should be set to true for the next iteration
+        assert!(event.payload.stop_hook_active);
     }
 
     #[tokio::test]
@@ -1603,7 +1698,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stop_hook_json_continue_false_produces_warning() {
+    async fn test_stop_hook_json_continue_false_injects_message() {
         #[derive(Clone)]
         struct StopJsonBlockInfra;
 
@@ -1628,24 +1723,26 @@ mod tests {
         let handler = stop_handler(StopJsonBlockInfra);
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        // Stop hooks no longer block -- result is Ok
+        // Result is Ok (never errors)
         assert!(result.is_ok());
-        // Warning about blocking should be present
+        // A conversation message should have been injected
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count + 1);
+        // stop_hook_active should be set to true
         assert!(
             event
-                .warnings
-                .iter()
-                .any(|w| w.contains("Stop hook blocked"))
+                .payload.stop_hook_active
         );
     }
 
     #[tokio::test]
     async fn test_session_end_and_stop_hooks_both_fire() {
-        // Both SessionEnd and Stop hooks should execute. Stop hooks produce
-        // warnings but never block.
+        // Both SessionEnd and Stop hooks should execute. Stop hooks inject
+        // messages for continuation when they block.
         use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
 
@@ -1664,7 +1761,7 @@ mod tests {
                 _: HashMap<String, String>,
             ) -> anyhow::Result<forge_domain::CommandOutput> {
                 self.call_count.fetch_add(1, AtomicOrdering::SeqCst);
-                // Return exit 2 (would have been "blocking" before)
+                // Return exit 2 (blocking)
                 Ok(forge_domain::CommandOutput {
                     command,
                     exit_code: Some(2),
@@ -1694,11 +1791,132 @@ mod tests {
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        // No longer blocks -- result is Ok
+        // Result is Ok
         assert!(result.is_ok());
         // Both SessionEnd AND Stop hooks should have been called (2 total)
         let actual = call_count.load(AtomicOrdering::SeqCst);
         assert_eq!(actual, 2);
+        // Stop hook blocked, so stop_hook_active should be true
+        assert!(event.payload.stop_hook_active);
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_active_true_passed_to_hook_input() {
+        // When stop_hook_active is true (re-entrant call), the hook should
+        // receive it in its JSON input.
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct CapturingInfra {
+            captured_input: Arc<Mutex<Option<String>>>,
+        }
+
+        #[async_trait::async_trait]
+        impl HookCommandService for CapturingInfra {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                input: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                *self.captured_input.lock().unwrap() = Some(input);
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let captured = Arc::new(Mutex::new(None));
+        let handler = stop_handler(CapturingInfra { captured_input: captured.clone() });
+        // Create event with stop_hook_active = true (simulating re-entrant call)
+        let mut event = {
+            use forge_domain::{Agent, ModelId, ProviderId};
+            let agent = Agent::new(
+                "test-agent",
+                ProviderId::from("test-provider".to_string()),
+                ModelId::new("test-model"),
+            );
+            EventData::new(
+                agent,
+                ModelId::new("test-model"),
+                forge_domain::EndPayload { stop_hook_active: true },
+            )
+        };
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+        assert!(result.is_ok());
+
+        // Verify the hook received stop_hook_active = true in its JSON input
+        let input_json = captured.lock().unwrap().clone().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&input_json).unwrap();
+        assert_eq!(parsed["stop_hook_active"], serde_json::Value::Bool(true));
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_allow_does_not_inject_message() {
+        // When a Stop hook allows the stop (exit 0, no blocking JSON), no
+        // message should be injected and stop_hook_active should remain false.
+        let handler = stop_handler(NullInfra);
+        let mut event = end_event();
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+
+        assert!(result.is_ok());
+        // No message injected
+        let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_msg_count, original_msg_count);
+        // stop_hook_active should remain false
+        assert!(!event.payload.stop_hook_active);
+    }
+
+    #[tokio::test]
+    async fn test_stop_hook_active_false_on_initial_call() {
+        // On the first call, stop_hook_active should be false in the JSON input.
+        use std::sync::{Arc, Mutex};
+
+        #[derive(Clone)]
+        struct CapturingInfra2 {
+            captured_input: Arc<Mutex<Option<String>>>,
+        }
+
+        #[async_trait::async_trait]
+        impl HookCommandService for CapturingInfra2 {
+            async fn execute_command_with_input(
+                &self,
+                command: String,
+                _: PathBuf,
+                input: String,
+                _: HashMap<String, String>,
+            ) -> anyhow::Result<forge_domain::CommandOutput> {
+                *self.captured_input.lock().unwrap() = Some(input);
+                Ok(forge_domain::CommandOutput {
+                    command,
+                    exit_code: Some(0),
+                    stdout: String::new(),
+                    stderr: String::new(),
+                })
+            }
+        }
+
+        let captured = Arc::new(Mutex::new(None));
+        let handler = stop_handler(CapturingInfra2 { captured_input: captured.clone() });
+        let mut event = end_event(); // stop_hook_active defaults to false
+        let mut conversation = conversation_with_user_msg("hello");
+
+        let result = handler.handle(&mut event, &mut conversation).await;
+        assert!(result.is_ok());
+
+        // Verify stop_hook_active is false in the JSON
+        let input_json = captured.lock().unwrap().clone().unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&input_json).unwrap();
+        assert_eq!(parsed["stop_hook_active"], serde_json::Value::Bool(false));
     }
 
     // =========================================================================
@@ -1942,5 +2160,238 @@ mod tests {
         // The warning should reference the tool name
         assert_eq!(event.warnings.len(), 1);
         assert!(event.warnings[0].contains("shell"));
+    }
+
+    // =========================================================================
+    // Tests: additionalContext injection
+    // =========================================================================
+
+    /// Infra that returns exit 0 with `additionalContext` in JSON output.
+    #[derive(Clone)]
+    struct AdditionalContextInfra;
+
+    #[async_trait::async_trait]
+    impl HookCommandService for AdditionalContextInfra {
+        async fn execute_command_with_input(
+            &self,
+            command: String,
+            _: PathBuf,
+            _: String,
+            _: HashMap<String, String>,
+        ) -> anyhow::Result<forge_domain::CommandOutput> {
+            Ok(forge_domain::CommandOutput {
+                command,
+                exit_code: Some(0),
+                stdout: r#"{"additionalContext": "Remember to follow coding standards"}"#
+                    .to_string(),
+                stderr: String::new(),
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_session_start_injects_additional_context() {
+        let json =
+            r#"{"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        let handler = UserHookHandler::new(
+            AdditionalContextInfra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-ctx".to_string(),
+        );
+
+        let agent = forge_domain::Agent::new(
+            "test-agent",
+            forge_domain::ProviderId::from("test-provider".to_string()),
+            forge_domain::ModelId::new("test-model"),
+        );
+        let mut event = EventData::new(
+            agent,
+            forge_domain::ModelId::new("test-model"),
+            forge_domain::StartPayload,
+        );
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_count = conversation.context.as_ref().unwrap().messages.len();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        let actual_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_count, original_count + 1);
+
+        let last_msg = conversation
+            .context
+            .as_ref()
+            .unwrap()
+            .messages
+            .last()
+            .unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("SessionStart hook additional context"));
+        assert!(content.contains("Remember to follow coding standards"));
+    }
+
+    #[tokio::test]
+    async fn test_user_prompt_submit_injects_additional_context() {
+        let handler = UserHookHandler::new(
+            AdditionalContextInfra,
+            BTreeMap::new(),
+            serde_json::from_str(
+                r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+            )
+            .unwrap(),
+            PathBuf::from("/tmp"),
+            "sess-ctx".to_string(),
+        );
+
+        let mut event = request_event(0);
+        let mut conversation = conversation_with_user_msg("test prompt");
+        let original_count = conversation.context.as_ref().unwrap().messages.len();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        let actual_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_count, original_count + 1);
+
+        let last_msg = conversation
+            .context
+            .as_ref()
+            .unwrap()
+            .messages
+            .last()
+            .unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("UserPromptSubmit hook additional context"));
+        assert!(content.contains("Remember to follow coding standards"));
+    }
+
+    #[tokio::test]
+    async fn test_pre_tool_use_injects_additional_context() {
+        let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let config: UserHookConfig = serde_json::from_str(json).unwrap();
+        let handler = UserHookHandler::new(
+            AdditionalContextInfra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-ctx".to_string(),
+        );
+
+        let agent = forge_domain::Agent::new(
+            "test-agent",
+            forge_domain::ProviderId::from("test-provider".to_string()),
+            forge_domain::ModelId::new("test-model"),
+        );
+        let tool_call = forge_domain::ToolCallFull::new("shell")
+            .arguments(forge_domain::ToolCallArguments::from_json(r#"{"command": "ls"}"#));
+        let mut event = EventData::new(
+            agent,
+            forge_domain::ModelId::new("test-model"),
+            forge_domain::ToolcallStartPayload::new(tool_call),
+        );
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_count = conversation.context.as_ref().unwrap().messages.len();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        let actual_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_count, original_count + 1);
+
+        let last_msg = conversation
+            .context
+            .as_ref()
+            .unwrap()
+            .messages
+            .last()
+            .unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("PreToolUse hook additional context"));
+        assert!(content.contains("Remember to follow coding standards"));
+    }
+
+    #[tokio::test]
+    async fn test_post_tool_use_injects_additional_context() {
+        let handler = post_tool_use_handler(AdditionalContextInfra);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_count = conversation.context.as_ref().unwrap().messages.len();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        let actual_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_count, original_count + 1);
+
+        let last_msg = conversation
+            .context
+            .as_ref()
+            .unwrap()
+            .messages
+            .last()
+            .unwrap();
+        let content = last_msg.content().unwrap();
+        assert!(content.contains("PostToolUse hook additional context"));
+        assert!(content.contains("Remember to follow coding standards"));
+    }
+
+    #[tokio::test]
+    async fn test_no_additional_context_when_empty() {
+        // NullInfra returns empty stdout => no additionalContext
+        let handler = post_tool_use_handler(NullInfra);
+        let mut event = toolcall_end_event("shell", false);
+        let mut conversation = conversation_with_user_msg("hello");
+        let original_count = conversation.context.as_ref().unwrap().messages.len();
+
+        handler.handle(&mut event, &mut conversation).await.unwrap();
+
+        let actual_count = conversation.context.as_ref().unwrap().messages.len();
+        assert_eq!(actual_count, original_count);
+    }
+
+    #[test]
+    fn test_collect_additional_context_from_results() {
+        let results = vec![
+            ("test-cmd".to_string(), HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"additionalContext": "first context"}"#.to_string(),
+                stderr: String::new(),
+            }),
+            ("test-cmd".to_string(), HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"additionalContext": "second context"}"#.to_string(),
+                stderr: String::new(),
+            }),
+        ];
+        let actual = UserHookHandler::<NullInfra>::collect_additional_context(&results);
+        assert_eq!(actual, vec![("test-cmd".to_string(), "first context".to_string()), ("test-cmd".to_string(), "second context".to_string())]);
+    }
+
+    #[test]
+    fn test_collect_additional_context_skips_empty() {
+        let results = vec![
+            ("test-cmd".to_string(), HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"additionalContext": ""}"#.to_string(),
+                stderr: String::new(),
+            }),
+            ("test-cmd".to_string(), HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"additionalContext": "  "}"#.to_string(),
+                stderr: String::new(),
+            }),
+        ];
+        let actual = UserHookHandler::<NullInfra>::collect_additional_context(&results);
+        assert!(actual.is_empty());
+    }
+
+    #[test]
+    fn test_collect_additional_context_skips_non_success() {
+        let results = vec![("test-cmd".to_string(), HookExecutionResult {
+            exit_code: Some(1),
+            stdout: r#"{"additionalContext": "should not appear"}"#.to_string(),
+            stderr: String::new(),
+        })];
+        let actual = UserHookHandler::<NullInfra>::collect_additional_context(&results);
+        assert!(actual.is_empty());
     }
 }

@@ -58,6 +58,10 @@ pub enum HookEventInput {
     },
     /// Input for Stop events.
     Stop {
+        /// Whether a previous Stop hook caused this continuation. Hook scripts
+        /// should check this to prevent infinite loops.
+        #[serde(default)]
+        stop_hook_active: bool,
         /// The last assistant message text before the stop event.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         last_assistant_message: Option<String>,

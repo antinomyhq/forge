@@ -284,6 +284,11 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
 
         let mut request_count = 0;
 
+        // Tracks whether a Stop hook forced continuation. Passed to the
+        // next EndPayload so hook scripts can detect re-entrancy and
+        // avoid infinite loops (matches Claude Code's `stop_hook_active`).
+        let mut stop_hook_active = false;
+
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = self.agent.max_requests_per_turn;
         let tool_context =
@@ -459,7 +464,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 let mut end_event = LifecycleEvent::End(EventData::new(
                     self.agent.clone(),
                     model_id.clone(),
-                    EndPayload,
+                    EndPayload { stop_hook_active },
                 ));
                 self.hook
                     .handle(&mut end_event, &mut self.conversation)
@@ -468,11 +473,19 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 self.services.update(self.conversation.clone()).await?;
                 // Check if End hook added messages - if so, continue the loop
                 if self.conversation.len() > end_count_before {
-                    // End hook added messages, sync context and continue
+                    // End hook added messages, sync context and continue.
+                    // Propagate stop_hook_active from the event payload so the
+                    // next iteration knows a Stop hook caused this continuation.
+                    if let LifecycleEvent::End(ref data) = end_event {
+                        stop_hook_active = data.payload.stop_hook_active;
+                    }
                     if let Some(updated_context) = &self.conversation.context {
                         context = updated_context.clone();
                     }
                     should_yield = false;
+                } else {
+                    // No continuation -- reset for next user turn.
+                    stop_hook_active = false;
                 }
             }
         }
