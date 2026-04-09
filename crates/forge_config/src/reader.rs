@@ -195,8 +195,8 @@ mod tests {
     #[test]
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
         let actual = ConfigReader::base_path();
-        // Without FORGE_CONFIG set the path must end with "forge"
-        assert_eq!(actual.file_name().unwrap(), "forge");
+        // Without FORGE_CONFIG set the path must end with ".forge"
+        assert_eq!(actual.file_name().unwrap(), ".forge");
     }
 
     #[test]
