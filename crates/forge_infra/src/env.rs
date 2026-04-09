@@ -213,8 +213,8 @@ mod tests {
     #[test]
     fn test_to_environment_falls_back_to_home_dir_when_env_var_absent() {
         let actual = to_environment(PathBuf::from("/any/cwd"));
-        // Without FORGE_CONFIG the base_path must end with "forge"
-        assert_eq!(actual.base_path.file_name().unwrap(), "forge");
+        // Without FORGE_CONFIG the base_path must end with ".forge"
+        assert_eq!(actual.base_path.file_name().unwrap(), ".forge");
     }
 
     #[test]
