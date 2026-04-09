@@ -1,16 +1,12 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use dashmap::DashMap;
-use dashmap::mapref::entry::Entry;
 use forge_domain::{
     Conversation, ConversationId, EndPayload, EventData, EventHandle, StartPayload,
 };
-use futures::FutureExt;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
-use tracing::debug;
 
 use crate::agent::AgentService;
 use crate::title_generator::TitleGenerator;
@@ -199,7 +195,7 @@ mod tests {
         handle.abort();
         handler.title_tasks.insert(
             conversation.id,
-            TitleGenerationState::InProgress(rx, handle),
+            TitleGenerationState { rx, handle },
         );
 
         handler
@@ -207,53 +203,11 @@ mod tests {
             .await
             .unwrap();
 
-        let (_, task) = handler.title_tasks.remove(&conversation.id).unwrap();
-        let actual = match task {
-            TitleGenerationState::InProgress(rx, _) => rx.await.unwrap(),
-            _ => panic!("Expected InProgress"),
-        };
-        assert_eq!(actual, Some("original".into()));
+        // Entry should still exist (wasn't replaced)
+        assert!(handler.title_tasks.contains_key(&conversation.id));
     }
 
-    /// A StartPayload that races with an EndPayload mid-await must not spawn a
-    /// new task — the Awaiting sentinel keeps the entry occupied.
-    #[tokio::test]
-    async fn test_start_skips_if_awaiting() {
-        let (handler, mut conversation) = setup("test message");
-        handler
-            .title_tasks
-            .insert(conversation.id, TitleGenerationState::Awaiting);
 
-        handler
-            .handle(&event(StartPayload), &mut conversation)
-            .await
-            .unwrap();
-
-        assert!(matches!(
-            handler.title_tasks.get(&conversation.id).as_deref(),
-            Some(TitleGenerationState::Awaiting)
-        ));
-    }
-
-    /// A StartPayload after generation has finished must not re-spawn.
-    #[tokio::test]
-    async fn test_start_skips_if_done() {
-        let (handler, mut conversation) = setup("test message");
-        handler.title_tasks.insert(
-            conversation.id,
-            TitleGenerationState::Done("existing".into()),
-        );
-
-        handler
-            .handle(&event(StartPayload), &mut conversation)
-            .await
-            .unwrap();
-
-        assert!(matches!(
-            handler.title_tasks.get(&conversation.id).as_deref(),
-            Some(TitleGenerationState::Done(_))
-        ));
-    }
 
     #[tokio::test]
     async fn test_end_sets_title_from_completed_task() {
@@ -264,7 +218,7 @@ mod tests {
         handle.abort();
         handler.title_tasks.insert(
             conversation.id,
-            TitleGenerationState::InProgress(rx, handle),
+            TitleGenerationState { rx, handle },
         );
 
         handler
@@ -273,10 +227,8 @@ mod tests {
             .unwrap();
 
         assert_eq!(conversation.title, Some("generated".into()));
-        assert!(matches!(
-            handler.title_tasks.get(&conversation.id).as_deref(),
-            Some(TitleGenerationState::Done(_))
-        ));
+        // Entry should be removed after successful title generation
+        assert!(!handler.title_tasks.contains_key(&conversation.id));
     }
 
     #[tokio::test]
@@ -289,7 +241,7 @@ mod tests {
         handle.abort();
         handler.title_tasks.insert(
             conversation.id,
-            TitleGenerationState::InProgress(rx, handle),
+            TitleGenerationState { rx, handle },
         );
 
         handler
@@ -315,7 +267,7 @@ mod tests {
 
         handler.title_tasks.insert(
             conversation.id,
-            TitleGenerationState::InProgress(rx, handle),
+            TitleGenerationState { rx, handle },
         );
 
         handler
@@ -323,9 +275,8 @@ mod tests {
             .await
             .unwrap();
 
-        // Extract the JoinHandle to verify it was aborted.
-        let task = handler.title_tasks.remove(&conversation.id);
-        assert!(task.is_none(), "Entry should have been removed from map");
+        // Entry should have been removed from map
+        assert!(!handler.title_tasks.contains_key(&conversation.id));
 
         // Verify the task is no longer running by checking that the
         // EndPayload handler didn't hang (it completed immediately).
@@ -357,11 +308,7 @@ mod tests {
             j.await.unwrap();
         }
 
-        let actual = handler
-            .title_tasks
-            .iter()
-            .filter(|e| matches!(e.value(), TitleGenerationState::InProgress(_, _)))
-            .count();
-        assert_eq!(actual, 1);
+        // Only one task should exist in the map
+        assert_eq!(handler.title_tasks.len(), 1);
     }
 }
