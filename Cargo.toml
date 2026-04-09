@@ -137,6 +137,8 @@ dashmap = "7.0.0-rc2"
 async-openai = { version = "0.34.0", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
 google-cloud-auth = "1.8.0" # Google Cloud authentication with automatic token refresh
 
+jsonrpsee = { version = "0.24", features = ["server", "macros"] }
+
 # Internal crates
 forge_embed = { path = "crates/forge_embed" }
 forge_api = { path = "crates/forge_api" }
@@ -162,3 +164,4 @@ forge_test_kit = { path = "crates/forge_test_kit" }
 
 forge_markdown_stream = { path = "crates/forge_markdown_stream" }
 forge_config = { path = "crates/forge_config" }
+forge_jsonrpc = { path = "crates/forge_jsonrpc" }
