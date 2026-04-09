@@ -7,7 +7,7 @@ use forge_app::GrpcInfra;
 use forge_domain::{SyntaxError, ValidationRepository};
 use tracing::{debug, warn};
 
-use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::new_forge_service_client;
 use crate::proto_generated::{self, File, ValidateFilesRequest};
 
 /// gRPC implementation of ValidationRepository
@@ -43,7 +43,7 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
 
         // Call gRPC API
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client
             .validate_files(request)
             .await

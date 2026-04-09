@@ -9,7 +9,7 @@ use forge_domain::{
     WorkspaceInfo,
 };
 
-use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::new_forge_service_client;
 use crate::proto_generated::{self, *};
 
 // TryFrom implementations for converting proto types to domain types
@@ -117,7 +117,7 @@ impl<I> ForgeContextEngineRepository<I> {
 impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> {
     async fn authenticate(&self) -> Result<WorkspaceAuth> {
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
 
         let response = client
@@ -144,7 +144,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client.create_workspace(request).await?.into_inner();
 
         response.try_into()
@@ -174,7 +174,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client.upload_files(request).await?;
 
         let result = response
@@ -213,7 +213,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client.search(request).await?;
 
         let result = response.into_inner().result.unwrap_or_default();
@@ -284,7 +284,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client.list_workspaces(request).await?;
 
         response
@@ -307,7 +307,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client.get_workspace_info(request).await?;
 
         let workspace = response.into_inner().workspace;
@@ -329,7 +329,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         let response = client.list_files(request).await?;
 
         response
@@ -360,7 +360,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         client.delete_files(request).await?;
 
         Ok(())
@@ -378,7 +378,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         let request = self.with_auth(request, auth_token)?;
 
         let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
+        let mut client = new_forge_service_client(channel);
         client.delete_workspace(request).await?;
 
         Ok(())
