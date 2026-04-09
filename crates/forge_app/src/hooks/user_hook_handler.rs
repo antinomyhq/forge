@@ -216,13 +216,11 @@ impl<I> UserHookHandler<I> {
     ) -> Vec<(String, String)> {
         let mut contexts = Vec::new();
         for (command, result) in results {
-            if let Some(output) = result.parse_output() {
-                if let Some(ctx) = &output.additional_context {
-                    if !ctx.trim().is_empty() {
+            if let Some(output) = result.parse_output()
+                && let Some(ctx) = &output.additional_context
+                    && !ctx.trim().is_empty() {
                         contexts.push((command.clone(), ctx.clone()));
                     }
-                }
-            }
         }
         contexts
     }
@@ -631,9 +629,7 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             hook_event_name: "Stop".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::Stop {
-                stop_hook_active,
-                last_assistant_message },
+            event_data: HookEventInput::Stop { stop_hook_active, last_assistant_message },
         };
 
         let (results, stop_warnings) = self.execute_hooks(&hooks, &input).await;
@@ -654,9 +650,7 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             // resets should_yield to false, causing another LLM turn.
             // This matches Claude Code's stop-hook continuation behavior.
             if let Some(ctx) = conversation.context.as_mut() {
-                let content = format!(
-                    "Stop hook feedback:\n[{command}]: {reason}"
-                );
+                let content = format!("Stop hook feedback:\n[{command}]: {reason}");
                 ctx.messages
                     .push(ContextMessage::user(content, None).into());
             }
@@ -806,22 +800,28 @@ mod tests {
 
     #[test]
     fn test_process_pre_tool_use_output_allow_on_success() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: String::new(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Allow));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_exit_2() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(2),
-            stdout: String::new(),
-            stderr: "Blocked: dangerous command".to_string(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(2),
+                stdout: String::new(),
+                stderr: "Blocked: dangerous command".to_string(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(
             matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("dangerous command"))
@@ -830,68 +830,92 @@ mod tests {
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_deny() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"permissionDecision": "deny", "reason": "Not allowed"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"permissionDecision": "deny", "reason": "Not allowed"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Not allowed"));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_decision() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"decision": "block", "reason": "Blocked by policy"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"decision": "block", "reason": "Blocked by policy"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "Blocked by policy"));
     }
 
     #[test]
     fn test_process_pre_tool_use_output_non_blocking_error_allows() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(1),
-            stdout: String::new(),
-            stderr: "some error".to_string(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(1),
+                stdout: String::new(),
+                stderr: "some error".to_string(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Allow));
     }
 
     #[test]
     fn test_process_results_no_blocking() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: String::new(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: String::new(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
         assert!(actual.is_none());
     }
 
     #[test]
     fn test_process_results_blocking_exit_code() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(2),
-            stdout: String::new(),
-            stderr: "stop reason".to_string(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(2),
+                stdout: String::new(),
+                stderr: "stop reason".to_string(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some(("test-cmd".to_string(), "stop reason".to_string())));
+        assert_eq!(
+            actual,
+            Some(("test-cmd".to_string(), "stop reason".to_string()))
+        );
     }
 
     #[test]
     fn test_process_results_blocking_json_decision() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"decision": "block", "reason": "keep going"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"decision": "block", "reason": "keep going"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some(("test-cmd".to_string(), "keep going".to_string())));
+        assert_eq!(
+            actual,
+            Some(("test-cmd".to_string(), "keep going".to_string()))
+        );
     }
 
     #[test]
@@ -914,11 +938,14 @@ mod tests {
     fn test_process_pre_tool_use_output_allow_with_update_detected() {
         // A hook that returns updatedInput should produce AllowWithUpdate with the
         // correct updated_input value.
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map =
             serde_json::Map::from_iter([("command".to_string(), serde_json::json!("echo safe"))]);
@@ -996,11 +1023,14 @@ mod tests {
         // When HookOutput has updated_input = None (e.g. only
         // `{"permissionDecision": "allow"}`), AllowWithUpdate should not
         // overwrite the original arguments.
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"permissionDecision": "allow"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"permissionDecision": "allow"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         // permissionDecision "allow" with no updatedInput => plain Allow
         assert!(matches!(actual, PreToolUseDecision::Allow));
@@ -1009,11 +1039,14 @@ mod tests {
     #[test]
     fn test_allow_with_update_empty_object() {
         // updatedInput is an empty object — still a valid update.
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"updatedInput": {}}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"updatedInput": {}}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map = serde_json::Map::new();
         assert!(
@@ -1071,11 +1104,14 @@ mod tests {
     #[test]
     fn test_exit_code_2_blocks_even_with_updated_input_in_stdout() {
         // Exit code 2 is a hard block regardless of stdout content.
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(2),
-            stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
-            stderr: "hard block".to_string(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(2),
+                stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
+                stderr: "hard block".to_string(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("hard block")));
     }
@@ -1085,16 +1121,22 @@ mod tests {
         // When multiple hooks run and the first returns updatedInput, that
         // result is used (iteration stops at first non-Allow decision).
         let results = vec![
-            ("test-cmd-1".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"updatedInput": {"command": "first"}}"#.to_string(),
-                stderr: String::new(),
-            }),
-            ("test-cmd-2".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"updatedInput": {"command": "second"}}"#.to_string(),
-                stderr: String::new(),
-            }),
+            (
+                "test-cmd-1".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"updatedInput": {"command": "first"}}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                "test-cmd-2".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"updatedInput": {"command": "second"}}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map =
@@ -1109,16 +1151,22 @@ mod tests {
         // A block from an earlier hook prevents a later hook's updatedInput
         // from being applied.
         let results = vec![
-            ("test-cmd-1".to_string(), HookExecutionResult {
-                exit_code: Some(2),
-                stdout: String::new(),
-                stderr: "blocked first".to_string(),
-            }),
-            ("test-cmd-2".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
-                stderr: String::new(),
-            }),
+            (
+                "test-cmd-1".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(2),
+                    stdout: String::new(),
+                    stderr: "blocked first".to_string(),
+                },
+            ),
+            (
+                "test-cmd-2".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg.contains("blocked first")));
@@ -1129,16 +1177,22 @@ mod tests {
         // A non-blocking error (exit 1) from the first hook is logged but
         // doesn't prevent a subsequent hook from returning updatedInput.
         let results = vec![
-            ("test-cmd-1".to_string(), HookExecutionResult {
-                exit_code: Some(1),
-                stdout: String::new(),
-                stderr: "warning".to_string(),
-            }),
-            ("test-cmd-2".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
-                stderr: String::new(),
-            }),
+            (
+                "test-cmd-1".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(1),
+                    stdout: String::new(),
+                    stderr: "warning".to_string(),
+                },
+            ),
+            (
+                "test-cmd-2".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"updatedInput": {"command": "safe"}}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
         ];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         let expected_map =
@@ -1328,47 +1382,68 @@ mod tests {
 
     #[test]
     fn test_process_results_blocking_continue_false() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"continue": false, "stopReason": "task complete"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"continue": false, "stopReason": "task complete"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some(("test-cmd".to_string(), "task complete".to_string())));
+        assert_eq!(
+            actual,
+            Some(("test-cmd".to_string(), "task complete".to_string()))
+        );
     }
 
     #[test]
     fn test_process_pre_tool_use_output_block_on_continue_false() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"continue": false, "stopReason": "no more tools"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"continue": false, "stopReason": "no more tools"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_pre_tool_use_output(&results);
         assert!(matches!(actual, PreToolUseDecision::Block(msg) if msg == "no more tools"));
     }
 
     #[test]
     fn test_process_results_stop_reason_fallback() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"decision": "block", "stopReason": "fallback reason"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"decision": "block", "stopReason": "fallback reason"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some(("test-cmd".to_string(), "fallback reason".to_string())));
+        assert_eq!(
+            actual,
+            Some(("test-cmd".to_string(), "fallback reason".to_string()))
+        );
     }
 
     #[test]
     fn test_process_results_reason_over_stop_reason() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(0),
-            stdout: r#"{"decision": "block", "reason": "primary", "stopReason": "secondary"}"#
-                .to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(0),
+                stdout: r#"{"decision": "block", "reason": "primary", "stopReason": "secondary"}"#
+                    .to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::process_results(&results);
-        assert_eq!(actual, Some(("test-cmd".to_string(), "primary".to_string())));
+        assert_eq!(
+            actual,
+            Some(("test-cmd".to_string(), "primary".to_string()))
+        );
     }
 
     // =========================================================================
@@ -1733,10 +1808,7 @@ mod tests {
         let actual_msg_count = conversation.context.as_ref().unwrap().messages.len();
         assert_eq!(actual_msg_count, original_msg_count + 1);
         // stop_hook_active should be set to true
-        assert!(
-            event
-                .payload.stop_hook_active
-        );
+        assert!(event.payload.stop_hook_active);
     }
 
     #[tokio::test]
@@ -2191,8 +2263,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_session_start_injects_additional_context() {
-        let json =
-            r#"{"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
+        let json = r#"{"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         let handler = UserHookHandler::new(
             AdditionalContextInfra,
@@ -2283,8 +2354,9 @@ mod tests {
             forge_domain::ProviderId::from("test-provider".to_string()),
             forge_domain::ModelId::new("test-model"),
         );
-        let tool_call = forge_domain::ToolCallFull::new("shell")
-            .arguments(forge_domain::ToolCallArguments::from_json(r#"{"command": "ls"}"#));
+        let tool_call = forge_domain::ToolCallFull::new("shell").arguments(
+            forge_domain::ToolCallArguments::from_json(r#"{"command": "ls"}"#),
+        );
         let mut event = EventData::new(
             agent,
             forge_domain::ModelId::new("test-model"),
@@ -2351,34 +2423,52 @@ mod tests {
     #[test]
     fn test_collect_additional_context_from_results() {
         let results = vec![
-            ("test-cmd".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"additionalContext": "first context"}"#.to_string(),
-                stderr: String::new(),
-            }),
-            ("test-cmd".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"additionalContext": "second context"}"#.to_string(),
-                stderr: String::new(),
-            }),
+            (
+                "test-cmd".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"additionalContext": "first context"}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                "test-cmd".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"additionalContext": "second context"}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
         ];
         let actual = UserHookHandler::<NullInfra>::collect_additional_context(&results);
-        assert_eq!(actual, vec![("test-cmd".to_string(), "first context".to_string()), ("test-cmd".to_string(), "second context".to_string())]);
+        assert_eq!(
+            actual,
+            vec![
+                ("test-cmd".to_string(), "first context".to_string()),
+                ("test-cmd".to_string(), "second context".to_string())
+            ]
+        );
     }
 
     #[test]
     fn test_collect_additional_context_skips_empty() {
         let results = vec![
-            ("test-cmd".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"additionalContext": ""}"#.to_string(),
-                stderr: String::new(),
-            }),
-            ("test-cmd".to_string(), HookExecutionResult {
-                exit_code: Some(0),
-                stdout: r#"{"additionalContext": "  "}"#.to_string(),
-                stderr: String::new(),
-            }),
+            (
+                "test-cmd".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"additionalContext": ""}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
+            (
+                "test-cmd".to_string(),
+                HookExecutionResult {
+                    exit_code: Some(0),
+                    stdout: r#"{"additionalContext": "  "}"#.to_string(),
+                    stderr: String::new(),
+                },
+            ),
         ];
         let actual = UserHookHandler::<NullInfra>::collect_additional_context(&results);
         assert!(actual.is_empty());
@@ -2386,11 +2476,14 @@ mod tests {
 
     #[test]
     fn test_collect_additional_context_skips_non_success() {
-        let results = vec![("test-cmd".to_string(), HookExecutionResult {
-            exit_code: Some(1),
-            stdout: r#"{"additionalContext": "should not appear"}"#.to_string(),
-            stderr: String::new(),
-        })];
+        let results = vec![(
+            "test-cmd".to_string(),
+            HookExecutionResult {
+                exit_code: Some(1),
+                stdout: r#"{"additionalContext": "should not appear"}"#.to_string(),
+                stderr: String::new(),
+            },
+        )];
         let actual = UserHookHandler::<NullInfra>::collect_additional_context(&results);
         assert!(actual.is_empty());
     }

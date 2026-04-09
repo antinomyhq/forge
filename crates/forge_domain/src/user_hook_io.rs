@@ -263,7 +263,10 @@ mod tests {
             hook_event_name: "Stop".to_string(),
             cwd: "/project".to_string(),
             session_id: None,
-            event_data: HookEventInput::Stop { stop_hook_active: false, last_assistant_message: None },
+            event_data: HookEventInput::Stop {
+                stop_hook_active: false,
+                last_assistant_message: None,
+            },
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();

@@ -157,7 +157,11 @@ mod tests {
     }
 
     fn fixture_event() -> EventData<EndPayload> {
-        EventData::new(fixture_agent(), ModelId::new("test-model"), EndPayload::default())
+        EventData::new(
+            fixture_agent(),
+            ModelId::new("test-model"),
+            EndPayload::default(),
+        )
     }
 
     #[tokio::test]
