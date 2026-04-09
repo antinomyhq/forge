@@ -174,6 +174,15 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
         // Load user-configurable hooks from settings files
         let user_hook_config = services.get_user_hook_config().await?;
 
+        // Warn about events that are configured but not yet wired to any
+        // lifecycle point -- they will silently never fire.
+        for event in user_hook_config.unimplemented_events() {
+            tracing::warn!(
+                event = %event,
+                "Hook configured for unimplemented event; this hook will never fire"
+            );
+        }
+
         let hook = if !user_hook_config.is_empty() {
             let user_handler = UserHookHandler::new(
                 services.hook_command_service().clone(),

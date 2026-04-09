@@ -89,7 +89,7 @@ impl<S: HookCommandService> UserHookExecutor<S> {
         debug!(
             command = command,
             exit_code = ?output.exit_code,
-            stdout_len = output.stdout,
+            stdout_len = output.stdout.len(),
             stderr_len = output.stderr.len(),
             "Hook command completed"
         );

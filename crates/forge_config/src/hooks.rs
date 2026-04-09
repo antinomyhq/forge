@@ -42,6 +42,16 @@ impl UserHookConfig {
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
+
+    /// Returns event names that are configured but have no lifecycle point
+    /// wired to fire them yet. Callers should warn users at startup so that
+    /// silently-ignored hooks are surfaced early.
+    pub fn unimplemented_events(&self) -> Vec<&UserHookEventName> {
+        self.events
+            .keys()
+            .filter(|e| !e.is_implemented())
+            .collect()
+    }
 }
 
 /// Supported hook event names that map to lifecycle points in the
@@ -79,6 +89,24 @@ pub enum UserHookEventName {
     PermissionRequest,
     /// FIXME: no lifecycle point fires this
     Setup,
+}
+
+impl UserHookEventName {
+    /// Returns `true` for events that have a lifecycle point wired to fire
+    /// them. Unimplemented events are accepted in configuration for
+    /// forward-compatibility but will never trigger at runtime.
+    pub fn is_implemented(&self) -> bool {
+        matches!(
+            self,
+            Self::PreToolUse
+                | Self::PostToolUse
+                | Self::PostToolUseFailure
+                | Self::Stop
+                | Self::SessionStart
+                | Self::SessionEnd
+                | Self::UserPromptSubmit
+        )
+    }
 }
 
 /// A matcher group pairs an optional regex matcher with a list of hook
