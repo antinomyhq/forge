@@ -84,8 +84,7 @@ impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + Sync>
             }
             OpenCodeBackend::OpenAI => {
                 // Other models use /v1/chat/completions endpoint (default)
-                new_provider.url =
-                    Url::parse(&format!("{base}/v1/chat/completions")).unwrap();
+                new_provider.url = Url::parse(&format!("{base}/v1/chat/completions")).unwrap();
                 new_provider.response = Some(ProviderResponse::OpenAI);
             }
         }
