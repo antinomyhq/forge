@@ -112,6 +112,7 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> AgentEx
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::HookError { .. } => ctx.send(message).await?,
+                ChatResponse::HookWarning { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { reason } => {
                     return Err(Error::AgentToolInterrupted(reason))
                         .context(format!(

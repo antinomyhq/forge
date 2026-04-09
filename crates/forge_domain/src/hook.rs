@@ -16,12 +16,15 @@ pub struct EventData<P: Send + Sync> {
     pub model_id: ModelId,
     /// Event-specific payload data
     pub payload: P,
+    /// Transient warnings collected by hook handlers. The orchestrator
+    /// drains these after each hook invocation and emits them to the UI.
+    pub warnings: Vec<String>,
 }
 
 impl<P: Send + Sync> EventData<P> {
     /// Creates a new event with the given agent, model ID, and payload
     pub fn new(agent: Agent, model_id: ModelId, payload: P) -> Self {
-        Self { agent, model_id, payload }
+        Self { agent, model_id, payload, warnings: Vec::new() }
     }
 }
 
@@ -115,6 +118,20 @@ pub enum LifecycleEvent {
 
     /// Event fired when a tool call ends
     ToolcallEnd(EventData<ToolcallEndPayload>),
+}
+
+impl LifecycleEvent {
+    /// Drains all warnings from the inner `EventData`, regardless of variant.
+    pub fn drain_warnings(&mut self) -> Vec<String> {
+        match self {
+            LifecycleEvent::Start(data) => data.warnings.drain(..).collect(),
+            LifecycleEvent::End(data) => data.warnings.drain(..).collect(),
+            LifecycleEvent::Request(data) => data.warnings.drain(..).collect(),
+            LifecycleEvent::Response(data) => data.warnings.drain(..).collect(),
+            LifecycleEvent::ToolcallStart(data) => data.warnings.drain(..).collect(),
+            LifecycleEvent::ToolcallEnd(data) => data.warnings.drain(..).collect(),
+        }
+    }
 }
 
 /// Trait for handling lifecycle events
@@ -413,22 +430,6 @@ impl std::fmt::Display for PromptSuppressed {
 }
 
 impl std::error::Error for PromptSuppressed {}
-
-/// Error indicating a Stop hook blocked the agent from stopping.
-///
-/// When a Stop hook exits with code 2 or returns a blocking JSON decision,
-/// the handler returns this error to signal the orchestrator that the agent
-/// should continue working instead of stopping.
-#[derive(Debug)]
-pub struct StopBlocked(pub String);
-
-impl std::fmt::Display for StopBlocked {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Stop blocked by hook: {}", self.0)
-    }
-}
-
-impl std::error::Error for StopBlocked {}
 
 #[cfg(test)]
 mod tests {

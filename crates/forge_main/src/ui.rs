@@ -3379,6 +3379,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 )))?;
                 self.spinner.start(None)?;
             }
+            ChatResponse::HookWarning { message } => {
+                writer.finish()?;
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::warning(message))?;
+                self.spinner.start(None)?;
+            }
             ChatResponse::Interrupt { reason } => {
                 writer.finish()?;
                 self.spinner.stop(None)?;

@@ -73,6 +73,13 @@ pub enum ChatResponse {
         /// output).
         reason: String,
     },
+    /// A user-configured hook encountered an error or produced a warning.
+    /// Displayed in the UI as a warning regardless of whether the hook
+    /// blocked execution or not.
+    HookWarning {
+        /// Human-readable warning message.
+        message: String,
+    },
     RetryAttempt {
         cause: Cause,
         duration: Duration,

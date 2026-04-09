@@ -58,8 +58,6 @@ pub enum HookEventInput {
     },
     /// Input for Stop events.
     Stop {
-        /// Whether a Stop hook has already fired (prevents infinite loops).
-        stop_hook_active: bool,
         /// The last assistant message text before the stop event.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         last_assistant_message: Option<String>,
@@ -262,7 +260,6 @@ mod tests {
             cwd: "/project".to_string(),
             session_id: None,
             event_data: HookEventInput::Stop {
-                stop_hook_active: false,
                 last_assistant_message: None,
             },
         };
@@ -270,7 +267,6 @@ mod tests {
         let actual = serde_json::to_value(&fixture).unwrap();
 
         assert_eq!(actual["hook_event_name"], "Stop");
-        assert_eq!(actual["stop_hook_active"], false);
         assert!(actual.get("last_assistant_message").is_none());
     }
 
@@ -281,14 +277,12 @@ mod tests {
             cwd: "/project".to_string(),
             session_id: Some("sess-456".to_string()),
             event_data: HookEventInput::Stop {
-                stop_hook_active: true,
                 last_assistant_message: Some("Here is the result.".to_string()),
             },
         };
 
         let actual = serde_json::to_value(&fixture).unwrap();
 
-        assert_eq!(actual["stop_hook_active"], true);
         assert_eq!(actual["last_assistant_message"], "Here is the result.");
     }
 
@@ -307,9 +301,8 @@ mod tests {
         assert_eq!(actual["cwd"], "/project");
         assert_eq!(actual["session_id"], "sess-abc");
         assert_eq!(actual["prompt"], "fix the bug");
-        // No tool_name, stop_hook_active, or other variant fields present
+        // No tool_name or other variant fields present
         assert!(actual["tool_name"].is_null());
-        assert!(actual["stop_hook_active"].is_null());
     }
 
     #[test]

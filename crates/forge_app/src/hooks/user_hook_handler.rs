@@ -1,16 +1,14 @@
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use async_trait::async_trait;
 use forge_config::{UserHookConfig, UserHookEntry, UserHookEventName, UserHookMatcherGroup};
 use forge_domain::{
-    ContextMessage, Conversation, EndPayload, EventData, EventHandle, HookEventInput,
-    HookExecutionResult, HookInput, HookOutput, PromptSuppressed, RequestPayload, ResponsePayload,
-    Role, StartPayload, StopBlocked, ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload,
+    Conversation, EndPayload, EventData, EventHandle, HookEventInput, HookExecutionResult,
+    HookInput, HookOutput, PromptSuppressed, RequestPayload, ResponsePayload, Role, StartPayload,
+    ToolCallArguments, ToolcallEndPayload, ToolcallStartPayload,
 };
-use forge_template::Element;
 use regex::Regex;
 use serde_json::Value;
 use tracing::{debug, warn};
@@ -33,8 +31,6 @@ pub struct UserHookHandler<I> {
     config: UserHookConfig,
     cwd: PathBuf,
     env_vars: HashMap<String, String>,
-    /// Tracks whether a Stop hook has already fired to prevent infinite loops.
-    stop_hook_active: std::sync::Arc<AtomicBool>,
 }
 
 impl<I> UserHookHandler<I> {
@@ -68,7 +64,6 @@ impl<I> UserHookHandler<I> {
             config,
             cwd,
             env_vars: env_vars.into_iter().collect(),
-            stop_hook_active: std::sync::Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -120,12 +115,13 @@ impl<I> UserHookHandler<I> {
         matching
     }
 
-    /// Executes a list of hook entries and returns their results.
+    /// Executes a list of hook entries and returns their results along with
+    /// any warnings for commands that failed to execute.
     async fn execute_hooks(
         &self,
         hooks: &[&UserHookEntry],
         input: &HookInput,
-    ) -> Vec<HookExecutionResult>
+    ) -> (Vec<HookExecutionResult>, Vec<String>)
     where
         I: HookCommandService,
     {
@@ -133,11 +129,12 @@ impl<I> UserHookHandler<I> {
             Ok(json) => json,
             Err(e) => {
                 warn!(error = %e, "Failed to serialize hook input");
-                return Vec::new();
+                return (Vec::new(), vec![format!("Hook input serialization failed: {e}")]);
             }
         };
 
         let mut results = Vec::new();
+        let mut warnings = Vec::new();
         for hook in hooks {
             if let Some(command) = &hook.command {
                 match self
@@ -153,19 +150,36 @@ impl<I> UserHookHandler<I> {
                     )
                     .await
                 {
-                    Ok(result) => results.push(result),
+                    Ok(result) => {
+                        // Non-blocking errors (exit code 1, etc.) are warned
+                        if result.is_non_blocking_error() {
+                            let stderr = result.stderr.trim();
+                            let detail = if stderr.is_empty() {
+                                format!("exit code {:?}", result.exit_code)
+                            } else {
+                                stderr.to_string()
+                            };
+                            warnings.push(format!(
+                                "Hook command '{command}' returned non-blocking error: {detail}"
+                            ));
+                        }
+                        results.push(result);
+                    }
                     Err(e) => {
                         warn!(
                             command = command,
                             error = %e,
                             "Hook command failed to execute"
                         );
+                        warnings.push(format!(
+                            "Hook command '{command}' failed to execute: {e}"
+                        ));
                     }
                 }
             }
         }
 
-        results
+        (results, warnings)
     }
 
     /// Processes hook results, returning a blocking reason if any hook blocked.
@@ -188,14 +202,6 @@ impl<I> UserHookHandler<I> {
                 return Some(reason);
             }
 
-            // Non-blocking errors (exit code 1, etc.) are logged but don't block
-            if result.is_non_blocking_error() {
-                warn!(
-                    exit_code = ?result.exit_code,
-                    stderr = result.stderr.as_str(),
-                    "Hook command returned non-blocking error"
-                );
-            }
         }
 
         None
@@ -233,14 +239,6 @@ impl<I> UserHookHandler<I> {
                 }
             }
 
-            // Non-blocking errors are logged but don't block
-            if result.is_non_blocking_error() {
-                warn!(
-                    exit_code = ?result.exit_code,
-                    stderr = result.stderr.as_str(),
-                    "PreToolUse hook command returned non-blocking error"
-                );
-            }
         }
 
         PreToolUseDecision::Allow
@@ -263,7 +261,7 @@ enum PreToolUseDecision {
 impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        _event: &mut EventData<StartPayload>,
+        event: &mut EventData<StartPayload>,
         _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         if !self.has_hooks(&UserHookEventName::SessionStart) {
@@ -284,7 +282,8 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
             event_data: HookEventInput::SessionStart { source: "startup".to_string() },
         };
 
-        let results = self.execute_hooks(&hooks, &input).await;
+        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
+        event.warnings.extend(warnings);
 
         // FIXME: SessionStart hooks can provide additional context but not block;
         // additional_context is detected here but never injected into the conversation.
@@ -349,31 +348,17 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             event_data: HookEventInput::UserPromptSubmit { prompt },
         };
 
-        let results = self.execute_hooks(&hooks, &input).await;
+        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
+        event.warnings.extend(warnings);
 
         if let Some(reason) = Self::process_results(&results) {
             debug!(
                 reason = reason.as_str(),
                 "UserPromptSubmit hook blocked with feedback"
             );
-            // Inject feedback so the model sees why the prompt was flagged.
-            if let Some(context) = conversation.context.as_mut() {
-                let feedback_msg = Element::new("important")
-                    .text(
-                        "A UserPromptSubmit hook has blocked this prompt. \
-                         You MUST acknowledge this in your next response.",
-                    )
-                    .append(
-                        Element::new("hook_feedback")
-                            .append(Element::new("event").text("UserPromptSubmit"))
-                            .append(Element::new("status").text("blocked"))
-                            .append(Element::new("reason").text(&reason)),
-                    )
-                    .render();
-                context
-                    .messages
-                    .push(ContextMessage::user(feedback_msg, None).into());
-            }
+            event.warnings.push(format!(
+                "UserPromptSubmit hook blocked: {reason}"
+            ));
             // Signal the orchestrator to suppress this prompt entirely.
             return Err(anyhow::Error::from(PromptSuppressed(reason)));
         }
@@ -436,7 +421,8 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
             },
         };
 
-        let results = self.execute_hooks(&hooks, &input).await;
+        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
+        event.warnings.extend(warnings);
         let decision = Self::process_pre_tool_use_output(&results);
 
         match decision {
@@ -476,7 +462,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
     async fn handle(
         &self,
         event: &mut EventData<ToolcallEndPayload>,
-        conversation: &mut Conversation,
+        _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         let is_error = event.payload.result.is_error();
         let event_name = if is_error {
@@ -489,9 +475,9 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
             return Ok(());
         }
 
-        let tool_name = event.payload.tool_call.name.as_str();
+        let tool_name = event.payload.tool_call.name.as_str().to_string();
         let groups = self.config.get_groups(&event_name);
-        let hooks = Self::find_matching_hooks(groups, Some(tool_name));
+        let hooks = Self::find_matching_hooks(groups, Some(&tool_name));
 
         if hooks.is_empty() {
             return Ok(());
@@ -519,35 +505,20 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
             },
         };
 
-        let results = self.execute_hooks(&hooks, &input).await;
+        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
+        event.warnings.extend(warnings);
 
         // PostToolUse can provide feedback via blocking
         if let Some(reason) = Self::process_results(&results) {
             debug!(
-                tool_name = tool_name,
+                tool_name = tool_name.as_str(),
                 event = %event_name,
                 reason = reason.as_str(),
                 "PostToolUse hook blocked with feedback"
             );
-            // Inject feedback as a user message
-            if let Some(context) = conversation.context.as_mut() {
-                let feedback_msg = Element::new("important")
-                    .text(
-                        "A post-tool-use hook has flagged the following. \
-                         You MUST acknowledge this in your next response.",
-                    )
-                    .append(
-                        Element::new("hook_feedback")
-                            .append(Element::new("event").text(event_name.to_string()))
-                            .append(Element::new("tool").text(tool_name))
-                            .append(Element::new("status").text("blocked"))
-                            .append(Element::new("reason").text(&reason)),
-                    )
-                    .render();
-                context
-                    .messages
-                    .push(forge_domain::ContextMessage::user(feedback_msg, None).into());
-            }
+            event.warnings.push(format!(
+                "{event_name}:{tool_name} hook blocked: {reason}"
+            ));
         }
 
         Ok(())
@@ -558,7 +529,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
 impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandler<I> {
     async fn handle(
         &self,
-        _event: &mut EventData<EndPayload>,
+        event: &mut EventData<EndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         // Fire SessionEnd hooks
@@ -573,7 +544,8 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
                     session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
                     event_data: HookEventInput::Empty {},
                 };
-                self.execute_hooks(&hooks, &input).await;
+                let (_, session_warnings) = self.execute_hooks(&hooks, &input).await;
+                event.warnings.extend(session_warnings);
             }
         }
 
@@ -582,18 +554,10 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             return Ok(());
         }
 
-        // Prevent infinite loops
-        let was_active = self.stop_hook_active.swap(true, Ordering::SeqCst);
-        if was_active {
-            debug!("Stop hook already active, skipping to prevent infinite loop");
-            return Ok(());
-        }
-
         let groups = self.config.get_groups(&UserHookEventName::Stop);
         let hooks = Self::find_matching_hooks(groups, None);
 
         if hooks.is_empty() {
-            self.stop_hook_active.store(false, Ordering::SeqCst);
             return Ok(());
         }
 
@@ -612,45 +576,22 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
             event_data: HookEventInput::Stop {
-                stop_hook_active: was_active,
                 last_assistant_message,
             },
         };
 
-        let results = self.execute_hooks(&hooks, &input).await;
+        let (results, stop_warnings) = self.execute_hooks(&hooks, &input).await;
+        event.warnings.extend(stop_warnings);
 
         if let Some(reason) = Self::process_results(&results) {
             debug!(
                 reason = reason.as_str(),
-                "Stop hook wants to continue conversation"
+                "Stop hook blocked (warning only, no continuation)"
             );
-            // Inject a message to continue the conversation
-            if let Some(context) = conversation.context.as_mut() {
-                let continue_msg = Element::new("important")
-                    .text(
-                        "A Stop hook has requested the conversation to continue. \
-                         You MUST acknowledge this and continue working on the task.",
-                    )
-                    .append(
-                        Element::new("hook_feedback")
-                            .append(Element::new("event").text("Stop"))
-                            .append(Element::new("status").text("continue"))
-                            .append(Element::new("reason").text(&reason)),
-                    )
-                    .render();
-                context
-                    .messages
-                    .push(forge_domain::ContextMessage::user(continue_msg, None).into());
-            }
-            // Keep stop_hook_active as true so the next Stop invocation
-            // sends stop_hook_active: true to the hook script, allowing it
-            // to detect re-entry and avoid infinite loops.
-            // Signal the orchestrator to continue the conversation
-            return Err(anyhow::Error::from(StopBlocked(reason)));
+            event.warnings.push(format!(
+                "Stop hook blocked: {reason}"
+            ));
         }
-
-        // Non-blocking: reset the stop hook active flag
-        self.stop_hook_active.store(false, Ordering::SeqCst);
 
         Ok(())
     }
@@ -1441,12 +1382,9 @@ mod tests {
         );
         assert!(err.to_string().contains("policy violation"));
 
-        // Feedback should have been injected into conversation
-        let ctx = conversation.context.as_ref().unwrap();
-        let last_msg = ctx.messages.last().unwrap();
-        let content = last_msg.content().unwrap();
-        assert!(content.contains("<important>"));
-        assert!(content.contains("policy violation"));
+        // Warning should have been pushed to event.warnings
+        assert_eq!(event.warnings.len(), 1);
+        assert!(event.warnings[0].contains("policy violation"));
     }
 
     #[tokio::test]
@@ -1591,7 +1529,7 @@ mod tests {
     }
 
     // =========================================================================
-    // BUG-2 Tests: Stop hook blocking must return Err(StopBlocked)
+    // Stop hook tests: Stop hooks fire, collect warnings, never block
     // =========================================================================
 
     /// Helper: creates a UserHookHandler with Stop config and a given infra.
@@ -1619,7 +1557,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stop_hook_block_returns_stop_blocked_error() {
+    async fn test_stop_hook_exit_code_2_produces_warning() {
         #[derive(Clone)]
         struct StopBlockInfra;
 
@@ -1647,17 +1585,11 @@ mod tests {
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.downcast_ref::<forge_domain::StopBlocked>().is_some());
-        assert!(err.to_string().contains("keep working"));
-
-        // Continue message should be injected
-        let ctx = conversation.context.as_ref().unwrap();
-        let last_msg = ctx.messages.last().unwrap();
-        let content = last_msg.content().unwrap();
-        assert!(content.contains("<important>"));
-        assert!(content.contains("continue"));
+        // Stop hooks no longer block -- result is Ok
+        assert!(result.is_ok());
+        // Warning should have been pushed to event.warnings
+        assert!(!event.warnings.is_empty());
+        assert!(event.warnings.iter().any(|w| w.contains("keep working")));
     }
 
     #[tokio::test]
@@ -1676,59 +1608,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stop_hook_active_guard_prevents_reentry() {
-        #[derive(Clone)]
-        struct StopBlockInfra2;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for StopBlockInfra2 {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "keep working".to_string(),
-                })
-            }
-        }
-
-        let handler = stop_handler(StopBlockInfra2);
-
-        // Simulate stop_hook_active already being true (re-entrant)
-        handler
-            .stop_hook_active
-            .store(true, std::sync::atomic::Ordering::SeqCst);
-
-        let mut event = end_event();
-        let mut conversation = conversation_with_user_msg("hello");
-
-        // Second call should be a no-op (guard prevents re-entry)
-        let result = handler.handle(&mut event, &mut conversation).await;
-        assert!(result.is_ok());
-    }
-
-    #[tokio::test]
-    async fn test_stop_hook_active_flag_reset_after_completion() {
-        let handler = stop_handler(NullInfra);
-        let mut event = end_event();
-        let mut conversation = conversation_with_user_msg("hello");
-
-        // After a successful (non-blocking) call, flag should be reset
-        handler.handle(&mut event, &mut conversation).await.unwrap();
-        let actual = handler
-            .stop_hook_active
-            .load(std::sync::atomic::Ordering::SeqCst);
-        assert!(!actual);
-    }
-
-    #[tokio::test]
-    async fn test_stop_hook_block_json_continue_false() {
+    async fn test_stop_hook_json_continue_false_produces_warning() {
         #[derive(Clone)]
         struct StopJsonBlockInfra;
 
@@ -1756,16 +1636,16 @@ mod tests {
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.downcast_ref::<forge_domain::StopBlocked>().is_some());
+        // Stop hooks no longer block -- result is Ok
+        assert!(result.is_ok());
+        // Warning about blocking should be present
+        assert!(event.warnings.iter().any(|w| w.contains("Stop hook blocked")));
     }
 
     #[tokio::test]
-    async fn test_session_end_hooks_still_fire_on_block() {
-        // When Stop blocks, SessionEnd hooks (fired before Stop) should still
-        // have executed. We verify by configuring both SessionEnd and Stop hooks
-        // and checking that the handler processes both.
+    async fn test_session_end_and_stop_hooks_both_fire() {
+        // Both SessionEnd and Stop hooks should execute. Stop hooks produce
+        // warnings but never block.
         use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
 
@@ -1784,7 +1664,7 @@ mod tests {
                 _: HashMap<String, String>,
             ) -> anyhow::Result<forge_domain::CommandOutput> {
                 self.call_count.fetch_add(1, AtomicOrdering::SeqCst);
-                // Return blocking for Stop hooks (exit 2)
+                // Return exit 2 (would have been "blocking" before)
                 Ok(forge_domain::CommandOutput {
                     command,
                     exit_code: Some(2),
@@ -1814,8 +1694,8 @@ mod tests {
 
         let result = handler.handle(&mut event, &mut conversation).await;
 
-        // Stop hook blocks => StopBlocked error
-        assert!(result.is_err());
+        // No longer blocks -- result is Ok
+        assert!(result.is_ok());
         // Both SessionEnd AND Stop hooks should have been called (2 total)
         let actual = call_count.load(AtomicOrdering::SeqCst);
         assert_eq!(actual, 2);
@@ -1896,12 +1776,9 @@ mod tests {
         // PostToolUse does NOT block execution — always Ok
         assert!(result.is_ok());
 
-        // But feedback should be injected
-        let ctx = conversation.context.as_ref().unwrap();
-        let last_msg = ctx.messages.last().unwrap();
-        let content = last_msg.content().unwrap();
-        assert!(content.contains("<important>"));
-        assert!(content.contains("sensitive data detected"));
+        // But warning should be pushed to event.warnings
+        assert_eq!(event.warnings.len(), 1);
+        assert!(event.warnings[0].contains("sensitive data detected"));
     }
 
     #[tokio::test]
@@ -1934,10 +1811,8 @@ mod tests {
         let result = handler.handle(&mut event, &mut conversation).await;
 
         assert!(result.is_ok());
-        let ctx = conversation.context.as_ref().unwrap();
-        let last_msg = ctx.messages.last().unwrap();
-        let content = last_msg.content().unwrap();
-        assert!(content.contains("PII detected"));
+        assert_eq!(event.warnings.len(), 1);
+        assert!(event.warnings[0].contains("PII detected"));
     }
 
     #[tokio::test]
@@ -2031,10 +1906,8 @@ mod tests {
         let result = handler.handle(&mut event, &mut conversation).await;
 
         assert!(result.is_ok());
-        let ctx = conversation.context.as_ref().unwrap();
-        let last_msg = ctx.messages.last().unwrap();
-        let content = last_msg.content().unwrap();
-        assert!(content.contains("error flagged"));
+        assert_eq!(event.warnings.len(), 1);
+        assert!(event.warnings[0].contains("error flagged"));
     }
 
     #[tokio::test]
@@ -2066,10 +1939,8 @@ mod tests {
 
         handler.handle(&mut event, &mut conversation).await.unwrap();
 
-        let ctx = conversation.context.as_ref().unwrap();
-        let last_msg = ctx.messages.last().unwrap();
-        let content = last_msg.content().unwrap();
-        // The feedback should reference the tool name
-        assert!(content.contains("shell"));
+        // The warning should reference the tool name
+        assert_eq!(event.warnings.len(), 1);
+        assert!(event.warnings[0].contains("shell"));
     }
 }
