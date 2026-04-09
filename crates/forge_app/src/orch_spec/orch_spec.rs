@@ -1,11 +1,13 @@
 use forge_domain::{
-    ChatCompletionMessage, ChatResponse, Content, EventValue, FinishReason, ReasoningConfig, Role,
-    ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
+    Agent, AgentId, ChatCompletionMessage, ChatResponse, Content, EventValue, FinishReason,
+    ModelId, ProviderId, ReasoningConfig, Role, Skill, Template, ToolCallArguments, ToolCallFull,
+    ToolOutput, ToolResult,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
 use crate::orch_spec::orch_runner::TestContext;
+use crate::orch_spec::orch_setup::MockSkillList;
 
 #[tokio::test]
 async fn test_history_is_saved() {
@@ -712,5 +714,229 @@ async fn test_complete_when_empty_todos() {
     assert!(
         has_task_complete,
         "Should have TaskComplete when no todos exist"
+    );
+}
+
+// ============================================================================
+// Phase 0: Skill listing via <system_reminder>
+// ============================================================================
+//
+// These tests verify the end-to-end behavior of `SkillListingHandler` when
+// wired into the orchestration loop (via `orch_runner`). They complement the
+// unit tests in `crate::hooks::skill_listing` by exercising the full
+// interaction between the handler, the conversation state, and the
+// `SkillFetchService` mock (`MockSkillList`).
+//
+// Tested scenarios:
+// - Non-default agents (e.g. `sage`) also receive the `<system_reminder>`
+//   catalog. This is the bug that Phase 0 was created to fix: previously the
+//   partial was statically rendered only into `forge.md`, so Sage and Muse
+//   were blind to available skills.
+// - A skill created mid-session (simulating the `create-skill` workflow) is
+//   visible to the LLM on the *next* turn, without requiring a restart. The
+//   delta cache ensures no duplicate reminders are emitted.
+
+/// Helper: builds a `Template` wrapper around a raw prompt string. This is
+/// required because `Agent::system_prompt` takes a `Template<SystemContext>`
+/// in tests.
+fn tmpl(text: &'static str) -> Template<forge_domain::SystemContext> {
+    Template::new(text)
+}
+
+/// Helper: counts occurrences of `<system_reminder>` blocks in user-role
+/// messages of the most recent conversation in `ctx`.
+fn count_user_reminders(ctx: &TestContext) -> usize {
+    let Some(conv) = ctx.output.conversation_history.last() else {
+        return 0;
+    };
+    let Some(context) = conv.context.as_ref() else {
+        return 0;
+    };
+    context
+        .messages
+        .iter()
+        .filter(|m| m.has_role(Role::User))
+        .filter(|m| m.content().is_some_and(|c| c.contains("<system_reminder>")))
+        .count()
+}
+
+/// Helper: returns the concatenated content of all user-role
+/// `<system_reminder>` messages in the most recent conversation.
+fn collect_user_reminder_content(ctx: &TestContext) -> String {
+    let Some(conv) = ctx.output.conversation_history.last() else {
+        return String::new();
+    };
+    let Some(context) = conv.context.as_ref() else {
+        return String::new();
+    };
+    context
+        .messages
+        .iter()
+        .filter(|m| m.has_role(Role::User))
+        .filter_map(|m| m.content())
+        .filter(|c| c.contains("<system_reminder>"))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[tokio::test]
+async fn test_skill_listing_reminder_is_injected_for_forge_agent() {
+    // Fixture: a single skill is available via the mock service.
+    let skills = MockSkillList::new(vec![Skill::new(
+        "pdf",
+        "skills/pdf/SKILL.md",
+        "Handle PDF files efficiently",
+    )]);
+
+    let mut ctx = TestContext::default()
+        .mock_skills(skills)
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Done"))
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Process this document").await.unwrap();
+
+    // Exactly one reminder should have been injected on the first (and only)
+    // turn.
+    let actual = count_user_reminders(&ctx);
+    let expected = 1;
+    assert_eq!(actual, expected, "Expected one system_reminder");
+
+    let content = collect_user_reminder_content(&ctx);
+    assert!(
+        content.contains("pdf"),
+        "reminder should mention the 'pdf' skill: {content}"
+    );
+    assert!(
+        content.contains("skill_fetch"),
+        "reminder should direct the LLM to skill_fetch: {content}"
+    );
+}
+
+#[tokio::test]
+async fn test_skill_listing_reminder_is_injected_for_sage_agent() {
+    // Regression test: before Phase 0, only the `forge` agent had the skills
+    // partial rendered into its system prompt. `sage` (and any other custom
+    // agent) was blind to available skills. Now all agents receive the
+    // <system_reminder> catalog via the `SkillListingHandler` lifecycle hook.
+    let skills = MockSkillList::new(vec![Skill::new(
+        "commit",
+        "skills/commit/SKILL.md",
+        "Create a git commit with a descriptive message",
+    )]);
+
+    let sage_agent = Agent::new(
+        AgentId::new("sage"),
+        ProviderId::ANTHROPIC,
+        ModelId::new("claude-3-5-sonnet-20241022"),
+    )
+    .system_prompt(tmpl("You are Sage, a read-only research agent."))
+    .user_prompt(Template::new(
+        "<{{event.name}}>{{event.value}}</{{event.name}}>\n<system_date>{{current_date}}</system_date>",
+    ));
+
+    let mut ctx = TestContext::default()
+        .agent(sage_agent)
+        .mock_skills(skills)
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Researched"))
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Research the repo layout").await.unwrap();
+
+    let actual = count_user_reminders(&ctx);
+    let expected = 1;
+    assert_eq!(
+        actual, expected,
+        "Sage agent should receive a skill catalog reminder"
+    );
+
+    let content = collect_user_reminder_content(&ctx);
+    assert!(
+        content.contains("commit"),
+        "Sage reminder should contain 'commit' skill: {content}"
+    );
+}
+
+#[tokio::test]
+async fn test_skill_listing_reminder_noop_when_no_skills_available() {
+    // When the mock service returns no skills, no reminder should be
+    // injected. This verifies that the handler is a true no-op in the common
+    // "fresh install, no plugins" case.
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Hello")).finish_reason(FinishReason::Stop),
+    ]);
+
+    ctx.run("Say hi").await.unwrap();
+
+    let actual = count_user_reminders(&ctx);
+    let expected = 0;
+    assert_eq!(
+        actual, expected,
+        "No reminder should be injected when skill list is empty"
+    );
+}
+
+#[tokio::test]
+async fn test_skill_listing_reminder_delta_across_two_turns() {
+    // Fixture: the first turn sees one skill, then we append a second skill
+    // *between* turns (simulating the `create-skill` workflow producing a
+    // new SKILL.md file mid-session). The next turn must:
+    //   1. Include the new skill in a fresh reminder, AND
+    //   2. NOT re-list the already-announced skill (delta cache).
+    let skills = MockSkillList::new(vec![Skill::new(
+        "pdf",
+        "skills/pdf/SKILL.md",
+        "Handle PDF files",
+    )]);
+
+    // Two turns: first says "done", second also says "done" (so each run
+    // reaches FinishReason::Stop).
+    let mut ctx = TestContext::default()
+        .mock_skills(skills.clone())
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Turn 1 done"))
+                .finish_reason(FinishReason::Stop),
+            ChatCompletionMessage::assistant(Content::full("Turn 2 done"))
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    // First turn — should see "pdf".
+    ctx.run("First task").await.unwrap();
+    let first_content = collect_user_reminder_content(&ctx);
+    assert!(
+        first_content.contains("pdf"),
+        "First turn reminder should include pdf: {first_content}"
+    );
+
+    // Simulate mid-session skill creation: append a new skill to the shared
+    // mock list.
+    skills
+        .push(Skill::new(
+            "commit",
+            "skills/commit/SKILL.md",
+            "Create a git commit",
+        ))
+        .await;
+
+    // Second turn — should see ONLY the newly created skill (delta), not
+    // the previously announced one.
+    //
+    // NOTE: because the orchestrator test runner starts a fresh
+    // `SkillListingHandler` (and therefore a fresh delta cache) for every
+    // `ctx.run()` invocation, we can't directly verify the "pdf is not
+    // re-listed" guarantee here at the orch_spec layer — that guarantee is
+    // covered by the unit tests in `hooks::skill_listing`
+    // (`test_delta_cache_repeat_call_returns_empty`,
+    // `test_delta_cache_new_skill_returned`). At the integration layer we
+    // instead verify that the second turn successfully surfaces the new
+    // skill to the LLM.
+    ctx.run("Second task").await.unwrap();
+    let second_content = collect_user_reminder_content(&ctx);
+    assert!(
+        second_content.contains("commit"),
+        "Second turn reminder should include the newly created 'commit' skill: {second_content}"
     );
 }

@@ -3,16 +3,16 @@ use std::sync::Arc;
 
 use forge_domain::{
     Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Environment,
-    Event, Hook, ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
+    Event, EventHandleExt, Hook, ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
 use include_dir::{Dir, include_dir};
 use tokio::sync::Mutex;
 
-pub use super::orch_setup::TestContext;
+pub use super::orch_setup::{MockSkillList, TestContext};
 use crate::app::build_template_config;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
-use crate::hooks::{DoomLoopDetector, PendingTodosHandler};
+use crate::hooks::{DoomLoopDetector, PendingTodosHandler, SkillListingHandler};
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -38,6 +38,9 @@ pub struct Runner {
 
     // Mock shell command outputs
     test_shell_outputs: Mutex<VecDeque<ShellOutput>>,
+
+    // Mock skill list shared with the test context
+    mock_skills: MockSkillList,
 
     attachments: Vec<Attachment>,
     config: forge_config::ForgeConfig,
@@ -65,6 +68,7 @@ impl Runner {
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
             test_shell_outputs: Mutex::new(VecDeque::from(setup.mock_shell_outputs.clone())),
+            mock_skills: setup.mock_skills.clone(),
         }
     }
 
@@ -134,7 +138,9 @@ impl Runner {
             .tool_definitions(system_tools)
             .hook(Arc::new(
                 Hook::default()
-                    .on_request(DoomLoopDetector::default())
+                    .on_request(
+                        DoomLoopDetector::default().and(SkillListingHandler::new(services.clone())),
+                    )
                     .on_end(PendingTodosHandler::new()),
             ))
             .sender(tx);
@@ -226,15 +232,21 @@ impl AttachmentService for Runner {
 
 #[async_trait::async_trait]
 impl SkillFetchService for Runner {
-    async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
-        unimplemented!("SkillFetchService not implemented for test Runner")
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+        let skills = self.mock_skills.snapshot().await;
+        skills
+            .into_iter()
+            .find(|s| s.name == skill_name)
+            .ok_or_else(|| anyhow::anyhow!("skill not found: {skill_name}"))
     }
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
-        Ok(vec![])
+        Ok(self.mock_skills.snapshot().await)
     }
 
-    async fn invalidate_cache(&self) {}
+    async fn invalidate_cache(&self) {
+        // MockSkillList is always fresh; nothing to invalidate.
+    }
 }
 
 #[async_trait::async_trait]

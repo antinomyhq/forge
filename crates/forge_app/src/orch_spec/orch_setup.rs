@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_config::ForgeConfig;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
-    Event, File, MessageEntry, Metrics, ModelId, ProviderId, Role, Template, ToolCallFull,
+    Event, File, MessageEntry, Metrics, ModelId, ProviderId, Role, Skill, Template, ToolCallFull,
     ToolDefinition, ToolResult,
 };
+use tokio::sync::Mutex;
 
 use crate::ShellOutput;
 use crate::orch_spec::orch_runner::Runner;
@@ -19,12 +21,48 @@ const USER_PROMPT: &str = r#"
   <system_date>{{current_date}}</system_date>
 "#;
 
+/// Shared handle to the mock skill list used by [`TestContext`].
+///
+/// Exposed publicly so individual tests can mutate the list mid-run to
+/// simulate skill-creation scenarios (e.g. the `create-skill` workflow
+/// producing a new `SKILL.md` halfway through a conversation). The inner
+/// `Mutex` is used by both the [`Runner`](crate::orch_spec::orch_runner::Runner)
+/// and the test author.
+#[derive(Clone, Default, Debug)]
+pub struct MockSkillList(pub Arc<Mutex<Vec<Skill>>>);
+
+impl MockSkillList {
+    pub fn new(skills: Vec<Skill>) -> Self {
+        Self(Arc::new(Mutex::new(skills)))
+    }
+
+    /// Replaces the current list of mock skills. Useful to simulate a new
+    /// skill becoming available in the middle of a test run.
+    #[allow(dead_code)]
+    pub async fn set(&self, skills: Vec<Skill>) {
+        *self.0.lock().await = skills;
+    }
+
+    /// Appends a single skill to the mock list.
+    pub async fn push(&self, skill: Skill) {
+        self.0.lock().await.push(skill);
+    }
+
+    /// Snapshots the current list.
+    pub async fn snapshot(&self) -> Vec<Skill> {
+        self.0.lock().await.clone()
+    }
+}
+
 #[derive(Setters)]
 #[setters(into)]
 pub struct TestContext {
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub mock_shell_outputs: Vec<ShellOutput>,
+    /// Mock list of skills returned by [`SkillFetchService::list_skills`].
+    /// Shared with the [`Runner`] so tests can mutate it at runtime.
+    pub mock_skills: MockSkillList,
     pub templates: HashMap<String, String>,
     pub files: Vec<File>,
     pub env: Environment,
@@ -54,6 +92,7 @@ impl Default for TestContext {
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
             mock_shell_outputs: Default::default(),
+            mock_skills: MockSkillList::default(),
             templates: Default::default(),
             files: Default::default(),
             attachments: Default::default(),
