@@ -632,7 +632,7 @@ impl<F: GrpcInfra + Send + Sync> FuzzySearchRepository for ForgeRepo<F> {
 }
 
 impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
-    fn channel(&self) -> tonic::transport::Channel {
+    fn channel(&self) -> anyhow::Result<tonic::transport::Channel> {
         self.infra.channel()
     }
 

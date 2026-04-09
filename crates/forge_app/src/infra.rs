@@ -411,7 +411,7 @@ pub trait AgentRepository: Send + Sync {
 /// cheaply across multiple clients.
 pub trait GrpcInfra: Send + Sync {
     /// Returns a cloned gRPC channel for the workspace server
-    fn channel(&self) -> tonic::transport::Channel;
+    fn channel(&self) -> anyhow::Result<tonic::transport::Channel>;
 
     /// Hydrates the gRPC channel by establishing and then dropping the
     /// connection
