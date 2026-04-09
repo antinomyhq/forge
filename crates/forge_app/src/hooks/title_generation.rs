@@ -88,18 +88,15 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
         _event: &EventData<EndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        match self.title_tasks.remove(&conversation.id) {
-            Some((_, entry)) => {
-                let handle = &entry.handle;
-                let rx = entry.rx;
+        if let Some((_, entry)) = self.title_tasks.remove(&conversation.id) {
+            let handle = &entry.handle;
+            let rx = entry.rx;
 
-                if rx.is_empty() {
-                    handle.abort();
-                } else if let Some(title) = rx.await? {
-                    conversation.title = Some(title);
-                }
+            if rx.is_empty() {
+                handle.abort();
+            } else if let Some(title) = rx.await? {
+                conversation.title = Some(title);
             }
-            None => {}
         }
 
         Ok(())
@@ -193,10 +190,9 @@ mod tests {
         tx.send(Some("original".to_string())).unwrap();
         let handle = tokio::spawn(async {});
         handle.abort();
-        handler.title_tasks.insert(
-            conversation.id,
-            TitleGenerationState { rx, handle },
-        );
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleGenerationState { rx, handle });
 
         handler
             .handle(&event(StartPayload), &mut conversation)
@@ -207,8 +203,6 @@ mod tests {
         assert!(handler.title_tasks.contains_key(&conversation.id));
     }
 
-
-
     #[tokio::test]
     async fn test_end_sets_title_from_completed_task() {
         let (handler, mut conversation) = setup("test message");
@@ -216,10 +210,9 @@ mod tests {
         tx.send(Some("generated".to_string())).unwrap();
         let handle = tokio::spawn(async {});
         handle.abort();
-        handler.title_tasks.insert(
-            conversation.id,
-            TitleGenerationState { rx, handle },
-        );
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleGenerationState { rx, handle });
 
         handler
             .handle(&event(EndPayload), &mut conversation)
@@ -239,10 +232,9 @@ mod tests {
         drop(tx);
         let handle = tokio::spawn(async {});
         handle.abort();
-        handler.title_tasks.insert(
-            conversation.id,
-            TitleGenerationState { rx, handle },
-        );
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleGenerationState { rx, handle });
 
         handler
             .handle(&event(EndPayload), &mut conversation)
@@ -265,10 +257,9 @@ mod tests {
             let _ = tx.send(None);
         });
 
-        handler.title_tasks.insert(
-            conversation.id,
-            TitleGenerationState { rx, handle },
-        );
+        handler
+            .title_tasks
+            .insert(conversation.id, TitleGenerationState { rx, handle });
 
         handler
             .handle(&event(EndPayload), &mut conversation)
