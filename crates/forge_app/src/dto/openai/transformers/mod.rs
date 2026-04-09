@@ -1,4 +1,5 @@
 mod drop_tool_call;
+mod ensure_system_first;
 mod github_copilot_reasoning;
 mod kimi_k2_reasoning;
 mod make_cerebras_compat;
