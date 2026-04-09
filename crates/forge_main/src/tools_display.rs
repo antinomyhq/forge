@@ -96,7 +96,7 @@ mod tests {
     fn test_truncate_error_multibyte_chars_no_panic() {
         // Error containing multi-byte UTF-8 chars (→ is 3 bytes)
         let fixture = "Error: struct → prioritizes struct definitions, trait → prioritizes traits, impl → prioritizes impls, and more details follow here";
-        let actual = truncate_error(&fixture);
+        let actual = truncate_error(fixture);
         // Should not panic and should truncate correctly by char count
         assert!(actual.chars().count() <= 80);
         assert!(actual.ends_with("..."));
