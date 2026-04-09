@@ -833,7 +833,12 @@ mod tests {
         assert!(!params.as_object().unwrap().contains_key("$schema"));
         assert!(params.as_object().unwrap().contains_key("type"));
         // additionalProperties should be removed by Gemini sanitization
-        assert!(!params.as_object().unwrap().contains_key("additionalProperties"));
+        assert!(
+            !params
+                .as_object()
+                .unwrap()
+                .contains_key("additionalProperties")
+        );
     }
 
     #[test]
