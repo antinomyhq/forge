@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use forge_app::domain::{AgentId, Error, ModelId, ProviderId};
+use forge_app::domain::AgentId;
 use forge_app::{AgentRepository, EnvironmentInfra};
 use forge_domain::Agent;
 use tokio::sync::RwLock;
@@ -72,13 +72,7 @@ impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
     /// do not specify their own provider/model receive the session-level
     /// defaults.
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        let config = self.repository.get_config()?;
-        let session = config.session.as_ref().ok_or(Error::NoDefaultSession)?;
-        let provider_id = ProviderId::from(session.provider_id.clone());
-        let model_id = ModelId::new(session.model_id.clone());
-
-        let agents = self.repository.get_agents(provider_id, model_id).await?;
-
+        let agents = self.repository.get_agents().await?;
         let agents_map = DashMap::new();
         for agent in agents {
             agents_map.insert(agent.id.as_str().to_string(), agent);
