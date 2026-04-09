@@ -142,10 +142,10 @@ impl AgentDefinition {
     /// * `model_id` - Default model to use when the definition has none
     pub fn into_agent(self, provider_id: ProviderId, model_id: ModelId) -> Agent {
         Agent {
+            tool_supported: self.tool_supported,
             id: self.id,
             title: self.title,
             description: self.description,
-            tool_supported: self.tool_supported,
             provider: self.provider.unwrap_or(provider_id),
             model: self.model.unwrap_or(model_id),
             system_prompt: self.system_prompt,
