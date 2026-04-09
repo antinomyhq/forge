@@ -8,11 +8,19 @@ use forge_domain::{Effort, ReasoningConfig, ReasoningFull};
 
 use crate::provider::FromDomain;
 
-/// Converts domain MessagePhase to OpenAI MessagePhase
+/// Converts domain MessagePhase to OpenAI MessagePhase.
+///
+/// Note: only assistant-role messages carry a phase in the OpenAI Responses
+/// API. [`MessagePhase::SystemReminder`] is only ever attached to user-role
+/// messages (synthetic `<system_reminder>` injections), so we collapse it to
+/// `FinalAnswer` as a safe fallback — in practice this branch is unreachable
+/// because this function is only called from the assistant-message conversion
+/// path.
 fn to_oai_phase(phase: MessagePhase) -> oai::MessagePhase {
     match phase {
         MessagePhase::Commentary => oai::MessagePhase::Commentary,
         MessagePhase::FinalAnswer => oai::MessagePhase::FinalAnswer,
+        MessagePhase::SystemReminder => oai::MessagePhase::FinalAnswer,
     }
 }
 

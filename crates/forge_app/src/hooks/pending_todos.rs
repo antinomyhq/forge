@@ -124,7 +124,7 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
             let content = Element::new("system_reminder").text(reminder);
             context
                 .messages
-                .push(ContextMessage::user(content, None).into());
+                .push(ContextMessage::system_reminder(content, None).into());
         }
 
         Ok(())

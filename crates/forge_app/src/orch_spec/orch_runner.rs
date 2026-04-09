@@ -233,6 +233,8 @@ impl SkillFetchService for Runner {
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         Ok(vec![])
     }
+
+    async fn invalidate_cache(&self) {}
 }
 
 #[async_trait::async_trait]

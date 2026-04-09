@@ -172,6 +172,31 @@ impl ContextMessage {
         msg.into()
     }
 
+    /// Creates a `<system_reminder>` user-role message that carries ephemeral
+    /// out-of-band context to the model (skill catalogs, doom-loop guidance,
+    /// pending-todo warnings, etc.).
+    ///
+    /// The returned message has:
+    /// - `role` = `User` (delivered in the user channel so the model reads it
+    ///   as authoritative mid-turn guidance)
+    /// - `phase` = `Some(MessagePhase::SystemReminder)` (so UI layers, diff
+    ///   tools and compaction can distinguish it from genuine user input)
+    /// - `droppable` = `true` (so compaction can evict it safely; a fresh
+    ///   reminder is re-injected on the next turn by its producing handler)
+    ///
+    /// `content` should already be wrapped in a `<system_reminder>...`
+    /// element. This helper only sets the metadata; it does not wrap the
+    /// payload.
+    pub fn system_reminder(content: impl ToString, model: Option<ModelId>) -> Self {
+        let mut msg = TextMessage::new(Role::User, content.to_string())
+            .phase(MessagePhase::SystemReminder)
+            .droppable(true);
+        if let Some(m) = model {
+            msg = msg.model(m);
+        }
+        msg.into()
+    }
+
     pub fn system(content: impl ToString) -> Self {
         TextMessage::new(Role::System, content.to_string()).into()
     }

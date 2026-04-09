@@ -150,7 +150,3 @@ assistant: [Uses the {{tool_names.task}} tool]
 - Validate changes by compiling and running tests
 - Do not delete failing tests without a compelling reason
 
-{{#if skills}}
-{{> forge-partial-skill-instructions.md}}
-{{else}}
-{{/if}}

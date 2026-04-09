@@ -509,6 +509,16 @@ pub trait SkillFetchService: Send + Sync {
     ///
     /// Returns an error if skills cannot be loaded
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
+
+    /// Drops any cached skill data so the next call to
+    /// [`list_skills`](Self::list_skills) or
+    /// [`fetch_skill`](Self::fetch_skill) re-reads from the underlying
+    /// repository.
+    ///
+    /// Call this whenever a new skill is created or an existing skill is
+    /// modified mid-session so the next `<system_reminder>` catalog reflects
+    /// the change without waiting for a process restart.
+    async fn invalidate_cache(&self);
 }
 
 /// Provider authentication service
@@ -984,6 +994,10 @@ impl<I: Services> SkillFetchService for I {
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         self.skill_fetch_service().list_skills().await
+    }
+
+    async fn invalidate_cache(&self) {
+        self.skill_fetch_service().invalidate_cache().await
     }
 }
 

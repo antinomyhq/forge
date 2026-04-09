@@ -7,11 +7,17 @@ use super::{ToolCall, ToolCallFull};
 use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
 
-/// Labels an assistant message as intermediate commentary or the final answer.
+/// Labels a message with its purpose in the conversation flow.
 ///
-/// For models like `gpt-5.3-codex` and beyond, when sending follow-up requests,
-/// preserve and resend phase on all assistant messages -- dropping it can
-/// degrade performance.
+/// For assistant messages (models like `gpt-5.3-codex` and beyond), when
+/// sending follow-up requests, preserve and resend phase on all assistant
+/// messages -- dropping it can degrade performance.
+///
+/// The `SystemReminder` phase tags user-role messages that carry ephemeral
+/// out-of-band context (skill catalogs, doom-loop guidance, pending-todo
+/// warnings) delivered via `<system_reminder>` blocks. These messages are
+/// not authored by the user and should be excluded from user-visible
+/// transcripts.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MessagePhase {
@@ -19,6 +25,9 @@ pub enum MessagePhase {
     Commentary,
     /// The final answer from the model.
     FinalAnswer,
+    /// Ephemeral system-injected context delivered via a `<system_reminder>`
+    /// user-role message. Not authored by the user.
+    SystemReminder,
 }
 
 #[derive(Default, Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
