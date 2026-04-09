@@ -4,11 +4,10 @@
     "description": "Print session information [alias: i]"
   },
   {
-    "command": "env",
-    "description": "Display environment information [alias: e]"
+    "command": "config",
+    "description": "Display effective resolved configuration in TOML format"
   },
   {
-    "command": "config-model",
     "description": "Switch the models [alias: cm]"
   },
   {
@@ -34,10 +33,6 @@
   {
     "command": "config-suggest-model",
     "description": "Set the model used for command suggestion generation [alias: csm]"
-  },
-  {
-    "command": "config",
-    "description": "List current configuration values"
   },
   {
     "command": "config-edit",

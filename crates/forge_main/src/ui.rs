@@ -603,10 +603,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
-            TopLevelCommand::Env => {
-                self.on_env().await?;
-                return Ok(());
-            }
             TopLevelCommand::Banner => {
                 banner::display(true)?;
                 return Ok(());
@@ -1495,69 +1491,24 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     /// Lists current configuration values
     async fn on_show_config(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let model = self
-            .get_agent_model(None)
-            .await
-            .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| markers::EMPTY.to_string());
-        let provider = self
-            .get_provider(None)
-            .await
-            .ok()
-            .map(|p| p.id.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let commit_config = self.api.get_commit_config().await.ok().flatten();
-        let commit_provider = commit_config
-            .as_ref()
-            .map(|c| c.provider.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let commit_model = commit_config
-            .as_ref()
-            .map(|c| c.model.as_str().to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
+        // Get the effective resolved config
+        let config = &self.config;
 
-        let suggest_config = self.api.get_suggest_config().await.ok().flatten();
-        let suggest_provider = suggest_config
-            .as_ref()
-            .map(|c| c.provider.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-        let suggest_model = suggest_config
-            .as_ref()
-            .map(|c| c.model.as_str().to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-
-        let reasoning_effort = self
-            .api
-            .get_reasoning_effort()
-            .await
-            .ok()
-            .flatten()
-            .map(|e| e.to_string())
-            .unwrap_or_else(|| markers::EMPTY.to_string());
-
-        let info = Info::new()
-            .add_title("SESSION")
-            .add_key_value("Model", model)
-            .add_key_value("Provider", provider)
-            .add_title("COMMIT")
-            .add_key_value("Model", commit_model)
-            .add_key_value("Provider", commit_provider)
-            .add_title("SUGGEST")
-            .add_key_value("Model", suggest_model)
-            .add_key_value("Provider", suggest_provider)
-            .add_title("REASONING")
-            .add_key_value("Effort", reasoning_effort);
+        // Serialize to TOML pretty format
+        let config_toml = toml_edit::ser::to_string_pretty(config)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize config: {}", e))?;
 
         if porcelain {
-            self.writeln(
-                Porcelain::from(&info)
-                    .into_long()
-                    .drop_col(0)
-                    .uppercase_headers(),
-            )?;
+            // For porcelain mode, output raw TOML without highlighting
+            self.writeln(config_toml)?;
         } else {
-            self.writeln(info)?;
+            // For human-readable mode, add a title and syntax-highlight the TOML
+            self.writeln("\nCONFIGURATION\n".bold().dimmed())?;
+            let highlighted =
+                forge_display::SyntaxHighlighter::default().highlight(&config_toml, "toml");
+            self.writeln(highlighted)?;
         }
+
         Ok(())
     }
 
@@ -1725,14 +1676,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             self.writeln(info)?;
         }
 
-        Ok(())
-    }
-
-    async fn on_env(&mut self) -> anyhow::Result<()> {
-        let env = self.api.environment();
-        let config = &self.config;
-        let info = Info::from(&env).extend(Info::from(config));
-        self.writeln(info)?;
         Ok(())
     }
 
@@ -2038,9 +1981,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             SlashCommand::Info => {
                 self.on_info(false, self.state.conversation_id).await?;
             }
-            SlashCommand::Env => {
-                self.on_env().await?;
-            }
             SlashCommand::Usage => {
                 self.on_usage().await?;
             }
@@ -2080,10 +2020,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.on_custom_event(event.into()).await?;
             }
             SlashCommand::Model => {
-                self.on_model_selection(None, None).await?;
-            }
-            SlashCommand::Provider => {
-                self.on_provider_selection().await?;
+                self.on_model_selection(None).await?;
             }
             SlashCommand::Shell(ref command) => {
                 self.api.execute_shell_command_raw(command).await?;
@@ -2270,13 +2207,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     /// selected the model list is scoped to that provider only.
     ///
     /// # Returns
-    /// - `Ok(Some(ModelId))` if a model was selected
+    /// - `Ok(Some((ModelId, ProviderId)))` if a model was selected, carrying
+    ///   both the model and the provider it belongs to
     /// - `Ok(None)` if selection was canceled
     #[async_recursion::async_recursion]
     async fn select_model(
         &mut self,
         provider_filter: Option<ProviderId>,
-    ) -> Result<Option<ModelId>> {
+    ) -> Result<Option<(ModelId, ProviderId)>> {
         // Check if provider is set otherwise first ask to select a provider
         if provider_filter.is_none() && self.api.get_default_provider().await.is_err() {
             if !self.on_provider_selection().await? {
@@ -2376,21 +2314,22 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             return Ok(None);
         }
 
-        // Build a flat list of (ModelId, display_line) for the data rows.
+        // Build a flat list of (ModelId, ProviderId) for the data rows.
         // The first line is the header; data rows follow in the same order as
         // the Info entries (sorted by provider, then model within provider).
-        let mut model_ids: Vec<ModelId> = Vec::new();
+        let mut model_entries: Vec<(ModelId, ProviderId)> = Vec::new();
         for pm in &all_provider_models {
             for model in &pm.models {
-                model_ids.push(model.id.clone());
+                model_entries.push((model.id.clone(), pm.provider_id.clone()));
             }
         }
 
         // Create display items: header line first, then data lines paired with
-        // model IDs.
+        // model and provider IDs.
         #[derive(Clone)]
         struct ModelRow {
             model_id: Option<ModelId>,
+            provider_id: Option<ProviderId>,
             display: String,
         }
         impl std::fmt::Display for ModelRow {
@@ -2401,11 +2340,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         let mut rows: Vec<ModelRow> = Vec::with_capacity(all_lines.len());
         // Header row (non-selectable via header_lines=1)
-        rows.push(ModelRow { model_id: None, display: all_lines[0].to_string() });
+        rows.push(ModelRow {
+            model_id: None,
+            provider_id: None,
+            display: all_lines[0].to_string(),
+        });
         // Data rows
         for (i, line) in all_lines.iter().skip(1).enumerate() {
+            let entry = model_entries.get(i);
             rows.push(ModelRow {
-                model_id: model_ids.get(i).cloned(),
+                model_id: entry.map(|(m, _)| m.clone()),
+                provider_id: entry.map(|(_, p)| p.clone()),
                 display: line.to_string(),
             });
         }
@@ -2418,7 +2363,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .await;
         let starting_cursor = current_model
             .as_ref()
-            .and_then(|current| model_ids.iter().position(|id| id == current))
+            .and_then(|current| model_entries.iter().position(|(id, _)| id == current))
             .unwrap_or(0);
 
         match ForgeWidget::select("Model", rows)
@@ -2426,7 +2371,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .with_header_lines(1)
             .prompt()?
         {
-            Some(row) => Ok(row.model_id),
+            Some(row) => Ok(row.model_id.zip(row.provider_id)),
             None => Ok(None),
         }
     }
@@ -2609,7 +2554,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
         self.writeln_title(TitleFormat::info(format!(
-            "{provider_id} configured successfully!"
+            "{provider_id} configured successfully"
         )))?;
 
         Ok(())
@@ -2815,10 +2760,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
         }
 
+        // Verify by fetching the configured provider
+        let provider = self.api.get_provider(&provider_id).await?;
+
         self.display_credential_success(provider_id.clone()).await?;
 
-        // Fetch and return the configured provider
-        let provider = self.api.get_provider(&provider_id).await?;
         Ok(provider.into_configured())
     }
 
@@ -2941,37 +2887,28 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
     // Helper method to handle model selection and update the conversation.
     // When `provider_filter` is `Some`, only models from that provider are shown.
+    // The model and provider returned by the selector are always set as one
+    // atomic operation.
     #[async_recursion::async_recursion]
     async fn on_model_selection(
         &mut self,
         provider_filter: Option<ProviderId>,
-        provider_to_activate: Option<ProviderId>,
     ) -> Result<Option<ModelId>> {
-        // Select a model
-        let model_option = self.select_model(provider_filter).await?;
+        // Select a model; the selector returns both the model and its provider
+        let selection = self.select_model(provider_filter).await?;
 
         // If no model was selected (user canceled), return early
-        let model = match model_option {
-            Some(model) => model,
+        let (model, provider_id) = match selection {
+            Some(pair) => pair,
             None => return Ok(None),
         };
 
-        // If we have a provider to activate, write both atomically
-        if let Some(provider_id) = provider_to_activate {
-            self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(
-                    forge_domain::ModelConfig::new(provider_id, model.clone()),
-                )])
-                .await?;
-        } else {
-            // Resolve the active provider so we can build a SetModel op
-            let provider_id = self.api.get_default_provider().await?.id;
-            self.api
-                .update_config(vec![ConfigOperation::SetSessionConfig(
-                    forge_domain::ModelConfig::new(provider_id, model.clone()),
-                )])
-                .await?;
-        }
+        // Set model and provider atomically as a single config operation
+        self.api
+            .update_config(vec![ConfigOperation::SetSessionConfig(
+                forge_domain::ModelConfig::new(provider_id, model.clone()),
+            )])
+            .await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -3080,10 +3017,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         };
 
         if needs_model_selection {
-            self.writeln_title(TitleFormat::info("Please select a new model"))?;
-            let selected = self
-                .on_model_selection(Some(provider.id.clone()), Some(provider.id.clone()))
-                .await?;
+            let selected = self.on_model_selection(Some(provider.id.clone())).await?;
             if selected.is_none() {
                 // User cancelled — preserve existing config untouched
                 return Ok(());
@@ -3220,7 +3154,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let mut operating_model = self.get_agent_model(active_agent.clone()).await;
         if operating_model.is_none() {
             // Use the model returned from selection instead of re-fetching
-            operating_model = self.on_model_selection(None, None).await?;
+            operating_model = self.on_model_selection(None).await?;
         }
 
         if first {
@@ -3744,22 +3678,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         use crate::cli::ConfigSetField;
 
         match args.field {
-            ConfigSetField::Provider { provider, model } => {
+            ConfigSetField::Model { provider, model } => {
                 let provider = self.api.get_provider(&provider).await?;
-                self.activate_provider_with_model(provider, model).await?;
-            }
-            ConfigSetField::Model { model } => {
-                let model_id = self.validate_model(model.as_str(), None).await?;
-                // Resolve the active provider so we can build a SetModel op
-                let provider_id = self.api.get_default_provider().await?.id;
-                self.api
-                    .update_config(vec![ConfigOperation::SetSessionConfig(
-                        forge_domain::ModelConfig::new(provider_id, model_id.clone()),
-                    )])
+                self.activate_provider_with_model(provider, Some(model))
                     .await?;
-                self.writeln_title(
-                    TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
-                )?;
             }
             ConfigSetField::Commit { provider, model } => {
                 // Validate provider exists and model belongs to that specific provider
@@ -3895,17 +3817,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .map(|val| val == "1")
             .unwrap_or(true); // Default to true
 
-        // Get currency symbol from environment variable, default to "$"
-        let currency_symbol =
-            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
-
-        // Get conversion ratio from environment variable, default to 1.0
-        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
-            .ok()
-            .and_then(|val| val.parse::<f64>().ok())
-            .unwrap_or(1.0);
-
-        let rprompt = ZshRPrompt::default()
+        let rprompt = ZshRPrompt::from_config(&self.config)
             .agent(
                 std::env::var("_FORGE_ACTIVE_AGENT")
                     .ok()
@@ -3915,9 +3827,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
-            .use_nerd_font(use_nerd_font)
-            .currency_symbol(currency_symbol)
-            .conversion_ratio(conversion_ratio);
+            .use_nerd_font(use_nerd_font);
 
         Some(rprompt.to_string())
     }
