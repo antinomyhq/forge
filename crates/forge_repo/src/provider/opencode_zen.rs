@@ -6,7 +6,7 @@ use forge_app::domain::{
     ResultStream,
 };
 use forge_app::{EnvironmentInfra, HttpInfra};
-use forge_domain::ChatRepository;
+use forge_domain::{ChatRepository, ProviderId};
 use url::Url;
 
 use crate::provider::anthropic::AnthropicResponseRepository;
@@ -56,8 +56,16 @@ impl<F: HttpInfra + EnvironmentInfra<Config = forge_config::ForgeConfig> + Sync>
     /// Builds the appropriate provider for the given model
     /// This modifies the URL based on the model's backend requirements
     fn build_provider(&self, provider: &Provider<Url>, model_id: &ModelId) -> Provider<Url> {
-        let backend = self.get_backend(model_id);
         let mut new_provider = provider.clone();
+
+        // OpenCode Go provider already has the correct URL configured;
+        // only set the response type so the right deserializer is used.
+        if provider.id == ProviderId::OPENCODE_GO {
+            new_provider.response = Some(ProviderResponse::OpenAI);
+            return new_provider;
+        }
+
+        let backend = self.get_backend(model_id);
 
         match backend {
             OpenCodeBackend::Anthropic => {
