@@ -1,19 +1,23 @@
 run:
   # Clone into `tmp/task` dir
   - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
-  - forgee workspace sync
-  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee --provider open_router --model {{model}} -p '{{task}}'
-parallelism: 50
+  - forge workspace init --yes
+  - forge workspace sync
+  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' FORGE_SESSION__PROVIDER_ID=open_router FORGE_SESSION__MODEL_ID={{model}} forge -p '{{task}}'
+parallelism: 8
 timeout: 120
 early_exit: true
 validations:
   - name: "Uses codebase search tool"
     type: shell
     command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'
+  - name: "Does not call task tool before sem_search"
+    type: shell
+    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "task" or .function.name == "sem_search") | .function.name] | index("task") as $t | index("sem_search") as $s | if $t == null then true elif $s == null then true else $s < $t end'
 sources:
   - value:
       # - model: "x-ai/grok-code-fast-1"
-      - model: "anthropic/claude-sonnet-4.5"
+      - model: "anthropic/claude-sonnet-4.6"
   - value:
       # # Location questions - "where is"
       # - task: "Where is the code that transforms messages between different AI provider formats?"
