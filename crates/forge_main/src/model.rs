@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use forge_api::{Agent, Model, Template};
+use forge_api::{AgentInfo, Model, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -143,7 +143,10 @@ impl ForgeCommandManager {
 
     /// Registers agent commands to the manager.
     /// Returns information about the registration process.
-    pub fn register_agent_commands(&self, agents: Vec<Agent>) -> AgentCommandRegistrationResult {
+    pub fn register_agent_commands(
+        &self,
+        agents: Vec<AgentInfo>,
+    ) -> AgentCommandRegistrationResult {
         let mut guard = self.commands.lock().unwrap();
         let mut result =
             AgentCommandRegistrationResult { registered_count: 0, skipped_conflicts: Vec::new() };
@@ -840,24 +843,11 @@ mod tests {
 
     #[test]
     fn test_register_agent_commands() {
-        use forge_api::Agent;
-        use forge_domain::{ModelId, ProviderId};
-
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            Agent::new(
-                "test-agent",
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
-            )
-            .title("Test Agent".to_string()),
-            Agent::new(
-                "another",
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
-            )
-            .title("Another Agent".to_string()),
+            forge_domain::AgentInfo::default().id("test-agent").title("Test Agent".to_string()),
+            forge_domain::AgentInfo::default().id("another").title("Another Agent".to_string()),
         ];
 
         // Execute
@@ -885,18 +875,10 @@ mod tests {
 
     #[test]
     fn test_parse_agent_switch_command() {
-        use forge_api::Agent;
-        use forge_domain::{ModelId, ProviderId};
-
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            Agent::new(
-                "test-agent",
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
-            )
-            .title("Test Agent".to_string()),
+            forge_domain::AgentInfo::default().id("test-agent").title("Test Agent".to_string()),
         ];
         let _result = fixture.register_agent_commands(agents);
 

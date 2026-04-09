@@ -33,7 +33,7 @@ impl EventHandle<EventData<StartPayload>> for TracingHandler {
     ) -> anyhow::Result<()> {
         debug!(
             conversation_id = %conversation.id,
-            agent = %event.agent.id,
+            agent = %event.agent.info.id,
             model = %event.model_id,
             "Initializing agent"
         );
@@ -78,7 +78,7 @@ impl EventHandle<EventData<ResponsePayload>> for TracingHandler {
         }
 
         debug!(
-            agent_id = %event.agent.id,
+            agent_id = %event.agent.info.id,
             tool_call_count = message.tool_calls.len(),
             "Tool call count"
         );
@@ -97,7 +97,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for TracingHandler {
         let tool_call = &event.payload.tool_call;
 
         debug!(
-            agent_id = %event.agent.id,
+            agent_id = %event.agent.info.id,
             tool_name = %tool_call.name,
             call_id = ?tool_call.call_id,
             arguments = %tool_call.arguments.to_owned().into_string(),
@@ -120,7 +120,7 @@ impl EventHandle<EventData<ToolcallEndPayload>> for TracingHandler {
 
         if result.is_error() {
             warn!(
-                agent_id = %event.agent.id,
+                agent_id = %event.agent.info.id,
                 name = %tool_call.name,
                 call_id = ?tool_call.call_id,
                 arguments = %tool_call.arguments.to_owned().into_string(),

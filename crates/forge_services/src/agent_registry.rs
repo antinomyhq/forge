@@ -3,7 +3,7 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use forge_app::domain::AgentId;
 use forge_app::{AgentRepository, EnvironmentInfra};
-use forge_domain::Agent;
+use forge_domain::{Agent, AgentInfo};
 use tokio::sync::RwLock;
 
 /// AgentRegistryService manages the active-agent ID and a registry of runtime
@@ -75,7 +75,7 @@ impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig>>
         let agents = self.repository.get_agents().await?;
         let agents_map = DashMap::new();
         for agent in agents {
-            agents_map.insert(agent.id.as_str().to_string(), agent);
+            agents_map.insert(agent.info.id.as_str().to_string(), agent);
         }
 
         Ok(agents_map)
@@ -100,6 +100,10 @@ impl<R: AgentRepository + EnvironmentInfra<Config = forge_config::ForgeConfig> +
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
         let agents = self.ensure_agents_loaded().await?;
         Ok(agents.iter().map(|entry| entry.value().clone()).collect())
+    }
+
+    async fn get_agent_infos(&self) -> anyhow::Result<Vec<AgentInfo>> {
+        self.repository.get_agent_infos().await
     }
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {

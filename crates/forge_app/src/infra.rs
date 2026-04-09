@@ -398,6 +398,10 @@ pub trait AgentRepository: Send + Sync {
     ///   one
     /// * `model_id` - Default model applied to agents that do not specify one
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
+
+    /// Load lightweight metadata for all agents without requiring a configured
+    /// provider or model.
+    async fn get_agent_infos(&self) -> anyhow::Result<Vec<forge_domain::AgentInfo>>;
 }
 
 /// Infrastructure trait for providing shared gRPC channel

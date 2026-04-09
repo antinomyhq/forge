@@ -180,6 +180,18 @@ impl<F: FileInfoInfra + EnvironmentInfra<Config = ForgeConfig> + DirectoryReader
             })
             .collect())
     }
+
+    async fn get_agent_infos(&self) -> anyhow::Result<Vec<forge_domain::AgentInfo>> {
+        let agent_defs = self.load_agents().await?;
+        Ok(agent_defs
+            .into_iter()
+            .map(|def| forge_domain::AgentInfo {
+                id: def.id,
+                title: def.title,
+                description: def.description,
+            })
+            .collect())
+    }
 }
 
 #[cfg(test)]

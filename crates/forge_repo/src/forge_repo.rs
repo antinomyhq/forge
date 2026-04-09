@@ -494,6 +494,10 @@ impl<F: FileInfoInfra + EnvironmentInfra<Config = ForgeConfig> + DirectoryReader
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
         self.agent_repository.get_agents().await
     }
+
+    async fn get_agent_infos(&self) -> anyhow::Result<Vec<forge_domain::AgentInfo>> {
+        self.agent_repository.get_agent_infos().await
+    }
 }
 
 #[async_trait::async_trait]

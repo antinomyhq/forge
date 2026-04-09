@@ -92,6 +92,10 @@ impl<
         self.services.get_agents().await
     }
 
+    async fn get_agent_infos(&self) -> Result<Vec<AgentInfo>> {
+        self.services.get_agent_infos().await
+    }
+
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
         Ok(self.services.get_all_providers().await?)
     }

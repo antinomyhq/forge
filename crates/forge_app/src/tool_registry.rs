@@ -722,9 +722,12 @@ fn create_test_agents() -> Vec<forge_domain::Agent> {
             ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
-        .id(AgentId::new("sage"))
-        .title("Research Agent")
-        .description("Specialized in researching codebases")
+        .info(
+            forge_domain::AgentInfo::default()
+                .id(AgentId::new("sage"))
+                .title("Research Agent")
+                .description("Specialized in researching codebases"),
+        )
         .tools(vec![
             ToolName::new("read"),
             ToolName::new("fs_search"),
@@ -736,9 +739,12 @@ fn create_test_agents() -> Vec<forge_domain::Agent> {
             ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
-        .id(AgentId::new("debug"))
-        .title("Debug Agent")
-        .description("Specialized in debugging issues")
+        .info(
+            forge_domain::AgentInfo::default()
+                .id(AgentId::new("debug"))
+                .title("Debug Agent")
+                .description("Specialized in debugging issues"),
+        )
         .tools(vec![
             ToolName::new("read"),
             ToolName::new("shell"),

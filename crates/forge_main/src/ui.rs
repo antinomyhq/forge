@@ -183,11 +183,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         // Convert string to AgentId for validation
         let agent = self
             .api
-            .get_agents()
+            .get_agent_infos()
             .await?
-            .iter()
-            .find(|agent| agent.id == agent_id)
-            .cloned()
+            .into_iter()
+            .find(|info| info.id == agent_id)
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
         // Update the app config with the new operating agent.
@@ -374,7 +373,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let api = self.api.clone();
         tokio::spawn(async move { api.get_tools().await });
         let api = self.api.clone();
-        tokio::spawn(async move { api.get_agents().await });
+        tokio::spawn(async move { api.get_agent_infos().await });
         let api = self.api.clone();
         tokio::spawn(async move {
             let _ = api.hydrate_channel();
@@ -1090,7 +1089,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     async fn build_agents_info(&self, custom: bool) -> anyhow::Result<Info> {
         let mut agents = self.api.get_agents().await?;
         // Sort agents alphabetically by ID
-        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+        agents.sort_by(|a, b| a.info.id.as_str().cmp(b.info.id.as_str()));
 
         // Filter agents based on custom flag
         if custom {
@@ -1100,14 +1099,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let mut info = Info::new();
 
         for agent in agents.iter() {
-            let id = agent.id.as_str().to_string();
+            let id = agent.info.id.as_str().to_string();
             let title = agent
+                .info
                 .title
                 .as_deref()
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
-            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
+            let provider_name = match self.get_provider(Some(agent.info.id.clone())).await {
                 Ok(p) => p.id.to_string(),
                 Err(e) => format!("Error: [{}]", e),
             };
@@ -1145,7 +1145,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     }
 
     async fn on_show_agents(&mut self, porcelain: bool, custom: bool) -> anyhow::Result<()> {
-        let agents = self.api.get_agents().await?;
+        let agents = self.api.get_agent_infos().await?;
 
         if agents.is_empty() {
             return Ok(());
@@ -1336,14 +1336,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 "Planning and strategy agent [alias for: muse]",
             );
 
-        // Fetch agents and add them to the commands list
-        let agents = self.api.get_agents().await?;
-        for agent in agents {
-            let title = agent
+        // Fetch agent infos and add them to the commands list.
+        // Uses get_agent_infos() so no provider/model is required for listing.
+        let agent_infos = self.api.get_agent_infos().await?;
+        for agent_info in agent_infos {
+            let title = agent_info
                 .title
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
-                .add_title(agent.id.to_string())
+                .add_title(agent_info.id.to_string())
                 .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
         }
@@ -1469,7 +1470,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         self.spinner.start(Some("Loading"))?;
         let all_tools = self.api.get_tools().await?;
         let agents = self.api.get_agents().await?;
-        let agent = agents.into_iter().find(|agent| agent.id == agent_id);
+        let agent = agents.into_iter().find(|agent| agent.info.id == agent_id);
         let agent_tools = if let Some(agent) = agent {
             let resolver = ToolResolver::new(all_tools.clone().into());
             resolver
@@ -1999,7 +2000,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                     }
                 }
 
-                let agents = self.api.get_agents().await?;
+                let agents = self.api.get_agent_infos().await?;
 
                 if agents.is_empty() {
                     return Ok(false);
@@ -2077,7 +2078,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
-                let agents = self.api.get_agents().await?;
+                let agents = self.api.get_agent_infos().await?;
                 let agent_exists = agents.iter().any(|agent| agent.id.as_str() == agent_id);
 
                 if agent_exists {
@@ -3096,7 +3097,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         // Execute independent operations in parallel to improve performance
         let (agents_result, commands_result) =
-            tokio::join!(self.api.get_agents(), self.api.get_commands());
+            tokio::join!(self.api.get_agent_infos(), self.api.get_commands());
 
         // Register agent commands with proper error handling and user feedback
         match agents_result {
