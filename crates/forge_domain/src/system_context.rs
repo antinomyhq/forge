@@ -112,7 +112,23 @@ pub struct SystemContext {
     #[serde(default)]
     pub supports_parallel_tool_calls: bool,
 
-    /// List of available skills
+    /// List of available skills.
+    ///
+    /// **Deprecated:** Since Phase 0 of the Claude Code plugins integration
+    /// (2026-04), skills are no longer rendered into the system prompt.
+    /// They are delivered per-turn via the `SkillListingHandler` lifecycle
+    /// hook, which injects a `<system_reminder>` user-role message on every
+    /// request. This field is kept only for backward compatibility with
+    /// custom agent templates that still reference `{{#if skills}}` /
+    /// `{{#each skills}}`; such templates will silently render nothing
+    /// because this vector is always empty in production code paths.
+    ///
+    /// Do not set this field in new code. It will be removed in a future
+    /// release once all custom agent templates have been migrated.
+    #[deprecated(
+        since = "0.1.0",
+        note = "Skills are now delivered via SkillListingHandler as per-turn <system_reminder> messages. This field is retained only for backward compatibility with legacy custom agent templates and is always empty at runtime."
+    )]
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<Skill>,
 

@@ -79,8 +79,11 @@ pub struct SkillListing {
 
 impl SkillListing {
     /// Creates a new listing entry from raw parts.
-    #[allow(dead_code)]
-    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
+    ///
+    /// Only used by unit tests today; production code builds `SkillListing`
+    /// values via the [`From<&Skill>`] impl below.
+    #[cfg(test)]
+    fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
         Self { name: name.into(), description: description.into() }
     }
 }

@@ -102,11 +102,12 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             //   - Mid-session skill creation via `create-skill` is visible on the following
             //     turn once `SkillCacheInvalidator` clears the `SkillFetchService` cache.
             //
-            // `SystemContext.skills` is still populated (with an empty
-            // `Vec::new()`) for backward compatibility with any custom agent
-            // template that references `{{#if skills}}`: such templates will
-            // simply render nothing.
-            let skills: Vec<forge_domain::Skill> = Vec::new();
+            // `SystemContext.skills` is marked `#[deprecated]` and is left at
+            // its `Default::default()` value (an empty vector) so that any
+            // legacy custom agent template referencing `{{#if skills}}` or
+            // `{{#each skills}}` silently renders nothing. We deliberately
+            // avoid naming the field in the struct literal below to keep
+            // this call site free of deprecation warnings.
 
             // Fetch extension statistics from git
             let extensions = self.fetch_extensions(self.max_extensions).await;
@@ -126,12 +127,14 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 files,
                 custom_rules: custom_rules.join("\n\n"),
                 supports_parallel_tool_calls,
-                skills,
                 model: None,
                 tool_names,
                 extensions,
                 agents: vec![],
                 config: None,
+                // `skills` is deprecated and intentionally left at its
+                // default value; see comment above.
+                ..Default::default()
             };
 
             let static_block = TemplateEngine::default()
