@@ -147,6 +147,10 @@ pub enum Choice {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ResponseMessage {
     pub content: Option<String>,
+    // Private: some providers (e.g. moonshotai/Kimi-K2.5-TEE) emit both keys
+    // in the same delta object. Exposing them directly would let callers
+    // accidentally read only one and miss the other. Use `reasoning()` instead,
+    // which merges them in preference order.
     reasoning: Option<String>,
     reasoning_content: Option<String>,
     pub role: Option<String>,
@@ -161,12 +165,24 @@ pub struct ResponseMessage {
 }
 
 impl ResponseMessage {
-    /// Returns the reasoning text, preferring `reasoning` over
-    /// `reasoning_content` when both are present.
+    /// Returns the reasoning text. When both `reasoning` and
+    /// `reasoning_content` are present, the longer non-empty value is
+    /// returned; otherwise whichever is non-empty is used.
     pub fn reasoning(&self) -> Option<&str> {
-        self.reasoning
-            .as_deref()
-            .or(self.reasoning_content.as_deref())
+        match (self.reasoning.as_deref(), self.reasoning_content.as_deref()) {
+            (Some(a), Some(b)) => {
+                let a = a.trim();
+                let b = b.trim();
+                match (a.is_empty(), b.is_empty()) {
+                    (true, _) => Some(b).filter(|s| !s.is_empty()),
+                    (_, true) => Some(a).filter(|s| !s.is_empty()),
+                    _ => Some(if b.len() > a.len() { b } else { a }),
+                }
+            }
+            (Some(a), None) => Some(a).filter(|s| !s.trim().is_empty()),
+            (None, Some(b)) => Some(b).filter(|s| !s.trim().is_empty()),
+            (None, None) => None,
+        }
     }
 }
 
