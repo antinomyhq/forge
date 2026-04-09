@@ -170,9 +170,10 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
 
             // Collect PostToolUse hook feedback to inject after append_message.
             if let LifecycleEvent::ToolcallEnd(ref data) = toolcall_end_event
-                && let Some(feedback) = &data.payload.hook_feedback {
-                    hook_feedbacks.push(feedback.clone());
-                }
+                && let Some(feedback) = &data.payload.hook_feedback
+            {
+                hook_feedbacks.push(feedback.clone());
+            }
 
             // Send the end notification for system tools and not agent as a tool
             if is_system_tool {
