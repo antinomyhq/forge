@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -6,6 +7,7 @@ use dashmap::mapref::entry::Entry;
 use forge_domain::{
     Conversation, ConversationId, EndPayload, EventData, EventHandle, StartPayload,
 };
+use futures::FutureExt;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -14,22 +16,16 @@ use crate::agent::AgentService;
 use crate::title_generator::TitleGenerator;
 
 /// Per-conversation title generation state.
-enum TitleTask {
-    /// A background task is running; the receiver will deliver its result.
-    InProgress(oneshot::Receiver<Option<String>>, JoinHandle<()>),
-    /// `EndPayload` has extracted the receiver and is currently awaiting it.
-    /// Kept in the map as a sentinel so a concurrent `StartPayload` sees an
-    /// occupied entry and does not spawn a duplicate task.
-    Awaiting,
-    /// Title generation has finished successfully; stores the generated title.
-    Done(#[allow(dead_code)] String),
+struct TitleGenerationState {
+    rx: oneshot::Receiver<Option<String>>,
+    handle: JoinHandle<()>,
 }
 
 /// Hook handler that generates a conversation title asynchronously.
 #[derive(Clone)]
 pub struct TitleGenerationHandler<S> {
     services: Arc<S>,
-    title_tasks: Arc<DashMap<ConversationId, TitleTask>>,
+    title_tasks: Arc<DashMap<ConversationId, TitleGenerationState>>,
 }
 
 impl<S> TitleGenerationHandler<S> {
@@ -79,12 +75,10 @@ impl<S: AgentService> EventHandle<EventData<StartPayload>> for TitleGenerationHa
         self.title_tasks.entry(conversation.id).or_insert_with(|| {
             let (tx, rx) = oneshot::channel();
             let handle = tokio::spawn(async move {
-                let result = generator.generate().await.ok().flatten();
-                // If the receiver was dropped (e.g. task cancelled), this is a
-                // no-op — the send simply fails silently.
-                let _ = tx.send(result);
+                let title = generator.generate().await.ok().flatten();
+                let _ = tx.send(title);
             });
-            TitleTask::InProgress(rx, handle)
+            TitleGenerationState { rx, handle }
         });
 
         Ok(())
@@ -98,58 +92,18 @@ impl<S: AgentService> EventHandle<EventData<EndPayload>> for TitleGenerationHand
         _event: &EventData<EndPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        // Atomically transition InProgress → Awaiting, extracting the receiver
-        // while keeping the entry occupied. A concurrent StartPayload sees
-        // Occupied and skips, so no duplicate task can be spawned during the
-        // await below.
-        let rx = match self.title_tasks.entry(conversation.id) {
-            Entry::Occupied(mut e) => {
-                match std::mem::replace(e.get_mut(), TitleTask::Awaiting) {
-                    TitleTask::InProgress(rx, handle) => {
-                        // The conversation is ending — abort the background task
-                        // so it doesn't continue running unnecessarily.
-                        handle.abort();
-                        rx
-                    }
-                    // Awaiting or Done: another EndPayload is already handling this.
-                    TitleTask::Done(title) => {
-                        conversation.title = Some(title);
-                        return Ok(());
-                    }
-                    other => {
-                        *e.get_mut() = other; // restore
-                        return Ok(());
-                    }
+        match self.title_tasks.remove(&conversation.id) {
+            Some((_, entry)) => {
+                let handle = &entry.handle;
+                let rx = entry.rx;
+
+                if rx.is_empty() {
+                    handle.abort();
+                } else if let Some(title) = rx.await? {
+                    conversation.title = Some(title);
                 }
             }
-            Entry::Vacant(_) => return Ok(()),
-        };
-
-        // Await the oneshot receiver. Unlike a raw JoinHandle, a oneshot
-        // receiver never panics on poll-after-completion — it simply returns
-        // `Err(RecvError)` if the sender was dropped.
-        match rx.await {
-            Ok(Some(title)) => {
-                debug!(
-                    conversation_id = %conversation.id,
-                    title = %title,
-                    "Title generated successfully"
-                );
-                conversation.title = Some(title.clone());
-                // Transition Awaiting → Done only on success.
-                self.title_tasks
-                    .insert(conversation.id, TitleTask::Done(title));
-            }
-            Ok(None) => {
-                debug!("Title generation returned None");
-                // Remove so a future StartPayload can retry.
-                self.title_tasks.remove(&conversation.id);
-            }
-            Err(_) => {
-                debug!("Title generation channel was closed");
-                // Remove so a future StartPayload can retry.
-                self.title_tasks.remove(&conversation.id);
-            }
+            None => {}
         }
 
         Ok(())
@@ -243,9 +197,10 @@ mod tests {
         tx.send(Some("original".to_string())).unwrap();
         let handle = tokio::spawn(async {});
         handle.abort();
-        handler
-            .title_tasks
-            .insert(conversation.id, TitleTask::InProgress(rx, handle));
+        handler.title_tasks.insert(
+            conversation.id,
+            TitleGenerationState::InProgress(rx, handle),
+        );
 
         handler
             .handle(&event(StartPayload), &mut conversation)
@@ -254,7 +209,7 @@ mod tests {
 
         let (_, task) = handler.title_tasks.remove(&conversation.id).unwrap();
         let actual = match task {
-            TitleTask::InProgress(rx, _) => rx.await.unwrap(),
+            TitleGenerationState::InProgress(rx, _) => rx.await.unwrap(),
             _ => panic!("Expected InProgress"),
         };
         assert_eq!(actual, Some("original".into()));
@@ -267,7 +222,7 @@ mod tests {
         let (handler, mut conversation) = setup("test message");
         handler
             .title_tasks
-            .insert(conversation.id, TitleTask::Awaiting);
+            .insert(conversation.id, TitleGenerationState::Awaiting);
 
         handler
             .handle(&event(StartPayload), &mut conversation)
@@ -276,7 +231,7 @@ mod tests {
 
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
-            Some(TitleTask::Awaiting)
+            Some(TitleGenerationState::Awaiting)
         ));
     }
 
@@ -284,9 +239,10 @@ mod tests {
     #[tokio::test]
     async fn test_start_skips_if_done() {
         let (handler, mut conversation) = setup("test message");
-        handler
-            .title_tasks
-            .insert(conversation.id, TitleTask::Done("existing".into()));
+        handler.title_tasks.insert(
+            conversation.id,
+            TitleGenerationState::Done("existing".into()),
+        );
 
         handler
             .handle(&event(StartPayload), &mut conversation)
@@ -295,7 +251,7 @@ mod tests {
 
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
-            Some(TitleTask::Done(_))
+            Some(TitleGenerationState::Done(_))
         ));
     }
 
@@ -306,9 +262,10 @@ mod tests {
         tx.send(Some("generated".to_string())).unwrap();
         let handle = tokio::spawn(async {});
         handle.abort();
-        handler
-            .title_tasks
-            .insert(conversation.id, TitleTask::InProgress(rx, handle));
+        handler.title_tasks.insert(
+            conversation.id,
+            TitleGenerationState::InProgress(rx, handle),
+        );
 
         handler
             .handle(&event(EndPayload), &mut conversation)
@@ -318,7 +275,7 @@ mod tests {
         assert_eq!(conversation.title, Some("generated".into()));
         assert!(matches!(
             handler.title_tasks.get(&conversation.id).as_deref(),
-            Some(TitleTask::Done(_))
+            Some(TitleGenerationState::Done(_))
         ));
     }
 
@@ -330,9 +287,10 @@ mod tests {
         drop(tx);
         let handle = tokio::spawn(async {});
         handle.abort();
-        handler
-            .title_tasks
-            .insert(conversation.id, TitleTask::InProgress(rx, handle));
+        handler.title_tasks.insert(
+            conversation.id,
+            TitleGenerationState::InProgress(rx, handle),
+        );
 
         handler
             .handle(&event(EndPayload), &mut conversation)
@@ -355,9 +313,10 @@ mod tests {
             let _ = tx.send(None);
         });
 
-        handler
-            .title_tasks
-            .insert(conversation.id, TitleTask::InProgress(rx, handle));
+        handler.title_tasks.insert(
+            conversation.id,
+            TitleGenerationState::InProgress(rx, handle),
+        );
 
         handler
             .handle(&event(EndPayload), &mut conversation)
@@ -401,7 +360,7 @@ mod tests {
         let actual = handler
             .title_tasks
             .iter()
-            .filter(|e| matches!(e.value(), TitleTask::InProgress(_, _)))
+            .filter(|e| matches!(e.value(), TitleGenerationState::InProgress(_, _)))
             .count();
         assert_eq!(actual, 1);
     }
