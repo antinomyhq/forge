@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Compact, EventContext, MaxTokens, ModelId, ProviderId,
-    ReasoningConfig, SystemContext, Temperature, Template, ToolName, TopK, TopP,
+    Agent, AgentId, Compact, EventContext, MaxTokens, ModelId, ProviderId, ReasoningConfig,
+    SystemContext, Temperature, Template, ToolName, TopK, TopP,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

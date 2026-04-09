@@ -70,7 +70,10 @@ impl ForgeInfra {
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let config = config_infra.cached_config().unwrap_or(config);
 
-        let http_service = Arc::new(ForgeHttpInfra::new(config.clone(), file_write_service.clone()));
+        let http_service = Arc::new(ForgeHttpInfra::new(
+            config.clone(),
+            file_write_service.clone(),
+        ));
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService::new(

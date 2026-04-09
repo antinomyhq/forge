@@ -846,8 +846,12 @@ mod tests {
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            forge_domain::AgentInfo::default().id("test-agent").title("Test Agent".to_string()),
-            forge_domain::AgentInfo::default().id("another").title("Another Agent".to_string()),
+            forge_domain::AgentInfo::default()
+                .id("test-agent")
+                .title("Test Agent".to_string()),
+            forge_domain::AgentInfo::default()
+                .id("another")
+                .title("Another Agent".to_string()),
         ];
 
         // Execute
@@ -878,7 +882,9 @@ mod tests {
         // Setup
         let fixture = ForgeCommandManager::default();
         let agents = vec![
-            forge_domain::AgentInfo::default().id("test-agent").title("Test Agent".to_string()),
+            forge_domain::AgentInfo::default()
+                .id("test-agent")
+                .title("Test Agent".to_string()),
         ];
         let _result = fixture.register_agent_commands(agents);
 

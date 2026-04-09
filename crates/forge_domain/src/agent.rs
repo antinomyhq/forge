@@ -102,7 +102,6 @@ pub fn estimate_token_count(count: usize) -> usize {
     count / 4
 }
 
-
 /// Runtime agent representation with required model and provider
 #[derive(Debug, Clone, PartialEq, Setters, Serialize, Deserialize, JsonSchema)]
 #[setters(strip_option, into)]
@@ -217,9 +216,7 @@ impl Agent {
     ///
     /// Returns an error if the agent has no description
     pub fn tool_definition(&self) -> Result<ToolDefinition> {
-        if self.description.is_none()
-            || self.description.as_ref().is_none_or(|d| d.is_empty())
-        {
+        if self.description.is_none() || self.description.as_ref().is_none_or(|d| d.is_empty()) {
             return Err(Error::MissingAgentDescription(self.id.clone()));
         }
         Ok(ToolDefinition::new(self.id.as_str().to_string())
