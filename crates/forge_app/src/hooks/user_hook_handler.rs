@@ -573,9 +573,7 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
                 reason = reason.as_str(),
                 "PostToolUse hook blocked, storing feedback for orchestrator injection"
             );
-            let content = format!(
-                "{event_name}:{tool_name} hook feedback:\n[{command}]: {reason}"
-            );
+            let content = format!("{event_name}:{tool_name} hook feedback:\n[{command}]: {reason}");
             event.payload.hook_feedback = Some(content.clone());
             event
                 .warnings
@@ -2079,7 +2077,8 @@ mod tests {
         assert_eq!(event.warnings.len(), 1);
         assert!(event.warnings[0].contains("sensitive data detected"));
 
-        // Feedback stored on payload for the orchestrator to inject after append_message
+        // Feedback stored on payload for the orchestrator to inject after
+        // append_message
         let feedback = event.payload.hook_feedback.as_ref().unwrap();
         assert!(feedback.contains("hook feedback"));
         assert!(feedback.contains("sensitive data detected"));
@@ -2118,7 +2117,8 @@ mod tests {
         assert_eq!(event.warnings.len(), 1);
         assert!(event.warnings[0].contains("PII detected"));
 
-        // Feedback stored on payload for the orchestrator to inject after append_message
+        // Feedback stored on payload for the orchestrator to inject after
+        // append_message
         let feedback = event.payload.hook_feedback.as_ref().unwrap();
         assert!(feedback.contains("hook feedback"));
         assert!(feedback.contains("PII detected"));
