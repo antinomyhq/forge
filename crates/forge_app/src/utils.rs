@@ -441,12 +441,13 @@ pub fn sanitize_gemini_schema(schema: &mut serde_json::Value) {
 
             // Convert const to enum
             if let Some(const_value) = map.remove("const")
-                && !map.contains_key("enum") {
-                    map.insert(
-                        "enum".to_string(),
-                        serde_json::Value::Array(vec![const_value]),
-                    );
-                }
+                && !map.contains_key("enum")
+            {
+                map.insert(
+                    "enum".to_string(),
+                    serde_json::Value::Array(vec![const_value]),
+                );
+            }
 
             // Handle type arrays — convert to OpenAPI 3.0 compatible format.
             // OpenAPI 3.0 doesn't support type arrays, so we convert them:
