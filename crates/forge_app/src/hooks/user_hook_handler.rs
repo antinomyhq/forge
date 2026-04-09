@@ -129,7 +129,10 @@ impl<I> UserHookHandler<I> {
             Ok(json) => json,
             Err(e) => {
                 warn!(error = %e, "Failed to serialize hook input");
-                return (Vec::new(), vec![format!("Hook input serialization failed: {e}")]);
+                return (
+                    Vec::new(),
+                    vec![format!("Hook input serialization failed: {e}")],
+                );
             }
         };
 
@@ -171,9 +174,7 @@ impl<I> UserHookHandler<I> {
                             error = %e,
                             "Hook command failed to execute"
                         );
-                        warnings.push(format!(
-                            "Hook command '{command}' failed to execute: {e}"
-                        ));
+                        warnings.push(format!("Hook command '{command}' failed to execute: {e}"));
                     }
                 }
             }
@@ -201,7 +202,6 @@ impl<I> UserHookHandler<I> {
                 let reason = output.blocking_reason("Hook blocked execution");
                 return Some(reason);
             }
-
         }
 
         None
@@ -238,7 +238,6 @@ impl<I> UserHookHandler<I> {
                     return PreToolUseDecision::AllowWithUpdate(output);
                 }
             }
-
         }
 
         PreToolUseDecision::Allow
@@ -356,9 +355,9 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
                 reason = reason.as_str(),
                 "UserPromptSubmit hook blocked with feedback"
             );
-            event.warnings.push(format!(
-                "UserPromptSubmit hook blocked: {reason}"
-            ));
+            event
+                .warnings
+                .push(format!("UserPromptSubmit hook blocked: {reason}"));
             // Signal the orchestrator to suppress this prompt entirely.
             return Err(anyhow::Error::from(PromptSuppressed(reason)));
         }
@@ -516,9 +515,9 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
                 reason = reason.as_str(),
                 "PostToolUse hook blocked with feedback"
             );
-            event.warnings.push(format!(
-                "{event_name}:{tool_name} hook blocked: {reason}"
-            ));
+            event
+                .warnings
+                .push(format!("{event_name}:{tool_name} hook blocked: {reason}"));
         }
 
         Ok(())
@@ -575,9 +574,7 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
             hook_event_name: "Stop".to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
             session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::Stop {
-                last_assistant_message,
-            },
+            event_data: HookEventInput::Stop { last_assistant_message },
         };
 
         let (results, stop_warnings) = self.execute_hooks(&hooks, &input).await;
@@ -588,9 +585,7 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
                 reason = reason.as_str(),
                 "Stop hook blocked (warning only, no continuation)"
             );
-            event.warnings.push(format!(
-                "Stop hook blocked: {reason}"
-            ));
+            event.warnings.push(format!("Stop hook blocked: {reason}"));
         }
 
         Ok(())
@@ -1639,7 +1634,12 @@ mod tests {
         // Stop hooks no longer block -- result is Ok
         assert!(result.is_ok());
         // Warning about blocking should be present
-        assert!(event.warnings.iter().any(|w| w.contains("Stop hook blocked")));
+        assert!(
+            event
+                .warnings
+                .iter()
+                .any(|w| w.contains("Stop hook blocked"))
+        );
     }
 
     #[tokio::test]

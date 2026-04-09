@@ -457,14 +457,14 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             if should_yield {
                 let end_count_before = self.conversation.len();
                 let mut end_event = LifecycleEvent::End(EventData::new(
-            self.agent.clone(),
-            model_id.clone(),
-            EndPayload,
-        ));
-        self.hook
-            .handle(&mut end_event, &mut self.conversation)
+                    self.agent.clone(),
+                    model_id.clone(),
+                    EndPayload,
+                ));
+                self.hook
+                    .handle(&mut end_event, &mut self.conversation)
                     .await?;
-        self.drain_hook_warnings(&mut end_event).await?;
+                self.drain_hook_warnings(&mut end_event).await?;
                 self.services.update(self.conversation.clone()).await?;
                 // Check if End hook added messages - if so, continue the loop
                 if self.conversation.len() > end_count_before {
