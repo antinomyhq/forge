@@ -42,7 +42,6 @@ impl UserHookConfig {
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
-
 }
 
 /// Supported hook event names that map to lifecycle points in the

@@ -74,7 +74,11 @@ impl<I> UserHookHandler<I> {
 
     /// Constructs a [`HookInput`] from the common fields stored in this
     /// handler, leaving only the event-specific `event_data` to the caller.
-    fn build_base_input(&self, event_name: &UserHookEventName, event_data: HookEventInput) -> HookInput {
+    fn build_base_input(
+        &self,
+        event_name: &UserHookEventName,
+        event_data: HookEventInput,
+    ) -> HookInput {
         HookInput {
             hook_event_name: event_name.to_string(),
             cwd: self.cwd.to_string_lossy().to_string(),
@@ -256,7 +260,9 @@ impl<I> UserHookHandler<I> {
     /// Processes hook results, returning the blocking command and reason if
     /// any hook blocked.
     fn process_results(results: &[(String, HookExecutionResult)]) -> Option<(String, String)> {
-        results.iter().find_map(|(cmd, result)| Self::check_blocking(cmd, result))
+        results
+            .iter()
+            .find_map(|(cmd, result)| Self::check_blocking(cmd, result))
     }
 
     /// Collects `additionalContext` strings from all successful hook results,
@@ -369,9 +375,19 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
             return Ok(());
         }
 
-        let input = self.build_base_input(&UserHookEventName::SessionStart, HookEventInput::SessionStart { source: "startup".to_string() });
+        let input = self.build_base_input(
+            &UserHookEventName::SessionStart,
+            HookEventInput::SessionStart { source: "startup".to_string() },
+        );
 
-        self.run_hooks_and_collect(&UserHookEventName::SessionStart, Some("startup"), &input, &mut event.warnings, conversation).await;
+        self.run_hooks_and_collect(
+            &UserHookEventName::SessionStart,
+            Some("startup"),
+            &input,
+            &mut event.warnings,
+            conversation,
+        )
+        .await;
 
         Ok(())
     }
@@ -409,9 +425,20 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             })
             .unwrap_or_default();
 
-        let input = self.build_base_input(&UserHookEventName::UserPromptSubmit, HookEventInput::UserPromptSubmit { prompt });
+        let input = self.build_base_input(
+            &UserHookEventName::UserPromptSubmit,
+            HookEventInput::UserPromptSubmit { prompt },
+        );
 
-        let results = self.run_hooks_and_collect(&UserHookEventName::UserPromptSubmit, None, &input, &mut event.warnings, conversation).await;
+        let results = self
+            .run_hooks_and_collect(
+                &UserHookEventName::UserPromptSubmit,
+                None,
+                &input,
+                &mut event.warnings,
+                conversation,
+            )
+            .await;
 
         if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
@@ -468,13 +495,20 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
             .as_ref()
             .map(|id| id.as_str().to_string());
 
-        let input = self.build_base_input(&UserHookEventName::PreToolUse, HookEventInput::PreToolUse {
-                tool_name: tool_name.clone(),
-                tool_input,
-                tool_use_id,
-            });
+        let input = self.build_base_input(
+            &UserHookEventName::PreToolUse,
+            HookEventInput::PreToolUse { tool_name: tool_name.clone(), tool_input, tool_use_id },
+        );
 
-        let results = self.run_hooks_and_collect(&UserHookEventName::PreToolUse, Some(tool_name.as_str()), &input, &mut event.warnings, conversation).await;
+        let results = self
+            .run_hooks_and_collect(
+                &UserHookEventName::PreToolUse,
+                Some(tool_name.as_str()),
+                &input,
+                &mut event.warnings,
+                conversation,
+            )
+            .await;
 
         let decision = Self::process_pre_tool_use_output(&results);
 
@@ -540,14 +574,25 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
             .as_ref()
             .map(|id| id.as_str().to_string());
 
-        let input = self.build_base_input(&event_name, HookEventInput::PostToolUse {
+        let input = self.build_base_input(
+            &event_name,
+            HookEventInput::PostToolUse {
                 tool_name: tool_name.to_string(),
                 tool_input,
                 tool_response,
                 tool_use_id,
-            });
+            },
+        );
 
-        let results = self.run_hooks_and_collect(&event_name, Some(&tool_name), &input, &mut event.warnings, conversation).await;
+        let results = self
+            .run_hooks_and_collect(
+                &event_name,
+                Some(&tool_name),
+                &input,
+                &mut event.warnings,
+                conversation,
+            )
+            .await;
 
         // PostToolUse blocking: store the feedback on the event payload.
         // The orchestrator reads `hook_feedback` after `append_message` and
@@ -582,8 +627,16 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
     ) -> anyhow::Result<()> {
         // Fire SessionEnd hooks
         if self.has_hooks(&UserHookEventName::SessionEnd) {
-            let input = self.build_base_input(&UserHookEventName::SessionEnd, HookEventInput::Empty {});
-            self.run_hooks_and_collect(&UserHookEventName::SessionEnd, None, &input, &mut event.warnings, conversation).await;
+            let input =
+                self.build_base_input(&UserHookEventName::SessionEnd, HookEventInput::Empty {});
+            self.run_hooks_and_collect(
+                &UserHookEventName::SessionEnd,
+                None,
+                &input,
+                &mut event.warnings,
+                conversation,
+            )
+            .await;
         }
 
         // Fire Stop hooks
@@ -603,9 +656,20 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
                 .map(|s| s.to_string())
         });
 
-        let input = self.build_base_input(&UserHookEventName::Stop, HookEventInput::Stop { stop_hook_active, last_assistant_message });
+        let input = self.build_base_input(
+            &UserHookEventName::Stop,
+            HookEventInput::Stop { stop_hook_active, last_assistant_message },
+        );
 
-        let results = self.run_hooks_and_collect(&UserHookEventName::Stop, None, &input, &mut event.warnings, conversation).await;
+        let results = self
+            .run_hooks_and_collect(
+                &UserHookEventName::Stop,
+                None,
+                &input,
+                &mut event.warnings,
+                conversation,
+            )
+            .await;
 
         if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
@@ -1244,7 +1308,11 @@ mod tests {
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
 
         let handler = UserHookHandler::new(
-            StubInfra::new(Some(0), r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#, ""),
+            StubInfra::new(
+                Some(0),
+                r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#,
+                "",
+            ),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -1428,7 +1496,10 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_block_exit2_returns_error() {
         // TC16: exit code 2 must return PromptSuppressed error.
-        let handler = handler_for_event(StubInfra::new(Some(2), "", "policy violation"), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(2), "", "policy violation"),
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1450,7 +1521,14 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_block_json_decision_returns_error() {
         // JSON {"decision":"block","reason":"Content policy"} must block.
-        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"decision":"block","reason":"Content policy"}"#, ""), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(
+                Some(0),
+                r#"{"decision":"block","reason":"Content policy"}"#,
+                "",
+            ),
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("test");
 
@@ -1468,7 +1546,14 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_block_continue_false_returns_error() {
         // {"continue":false,"reason":"Blocked by admin"} must block.
-        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"continue":false,"reason":"Blocked by admin"}"#, ""), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(
+                Some(0),
+                r#"{"continue":false,"reason":"Blocked by admin"}"#,
+                "",
+            ),
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("test");
 
@@ -1486,7 +1571,10 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_allow_returns_ok() {
         // Exit 0 + empty stdout => allow, no feedback injected.
-        let handler = handler_for_event(NullInfra, r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            NullInfra,
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1501,7 +1589,10 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_non_blocking_error_returns_ok() {
         // Exit code 1 is a non-blocking error — must NOT block.
-        let handler = handler_for_event(StubInfra::new(Some(1), "", "some error"), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(1), "", "some error"),
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1513,7 +1604,10 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_skipped_on_subsequent_requests() {
         // request_count > 0 means it's a retry, not a user prompt.
-        let handler = handler_for_event(NullInfra, r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            NullInfra,
+            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = request_event(1); // subsequent request
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1546,7 +1640,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_hook_exit_code_2_injects_message_and_sets_active() {
-        let handler = handler_for_event(StubInfra::new(Some(2), "", "keep working"), r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(2), "", "keep working"),
+            r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1575,7 +1672,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_hook_allow_returns_ok() {
-        let handler = handler_for_event(NullInfra, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            NullInfra,
+            r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1590,7 +1690,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_hook_json_continue_false_injects_message() {
-        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"continue":false,"stopReason":"keep working"}"#, ""), r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(
+                Some(0),
+                r#"{"continue":false,"stopReason":"keep working"}"#,
+                "",
+            ),
+            r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1698,7 +1805,10 @@ mod tests {
         }
 
         let captured = Arc::new(Mutex::new(None));
-        let handler = handler_for_event(CapturingInfra { captured_input: captured.clone() }, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            CapturingInfra { captured_input: captured.clone() },
+            r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         // Create event with stop_hook_active = true (simulating re-entrant call)
         let mut event = {
             use forge_domain::{Agent, ModelId, ProviderId};
@@ -1728,7 +1838,10 @@ mod tests {
     async fn test_stop_hook_allow_does_not_inject_message() {
         // When a Stop hook allows the stop (exit 0, no blocking JSON), no
         // message should be injected and stop_hook_active should remain false.
-        let handler = handler_for_event(NullInfra, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            NullInfra,
+            r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1773,7 +1886,10 @@ mod tests {
         }
 
         let captured = Arc::new(Mutex::new(None));
-        let handler = handler_for_event(CapturingInfra2 { captured_input: captured.clone() }, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            CapturingInfra2 { captured_input: captured.clone() },
+            r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = end_event(); // stop_hook_active defaults to false
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1817,7 +1933,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_block_injects_important_feedback() {
-        let handler = handler_for_event(StubInfra::new(Some(2), "", "sensitive data detected"), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(2), "", "sensitive data detected"),
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1839,7 +1958,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_block_json_injects_feedback() {
-        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"decision":"block","reason":"PII detected"}"#, ""), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(
+                Some(0),
+                r#"{"decision":"block","reason":"PII detected"}"#,
+                "",
+            ),
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1858,7 +1984,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_allow_no_feedback() {
-        let handler = handler_for_event(NullInfra, r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            NullInfra,
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1872,7 +2001,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_non_blocking_error_no_feedback() {
-        let handler = handler_for_event(StubInfra::new(Some(1), "", "non-blocking error"), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(1), "", "non-blocking error"),
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1888,7 +2020,10 @@ mod tests {
     async fn test_post_tool_use_failure_event_fires_separately() {
         // PostToolUseFailure is a separate event from PostToolUse.
         // Configure only PostToolUseFailure hooks and fire with is_error=true.
-        let handler = handler_for_event(StubInfra::new(Some(2), "", "error flagged"), r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(2), "", "error flagged"),
+            r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
 
         let mut event = toolcall_end_event("shell", true);
         let mut conversation = conversation_with_user_msg("hello");
@@ -1902,7 +2037,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_feedback_contains_tool_name() {
-        let handler = handler_for_event(StubInfra::new(Some(2), "", "flagged"), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(Some(2), "", "flagged"),
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1922,7 +2060,11 @@ mod tests {
         let json = r#"{"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         let handler = UserHookHandler::new(
-            StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""),
+            StubInfra::new(
+                Some(0),
+                r#"{"additionalContext": "Remember to follow coding standards"}"#,
+                "",
+            ),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -1962,7 +2104,11 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_injects_additional_context() {
         let handler = UserHookHandler::new(
-            StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""),
+            StubInfra::new(
+                Some(0),
+                r#"{"additionalContext": "Remember to follow coding standards"}"#,
+                "",
+            ),
             BTreeMap::new(),
             serde_json::from_str(
                 r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
@@ -1998,7 +2144,11 @@ mod tests {
         let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         let handler = UserHookHandler::new(
-            StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""),
+            StubInfra::new(
+                Some(0),
+                r#"{"additionalContext": "Remember to follow coding standards"}"#,
+                "",
+            ),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -2040,7 +2190,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_injects_additional_context() {
-        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            StubInfra::new(
+                Some(0),
+                r#"{"additionalContext": "Remember to follow coding standards"}"#,
+                "",
+            ),
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_count = conversation.context.as_ref().unwrap().messages.len();
@@ -2065,7 +2222,10 @@ mod tests {
     #[tokio::test]
     async fn test_no_additional_context_when_empty() {
         // NullInfra returns empty stdout => no additionalContext
-        let handler = handler_for_event(NullInfra, r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
+        let handler = handler_for_event(
+            NullInfra,
+            r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
+        );
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_count = conversation.context.as_ref().unwrap().messages.len();
