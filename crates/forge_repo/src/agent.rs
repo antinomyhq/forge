@@ -173,12 +173,12 @@ fn render_agent_frontmatter(content: &str, config: &ForgeConfig) -> Result<Strin
         .split_once(&delimiter)
         .context("Failed to find end of agent frontmatter")?;
 
-    let rendered_frontmatter = TemplateEngine::default().render_template(
-        Template::new(frontmatter),
-        &AgentTemplateContext { config },
-    )?;
+    let rendered_frontmatter = TemplateEngine::default()
+        .render_template(Template::new(frontmatter), &AgentTemplateContext { config })?;
 
-    Ok(format!("---{newline}{rendered_frontmatter}{delimiter}{body}"))
+    Ok(format!(
+        "---{newline}{rendered_frontmatter}{delimiter}{body}"
+    ))
 }
 
 /// Parse raw content into an AgentDefinition with YAML frontmatter
@@ -294,7 +294,10 @@ Body keeps {{tool_names.read}} untouched.
         let actual = parse_agent_file(fixture, &config).unwrap();
 
         assert_eq!(actual.id, AgentId::new("test"));
-        assert_eq!(actual.system_prompt.unwrap().template, "Body keeps {{tool_names.read}} untouched.");
+        assert_eq!(
+            actual.system_prompt.unwrap().template,
+            "Body keeps {{tool_names.read}} untouched."
+        );
         assert_yaml_snapshot!("parse_agent_file_subagents_enabled_tools", actual.tools);
     }
 
@@ -317,7 +320,10 @@ Body keeps {{tool_names.read}} untouched.
         let actual = parse_agent_file(fixture, &config).unwrap();
 
         assert_eq!(actual.id, AgentId::new("test"));
-        assert_snapshot!("parse_agent_file_subagents_disabled_prompt", actual.system_prompt.unwrap().template);
+        assert_snapshot!(
+            "parse_agent_file_subagents_disabled_prompt",
+            actual.system_prompt.unwrap().template
+        );
         assert_yaml_snapshot!("parse_agent_file_subagents_disabled_tools", actual.tools);
     }
 }
