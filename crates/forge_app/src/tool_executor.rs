@@ -189,7 +189,7 @@ impl<
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let limit = config.max_sem_search_results;
+                let limit = input.max_results.unwrap_or(config.max_sem_search_results);
                 let top_k = config.sem_search_top_k as u32;
                 let params: Vec<_> = input
                     .queries

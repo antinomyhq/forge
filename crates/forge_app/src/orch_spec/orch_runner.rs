@@ -20,7 +20,7 @@ use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
     AgentExt, AgentService, AttachmentService, EnvironmentInfra, ShellOutput, ShellService,
-    SkillFetchService, TemplateService,
+    SkillFetchService, TemplateService, FileDiscoveryService,
 };
 
 static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
@@ -231,6 +231,31 @@ impl SkillFetchService for Runner {
     }
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+        Ok(vec![])
+    }
+}
+
+#[async_trait::async_trait]
+impl FileDiscoveryService for Runner {
+    async fn collect_files(&self, _config: crate::Walker) -> anyhow::Result<Vec<forge_domain::File>> {
+        let mut outputs = self.test_shell_outputs.lock().await;
+        if let Some(output) = outputs.pop_front() {
+            let files = output.output.stdout
+                .lines()
+                .map(str::trim)
+                .filter(|line| !line.is_empty())
+                .map(|line| forge_domain::File {
+                    path: line.to_string(),
+                    is_dir: false,
+                })
+                .collect();
+            Ok(files)
+        } else {
+            Ok(vec![])
+        }
+    }
+
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<forge_domain::File>> {
         Ok(vec![])
     }
 }

@@ -437,6 +437,11 @@ pub struct SemanticSearch {
     /// authentication, try "user login verification", "token generation",
     /// "OAuth flow".
     pub queries: Vec<SearchQuery>,
+
+    /// Maximum number of search results to return per query. If not provided,
+    /// defaults to the system configuration limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_results: Option<usize>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -826,6 +831,13 @@ impl ToolDescription for ToolCatalog {
 static FORGE_TOOLS: LazyLock<HashSet<ToolName>> =
     LazyLock::new(|| ToolCatalog::iter().map(ToolName::new).collect());
 
+// Cache of all tool definitions
+static FORGE_TOOL_DEFINITIONS: LazyLock<HashMap<ToolName, ToolDefinition>> = LazyLock::new(|| {
+    ToolCatalog::iter()
+        .map(|tool| (tool.kind().name(), tool.definition()))
+        .collect()
+});
+
 // Case-insensitive lookup map: lowercase tool name -> canonical tool name
 static FORGE_TOOLS_LOWER: LazyLock<HashMap<String, ToolName>> = LazyLock::new(|| {
     ToolCatalog::iter()
@@ -1065,7 +1077,7 @@ impl ToolCatalog {
 
     /// Creates a Semantic Search tool call with the specified queries
     pub fn tool_call_semantic_search(queries: Vec<SearchQuery>) -> ToolCallFull {
-        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch { queries }))
+        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch { queries, max_results: None }))
     }
 
     /// Creates an Undo tool call with the specified path
@@ -1175,11 +1187,10 @@ impl ToolKind {
         ToolName::new(self.to_string().to_case(Case::Snake))
     }
 
-    // TODO: This is an extremely slow operation
     pub fn definition(&self) -> ToolDefinition {
-        ToolCatalog::iter()
-            .find(|tool| tool.definition().name == self.name())
-            .map(|tool| tool.definition())
+        FORGE_TOOL_DEFINITIONS
+            .get(&self.name())
+            .cloned()
             .expect("Forge tool definition not found")
     }
 }

@@ -147,6 +147,13 @@ expression: tools
   "title": "SemanticSearch",
   "type": "object",
   "properties": {
+    "max_results": {
+      "description": "Maximum number of search results to return per query. If not provided,\ndefaults to the system configuration limit.",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0,
+      "nullable": true
+    },
     "queries": {
       "description": "List of search queries to execute in parallel. Using multiple queries\n(2-3) with varied phrasings significantly improves results - each query\ncaptures different aspects of what you're looking for. Each query pairs\na search term with a use_case for reranking. Example: for\nauthentication, try \"user login verification\", \"token generation\",\n\"OAuth flow\".",
       "type": "array",

@@ -27,7 +27,7 @@ pub struct SystemPrompt<S> {
     template_config: TemplateConfig,
 }
 
-impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
+impl<S: SkillFetchService + ShellService + crate::FileDiscoveryService> SystemPrompt<S> {
     pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
@@ -42,27 +42,20 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
         }
     }
 
-    /// Fetches file extension statistics by running git ls-files command.
+    /// Fetches file extension statistics using the domain's FileDiscoveryService.
     async fn fetch_extensions(&self, max_extensions: usize) -> Option<Extension> {
-        let output = self
+        let files = self
             .services
-            .execute(
-                "git ls-files".into(),
-                self.environment.cwd.clone(),
-                false,
-                true,
-                None,
-                None,
-            )
+            .as_ref()
+            .collect_files(crate::Walker::unlimited().cwd(self.environment.cwd.clone()))
             .await
             .ok()?;
 
-        // If git command fails (e.g., not in a git repo), return None
-        if output.output.exit_code != Some(0) {
+        if files.is_empty() {
             return None;
         }
 
-        parse_extensions(&output.output.stdout, max_extensions)
+        parse_extensions(&files, max_extensions)
     }
 
     pub async fn add_system_message(
@@ -171,15 +164,9 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     }
 }
 
-/// Parses the newline-separated output of `git ls-files` into an [`Extension`]
-/// summary.
-fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension> {
-    let all_files: Vec<&str> = extensions
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .collect();
-
+/// Parses a list of files into an [`Extension`] summary.
+fn parse_extensions(files: &[File], max_extensions: usize) -> Option<Extension> {
+    let all_files: Vec<&File> = files.iter().filter(|f| !f.is_dir).collect();
     let total_files = all_files.len();
     if total_files == 0 {
         return None;
@@ -189,8 +176,8 @@ fn parse_extensions(extensions: &str, max_extensions: usize) -> Option<Extension
     let mut counts = HashMap::<&str, usize>::new();
     all_files
         .iter()
-        .map(|line| {
-            let file_name = line.rsplit_once(['/', '\\']).map_or(*line, |(_, f)| f);
+        .map(|f| {
+            let file_name = f.path.rsplit_once(['/', '\\']).map_or(f.path.as_str(), |(_, name)| name);
             file_name
                 .rsplit_once('.')
                 .filter(|(prefix, _)| !prefix.is_empty())
@@ -245,10 +232,24 @@ mod tests {
 
     const MAX_EXTENSIONS: usize = 15;
 
+    fn lines_to_files(lines: &str) -> Vec<File> {
+        lines
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| File {
+                path: line.to_string(),
+                is_dir: false,
+            })
+            .collect()
+    }
+
+
     #[test]
     fn test_parse_extensions_sorts_git_output() {
         let fixture = include_str!("fixtures/git_ls_files_mixed.txt");
-        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
+        let files = lines_to_files(fixture);
+        let actual = parse_extensions(&files, MAX_EXTENSIONS).unwrap();
 
         // 9 files: 4 rs, 2 md, 2 no-ext, 1 toml — sorted by count desc then alpha
         let expected = Extension::new(
@@ -273,7 +274,8 @@ mod tests {
         // Top 15 are shown; the remaining 4 (html, jsonl, lock, proto — 1 each) are
         // rolled up.
         let fixture = include_str!("fixtures/git_ls_files_many_extensions.txt");
-        let actual = parse_extensions(fixture, MAX_EXTENSIONS).unwrap();
+        let files = lines_to_files(fixture);
+        let actual = parse_extensions(&files, MAX_EXTENSIONS).unwrap();
 
         let expected = Extension::new(
             vec![
@@ -304,7 +306,88 @@ mod tests {
 
     #[test]
     fn test_parse_extensions_returns_none_for_empty_output() {
-        assert_eq!(parse_extensions("", MAX_EXTENSIONS), None);
-        assert_eq!(parse_extensions("   \n  \n", MAX_EXTENSIONS), None);
+        assert_eq!(parse_extensions(&[], MAX_EXTENSIONS), None);
+    }
+    #[derive(Clone)]
+    struct MockServices {
+        files_to_return: Vec<File>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::FileDiscoveryService for MockServices {
+        async fn collect_files(&self, _config: crate::Walker) -> anyhow::Result<Vec<File>> {
+            Ok(self.files_to_return.clone())
+        }
+        async fn list_current_directory(&self) -> anyhow::Result<Vec<File>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::SkillFetchService for MockServices {
+        async fn fetch_skill(&self, _name: String) -> anyhow::Result<forge_domain::Skill> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+        async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::ShellService for MockServices {
+        async fn execute(
+            &self,
+            _command: String,
+            _cwd: std::path::PathBuf,
+            _keep_ansi: bool,
+            _silent: bool,
+            _env_vars: Option<Vec<String>>,
+            _description: Option<String>,
+        ) -> anyhow::Result<crate::ShellOutput> {
+            Ok(crate::ShellOutput { output: forge_domain::CommandOutput { command: "".into(), exit_code: Some(0), stdout: "".into(), stderr: "".into() }, shell: "sh".into(), description: None })
+        }
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_extension_integration() {
+        let files = vec![
+            forge_domain::File { path: "src/main.rs".into(), is_dir: false },
+            forge_domain::File { path: "src/lib.rs".into(), is_dir: false },
+            forge_domain::File { path: "README.md".into(), is_dir: false },
+        ];
+        
+        let services = std::sync::Arc::new(MockServices { files_to_return: files });
+        
+        let env = forge_domain::Environment {
+            os: "linux".into(),
+            cwd: std::path::PathBuf::from("/tmp"),
+            home: None,
+            shell: "sh".into(),
+            base_path: std::path::PathBuf::from("/tmp"),
+        };
+        
+        let mut agent = forge_domain::Agent::new("test", forge_domain::ProviderId::OPENAI, forge_domain::ModelId::from("gpt-4o"));
+        agent.system_prompt = Some(forge_domain::Template::new(r#"System prompt <workspace_extensions extensions="{{extensions.total_extensions}}" total="{{extensions.git_tracked_files}}" />"#));
+        
+        let system_prompt = SystemPrompt::new(services, env, agent).max_extensions(15);
+        
+        let conversation = forge_domain::Conversation::new(forge_domain::ConversationId::generate());
+        let result = system_prompt.add_system_message(conversation).await.unwrap();
+        
+        let ctx = result.context.unwrap();
+        
+        let mut context_text = String::new();
+        for msg in ctx.messages {
+            if let forge_domain::ContextMessage::Text(text_msg) = msg.message {
+                if text_msg.role == forge_domain::Role::System {
+                    context_text.push_str(&text_msg.content);
+                }
+            }
+        }
+        
+        // Assert extensions were fetched and integrated into context
+        assert!(context_text.contains("<workspace_extensions"));
+        assert!(context_text.contains(".rs"));
+        assert!(context_text.contains(".md"));
     }
 }
