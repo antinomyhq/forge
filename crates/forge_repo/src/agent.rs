@@ -151,7 +151,10 @@ where
     Ok(agents)
 }
 
-fn apply_subagent_tool_config(mut agent: AgentDefinition, config: &ForgeConfig) -> Result<AgentDefinition> {
+fn apply_subagent_tool_config(
+    mut agent: AgentDefinition,
+    config: &ForgeConfig,
+) -> Result<AgentDefinition> {
     if agent.id.as_str() != "forge" {
         return Ok(agent);
     }
@@ -282,7 +285,8 @@ Body keeps {{tool_names.read}} untouched.
 "#;
         let config = ForgeConfig { enable_subagents: true, ..Default::default() };
 
-        let actual = apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
+        let actual =
+            apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
 
         assert_eq!(actual.id, AgentId::new("forge"));
         assert_eq!(
@@ -306,7 +310,8 @@ Body keeps {{tool_names.read}} untouched.
 "#;
         let config = ForgeConfig { enable_subagents: false, ..Default::default() };
 
-        let actual = apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
+        let actual =
+            apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
 
         assert_eq!(actual.id, AgentId::new("forge"));
         assert_snapshot!(
@@ -342,9 +347,12 @@ Body keeps {{tool_names.read}} untouched.
         );
         assert_yaml_snapshot!(
             "parse_agent_file_preserves_runtime_user_prompt_variables_tools",
-            apply_subagent_tool_config(actual, &ForgeConfig { enable_subagents: true, ..Default::default() })
-                .unwrap()
-                .tools
+            apply_subagent_tool_config(
+                actual,
+                &ForgeConfig { enable_subagents: true, ..Default::default() }
+            )
+            .unwrap()
+            .tools
         );
     }
 }
