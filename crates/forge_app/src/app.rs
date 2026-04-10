@@ -343,9 +343,10 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
         }
 
         if successes.is_empty()
-            && let Some(err) = first_error {
-                return Err(err);
-            }
+            && let Some(err) = first_error
+        {
+            return Err(err);
+        }
 
         Ok(successes)
     }
