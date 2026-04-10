@@ -159,7 +159,7 @@ struct AgentTemplateContext<'a> {
     config: &'a ForgeConfig,
 }
 
-fn render_agent_frontmatter(content: &str, config: &ForgeConfig) -> Result<String> {
+fn render_tools_frontmatter_block(content: &str, config: &ForgeConfig) -> Result<String> {
     let Some((newline, content)) = content
         .strip_prefix("---\r\n")
         .map(|content| ("\r\n", content))
@@ -173,17 +173,52 @@ fn render_agent_frontmatter(content: &str, config: &ForgeConfig) -> Result<Strin
         .split_once(&delimiter)
         .context("Failed to find end of agent frontmatter")?;
 
-    let rendered_frontmatter = TemplateEngine::default()
-        .render_template(Template::new(frontmatter), &AgentTemplateContext { config })?;
+    let rendered_frontmatter = render_tools_block(frontmatter, config)?;
 
     Ok(format!(
         "---{newline}{rendered_frontmatter}{delimiter}{body}"
     ))
 }
 
+fn render_tools_block(frontmatter: &str, config: &ForgeConfig) -> Result<String> {
+    let lines = frontmatter
+        .split_inclusive('\n')
+        .map(ToString::to_string)
+        .collect::<Vec<_>>();
+
+    let Some(start) = lines.iter().position(|line| line.trim_end() == "tools:") else {
+        return Ok(frontmatter.to_string());
+    };
+
+    let end = lines[start + 1..]
+        .iter()
+        .position(|line| {
+            let trimmed = line.trim_end();
+
+            !trimmed.is_empty()
+                && !line.starts_with([' ', '\t'])
+                && !trimmed.starts_with("#")
+                && !trimmed.starts_with("---")
+        })
+        .map(|index| start + 1 + index)
+        .unwrap_or(lines.len());
+
+    let rendered_tools_block = TemplateEngine::default().render_template(
+        Template::new(&lines[start..end].join("")),
+        &AgentTemplateContext { config },
+    )?;
+
+    Ok(format!(
+        "{}{}{}",
+        lines[..start].join(""),
+        rendered_tools_block,
+        lines[end..].join("")
+    ))
+}
+
 /// Parse raw content into an AgentDefinition with YAML frontmatter
 fn parse_agent_file(content: &str, config: &ForgeConfig) -> Result<AgentDefinition> {
-    let rendered_content = render_agent_frontmatter(content, config)?;
+    let rendered_content = render_tools_frontmatter_block(content, config)?;
 
     // Parse the frontmatter using gray_matter with type-safe deserialization
     let gray_matter = Matter::<YAML>::new();
@@ -281,7 +316,7 @@ mod tests {
 id: "test"
 tools:
   - read
-  {{#if config.subagent_enabled}}
+  {{#if config.enable_subagents}}
   - task
   {{else}}
   - sage
@@ -307,7 +342,7 @@ Body keeps {{tool_names.read}} untouched.
 id: "test"
 tools:
   - read
-  {{#if config.subagent_enabled}}
+  {{#if config.enable_subagents}}
   - task
   {{else}}
   - sage
@@ -325,5 +360,37 @@ Body keeps {{tool_names.read}} untouched.
             actual.system_prompt.unwrap().template
         );
         assert_yaml_snapshot!("parse_agent_file_subagents_disabled_tools", actual.tools);
+    }
+
+    #[test]
+    fn test_parse_agent_file_preserves_runtime_user_prompt_variables() {
+        let fixture = r#"---
+id: "test"
+tools:
+  - read
+  {{#if config.enable_subagents}}
+  - task
+  {{else}}
+  - sage
+  {{/if}}
+user_prompt: |-
+  <{{event.name}}>{{event.value}}</{{event.name}}>
+  <system_date>{{current_date}}</system_date>
+---
+Body keeps {{tool_names.read}} untouched.
+"#;
+        let config = ForgeConfig { enable_subagents: true, ..Default::default() };
+
+        let actual = parse_agent_file(fixture, &config).unwrap();
+
+        assert_eq!(actual.id, AgentId::new("test"));
+        assert_snapshot!(
+            "parse_agent_file_preserves_runtime_user_prompt_variables",
+            actual.user_prompt.unwrap().template
+        );
+        assert_yaml_snapshot!(
+            "parse_agent_file_preserves_runtime_user_prompt_variables_tools",
+            actual.tools
+        );
     }
 }
