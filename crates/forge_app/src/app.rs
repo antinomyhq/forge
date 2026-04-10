@@ -297,11 +297,11 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
 
     /// Gets available models from all configured providers concurrently.
     ///
-    /// Returns a list of `ProviderModels` for each configured provider that
-    /// successfully returned models. If every configured provider fails (e.g.
-    /// due to an invalid API key), the first error encountered is returned so
-    /// the caller receives the real underlying cause rather than an empty list.
-    pub async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>> {
+    /// Returns one `Result<ProviderModels>` per configured provider so the
+    /// caller can display partial results alongside per-provider errors
+    /// (e.g. stale credentials on one provider should not hide models from
+    /// others).
+    pub async fn get_all_provider_models(&self) -> Result<Vec<Result<ProviderModels>>> {
         let all_providers = self.services.get_all_providers().await?;
 
         // Build one future per configured provider, preserving the error on failure.
@@ -312,6 +312,7 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
                 let provider_id = provider.id.clone();
                 let services = self.services.clone();
                 async move {
+                    let pid = provider_id.clone();
                     let result: Result<ProviderModels> = async {
                         let refreshed = services
                             .provider_auth_service()
@@ -321,33 +322,11 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
                         Ok(ProviderModels { provider_id, models })
                     }
                     .await;
-                    result
+                    result.map_err(|e| e.context(format!("provider '{pid}'")))
                 }
             })
             .collect();
 
-        // Execute all provider fetches concurrently, tolerating partial failures.
-        let mut first_error: Option<anyhow::Error> = None;
-        let mut successes = Vec::new();
-
-        for result in futures::future::join_all(futures).await {
-            match result {
-                Ok(provider_models) => successes.push(provider_models),
-                Err(err) => {
-                    tracing::warn!(error = %err, "failed to fetch models from a configured provider");
-                    if first_error.is_none() {
-                        first_error = Some(err);
-                    }
-                }
-            }
-        }
-
-        if successes.is_empty()
-            && let Some(err) = first_error
-        {
-            return Err(err);
-        }
-
-        Ok(successes)
+        Ok(futures::future::join_all(futures).await)
     }
 }
