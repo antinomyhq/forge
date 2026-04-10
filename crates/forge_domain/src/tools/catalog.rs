@@ -47,6 +47,7 @@ pub enum ToolCatalog {
     SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
+    MultiPatch(FSMultiPatch),
     Undo(FSUndo),
     Shell(Shell),
     Fetch(NetFetch),
@@ -56,6 +57,8 @@ pub enum ToolCatalog {
     SkillSearch(SkillSearch),
     TodoWrite(TodoWrite),
     TodoRead(TodoRead),
+    #[serde(alias = "Task")]
+    Task(TaskInput),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -68,6 +71,28 @@ pub struct AgentInput {
     /// requirements to enable the agent to understand and execute the work
     /// accurately.
     pub tasks: Vec<String>,
+}
+
+/// Input structure for the Task tool - delegates work to specialized agents
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/task.md"]
+pub struct TaskInput {
+    /// A list of clear and detailed descriptions of the tasks to be performed
+    /// by the agent in parallel. Provide sufficient context and specific
+    /// requirements to enable the agent to understand and execute the work
+    /// accurately.
+    pub tasks: Vec<String>,
+
+    /// The ID of the specialized agent to delegate to (e.g., "sage", "forge",
+    /// "muse")
+    pub agent_id: String,
+
+    /// Optional session ID to continue an existing agent session. If not
+    /// provided, a new stateless session will be created. Use this to
+    /// maintain context across multiple task invocations with the same
+    /// agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -523,6 +548,31 @@ pub struct FSPatch {
     pub replace_all: bool,
 }
 
+/// A single edit operation in a multi-patch
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct PatchEdit {
+    /// The text to replace
+    pub old_string: String,
+
+    /// The text to replace it with (must be different from old_string)
+    pub new_string: String,
+
+    /// Replace all occurrences of old_string (default false)
+    #[serde(default)]
+    #[schemars(default)]
+    pub replace_all: bool,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_multi_patch.md"]
+pub struct FSMultiPatch {
+    /// The absolute path to the file to modify
+    pub file_path: String,
+
+    /// Array of edit operations to perform sequentially on the file
+    pub edits: Vec<PatchEdit>,
+}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_undo.md"]
 pub struct FSUndo {
@@ -771,6 +821,7 @@ impl ToolDescription for ToolCatalog {
     fn description(&self) -> String {
         match self {
             ToolCatalog::Patch(v) => v.description(),
+            ToolCatalog::MultiPatch(v) => v.description(),
             ToolCatalog::Shell(v) => v.description(),
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
@@ -785,6 +836,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::SkillSearch(v) => v.description(),
             ToolCatalog::TodoWrite(v) => v.description(),
             ToolCatalog::TodoRead(v) => v.description(),
+            ToolCatalog::Task(v) => v.description(),
         }
     }
 }
@@ -829,6 +881,7 @@ impl ToolCatalog {
 
         let mut schema = match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            ToolCatalog::MultiPatch(_) => r#gen.into_root_schema_for::<FSMultiPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
@@ -840,6 +893,7 @@ impl ToolCatalog {
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
+            ToolCatalog::Task(_) => r#gen.into_root_schema_for::<TaskInput>(),
             ToolCatalog::SkillSearch(_) => r#gen.into_root_schema_for::<SkillSearch>(),
             ToolCatalog::TodoWrite(_) => r#gen.into_root_schema_for::<TodoWrite>(),
             ToolCatalog::TodoRead(_) => r#gen.into_root_schema_for::<TodoRead>(),
@@ -942,6 +996,15 @@ impl ToolCatalog {
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.file_path)),
             }),
+            ToolCatalog::MultiPatch(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.file_path),
+                cwd,
+                message: format!(
+                    "Modify file with {} edits: {}",
+                    input.edits.len(),
+                    display_path_for(&input.file_path)
+                ),
+            }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),
                 cwd,
@@ -959,7 +1022,8 @@ impl ToolCatalog {
             | ToolCatalog::Skill(_)
             | ToolCatalog::SkillSearch(_)
             | ToolCatalog::TodoWrite(_)
-            | ToolCatalog::TodoRead(_) => None,
+            | ToolCatalog::TodoRead(_)
+            | ToolCatalog::Task(_) => None,
         }
     }
 

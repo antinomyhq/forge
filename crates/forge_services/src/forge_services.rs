@@ -48,7 +48,6 @@ pub struct ForgeServices<
         + WalkerInfra
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -91,7 +90,7 @@ pub struct ForgeServices<
 
 impl<
     F: McpServerInfra
-        + EnvironmentInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + FileWriterInfra
         + FileInfoInfra
         + FileReaderInfra
@@ -102,7 +101,6 @@ impl<
         + UserInfra
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + ChatRepository
         + ProviderRepository
         + KVStore
@@ -191,14 +189,13 @@ impl<
         + FileRemoverInfra
         + FileInfoInfra
         + FileDirectoryInfra
-        + EnvironmentInfra
+        + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + DirectoryReaderInfra
         + HttpInfra
         + WalkerInfra
         + Clone
         + SnapshotRepository
         + ConversationRepository
-        + EnvironmentInfra
         + KVStore
         + ChatRepository
         + ProviderRepository
@@ -355,7 +352,7 @@ impl<
 }
 
 impl<
-    F: EnvironmentInfra
+    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
         + HttpInfra
         + McpServerInfra
         + WalkerInfra
@@ -379,7 +376,7 @@ impl<
         self.infra.get_environment()
     }
 
-    fn get_config(&self) -> forge_config::ForgeConfig {
+    fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
         self.infra.get_config()
     }
 

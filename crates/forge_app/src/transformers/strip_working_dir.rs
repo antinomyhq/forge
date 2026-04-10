@@ -84,6 +84,7 @@ impl Transformer for StripWorkingDir {
                         | SummaryTool::Followup { .. }
                         | SummaryTool::Plan { .. }
                         | SummaryTool::Skill { .. }
+                        | SummaryTool::Task { .. }
                         | SummaryTool::SkillSearch { .. }
                         | SummaryTool::Mcp { .. }
                         | SummaryTool::TodoWrite { .. }

@@ -83,7 +83,7 @@ impl<I: GrpcInfra> SkillSearchRepository for ForgeSkillSearchRepository<I> {
         let request = self.with_auth(request, auth_token)?;
 
         // Call gRPC API
-        let channel = self.infra.channel();
+        let channel = self.infra.channel()?;
         let mut client = ForgeServiceClient::new(channel);
         let response = client
             .select_skill(request)
