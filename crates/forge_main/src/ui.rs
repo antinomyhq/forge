@@ -3595,6 +3595,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             crate::cli::ConfigCommand::List => {
                 self.on_show_config(porcelain).await?;
             }
+            crate::cli::ConfigCommand::Path => {
+                let path = forge_config::ConfigReader::config_path();
+                self.writeln(path.display().to_string())?;
+            }
         }
         Ok(())
     }

@@ -510,6 +510,9 @@ pub enum ConfigCommand {
 
     /// List configuration values.
     List,
+
+    /// Print the path to the global config file.
+    Path,
 }
 
 /// Arguments for `forge config set`.
