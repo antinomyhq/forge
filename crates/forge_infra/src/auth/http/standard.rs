@@ -1,11 +1,23 @@
 use forge_app::OAuthHttpProvider;
 use forge_domain::{AuthCodeParams, OAuthConfig, OAuthTokenResponse};
 use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
+use serde::Serialize;
 
 use crate::auth::util::*;
 
 /// Standard RFC-compliant OAuth provider
 pub struct StandardHttpProvider;
+
+#[derive(Debug, Serialize)]
+struct StandardTokenRequest<'a> {
+    grant_type: &'static str,
+    code: &'a str,
+    client_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    redirect_uri: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code_verifier: Option<&'a str>,
+}
 
 #[async_trait::async_trait]
 impl OAuthHttpProvider for StandardHttpProvider {
@@ -57,25 +69,19 @@ impl OAuthHttpProvider for StandardHttpProvider {
         verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
         let http_client = self.build_http_client(config)?;
-        let mut params = vec![
-            ("grant_type".to_string(), "authorization_code".to_string()),
-            ("code".to_string(), code.to_string()),
-            ("client_id".to_string(), config.client_id.to_string()),
-        ];
-
-        if let Some(redirect_uri) = &config.redirect_uri {
-            params.push(("redirect_uri".to_string(), redirect_uri.clone()));
-        }
-
-        if let Some(verifier) = verifier {
-            params.push(("code_verifier".to_string(), verifier.to_string()));
-        }
+        let request_body = StandardTokenRequest {
+            grant_type: "authorization_code",
+            code,
+            client_id: config.client_id.as_ref(),
+            redirect_uri: config.redirect_uri.as_deref(),
+            code_verifier: verifier,
+        };
 
         let response = http_client
             .post(config.token_url.as_str())
             .header("Content-Type", "application/x-www-form-urlencoded")
             .header("Accept", "application/json")
-            .body(serde_urlencoded::to_string(params)?)
+            .body(serde_urlencoded::to_string(&request_body)?)
             .send()
             .await?;
 
