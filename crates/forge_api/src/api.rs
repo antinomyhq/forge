@@ -23,12 +23,20 @@ pub trait API: Sync + Send {
     /// Provides a list of models available in the current environment
     async fn get_models(&self) -> Result<Vec<Model>>;
 
-    /// Provides models from all configured providers. Providers that fail to
-    /// return models are silently skipped.
+    /// Provides models from all configured providers. Providers that
+    /// successfully return models are included in the result. If every
+    /// configured provider fails (e.g. due to an invalid API key), the
+    /// first error is returned so the caller sees the real underlying cause
+    /// rather than an empty list.
     async fn get_all_provider_models(&self) -> Result<Vec<ProviderModels>>;
 
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
+
+    /// Provides lightweight metadata for all agents without requiring a
+    /// configured provider or model
+    async fn get_agent_infos(&self) -> Result<Vec<AgentInfo>>;
+
     /// Provides a list of providers available in the current environment
     async fn get_providers(&self) -> Result<Vec<AnyProvider>>;
 
@@ -238,4 +246,13 @@ pub trait API: Sync + Send {
         &self,
         data_parameters: DataGenerationParameters,
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
+
+    /// Authenticate with an MCP server via OAuth flow
+    async fn mcp_auth(&self, server_url: &str) -> Result<()>;
+
+    /// Remove stored OAuth credentials for an MCP server (or all servers)
+    async fn mcp_logout(&self, server_url: Option<&str>) -> Result<()>;
+
+    /// Check the OAuth authentication status of an MCP server
+    async fn mcp_auth_status(&self, server_url: &str) -> Result<String>;
 }

@@ -28,9 +28,8 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
         config
             .session
             .as_ref()
-            .and_then(|s| s.provider_id.as_ref())
-            .map(|id| ProviderId::from(id.clone()))
-            .ok_or_else(|| forge_domain::Error::NoDefaultProvider.into())
+            .map(|s| ProviderId::from(s.provider_id.clone()))
+            .ok_or_else(|| forge_domain::Error::NoDefaultSession.into())
     }
 
     async fn get_provider_model(
@@ -42,54 +41,35 @@ impl<F: ProviderRepository + EnvironmentInfra<Config = forge_config::ForgeConfig
         let session = config
             .session
             .as_ref()
-            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+            .ok_or(forge_domain::Error::NoDefaultSession)?;
 
-        let active_provider = session
-            .provider_id
-            .as_ref()
-            .map(|id| ProviderId::from(id.clone()));
-
-        let provider_id = match provider_id {
-            Some(id) => id,
-            None => active_provider
-                .as_ref()
-                .ok_or(forge_domain::Error::NoDefaultProvider)?,
+        // Use the requested provider or the session's active provider
+        let requested_provider = match provider_id {
+            Some(id) => id.as_ref(),
+            None => session.provider_id.as_str(),
         };
 
-        // Only return the model if the session's provider matches the requested
-        // provider
-        if session.provider_id.as_deref() == Some(provider_id.as_ref()) {
-            session
-                .model_id
-                .as_ref()
-                .map(ModelId::new)
-                .ok_or_else(|| forge_domain::Error::no_default_model(provider_id.clone()).into())
+        // Return the session's model if the provider matches
+        if session.provider_id == requested_provider {
+            Ok(ModelId::new(session.model_id.clone()))
         } else {
-            Err(forge_domain::Error::no_default_model(provider_id.clone()).into())
+            Err(forge_domain::Error::NoDefaultSession.into())
         }
     }
 
     async fn get_commit_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>> {
         let config = self.infra.get_config()?;
-        Ok(config.commit.clone().and_then(|mc| {
-            mc.provider_id
-                .zip(mc.model_id)
-                .map(|(pid, mid)| ModelConfig {
-                    provider: ProviderId::from(pid),
-                    model: ModelId::new(mid),
-                })
+        Ok(config.commit.clone().map(|mc| ModelConfig {
+            provider: ProviderId::from(mc.provider_id),
+            model: ModelId::new(mc.model_id),
         }))
     }
 
     async fn get_suggest_config(&self) -> anyhow::Result<Option<forge_domain::ModelConfig>> {
         let config = self.infra.get_config()?;
-        Ok(config.suggest.clone().and_then(|mc| {
-            mc.provider_id
-                .zip(mc.model_id)
-                .map(|(pid, mid)| ModelConfig {
-                    provider: ProviderId::from(pid),
-                    model: ModelId::new(mid),
-                })
+        Ok(config.suggest.clone().map(|mc| ModelConfig {
+            provider: ProviderId::from(mc.provider_id),
+            model: ModelId::new(mc.model_id),
         }))
     }
 
@@ -227,30 +207,21 @@ mod tests {
                         ConfigOperation::SetSessionConfig(mc) => {
                             let pid_str = mc.provider.as_ref().to_string();
                             let mid_str = mc.model.to_string();
-                            config.session = Some(match config.session.take() {
-                                Some(existing)
-                                    if existing.provider_id.as_deref() == Some(&pid_str) =>
-                                {
-                                    existing.model_id(mid_str)
-                                }
-                                _ => ModelConfig::default()
-                                    .provider_id(pid_str)
-                                    .model_id(mid_str),
-                            });
+                            config.session = Some(ModelConfig::new(pid_str, mid_str));
                         }
                         ConfigOperation::SetCommitConfig(mc) => {
                             config.commit = mc.map(|m| {
-                                ModelConfig::default()
-                                    .provider_id(m.provider.as_ref().to_string())
-                                    .model_id(m.model.to_string())
+                                ModelConfig::new(
+                                    m.provider.as_ref().to_string(),
+                                    m.model.to_string(),
+                                )
                             });
                         }
                         ConfigOperation::SetSuggestConfig(mc) => {
-                            config.suggest = Some(
-                                ModelConfig::default()
-                                    .provider_id(mc.provider.as_ref().to_string())
-                                    .model_id(mc.model.to_string()),
-                            );
+                            config.suggest = Some(ModelConfig::new(
+                                mc.provider.as_ref().to_string(),
+                                mc.model.to_string(),
+                            ));
                         }
                         ConfigOperation::SetReasoningEffort(_) => {
                             // No-op in tests

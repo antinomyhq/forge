@@ -48,8 +48,8 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     /// * `cwd` - The working directory path for environment and file resolution
     /// * `config` - Pre-read application configuration (from startup)
     /// * `services_url` - Pre-validated URL for the gRPC workspace server
-    pub fn init(cwd: PathBuf, config: ForgeConfig, services_url: Url) -> Self {
-        let infra = Arc::new(ForgeInfra::new(cwd, config, services_url));
+    pub fn init(cwd: PathBuf, config: ForgeConfig) -> Self {
+        let infra = Arc::new(ForgeInfra::new(cwd, config));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
@@ -90,6 +90,10 @@ impl<
 
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
+    }
+
+    async fn get_agent_infos(&self) -> Result<Vec<AgentInfo>> {
+        self.services.get_agent_infos().await
     }
 
     async fn get_providers(&self) -> Result<Vec<AnyProvider>> {
@@ -402,6 +406,24 @@ impl<
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         let provider_id = self.services.get_default_provider().await?;
         self.services.get_provider(provider_id).await
+    }
+
+    async fn mcp_auth(&self, server_url: &str) -> Result<()> {
+        let env = self.services.get_environment().clone();
+        forge_infra::mcp_auth(server_url, &env).await
+    }
+
+    async fn mcp_logout(&self, server_url: Option<&str>) -> Result<()> {
+        let env = self.services.get_environment().clone();
+        match server_url {
+            Some(url) => forge_infra::mcp_logout(url, &env).await,
+            None => forge_infra::mcp_logout_all(&env).await,
+        }
+    }
+
+    async fn mcp_auth_status(&self, server_url: &str) -> Result<String> {
+        let env = self.services.get_environment().clone();
+        Ok(forge_infra::mcp_auth_status(server_url, &env).await)
     }
 
     fn hydrate_channel(&self) -> Result<()> {

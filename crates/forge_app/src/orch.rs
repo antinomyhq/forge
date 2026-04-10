@@ -258,7 +258,6 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Fire the Request lifecycle event
             let request_event = LifecycleEvent::Request(EventData::new(
                 self.agent.clone(),
                 model_id.clone(),
@@ -325,7 +324,7 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
                 .execute_tool_calls(&message.tool_calls, &tool_context)
                 .await?;
 
-            // Update context from conversation after tool-call hooks run
+            // Update context from conversation after response / tool-call hooks run
             if let Some(updated_context) = &self.conversation.context {
                 context = updated_context.clone();
             }
@@ -403,19 +402,32 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             tool_context.with_metrics(|metrics| {
                 self.conversation.metrics = metrics.clone();
             })?;
-        }
 
-        // Fire the End lifecycle event (title will be set here by the hook)
-        self.hook
-            .handle(
-                &LifecycleEvent::End(EventData::new(
-                    self.agent.clone(),
-                    model_id.clone(),
-                    EndPayload,
-                )),
-                &mut self.conversation,
-            )
-            .await?;
+            // If completing (should_yield is due), fire End hook and check if
+            // it adds messages
+            if should_yield {
+                let end_count_before = self.conversation.len();
+                self.hook
+                    .handle(
+                        &LifecycleEvent::End(EventData::new(
+                            self.agent.clone(),
+                            model_id.clone(),
+                            EndPayload,
+                        )),
+                        &mut self.conversation,
+                    )
+                    .await?;
+                self.services.update(self.conversation.clone()).await?;
+                // Check if End hook added messages - if so, continue the loop
+                if self.conversation.len() > end_count_before {
+                    // End hook added messages, sync context and continue
+                    if let Some(updated_context) = &self.conversation.context {
+                        context = updated_context.clone();
+                    }
+                    should_yield = false;
+                }
+            }
+        }
 
         self.services.update(self.conversation.clone()).await?;
 
