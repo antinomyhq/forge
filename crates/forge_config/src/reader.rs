@@ -51,15 +51,12 @@ impl ConfigReader {
 
     /// Returns the base directory for all Forge config files.
     ///
-    /// If the `FORGE_CONFIG` environment variable is set, its value is used
-    /// directly as the base path. Otherwise defaults to `~/.forge`.
-    /// Falls back to the legacy `~/forge` path if it exists, even if `~/.forge`
-    /// also exists. This prevents tools that eagerly create `~/.forge` (such as
-    /// the shell plugin's config-edit action) from silently switching the
-    /// active base path while the user's credentials and config still live
-    /// in `~/forge`. Once the user runs `forge config migrate` the
-    /// `~/forge` directory is removed, so this fallback naturally stops
-    /// applying.
+    /// Resolution order:
+    /// 1. `FORGE_CONFIG` environment variable, if set.
+    /// 2. `~/.forge`, if that directory exists.
+    /// 3. `~/forge` (legacy path) as a fallback, so users who have not yet
+    ///    run `forge config migrate` continue to read from their existing
+    ///    directory without disruption.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
@@ -68,9 +65,8 @@ impl ConfigReader {
         let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
         let path = home.join(".forge");
 
-        // Prefer the legacy ~/forge path while it still exists so that an
-        // empty ~/.forge directory (e.g. created by `mkdir -p` in the shell
-        // plugin) does not cause the base path to flip before migration.
+        // Prefer ~/.forge when it exists; fall back to ~/forge for users who
+        // have not yet migrated.
         if path.exists() {
             tracing::info!("Using new path");
             return path;
