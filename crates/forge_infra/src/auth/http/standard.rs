@@ -1,8 +1,6 @@
 use forge_app::OAuthHttpProvider;
 use forge_domain::{AuthCodeParams, OAuthConfig, OAuthTokenResponse};
-use oauth2::{
-    AuthorizationCode as OAuth2AuthCode, CsrfToken, PkceCodeChallenge, PkceCodeVerifier, Scope,
-};
+use oauth2::{CsrfToken, PkceCodeChallenge, Scope};
 
 use crate::auth::util::*;
 
@@ -58,27 +56,39 @@ impl OAuthHttpProvider for StandardHttpProvider {
         code: &str,
         verifier: Option<&str>,
     ) -> anyhow::Result<OAuthTokenResponse> {
-        use oauth2::{AuthUrl, ClientId, TokenUrl};
-
-        let mut client =
-            oauth2::basic::BasicClient::new(ClientId::new(config.client_id.to_string()))
-                .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
-                .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
+        let http_client = self.build_http_client(config)?;
+        let mut params = vec![
+            ("grant_type".to_string(), "authorization_code".to_string()),
+            ("code".to_string(), code.to_string()),
+            ("client_id".to_string(), config.client_id.to_string()),
+        ];
 
         if let Some(redirect_uri) = &config.redirect_uri {
-            client = client.set_redirect_uri(oauth2::RedirectUrl::new(redirect_uri.clone())?);
+            params.push(("redirect_uri".to_string(), redirect_uri.clone()));
         }
 
-        let http_client = self.build_http_client(config)?;
-
-        let mut request = client.exchange_code(OAuth2AuthCode::new(code.to_string()));
-
-        if let Some(v) = verifier {
-            request = request.set_pkce_verifier(PkceCodeVerifier::new(v.to_string()));
+        if let Some(verifier) = verifier {
+            params.push(("code_verifier".to_string(), verifier.to_string()));
         }
 
-        let token_result = request.request_async(&http_client).await?;
-        Ok(into_domain(token_result))
+        let response = http_client
+            .post(config.token_url.as_str())
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .header("Accept", "application/json")
+            .body(serde_urlencoded::to_string(params)?)
+            .send()
+            .await?;
+
+        let status = response.status();
+        let body = response.text().await?;
+
+        if !status.is_success() {
+            anyhow::bail!("OAuth token exchange failed ({status}): {body}");
+        }
+
+        // Parse the raw token payload so provider-specific fields like
+        // `id_token` are preserved instead of being dropped by generic helpers.
+        Ok(parse_token_response(&body)?)
     }
 
     /// Create HTTP client with provider-specific headers/behavior

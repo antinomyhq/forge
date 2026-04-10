@@ -217,25 +217,18 @@ pub(crate) fn handle_oauth_error(error_code: &str) -> Result<(), Error> {
     }
 }
 
-/// Parse token response from JSON
-pub(crate) fn parse_token_response(
-    body: &str,
-) -> Result<(String, Option<String>, Option<u64>), Error> {
-    let token_response: serde_json::Value = serde_json::from_str(body)
+/// Parse token response from JSON.
+pub(crate) fn parse_token_response(body: &str) -> Result<OAuthTokenResponse, Error> {
+    let token_response: OAuthTokenResponse = serde_json::from_str(body)
         .map_err(|e| Error::PollFailed(format!("Failed to parse token response: {e}")))?;
 
-    let access_token = token_response["access_token"]
-        .as_str()
-        .ok_or_else(|| Error::PollFailed("Missing access_token in response".to_string()))?
-        .to_string();
+    if token_response.access_token.trim().is_empty() {
+        return Err(Error::PollFailed(
+            "Missing access_token in response".to_string(),
+        ));
+    }
 
-    let refresh_token = token_response["refresh_token"]
-        .as_str()
-        .map(|s| s.to_string());
-
-    let expires_in = token_response["expires_in"].as_u64();
-
-    Ok((access_token, refresh_token, expires_in))
+    Ok(token_response)
 }
 
 #[cfg(test)]
@@ -276,6 +269,23 @@ mod tests {
         assert_eq!(response.refresh_token, Some("refresh_token".to_string()));
         assert_eq!(response.expires_in, Some(3600));
         assert_eq!(response.token_type, "Bearer");
+    }
+
+    #[test]
+    fn test_parse_token_response_preserves_id_token() {
+        let fixture = r#"{
+            "access_token": "test_token",
+            "refresh_token": "refresh_token",
+            "expires_in": 3600,
+            "id_token": "test_id_token"
+        }"#;
+
+        let actual = parse_token_response(fixture).unwrap();
+
+        assert_eq!(actual.access_token, "test_token");
+        assert_eq!(actual.refresh_token, Some("refresh_token".to_string()));
+        assert_eq!(actual.expires_in, Some(3600));
+        assert_eq!(actual.id_token, Some("test_id_token".to_string()));
     }
 
     #[test]
