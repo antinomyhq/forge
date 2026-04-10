@@ -32,6 +32,11 @@ pub trait API: Sync + Send {
 
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
+
+    /// Provides lightweight metadata for all agents without requiring a
+    /// configured provider or model
+    async fn get_agent_infos(&self) -> Result<Vec<AgentInfo>>;
+
     /// Provides a list of providers available in the current environment
     async fn get_providers(&self) -> Result<Vec<AnyProvider>>;
 

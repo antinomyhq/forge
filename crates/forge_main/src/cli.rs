@@ -287,6 +287,10 @@ pub enum WorkspaceCommand {
         /// Path to the directory to initialize as a workspace
         #[arg(default_value = ".")]
         path: PathBuf,
+
+        /// Automatically confirm initialization without prompting
+        #[arg(short = 'y', long)]
+        yes: bool,
     },
 }
 
@@ -510,6 +514,12 @@ pub enum ConfigCommand {
 
     /// List configuration values.
     List,
+
+    /// Print the path to the global config file.
+    Path,
+
+    /// Migrate the legacy ~/forge directory to ~/.forge.
+    Migrate,
 }
 
 /// Arguments for `forge config set`.

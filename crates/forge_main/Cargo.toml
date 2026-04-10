@@ -52,6 +52,7 @@ update-informer = { version = "1.2.0", default-features = false, features = [
     "ureq",
     "rustls-tls",
 ] }
+dirs.workspace = true
 open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
