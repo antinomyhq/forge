@@ -249,12 +249,17 @@ mod tests {
 
         let actual = agent.apply_config(&config).reasoning;
 
-        let expected = Some(ReasoningConfig::default().enabled(false).effort(Effort::None));
+        let expected = Some(
+            ReasoningConfig::default()
+                .enabled(false)
+                .effort(Effort::None),
+        );
 
         assert_eq!(actual, expected);
     }
 
-    /// When the user config leaves fields unset, the agent's defaults fill them.
+    /// When the user config leaves fields unset, the agent's defaults fill
+    /// them.
     #[test]
     fn test_reasoning_agent_fills_unset_config_fields() {
         let config = ForgeConfig::default()

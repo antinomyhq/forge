@@ -727,7 +727,10 @@ mod tests {
 
         let actual = Request::try_from(fixture).unwrap();
 
-        assert_eq!(actual.output_config, Some(OutputConfig { effort: OutputEffort::Low }));
+        assert_eq!(
+            actual.output_config,
+            Some(OutputConfig { effort: OutputEffort::Low })
+        );
         assert_eq!(actual.thinking, None);
     }
 
