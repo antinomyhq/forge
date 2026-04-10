@@ -52,12 +52,26 @@ impl ConfigReader {
     /// Returns the base directory for all Forge config files.
     ///
     /// If the `FORGE_CONFIG` environment variable is set, its value is used
-    /// directly as the base path. Otherwise defaults to `~/forge`.
+    /// directly as the base path. Otherwise defaults to `~/.forge`.
+    /// Falls back to the legacy `~/forge` path if it exists and `~/.forge`
+    /// does not.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
         }
-        dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+
+        let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
+        let path = home.join(".forge");
+        let legacy_path = home.join("forge");
+
+        // Prefer the new dotfile path, but fall back to legacy if only it exists
+        if !path.exists() && legacy_path.exists() {
+            tracing::info!("Using legacy path");
+            return legacy_path;
+        }
+
+        tracing::info!("Using new path");
+        path
     }
 
     /// Adds the provided TOML string as a config source without touching the
@@ -181,8 +195,8 @@ mod tests {
     #[test]
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
         let actual = ConfigReader::base_path();
-        // Without FORGE_CONFIG set the path must end with "forge"
-        assert_eq!(actual.file_name().unwrap(), "forge");
+        // Without FORGE_CONFIG set the path must end with ".forge"
+        assert_eq!(actual.file_name().unwrap(), ".forge");
     }
 
     #[test]
@@ -198,8 +212,8 @@ mod tests {
         // it on top of the embedded defaults. The default values must survive.
         let legacy = ForgeConfig {
             session: Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
+                provider_id: "anthropic".to_string(),
+                model_id: "claude-3".to_string(),
             }),
             ..Default::default()
         };
@@ -216,8 +230,8 @@ mod tests {
         assert_eq!(
             actual.session,
             Some(ModelConfig {
-                provider_id: Some("anthropic".to_string()),
-                model_id: Some("claude-3".to_string()),
+                provider_id: "anthropic".to_string(),
+                model_id: "claude-3".to_string(),
             })
         );
 
@@ -243,8 +257,8 @@ mod tests {
             .unwrap();
 
         let expected = Some(ModelConfig {
-            provider_id: Some("fake-provider".to_string()),
-            model_id: Some("fake-model".to_string()),
+            provider_id: "fake-provider".to_string(),
+            model_id: "fake-model".to_string(),
         });
         assert_eq!(actual.session, expected);
     }

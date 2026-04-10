@@ -325,8 +325,7 @@ Some commands change settings for the current session only. Others persist to yo
 
 # View & edit config
 :info                          # Show current session info (model, agent, conversation ID)
-:env                           # Show environment and provider info
-:config                        # List current configuration values
+:config                        # Display effective resolved configuration in TOML format
 :config-edit                   # Open config file in $EDITOR (alias: :ce)
 :tools                         # List available tools for the current agent
 :skill                         # List available skills
@@ -864,7 +863,7 @@ System-level environment variables (usually set automatically):
 
 ```bash
 # .env
-FORGE_CONFIG=/custom/config/dir        # Base directory for all Forge config files (default: ~/forge)
+FORGE_CONFIG=/custom/config/dir        # Base directory for all Forge config files (default: ~/.forge)
 FORGE_MAX_SEARCH_RESULT_BYTES=10240   # Maximum bytes for search results (default: 10240 - 10 KB)
 FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (default: uses system default location)
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)
