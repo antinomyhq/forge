@@ -54,9 +54,9 @@ impl ConfigReader {
     /// Resolution order:
     /// 1. `FORGE_CONFIG` environment variable, if set.
     /// 2. `~/.forge`, if that directory exists.
-    /// 3. `~/forge` (legacy path) as a fallback, so users who have not yet
-    ///    run `forge config migrate` continue to read from their existing
-    ///    directory without disruption.
+    /// 3. `~/forge` (legacy path) as a fallback, so users who have not yet run
+    ///    `forge config migrate` continue to read from their existing directory
+    ///    without disruption.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
