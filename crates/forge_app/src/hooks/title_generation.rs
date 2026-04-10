@@ -262,7 +262,7 @@ mod tests {
             .insert(conversation.id, TitleGenerationState { rx, handle });
 
         handler
-            .handle(&event(EndPayload), &mut conversation)
+            .handle(&mut event(EndPayload::default()), &mut conversation)
             .await
             .unwrap();
 
