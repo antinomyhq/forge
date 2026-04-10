@@ -67,18 +67,17 @@ impl ConfigReader {
 
         let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
         let path = home.join(".forge");
-        let legacy_path = home.join("forge");
 
         // Prefer the legacy ~/forge path while it still exists so that an
         // empty ~/.forge directory (e.g. created by `mkdir -p` in the shell
         // plugin) does not cause the base path to flip before migration.
-        if legacy_path.exists() {
-            tracing::info!("Using legacy path");
-            return legacy_path;
+        if path.exists() {
+            tracing::info!("Using new path");
+            return path;
         }
 
-        tracing::info!("Using new path");
-        path
+        tracing::info!("Using legacy path");
+        home.join("forge")
     }
 
     /// Adds the provided TOML string as a config source without touching the
