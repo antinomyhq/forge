@@ -287,6 +287,7 @@ impl ForgeCommandManager {
                 Ok(SlashCommand::Commit { max_diff_size })
             }
             "/index" => Ok(SlashCommand::Index),
+            "/paste" => Ok(SlashCommand::Paste),
             "/rename" | "/rn" => {
                 let name = parameters.join(" ");
                 let name = name.trim().to_string();
@@ -436,6 +437,10 @@ pub enum SlashCommand {
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
 
+    /// Paste image from clipboard
+    #[strum(props(usage = "Paste image from clipboard"))]
+    Paste,
+
     /// Generate and optionally commit changes with AI-generated message
     ///
     /// Examples:
@@ -480,6 +485,7 @@ impl SlashCommand {
             SlashCommand::Rename(_) => "rename",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
+            SlashCommand::Paste => "paste",
         }
     }
 

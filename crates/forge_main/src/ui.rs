@@ -1917,6 +1917,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
+            SlashCommand::Paste => {
+                let content = crate::image_paste::paste_clipboard();
+                match content {
+                    crate::image_paste::ClipboardContent::Images(img_paths) => {
+                        if !img_paths.is_empty() {
+                            let text = img_paths
+                                .iter()
+                                .map(|p| format!(" @[{}] ", p.display()))
+                                .collect::<Vec<_>>()
+                                .join("");
+                            self.console.set_buffer(text);
+                        }
+                    }
+                    crate::image_paste::ClipboardContent::Text(text) => {
+                        self.console.set_buffer(text);
+                    }
+                    crate::image_paste::ClipboardContent::None => {}
+                }
+            }
             SlashCommand::Delete => {
                 self.handle_delete_conversation().await?;
             }
