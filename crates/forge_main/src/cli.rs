@@ -513,6 +513,9 @@ pub enum ConfigCommand {
 
     /// Print the path to the global config file.
     Path,
+
+    /// Migrate the legacy ~/forge directory to ~/.forge.
+    Migrate,
 }
 
 /// Arguments for `forge config set`.
