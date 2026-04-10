@@ -394,4 +394,47 @@ mod tests {
         let actual: ForgeConfig = toml_edit::de::from_str(toml).unwrap();
         assert_eq!(actual.hooks, None);
     }
+
+    /// Verifies hooks survive the `config` crate pipeline (which lowercases
+    /// TOML keys internally). This is the path used by `read_global()`.
+    #[test]
+    fn test_hooks_through_config_crate_pipeline() {
+        use crate::UserHookEventName;
+
+        let toml = include_str!("fixtures/hook_config_pipeline.toml");
+        let result = ConfigReader::default().read_toml(toml).build();
+        let actual = result.expect("hooks should parse through config crate pipeline");
+
+        let hooks = actual.hooks.expect("hooks should be Some");
+        let groups = hooks.get_groups(&UserHookEventName::PreToolUse);
+        assert_eq!(groups.len(), 1, "expected 1 PreToolUse matcher group");
+        assert_eq!(groups[0].matcher, Some("Bash".to_string()));
+        assert_eq!(groups[0].hooks.len(), 1);
+        assert_eq!(
+            groups[0].hooks[0].command,
+            Some("echo 'blocked'".to_string())
+        );
+    }
+
+    /// Verifies hooks survive when layered with defaults via `ConfigReader`.
+    #[test]
+    fn test_hooks_layered_with_defaults() {
+        use crate::UserHookEventName;
+
+        let hooks_toml = include_str!("fixtures/hook_layered_with_defaults.toml");
+        let actual = ConfigReader::default()
+            .read_defaults()
+            .read_toml(hooks_toml)
+            .build()
+            .expect("hooks should parse when layered with defaults");
+
+        let hooks = actual.hooks.expect("hooks should be Some");
+        assert_eq!(hooks.get_groups(&UserHookEventName::PreToolUse).len(), 1);
+        assert_eq!(hooks.get_groups(&UserHookEventName::Stop).len(), 1);
+        assert!(
+            hooks
+                .get_groups(&UserHookEventName::SessionStart)
+                .is_empty()
+        );
+    }
 }
