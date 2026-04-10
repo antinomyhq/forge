@@ -66,6 +66,11 @@
         "null"
       ]
     },
+    "enable_subagents": {
+      "description": "Enables subagent support via the task tool; when true the forge agent\ngains access to the `task` tool for delegating work to specialised\nsub-agents, and the `sage` research-only agent tool is removed.\nWhen false the `task` tool is disabled and `sage` is available instead.",
+      "type": "boolean",
+      "default": false
+    },
     "http": {
       "description": "HTTP client settings including proxy, TLS, and timeout configuration.",
       "anyOf": [

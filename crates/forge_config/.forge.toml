@@ -27,6 +27,7 @@ tool_timeout_secs = 300
 top_k = 30
 top_p = 0.8
 verify_todos = true
+enable_subagents = true
 
 [retry]
 backoff_factor = 2

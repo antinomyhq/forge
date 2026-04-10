@@ -281,6 +281,13 @@ pub struct ForgeConfig {
     /// when a task ends and reminds the LLM about them.
     #[serde(default)]
     pub verify_todos: bool,
+
+    /// Enables subagent support via the task tool; when true the forge agent
+    /// gains access to the `task` tool for delegating work to specialised
+    /// sub-agents, and the `sage` research-only agent tool is removed.
+    /// When false the `task` tool is disabled and `sage` is available instead.
+    #[serde(default)]
+    pub enable_subagents: bool,
 }
 
 impl ForgeConfig {
