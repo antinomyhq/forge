@@ -55,10 +55,11 @@ impl ConfigReader {
     /// directly as the base path. Otherwise defaults to `~/.forge`.
     /// Falls back to the legacy `~/forge` path if it exists, even if `~/.forge`
     /// also exists. This prevents tools that eagerly create `~/.forge` (such as
-    /// the shell plugin's config-edit action) from silently switching the active
-    /// base path while the user's credentials and config still live in `~/forge`.
-    /// Once the user runs `forge config migrate` the `~/forge` directory is
-    /// removed, so this fallback naturally stops applying.
+    /// the shell plugin's config-edit action) from silently switching the
+    /// active base path while the user's credentials and config still live
+    /// in `~/forge`. Once the user runs `forge config migrate` the
+    /// `~/forge` directory is removed, so this fallback naturally stops
+    /// applying.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
