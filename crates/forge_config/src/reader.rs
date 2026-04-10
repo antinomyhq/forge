@@ -51,13 +51,29 @@ impl ConfigReader {
 
     /// Returns the base directory for all Forge config files.
     ///
-    /// If the `FORGE_CONFIG` environment variable is set, its value is used
-    /// directly as the base path. Otherwise defaults to `~/forge`.
+    /// Resolution order:
+    /// 1. `FORGE_CONFIG` environment variable, if set.
+    /// 2. `~/.forge`, if that directory exists.
+    /// 3. `~/forge` (legacy path) as a fallback, so users who have not yet run
+    ///    `forge config migrate` continue to read from their existing directory
+    ///    without disruption.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
         }
-        dirs::home_dir().unwrap_or(PathBuf::from(".")).join("forge")
+
+        let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
+        let path = home.join(".forge");
+
+        // Prefer ~/.forge when it exists; fall back to ~/forge for users who
+        // have not yet migrated.
+        if path.exists() {
+            tracing::info!("Using new path");
+            return path;
+        }
+
+        tracing::info!("Using legacy path");
+        home.join("forge")
     }
 
     /// Adds the provided TOML string as a config source without touching the
@@ -181,8 +197,14 @@ mod tests {
     #[test]
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
         let actual = ConfigReader::base_path();
-        // Without FORGE_CONFIG set the path must end with "forge"
-        assert_eq!(actual.file_name().unwrap(), "forge");
+        // Without FORGE_CONFIG set the path must be either ".forge" (new) or
+        // "forge" (legacy fallback when ~/forge exists on this machine).
+        let name = actual.file_name().unwrap();
+        assert!(
+            name == ".forge" || name == "forge",
+            "Expected base_path to end with '.forge' or 'forge', got: {:?}",
+            name
+        );
     }
 
     #[test]

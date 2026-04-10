@@ -8,6 +8,7 @@
     "description": "Display effective resolved configuration in TOML format"
   },
   {
+    "command": "config-model",
     "description": "Switch the models [alias: cm]"
   },
   {
