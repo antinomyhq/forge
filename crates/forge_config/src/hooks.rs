@@ -42,6 +42,7 @@ impl UserHookConfig {
     pub fn is_empty(&self) -> bool {
         self.events.is_empty()
     }
+
 }
 
 /// Supported hook event names that map to lifecycle points in the
@@ -56,29 +57,12 @@ pub enum UserHookEventName {
     PostToolUseFailure,
     /// Fired when the agent finishes responding. Can block stop to continue.
     Stop,
-    /// FIXME: Fired when a notification is sent; no lifecycle point fires this
-    /// event and no handler exists yet.
-    Notification,
     /// Fired when a session starts or resumes.
     SessionStart,
     /// Fired when a session ends/terminates.
     SessionEnd,
     /// Fired when a user prompt is submitted.
     UserPromptSubmit,
-    /// FIXME: Fired before context compaction; no lifecycle point fires this
-    /// event and no handler exists yet.
-    PreCompact,
-    /// FIXME: Fired after context compaction; no lifecycle point fires this
-    /// event and no handler exists yet.
-    PostCompact,
-    /// FIXME: Fired when a subagent starts; no lifecycle point fires this
-    SubagentStart,
-    /// FIXME: Fired when a subagent stops; no lifecycle point fires this
-    SubagentStop,
-    /// FIXME: no lifecycle point fires this
-    PermissionRequest,
-    /// FIXME: no lifecycle point fires this
-    Setup,
 }
 
 /// A matcher group pairs an optional regex matcher with a list of hook

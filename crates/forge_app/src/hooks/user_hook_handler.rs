@@ -72,6 +72,17 @@ impl<I> UserHookHandler<I> {
         !self.config.get_groups(event).is_empty()
     }
 
+    /// Constructs a [`HookInput`] from the common fields stored in this
+    /// handler, leaving only the event-specific `event_data` to the caller.
+    fn build_base_input(&self, event_name: &UserHookEventName, event_data: HookEventInput) -> HookInput {
+        HookInput {
+            hook_event_name: event_name.to_string(),
+            cwd: self.cwd.to_string_lossy().to_string(),
+            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
+            event_data,
+        }
+    }
+
     /// Finds matching hook entries for an event, filtered by the optional
     /// matcher regex against the given subject string.
     fn find_matching_hooks<'a>(
@@ -184,29 +195,68 @@ impl<I> UserHookHandler<I> {
         (results, warnings)
     }
 
-    /// Processes hook results, returning the blocking command and reason if
-    /// any hook blocked.
-    fn process_results(results: &[(String, HookExecutionResult)]) -> Option<(String, String)> {
-        for (command, result) in results {
-            // Exit code 2 = blocking error
-            if result.is_blocking_exit() {
-                let message = result
-                    .blocking_message()
-                    .unwrap_or("Hook blocked execution")
-                    .to_string();
-                return Some((command.clone(), message));
-            }
+    /// Runs matching hooks for the given event and collects results.
+    ///
+    /// This encapsulates the common lifecycle hook pattern:
+    /// 1. Resolve matcher groups for the event.
+    /// 2. Find hooks matching the optional subject.
+    /// 3. Execute matched hooks, collecting results and warnings.
+    /// 4. Extend event warnings.
+    /// 5. Collect and inject any `additionalContext` into the conversation.
+    ///
+    /// Returns the raw results for event-specific post-processing.
+    async fn run_hooks_and_collect(
+        &self,
+        event_name: &UserHookEventName,
+        subject: Option<&str>,
+        input: &HookInput,
+        warnings: &mut Vec<String>,
+        conversation: &mut Conversation,
+    ) -> Vec<(String, HookExecutionResult)>
+    where
+        I: HookCommandService,
+    {
+        let groups = self.config.get_groups(event_name);
+        let hooks = Self::find_matching_hooks(groups, subject);
 
-            // Exit code 0 = check stdout for JSON decisions
-            if let Some(output) = result.parse_output()
-                && output.is_blocking()
-            {
-                let reason = output.blocking_reason("Hook blocked execution");
-                return Some((command.clone(), reason));
-            }
+        if hooks.is_empty() {
+            return Vec::new();
+        }
+
+        let (results, exec_warnings) = self.execute_hooks(&hooks, input).await;
+        warnings.extend(exec_warnings);
+
+        let contexts = Self::collect_additional_context(&results);
+        Self::inject_additional_context(conversation, &event_name.to_string(), &contexts);
+
+        results
+    }
+
+    /// Checks a single hook result for blocking signals (exit code 2 or JSON
+    /// blocking decision). Returns the blocking command and reason if found.
+    fn check_blocking(command: &str, result: &HookExecutionResult) -> Option<(String, String)> {
+        if result.is_blocking_exit() {
+            let message = result
+                .blocking_message()
+                .unwrap_or("Hook blocked execution")
+                .to_string();
+            return Some((command.to_string(), message));
+        }
+
+        if let Some(output) = result.parse_output()
+            && output.is_blocking()
+        {
+            let reason = output.blocking_reason("Hook blocked execution");
+            return Some((command.to_string(), reason));
         }
 
         None
+    }
+
+    /// Processes hook results, returning the blocking command and reason if
+    /// any hook blocked.
+    fn process_results(results: &[(String, HookExecutionResult)]) -> Option<(String, String)> {
+        results.iter().find_map(|(cmd, result)| Self::check_blocking(cmd, result))
     }
 
     /// Collects `additionalContext` strings from all successful hook results,
@@ -319,25 +369,9 @@ impl<I: HookCommandService> EventHandle<EventData<StartPayload>> for UserHookHan
             return Ok(());
         }
 
-        let groups = self.config.get_groups(&UserHookEventName::SessionStart);
-        let hooks = Self::find_matching_hooks(groups, Some("startup"));
+        let input = self.build_base_input(&UserHookEventName::SessionStart, HookEventInput::SessionStart { source: "startup".to_string() });
 
-        if hooks.is_empty() {
-            return Ok(());
-        }
-
-        let input = HookInput {
-            hook_event_name: UserHookEventName::SessionStart.to_string(),
-            cwd: self.cwd.to_string_lossy().to_string(),
-            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::SessionStart { source: "startup".to_string() },
-        };
-
-        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
-        event.warnings.extend(warnings);
-
-        let contexts = Self::collect_additional_context(&results);
-        Self::inject_additional_context(conversation, "SessionStart", &contexts);
+        self.run_hooks_and_collect(&UserHookEventName::SessionStart, Some("startup"), &input, &mut event.warnings, conversation).await;
 
         Ok(())
     }
@@ -361,13 +395,6 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             return Ok(());
         }
 
-        let groups = self.config.get_groups(&UserHookEventName::UserPromptSubmit);
-        let hooks = Self::find_matching_hooks(groups, None);
-
-        if hooks.is_empty() {
-            return Ok(());
-        }
-
         // Extract the last user message text as the prompt sent to the hook.
         let prompt = conversation
             .context
@@ -382,15 +409,9 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             })
             .unwrap_or_default();
 
-        let input = HookInput {
-            hook_event_name: "UserPromptSubmit".to_string(),
-            cwd: self.cwd.to_string_lossy().to_string(),
-            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::UserPromptSubmit { prompt },
-        };
+        let input = self.build_base_input(&UserHookEventName::UserPromptSubmit, HookEventInput::UserPromptSubmit { prompt });
 
-        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
-        event.warnings.extend(warnings);
+        let results = self.run_hooks_and_collect(&UserHookEventName::UserPromptSubmit, None, &input, &mut event.warnings, conversation).await;
 
         if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
@@ -404,9 +425,6 @@ impl<I: HookCommandService> EventHandle<EventData<RequestPayload>> for UserHookH
             // Signal the orchestrator to suppress this prompt entirely.
             return Err(anyhow::Error::from(PromptSuppressed(reason)));
         }
-
-        let contexts = Self::collect_additional_context(&results);
-        Self::inject_additional_context(conversation, "UserPromptSubmit", &contexts);
 
         Ok(())
     }
@@ -438,13 +456,8 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
         // Use owned String to avoid borrow conflicts when mutating event later.
         let tool_name = event.payload.tool_call.name.as_str().to_string();
         // FIXME: Add a tool name transformer to map tool names to Forge
-        // equivalents (e.g. "Bash" → "shell") so that hook configs written
-        let groups = self.config.get_groups(&UserHookEventName::PreToolUse);
-        let hooks = Self::find_matching_hooks(groups, Some(tool_name.as_str()));
-
-        if hooks.is_empty() {
-            return Ok(());
-        }
+        // equivalents (e.g. "Bash" -> "shell") so that hook matchers written
+        // for other coding assistants work correctly.
 
         let tool_input =
             serde_json::to_value(&event.payload.tool_call.arguments).unwrap_or_default();
@@ -455,22 +468,13 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallStartPayload>> for Use
             .as_ref()
             .map(|id| id.as_str().to_string());
 
-        let input = HookInput {
-            hook_event_name: "PreToolUse".to_string(),
-            cwd: self.cwd.to_string_lossy().to_string(),
-            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::PreToolUse {
+        let input = self.build_base_input(&UserHookEventName::PreToolUse, HookEventInput::PreToolUse {
                 tool_name: tool_name.clone(),
                 tool_input,
                 tool_use_id,
-            },
-        };
+            });
 
-        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
-        event.warnings.extend(warnings);
-
-        let contexts = Self::collect_additional_context(&results);
-        Self::inject_additional_context(conversation, "PreToolUse", &contexts);
+        let results = self.run_hooks_and_collect(&UserHookEventName::PreToolUse, Some(tool_name.as_str()), &input, &mut event.warnings, conversation).await;
 
         let decision = Self::process_pre_tool_use_output(&results);
 
@@ -525,12 +529,6 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
         }
 
         let tool_name = event.payload.tool_call.name.as_str().to_string();
-        let groups = self.config.get_groups(&event_name);
-        let hooks = Self::find_matching_hooks(groups, Some(&tool_name));
-
-        if hooks.is_empty() {
-            return Ok(());
-        }
 
         let tool_input =
             serde_json::to_value(&event.payload.tool_call.arguments).unwrap_or_default();
@@ -542,23 +540,14 @@ impl<I: HookCommandService> EventHandle<EventData<ToolcallEndPayload>> for UserH
             .as_ref()
             .map(|id| id.as_str().to_string());
 
-        let input = HookInput {
-            hook_event_name: event_name.to_string(),
-            cwd: self.cwd.to_string_lossy().to_string(),
-            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::PostToolUse {
+        let input = self.build_base_input(&event_name, HookEventInput::PostToolUse {
                 tool_name: tool_name.to_string(),
                 tool_input,
                 tool_response,
                 tool_use_id,
-            },
-        };
+            });
 
-        let (results, warnings) = self.execute_hooks(&hooks, &input).await;
-        event.warnings.extend(warnings);
-
-        let contexts = Self::collect_additional_context(&results);
-        Self::inject_additional_context(conversation, &event_name.to_string(), &contexts);
+        let results = self.run_hooks_and_collect(&event_name, Some(&tool_name), &input, &mut event.warnings, conversation).await;
 
         // PostToolUse blocking: store the feedback on the event payload.
         // The orchestrator reads `hook_feedback` after `append_message` and
@@ -593,30 +582,12 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
     ) -> anyhow::Result<()> {
         // Fire SessionEnd hooks
         if self.has_hooks(&UserHookEventName::SessionEnd) {
-            let groups = self.config.get_groups(&UserHookEventName::SessionEnd);
-            let hooks = Self::find_matching_hooks(groups, None);
-
-            if !hooks.is_empty() {
-                let input = HookInput {
-                    hook_event_name: "SessionEnd".to_string(),
-                    cwd: self.cwd.to_string_lossy().to_string(),
-                    session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-                    event_data: HookEventInput::Empty {},
-                };
-                let (_, session_warnings) = self.execute_hooks(&hooks, &input).await;
-                event.warnings.extend(session_warnings);
-            }
+            let input = self.build_base_input(&UserHookEventName::SessionEnd, HookEventInput::Empty {});
+            self.run_hooks_and_collect(&UserHookEventName::SessionEnd, None, &input, &mut event.warnings, conversation).await;
         }
 
         // Fire Stop hooks
         if !self.has_hooks(&UserHookEventName::Stop) {
-            return Ok(());
-        }
-
-        let groups = self.config.get_groups(&UserHookEventName::Stop);
-        let hooks = Self::find_matching_hooks(groups, None);
-
-        if hooks.is_empty() {
             return Ok(());
         }
 
@@ -632,18 +603,9 @@ impl<I: HookCommandService> EventHandle<EventData<EndPayload>> for UserHookHandl
                 .map(|s| s.to_string())
         });
 
-        let input = HookInput {
-            hook_event_name: "Stop".to_string(),
-            cwd: self.cwd.to_string_lossy().to_string(),
-            session_id: self.env_vars.get("FORGE_SESSION_ID").cloned(),
-            event_data: HookEventInput::Stop { stop_hook_active, last_assistant_message },
-        };
+        let input = self.build_base_input(&UserHookEventName::Stop, HookEventInput::Stop { stop_hook_active, last_assistant_message });
 
-        let (results, stop_warnings) = self.execute_hooks(&hooks, &input).await;
-        event.warnings.extend(stop_warnings);
-
-        let contexts = Self::collect_additional_context(&results);
-        Self::inject_additional_context(conversation, "Stop", &contexts);
+        let results = self.run_hooks_and_collect(&UserHookEventName::Stop, None, &input, &mut event.warnings, conversation).await;
 
         if let Some((command, reason)) = Self::process_results(&results) {
             debug!(
@@ -710,6 +672,53 @@ mod tests {
             config,
             PathBuf::from("/tmp"),
             "sess-1".to_string(),
+        )
+    }
+
+    /// Configurable stub that returns a fixed `CommandOutput` for every call.
+    /// Replaces all single-purpose inline stubs (BlockExit2, JsonBlockInfra,
+    /// ContinueFalseInfra, Exit1Infra, StopBlockInfra, etc.).
+    #[derive(Clone)]
+    struct StubInfra {
+        output: forge_domain::CommandOutput,
+    }
+
+    impl StubInfra {
+        fn new(exit_code: Option<i32>, stdout: &str, stderr: &str) -> Self {
+            Self {
+                output: forge_domain::CommandOutput {
+                    command: String::new(),
+                    exit_code,
+                    stdout: stdout.to_string(),
+                    stderr: stderr.to_string(),
+                },
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl HookCommandService for StubInfra {
+        async fn execute_command_with_input(
+            &self,
+            command: String,
+            _working_dir: PathBuf,
+            _stdin_input: String,
+            _env_vars: HashMap<String, String>,
+        ) -> anyhow::Result<forge_domain::CommandOutput> {
+            let mut out = self.output.clone();
+            out.command = command;
+            Ok(out)
+        }
+    }
+
+    fn handler_for_event<I>(infra: I, event_json: &str) -> UserHookHandler<I> {
+        let config: UserHookConfig = serde_json::from_str(event_json).unwrap();
+        UserHookHandler::new(
+            infra,
+            BTreeMap::new(),
+            config,
+            PathBuf::from("/tmp"),
+            "sess-test".to_string(),
         )
     }
 
@@ -973,31 +982,8 @@ mod tests {
         let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
 
-        // NullInfra returns exit_code=0 with empty stdout (Allow), so we need a custom
-        // infra that returns updatedInput JSON.
-        #[derive(Clone)]
-        struct UpdateInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for UpdateInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _working_dir: PathBuf,
-                _stdin_input: String,
-                _env_vars: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(0),
-                    stdout: r#"{"updatedInput": {"command": "echo safe"}}"#.to_string(),
-                    stderr: String::new(),
-                })
-            }
-        }
-
         let handler = UserHookHandler::new(
-            UpdateInfra,
+            StubInfra::new(Some(0), r#"{"updatedInput": {"command": "echo safe"}}"#, ""),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -1257,31 +1243,8 @@ mod tests {
         let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
 
-        #[derive(Clone)]
-        struct UpdateInfra2;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for UpdateInfra2 {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _working_dir: PathBuf,
-                _stdin_input: String,
-                _env_vars: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(0),
-                    stdout:
-                        r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#
-                            .to_string(),
-                    stderr: String::new(),
-                })
-            }
-        }
-
         let handler = UserHookHandler::new(
-            UpdateInfra2,
+            StubInfra::new(Some(0), r#"{"updatedInput": {"file_path": "/safe/file.txt", "content": "hello"}}"#, ""),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -1330,29 +1293,8 @@ mod tests {
         let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
 
-        #[derive(Clone)]
-        struct BlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for BlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _working_dir: PathBuf,
-                _stdin_input: String,
-                _env_vars: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "dangerous operation".to_string(),
-                })
-            }
-        }
-
         let handler = UserHookHandler::new(
-            BlockInfra,
+            StubInfra::new(Some(2), "", "dangerous operation"),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -1457,21 +1399,6 @@ mod tests {
     // Tests: UserPromptSubmit blocking must return Err(PromptSuppressed)
     // =========================================================================
 
-    /// Helper: creates a UserHookHandler with a given infra and
-    /// UserPromptSubmit config.
-    fn prompt_submit_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
-        let json =
-            r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
-        let config: UserHookConfig = serde_json::from_str(json).unwrap();
-        UserHookHandler::new(
-            infra,
-            BTreeMap::new(),
-            config,
-            PathBuf::from("/tmp"),
-            "sess-test".to_string(),
-        )
-    }
-
     /// Helper: creates a RequestPayload EventData with the given request_count.
     fn request_event(request_count: usize) -> EventData<forge_domain::RequestPayload> {
         use forge_domain::{Agent, ModelId, ProviderId};
@@ -1501,28 +1428,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_block_exit2_returns_error() {
         // TC16: exit code 2 must return PromptSuppressed error.
-        #[derive(Clone)]
-        struct BlockExit2;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for BlockExit2 {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "policy violation".to_string(),
-                })
-            }
-        }
-
-        let handler = prompt_submit_handler(BlockExit2);
+        let handler = handler_for_event(StubInfra::new(Some(2), "", "policy violation"), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1544,28 +1450,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_block_json_decision_returns_error() {
         // JSON {"decision":"block","reason":"Content policy"} must block.
-        #[derive(Clone)]
-        struct JsonBlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for JsonBlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(0),
-                    stdout: r#"{"decision":"block","reason":"Content policy"}"#.to_string(),
-                    stderr: String::new(),
-                })
-            }
-        }
-
-        let handler = prompt_submit_handler(JsonBlockInfra);
+        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"decision":"block","reason":"Content policy"}"#, ""), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("test");
 
@@ -1583,28 +1468,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_block_continue_false_returns_error() {
         // {"continue":false,"reason":"Blocked by admin"} must block.
-        #[derive(Clone)]
-        struct ContinueFalseInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for ContinueFalseInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(0),
-                    stdout: r#"{"continue":false,"reason":"Blocked by admin"}"#.to_string(),
-                    stderr: String::new(),
-                })
-            }
-        }
-
-        let handler = prompt_submit_handler(ContinueFalseInfra);
+        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"continue":false,"reason":"Blocked by admin"}"#, ""), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("test");
 
@@ -1622,7 +1486,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_allow_returns_ok() {
         // Exit 0 + empty stdout => allow, no feedback injected.
-        let handler = prompt_submit_handler(NullInfra);
+        let handler = handler_for_event(NullInfra, r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1637,28 +1501,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_non_blocking_error_returns_ok() {
         // Exit code 1 is a non-blocking error — must NOT block.
-        #[derive(Clone)]
-        struct Exit1Infra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for Exit1Infra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(1),
-                    stdout: String::new(),
-                    stderr: "some error".to_string(),
-                })
-            }
-        }
-
-        let handler = prompt_submit_handler(Exit1Infra);
+        let handler = handler_for_event(StubInfra::new(Some(1), "", "some error"), r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = request_event(0);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -1670,7 +1513,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_skipped_on_subsequent_requests() {
         // request_count > 0 means it's a retry, not a user prompt.
-        let handler = prompt_submit_handler(NullInfra);
+        let handler = handler_for_event(NullInfra, r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = request_event(1); // subsequent request
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1685,19 +1528,6 @@ mod tests {
     // =========================================================================
     // Stop hook tests: Stop hooks fire and inject feedback for continuation
     // =========================================================================
-
-    /// Helper: creates a UserHookHandler with Stop config and a given infra.
-    fn stop_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
-        let json = r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
-        let config: UserHookConfig = serde_json::from_str(json).unwrap();
-        UserHookHandler::new(
-            infra,
-            BTreeMap::new(),
-            config,
-            PathBuf::from("/tmp"),
-            "sess-test".to_string(),
-        )
-    }
 
     /// Helper: creates an EndPayload EventData with optional stop_hook_active.
     fn end_event() -> EventData<forge_domain::EndPayload> {
@@ -1716,28 +1546,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_hook_exit_code_2_injects_message_and_sets_active() {
-        #[derive(Clone)]
-        struct StopBlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for StopBlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "keep working".to_string(),
-                })
-            }
-        }
-
-        let handler = stop_handler(StopBlockInfra);
+        let handler = handler_for_event(StubInfra::new(Some(2), "", "keep working"), r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1766,7 +1575,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_hook_allow_returns_ok() {
-        let handler = stop_handler(NullInfra);
+        let handler = handler_for_event(NullInfra, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1781,28 +1590,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_hook_json_continue_false_injects_message() {
-        #[derive(Clone)]
-        struct StopJsonBlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for StopJsonBlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(0),
-                    stdout: r#"{"continue":false,"stopReason":"keep working"}"#.to_string(),
-                    stderr: String::new(),
-                })
-            }
-        }
-
-        let handler = stop_handler(StopJsonBlockInfra);
+        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"continue":false,"stopReason":"keep working"}"#, ""), r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1910,7 +1698,7 @@ mod tests {
         }
 
         let captured = Arc::new(Mutex::new(None));
-        let handler = stop_handler(CapturingInfra { captured_input: captured.clone() });
+        let handler = handler_for_event(CapturingInfra { captured_input: captured.clone() }, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         // Create event with stop_hook_active = true (simulating re-entrant call)
         let mut event = {
             use forge_domain::{Agent, ModelId, ProviderId};
@@ -1940,7 +1728,7 @@ mod tests {
     async fn test_stop_hook_allow_does_not_inject_message() {
         // When a Stop hook allows the stop (exit 0, no blocking JSON), no
         // message should be injected and stop_hook_active should remain false.
-        let handler = stop_handler(NullInfra);
+        let handler = handler_for_event(NullInfra, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = end_event();
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -1985,7 +1773,7 @@ mod tests {
         }
 
         let captured = Arc::new(Mutex::new(None));
-        let handler = stop_handler(CapturingInfra2 { captured_input: captured.clone() });
+        let handler = handler_for_event(CapturingInfra2 { captured_input: captured.clone() }, r#"{"Stop": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = end_event(); // stop_hook_active defaults to false
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -2001,20 +1789,6 @@ mod tests {
     // =========================================================================
     // BUG-3 Tests: PostToolUse feedback must use <important> wrapper
     // =========================================================================
-
-    /// Helper: creates a UserHookHandler with PostToolUse config and given
-    /// infra.
-    fn post_tool_use_handler<I: HookCommandService>(infra: I) -> UserHookHandler<I> {
-        let json = r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
-        let config: UserHookConfig = serde_json::from_str(json).unwrap();
-        UserHookHandler::new(
-            infra,
-            BTreeMap::new(),
-            config,
-            PathBuf::from("/tmp"),
-            "sess-test".to_string(),
-        )
-    }
 
     /// Helper: creates a ToolcallEndPayload EventData with a successful tool
     /// result.
@@ -2043,28 +1817,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_block_injects_important_feedback() {
-        #[derive(Clone)]
-        struct PostToolBlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for PostToolBlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "sensitive data detected".to_string(),
-                })
-            }
-        }
-
-        let handler = post_tool_use_handler(PostToolBlockInfra);
+        let handler = handler_for_event(StubInfra::new(Some(2), "", "sensitive data detected"), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -2086,28 +1839,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_block_json_injects_feedback() {
-        #[derive(Clone)]
-        struct PostToolJsonBlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for PostToolJsonBlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(0),
-                    stdout: r#"{"decision":"block","reason":"PII detected"}"#.to_string(),
-                    stderr: String::new(),
-                })
-            }
-        }
-
-        let handler = post_tool_use_handler(PostToolJsonBlockInfra);
+        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"decision":"block","reason":"PII detected"}"#, ""), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -2126,7 +1858,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_allow_no_feedback() {
-        let handler = post_tool_use_handler(NullInfra);
+        let handler = handler_for_event(NullInfra, r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -2140,28 +1872,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_non_blocking_error_no_feedback() {
-        #[derive(Clone)]
-        struct Exit1PostInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for Exit1PostInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(1),
-                    stdout: String::new(),
-                    stderr: "non-blocking error".to_string(),
-                })
-            }
-        }
-
-        let handler = post_tool_use_handler(Exit1PostInfra);
+        let handler = handler_for_event(StubInfra::new(Some(1), "", "non-blocking error"), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_msg_count = conversation.context.as_ref().unwrap().messages.len();
@@ -2177,37 +1888,7 @@ mod tests {
     async fn test_post_tool_use_failure_event_fires_separately() {
         // PostToolUseFailure is a separate event from PostToolUse.
         // Configure only PostToolUseFailure hooks and fire with is_error=true.
-        #[derive(Clone)]
-        struct FailureBlockInfra;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for FailureBlockInfra {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "error flagged".to_string(),
-                })
-            }
-        }
-
-        let json =
-            r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
-        let config: UserHookConfig = serde_json::from_str(json).unwrap();
-        let handler = UserHookHandler::new(
-            FailureBlockInfra,
-            BTreeMap::new(),
-            config,
-            PathBuf::from("/tmp"),
-            "sess-test".to_string(),
-        );
+        let handler = handler_for_event(StubInfra::new(Some(2), "", "error flagged"), r#"{"PostToolUseFailure": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
 
         let mut event = toolcall_end_event("shell", true);
         let mut conversation = conversation_with_user_msg("hello");
@@ -2221,28 +1902,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_feedback_contains_tool_name() {
-        #[derive(Clone)]
-        struct PostToolBlockInfra2;
-
-        #[async_trait::async_trait]
-        impl HookCommandService for PostToolBlockInfra2 {
-            async fn execute_command_with_input(
-                &self,
-                command: String,
-                _: PathBuf,
-                _: String,
-                _: HashMap<String, String>,
-            ) -> anyhow::Result<forge_domain::CommandOutput> {
-                Ok(forge_domain::CommandOutput {
-                    command,
-                    exit_code: Some(2),
-                    stdout: String::new(),
-                    stderr: "flagged".to_string(),
-                })
-            }
-        }
-
-        let handler = post_tool_use_handler(PostToolBlockInfra2);
+        let handler = handler_for_event(StubInfra::new(Some(2), "", "flagged"), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
 
@@ -2257,35 +1917,12 @@ mod tests {
     // Tests: additionalContext injection
     // =========================================================================
 
-    /// Infra that returns exit 0 with `additionalContext` in JSON output.
-    #[derive(Clone)]
-    struct AdditionalContextInfra;
-
-    #[async_trait::async_trait]
-    impl HookCommandService for AdditionalContextInfra {
-        async fn execute_command_with_input(
-            &self,
-            command: String,
-            _: PathBuf,
-            _: String,
-            _: HashMap<String, String>,
-        ) -> anyhow::Result<forge_domain::CommandOutput> {
-            Ok(forge_domain::CommandOutput {
-                command,
-                exit_code: Some(0),
-                stdout: r#"{"additionalContext": "Remember to follow coding standards"}"#
-                    .to_string(),
-                stderr: String::new(),
-            })
-        }
-    }
-
     #[tokio::test]
     async fn test_session_start_injects_additional_context() {
         let json = r#"{"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         let handler = UserHookHandler::new(
-            AdditionalContextInfra,
+            StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -2325,7 +1962,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_prompt_submit_injects_additional_context() {
         let handler = UserHookHandler::new(
-            AdditionalContextInfra,
+            StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""),
             BTreeMap::new(),
             serde_json::from_str(
                 r#"{"UserPromptSubmit": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#,
@@ -2361,7 +1998,7 @@ mod tests {
         let json = r#"{"PreToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#;
         let config: UserHookConfig = serde_json::from_str(json).unwrap();
         let handler = UserHookHandler::new(
-            AdditionalContextInfra,
+            StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""),
             BTreeMap::new(),
             config,
             PathBuf::from("/tmp"),
@@ -2403,7 +2040,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_tool_use_injects_additional_context() {
-        let handler = post_tool_use_handler(AdditionalContextInfra);
+        let handler = handler_for_event(StubInfra::new(Some(0), r#"{"additionalContext": "Remember to follow coding standards"}"#, ""), r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_count = conversation.context.as_ref().unwrap().messages.len();
@@ -2428,7 +2065,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_additional_context_when_empty() {
         // NullInfra returns empty stdout => no additionalContext
-        let handler = post_tool_use_handler(NullInfra);
+        let handler = handler_for_event(NullInfra, r#"{"PostToolUse": [{"hooks": [{"type": "command", "command": "echo hi"}]}]}"#);
         let mut event = toolcall_end_event("shell", false);
         let mut conversation = conversation_with_user_msg("hello");
         let original_count = conversation.context.as_ref().unwrap().messages.len();
