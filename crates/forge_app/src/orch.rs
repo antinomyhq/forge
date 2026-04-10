@@ -169,10 +169,10 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             self.drain_hook_warnings(&mut toolcall_end_event).await?;
 
             // Collect PostToolUse hook feedback to inject after append_message.
-            if let LifecycleEvent::ToolcallEnd(ref data) = toolcall_end_event {
-                if let Some(feedback) = &data.payload.hook_feedback {
-                    hook_feedbacks.push(feedback.clone());
-                }
+            if let LifecycleEvent::ToolcallEnd(ref data) = toolcall_end_event
+                && let Some(feedback) = &data.payload.hook_feedback
+            {
+                hook_feedbacks.push(feedback.clone());
             }
 
             // Send the end notification for system tools and not agent as a tool
@@ -424,7 +424,9 @@ impl<S: AgentService + EnvironmentInfra<Config = forge_config::ForgeConfig>> Orc
             // Inject PostToolUse hook feedback AFTER the tool results are appended.
             // This ensures the LLM sees: [tool_result] [hook_feedback], not the reverse.
             for feedback in hook_feedbacks {
-                context.messages.push(ContextMessage::user(feedback, None).into());
+                context
+                    .messages
+                    .push(ContextMessage::user(feedback, None).into());
             }
 
             if self.error_tracker.limit_reached() {
