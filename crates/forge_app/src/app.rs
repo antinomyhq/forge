@@ -326,10 +326,28 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ForgeAp
             })
             .collect();
 
-        // Execute all provider fetches concurrently.
-        futures::future::join_all(futures)
-            .await
-            .into_iter()
-            .collect::<anyhow::Result<Vec<_>>>()
+        // Execute all provider fetches concurrently, tolerating partial failures.
+        let mut first_error: Option<anyhow::Error> = None;
+        let mut successes = Vec::new();
+
+        for result in futures::future::join_all(futures).await {
+            match result {
+                Ok(provider_models) => successes.push(provider_models),
+                Err(err) => {
+                    tracing::warn!(error = %err, "failed to fetch models from a configured provider");
+                    if first_error.is_none() {
+                        first_error = Some(err);
+                    }
+                }
+            }
+        }
+
+        if successes.is_empty() {
+            if let Some(err) = first_error {
+                return Err(err);
+            }
+        }
+
+        Ok(successes)
     }
 }
