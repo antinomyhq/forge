@@ -900,9 +900,11 @@ async fn codex_poll_for_tokens(
                 .into());
             }
 
-            return Ok(parse_token_response(&token_response.text().await.map_err(|e| {
-                AuthError::PollFailed(format!("Failed to read token response: {e}"))
-            })?)?);
+            return Ok(parse_token_response(
+                &token_response.text().await.map_err(|e| {
+                    AuthError::PollFailed(format!("Failed to read token response: {e}"))
+                })?,
+            )?);
         }
 
         // 403/404 means authorization pending (user hasn't entered code yet)
@@ -1340,9 +1342,10 @@ mod tests {
 
         let actual = actual
             .url_params
-            .get(&URLParam::from("chatgpt_account_id".to_string()))
-            .map(ToString::to_string);
-        let expected = Some("acct_from_id_token".to_string());
+            .get(&URLParam::from("chatgpt_account_id".to_string()));
+        let expected = Some(&forge_domain::URLParamValue::from(
+            "acct_from_id_token".to_string(),
+        ));
 
         assert_eq!(actual, expected);
     }

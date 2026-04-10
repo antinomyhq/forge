@@ -86,23 +86,6 @@ pub(crate) fn build_oauth_credential(
     ))
 }
 
-/// Build OAuthTokenResponse with standard defaults
-pub(crate) fn build_token_response(
-    access_token: String,
-    refresh_token: Option<String>,
-    expires_in: Option<u64>,
-) -> OAuthTokenResponse {
-    OAuthTokenResponse {
-        access_token,
-        refresh_token,
-        expires_in,
-        expires_at: None,
-        token_type: "Bearer".to_string(),
-        scope: None,
-        id_token: None,
-    }
-}
-
 /// Extract OAuth tokens from any credential type
 pub(crate) fn extract_oauth_tokens(credential: &AuthCredential) -> anyhow::Result<&OAuthTokens> {
     match &credential.auth_details {
@@ -255,20 +238,6 @@ mod tests {
 
         assert!(expires_at >= before);
         assert!(expires_at <= after);
-    }
-
-    #[test]
-    fn test_build_token_response() {
-        let response = build_token_response(
-            "test_token".to_string(),
-            Some("refresh_token".to_string()),
-            Some(3600),
-        );
-
-        assert_eq!(response.access_token, "test_token");
-        assert_eq!(response.refresh_token, Some("refresh_token".to_string()));
-        assert_eq!(response.expires_in, Some(3600));
-        assert_eq!(response.token_type, "Bearer");
     }
 
     #[test]
