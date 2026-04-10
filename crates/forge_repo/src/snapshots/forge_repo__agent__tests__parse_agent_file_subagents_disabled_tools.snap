@@ -4,3 +4,4 @@ expression: actual.tools
 ---
 - read
 - sage
+- mcp_*

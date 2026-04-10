@@ -18,11 +18,8 @@ tools:
   - skill
   - todo_write
   - todo_read
-  {{#if config.enable_subagents}}
   - task
-  {{else}}
   - sage
-  {{/if}}
   - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>

@@ -4,3 +4,4 @@ expression: actual.tools
 ---
 - read
 - task
+- mcp_*

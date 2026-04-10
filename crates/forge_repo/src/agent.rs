@@ -1,14 +1,11 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use forge_app::{
-    AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, TemplateEngine,
-};
+use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
 use forge_config::ForgeConfig;
-use forge_domain::{ModelId, ProviderId, Template};
+use forge_domain::{ModelId, ProviderId, Template, ToolName};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
-use serde::Serialize;
 
 use crate::agent_definition::AgentDefinition;
 
@@ -105,7 +102,7 @@ impl<I: FileInfoInfra + EnvironmentInfra<Config = ForgeConfig> + DirectoryReader
 
         let mut agents = Vec::new();
         for (path, content) in files {
-            let mut agent = parse_agent_file(&content, config)
+            let mut agent = apply_subagent_tool_config(parse_agent_file(&content)?, config)
                 .with_context(|| format!("Failed to parse agent: {}", path.display()))?;
 
             // Store the file path
@@ -145,7 +142,7 @@ where
     let mut agents = vec![];
 
     for (name, content) in contents {
-        let agent = parse_agent_file(content.as_ref(), config)
+        let agent = apply_subagent_tool_config(parse_agent_file(content.as_ref())?, config)
             .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?;
 
         agents.push(agent);
@@ -154,75 +151,36 @@ where
     Ok(agents)
 }
 
-#[derive(Serialize)]
-struct AgentTemplateContext<'a> {
-    config: &'a ForgeConfig,
-}
+fn apply_subagent_tool_config(mut agent: AgentDefinition, config: &ForgeConfig) -> Result<AgentDefinition> {
+    if agent.id.as_str() != "forge" {
+        return Ok(agent);
+    }
 
-fn render_tools_frontmatter_block(content: &str, config: &ForgeConfig) -> Result<String> {
-    let Some((newline, content)) = content
-        .strip_prefix("---\r\n")
-        .map(|content| ("\r\n", content))
-        .or_else(|| content.strip_prefix("---\n").map(|content| ("\n", content)))
-    else {
-        return Ok(content.to_string());
+    let Some(tools) = agent.tools.as_mut() else {
+        return Ok(agent);
     };
 
-    let delimiter = format!("{newline}---{newline}");
-    let (frontmatter, body) = content
-        .split_once(&delimiter)
-        .context("Failed to find end of agent frontmatter")?;
+    tools.retain(|tool| !matches!(tool.as_str(), "task" | "sage"));
 
-    let rendered_frontmatter = render_tools_block(frontmatter, config)?;
-
-    Ok(format!(
-        "---{newline}{rendered_frontmatter}{delimiter}{body}"
-    ))
-}
-
-fn render_tools_block(frontmatter: &str, config: &ForgeConfig) -> Result<String> {
-    let lines = frontmatter
-        .split_inclusive('\n')
-        .map(ToString::to_string)
-        .collect::<Vec<_>>();
-
-    let Some(start) = lines.iter().position(|line| line.trim_end() == "tools:") else {
-        return Ok(frontmatter.to_string());
+    let delegated_tool = if config.enable_subagents {
+        ToolName::new("task")
+    } else {
+        ToolName::new("sage")
     };
-
-    let end = lines[start + 1..]
+    let insert_index = tools
         .iter()
-        .position(|line| {
-            let trimmed = line.trim_end();
+        .position(|tool| tool.as_str() == "mcp_*")
+        .unwrap_or(tools.len());
+    tools.insert(insert_index, delegated_tool);
 
-            !trimmed.is_empty()
-                && !line.starts_with([' ', '\t'])
-                && !trimmed.starts_with("#")
-                && !trimmed.starts_with("---")
-        })
-        .map(|index| start + 1 + index)
-        .unwrap_or(lines.len());
-
-    let rendered_tools_block = TemplateEngine::default().render_template(
-        Template::new(lines[start..end].join("")),
-        &AgentTemplateContext { config },
-    )?;
-
-    Ok(format!(
-        "{}{}{}",
-        lines[..start].join(""),
-        rendered_tools_block,
-        lines[end..].join("")
-    ))
+    Ok(agent)
 }
 
 /// Parse raw content into an AgentDefinition with YAML frontmatter
-fn parse_agent_file(content: &str, config: &ForgeConfig) -> Result<AgentDefinition> {
-    let rendered_content = render_tools_frontmatter_block(content, config)?;
-
+fn parse_agent_file(content: &str) -> Result<AgentDefinition> {
     // Parse the frontmatter using gray_matter with type-safe deserialization
     let gray_matter = Matter::<YAML>::new();
-    let result = gray_matter.parse::<AgentDefinition>(&rendered_content)?;
+    let result = gray_matter.parse::<AgentDefinition>(content)?;
 
     // Extract the frontmatter
     let agent = result
@@ -282,7 +240,7 @@ mod tests {
     async fn test_parse_basic_agent() {
         let content = forge_test_kit::fixture!("/src/fixtures/agents/basic.md").await;
 
-        let actual = parse_agent_file(&content, &ForgeConfig::default()).unwrap();
+        let actual = parse_agent_file(&content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-basic");
         assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
@@ -300,7 +258,7 @@ mod tests {
     async fn test_parse_advanced_agent() {
         let content = forge_test_kit::fixture!("/src/fixtures/agents/advanced.md").await;
 
-        let actual = parse_agent_file(&content, &ForgeConfig::default()).unwrap();
+        let actual = parse_agent_file(&content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-advanced");
         assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");
@@ -313,22 +271,20 @@ mod tests {
     #[test]
     fn test_parse_agent_file_renders_conditional_frontmatter_when_subagents_enabled() {
         let fixture = r#"---
-id: "test"
+id: "forge"
 tools:
   - read
-  {{#if config.enable_subagents}}
   - task
-  {{else}}
   - sage
-  {{/if}}
+  - mcp_*
 ---
 Body keeps {{tool_names.read}} untouched.
 "#;
         let config = ForgeConfig { enable_subagents: true, ..Default::default() };
 
-        let actual = parse_agent_file(fixture, &config).unwrap();
+        let actual = apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
 
-        assert_eq!(actual.id, AgentId::new("test"));
+        assert_eq!(actual.id, AgentId::new("forge"));
         assert_eq!(
             actual.system_prompt.unwrap().template,
             "Body keeps {{tool_names.read}} untouched."
@@ -339,22 +295,20 @@ Body keeps {{tool_names.read}} untouched.
     #[test]
     fn test_parse_agent_file_renders_conditional_frontmatter_when_subagents_disabled() {
         let fixture = r#"---
-id: "test"
+id: "forge"
 tools:
   - read
-  {{#if config.enable_subagents}}
   - task
-  {{else}}
   - sage
-  {{/if}}
+  - mcp_*
 ---
 Body keeps {{tool_names.read}} untouched.
 "#;
         let config = ForgeConfig { enable_subagents: false, ..Default::default() };
 
-        let actual = parse_agent_file(fixture, &config).unwrap();
+        let actual = apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
 
-        assert_eq!(actual.id, AgentId::new("test"));
+        assert_eq!(actual.id, AgentId::new("forge"));
         assert_snapshot!(
             "parse_agent_file_subagents_disabled_prompt",
             actual.system_prompt.unwrap().template
@@ -365,32 +319,32 @@ Body keeps {{tool_names.read}} untouched.
     #[test]
     fn test_parse_agent_file_preserves_runtime_user_prompt_variables() {
         let fixture = r#"---
-id: "test"
+id: "forge"
 tools:
   - read
-  {{#if config.enable_subagents}}
   - task
-  {{else}}
   - sage
-  {{/if}}
+  - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
 ---
 Body keeps {{tool_names.read}} untouched.
 "#;
-        let config = ForgeConfig { enable_subagents: true, ..Default::default() };
 
-        let actual = parse_agent_file(fixture, &config).unwrap();
+        let actual = parse_agent_file(fixture).unwrap();
+        let actual_user_prompt = actual.user_prompt.clone().unwrap().template;
 
-        assert_eq!(actual.id, AgentId::new("test"));
+        assert_eq!(actual.id, AgentId::new("forge"));
         assert_snapshot!(
             "parse_agent_file_preserves_runtime_user_prompt_variables",
-            actual.user_prompt.unwrap().template
+            actual_user_prompt
         );
         assert_yaml_snapshot!(
             "parse_agent_file_preserves_runtime_user_prompt_variables_tools",
-            actual.tools
+            apply_subagent_tool_config(actual, &ForgeConfig { enable_subagents: true, ..Default::default() })
+                .unwrap()
+                .tools
         );
     }
 }
