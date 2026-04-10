@@ -3609,7 +3609,56 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             crate::cli::ConfigCommand::List => {
                 self.on_show_config(porcelain).await?;
             }
+            crate::cli::ConfigCommand::Path => {
+                let path = forge_config::ConfigReader::config_path();
+                self.writeln(path.display().to_string())?;
+            }
+            crate::cli::ConfigCommand::Migrate => {
+                self.handle_config_migrate()?;
+            }
         }
+        Ok(())
+    }
+
+    /// Rename `~/forge` to `~/.forge`.
+    ///
+    /// Errors if the legacy directory does not exist, if the new directory
+    /// already exists, or if the rename fails.
+    fn handle_config_migrate(&mut self) -> Result<()> {
+        let home = dirs::home_dir()
+            .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
+        let legacy = home.join("forge");
+        let new = home.join(".forge");
+
+        if !legacy.exists() {
+            anyhow::bail!(
+                "Legacy directory {} does not exist — nothing to migrate",
+                legacy.display()
+            );
+        }
+
+        if new.exists() {
+            anyhow::bail!(
+                "Target directory {} already exists — remove it first or migrate manually",
+                new.display()
+            );
+        }
+
+        std::fs::rename(&legacy, &new).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to rename {} to {}: {}",
+                legacy.display(),
+                new.display(),
+                e
+            )
+        })?;
+
+        self.writeln_title(TitleFormat::info("Migration Completed").sub_title(format!(
+            "{} → {}",
+            legacy.display(),
+            new.display()
+        )))?;
+
         Ok(())
     }
 
