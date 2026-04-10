@@ -469,6 +469,10 @@ pub trait AgentRegistry: Send + Sync {
     /// Get all agents from the registry store
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
 
+    /// Get lightweight metadata for all agents without requiring a configured
+    /// provider or model
+    async fn get_agent_infos(&self) -> anyhow::Result<Vec<forge_domain::AgentInfo>>;
+
     /// Get agent by ID (from registry store)
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
 
@@ -916,6 +920,10 @@ impl<I: Services> AgentRegistry for I {
 
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
         self.agent_registry().get_agents().await
+    }
+
+    async fn get_agent_infos(&self) -> anyhow::Result<Vec<forge_domain::AgentInfo>> {
+        self.agent_registry().get_agent_infos().await
     }
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
