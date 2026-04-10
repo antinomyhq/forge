@@ -204,7 +204,7 @@ fn render_tools_block(frontmatter: &str, config: &ForgeConfig) -> Result<String>
         .unwrap_or(lines.len());
 
     let rendered_tools_block = TemplateEngine::default().render_template(
-        Template::new(&lines[start..end].join("")),
+        Template::new(lines[start..end].join("")),
         &AgentTemplateContext { config },
     )?;
 
