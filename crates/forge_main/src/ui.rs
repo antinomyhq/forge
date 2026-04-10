@@ -153,11 +153,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 }
             }
         }
-        if models.is_empty() {
-            if let Some(err) = first_error {
+        if models.is_empty()
+            && let Some(err) = first_error {
                 return Err(err);
             }
-        }
         Ok(models)
     }
 
