@@ -183,11 +183,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         // Convert string to AgentId for validation
         let agent = self
             .api
-            .get_agents()
+            .get_agent_infos()
             .await?
-            .iter()
-            .find(|agent| agent.id == agent_id)
-            .cloned()
+            .into_iter()
+            .find(|info| info.id == agent_id)
             .ok_or(anyhow::anyhow!("Undefined agent: {agent_id}"))?;
 
         // Update the app config with the new operating agent.
@@ -374,7 +373,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let api = self.api.clone();
         tokio::spawn(async move { api.get_tools().await });
         let api = self.api.clone();
-        tokio::spawn(async move { api.get_agents().await });
+        tokio::spawn(async move { api.get_agent_infos().await });
         let api = self.api.clone();
         tokio::spawn(async move {
             let _ = api.hydrate_channel();
@@ -653,8 +652,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                     crate::cli::WorkspaceCommand::Status { path, porcelain } => {
                         self.on_workspace_status(path, porcelain).await?;
                     }
-                    crate::cli::WorkspaceCommand::Init { path } => {
-                        self.on_workspace_init(path).await?;
+                    crate::cli::WorkspaceCommand::Init { path, yes } => {
+                        self.on_workspace_init(path, yes).await?;
                     }
                 }
                 return Ok(());
@@ -1145,7 +1144,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     }
 
     async fn on_show_agents(&mut self, porcelain: bool, custom: bool) -> anyhow::Result<()> {
-        let agents = self.api.get_agents().await?;
+        let agents = self.api.get_agent_infos().await?;
 
         if agents.is_empty() {
             return Ok(());
@@ -1336,14 +1335,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 "Planning and strategy agent [alias for: muse]",
             );
 
-        // Fetch agents and add them to the commands list
-        let agents = self.api.get_agents().await?;
-        for agent in agents {
-            let title = agent
+        // Fetch agent infos and add them to the commands list.
+        // Uses get_agent_infos() so no provider/model is required for listing.
+        let agent_infos = self.api.get_agent_infos().await?;
+        for agent_info in agent_infos {
+            let title = agent_info
                 .title
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
-                .add_title(agent.id.to_string())
+                .add_title(agent_info.id.to_string())
                 .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
         }
@@ -1999,7 +1999,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                     }
                 }
 
-                let agents = self.api.get_agents().await?;
+                let agents = self.api.get_agent_infos().await?;
 
                 if agents.is_empty() {
                     return Ok(false);
@@ -2077,7 +2077,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
-                let agents = self.api.get_agents().await?;
+                let agents = self.api.get_agent_infos().await?;
                 let agent_exists = agents.iter().any(|agent| agent.id.as_str() == agent_id);
 
                 if agent_exists {
@@ -3096,7 +3096,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
 
         // Execute independent operations in parallel to improve performance
         let (agents_result, commands_result) =
-            tokio::join!(self.api.get_agents(), self.api.get_commands());
+            tokio::join!(self.api.get_agent_infos(), self.api.get_commands());
 
         // Register agent commands with proper error handling and user feedback
         match agents_result {
@@ -3864,7 +3864,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         if init {
             let workspace_info = self.api.get_workspace_info(path.clone()).await?;
             if workspace_info.is_none() {
-                self.on_workspace_init(path.clone()).await?;
+                self.on_workspace_init(path.clone(), false).await?;
                 // If the workspace still does not exist after init (e.g. user
                 // declined the consent prompt), abort the sync.
                 let workspace_info = self.api.get_workspace_info(path.clone()).await?;
@@ -4224,16 +4224,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     }
 
     /// Initialize workspace for a directory without syncing files
-    async fn on_workspace_init(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+    async fn on_workspace_init(
+        &mut self,
+        path: std::path::PathBuf,
+        yes: bool,
+    ) -> anyhow::Result<()> {
         // Ask for user consent before syncing and sharing directory contents
         // with the ForgeCode Service.
         let display_path = path.display().to_string();
-        let confirmed = ForgeWidget::confirm(format!(
-            "This will sync and share the contents of '{}' with ForgeCode Services. Do you wish to continue?",
-            display_path
-        ))
-        .with_default(true)
-        .prompt()?;
+
+        let confirmed = if yes {
+            Some(true)
+        } else {
+            ForgeWidget::confirm(format!(
+                "This will sync and share the contents of '{}' with ForgeCode Services. Do you wish to continue?",
+                display_path
+            ))
+            .with_default(true)
+            .prompt()?
+        };
 
         if !confirmed.unwrap_or(false) {
             self.writeln_title(TitleFormat::info("Workspace initialization cancelled"))?;
