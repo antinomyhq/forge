@@ -3617,7 +3617,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let new = home.join(".forge");
 
         if !legacy.exists() {
-            anyhow::bail!("Legacy directory {} does not exist — nothing to migrate", legacy.display());
+            anyhow::bail!(
+                "Legacy directory {} does not exist — nothing to migrate",
+                legacy.display()
+            );
         }
 
         if new.exists() {
@@ -3628,14 +3631,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         }
 
         std::fs::rename(&legacy, &new).map_err(|e| {
-            anyhow::anyhow!("Failed to rename {} to {}: {}", legacy.display(), new.display(), e)
+            anyhow::anyhow!(
+                "Failed to rename {} to {}: {}",
+                legacy.display(),
+                new.display(),
+                e
+            )
         })?;
 
-        self.writeln(format!(
-            "Migrated {} → {}",
+        self.writeln_title(TitleFormat::info("Migration Completed").sub_title(format!(
+            "{} → {}",
             legacy.display(),
             new.display()
-        ))?;
+        )))?;
 
         Ok(())
     }
