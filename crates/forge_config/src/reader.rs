@@ -53,8 +53,12 @@ impl ConfigReader {
     ///
     /// If the `FORGE_CONFIG` environment variable is set, its value is used
     /// directly as the base path. Otherwise defaults to `~/.forge`.
-    /// Falls back to the legacy `~/forge` path if it exists and `~/.forge`
-    /// does not.
+    /// Falls back to the legacy `~/forge` path if it exists, even if `~/.forge`
+    /// also exists. This prevents tools that eagerly create `~/.forge` (such as
+    /// the shell plugin's config-edit action) from silently switching the active
+    /// base path while the user's credentials and config still live in `~/forge`.
+    /// Once the user runs `forge config migrate` the `~/forge` directory is
+    /// removed, so this fallback naturally stops applying.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
@@ -64,8 +68,10 @@ impl ConfigReader {
         let path = home.join(".forge");
         let legacy_path = home.join("forge");
 
-        // Prefer the new dotfile path, but fall back to legacy if only it exists
-        if !path.exists() && legacy_path.exists() {
+        // Prefer the legacy ~/forge path while it still exists so that an
+        // empty ~/.forge directory (e.g. created by `mkdir -p` in the shell
+        // plugin) does not cause the base path to flip before migration.
+        if legacy_path.exists() {
             tracing::info!("Using legacy path");
             return legacy_path;
         }
@@ -195,8 +201,14 @@ mod tests {
     #[test]
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
         let actual = ConfigReader::base_path();
-        // Without FORGE_CONFIG set the path must end with ".forge"
-        assert_eq!(actual.file_name().unwrap(), ".forge");
+        // Without FORGE_CONFIG set the path must be either ".forge" (new) or
+        // "forge" (legacy fallback when ~/forge exists on this machine).
+        let name = actual.file_name().unwrap();
+        assert!(
+            name == ".forge" || name == "forge",
+            "Expected base_path to end with '.forge' or 'forge', got: {:?}",
+            name
+        );
     }
 
     #[test]
