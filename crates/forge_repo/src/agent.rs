@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
 use forge_config::ForgeConfig;
-use forge_domain::{ModelId, ProviderId, Template};
+use forge_domain::{ModelId, ProviderId, Template, ToolName};
 use gray_matter::Matter;
 use gray_matter::engine::YAML;
 
@@ -41,26 +41,29 @@ impl<I> ForgeAgentRepository<I> {
     }
 }
 
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepository<I> {
+impl<I: FileInfoInfra + EnvironmentInfra<Config = ForgeConfig> + DirectoryReaderInfra>
+    ForgeAgentRepository<I>
+{
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
     async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
-        self.load_all_agents().await
+        let config = self.infra.get_config()?;
+        self.load_all_agents(&config).await
     }
 
     /// Load all agent definitions from all available sources
-    async fn load_all_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
+    async fn load_all_agents(&self, config: &ForgeConfig) -> anyhow::Result<Vec<AgentDefinition>> {
         // Load built-in agents (no path - will display as "BUILT IN")
-        let mut agents = self.init_default().await?;
+        let mut agents = self.init_default(config).await?;
 
         // Load custom agents from global directory
         let dir = self.infra.get_environment().agent_path();
-        let custom_agents = self.init_agent_dir(&dir).await?;
+        let custom_agents = self.init_agent_dir(&dir, config).await?;
         agents.extend(custom_agents);
 
         // Load custom agents from CWD
         let dir = self.infra.get_environment().agent_cwd_path();
-        let cwd_agents = self.init_agent_dir(&dir).await?;
+        let cwd_agents = self.init_agent_dir(&dir, config).await?;
         agents.extend(cwd_agents);
 
         // Handle agent ID conflicts by keeping the last occurrence
@@ -68,7 +71,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
         Ok(resolve_agent_conflicts(agents))
     }
 
-    async fn init_default(&self) -> anyhow::Result<Vec<AgentDefinition>> {
+    async fn init_default(&self, config: &ForgeConfig) -> anyhow::Result<Vec<AgentDefinition>> {
         parse_agent_iter(
             [
                 ("forge", include_str!("agents/forge.md")),
@@ -77,10 +80,15 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
             ]
             .into_iter()
             .map(|(name, content)| (name.to_string(), content.to_string())),
+            config,
         )
     }
 
-    async fn init_agent_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<AgentDefinition>> {
+    async fn init_agent_dir(
+        &self,
+        dir: &std::path::Path,
+        config: &ForgeConfig,
+    ) -> anyhow::Result<Vec<AgentDefinition>> {
         if !self.infra.exists(dir).await? {
             return Ok(vec![]);
         }
@@ -94,7 +102,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
 
         let mut agents = Vec::new();
         for (path, content) in files {
-            let mut agent = parse_agent_file(&content)
+            let mut agent = apply_subagent_tool_config(parse_agent_file(&content)?, config)
                 .with_context(|| format!("Failed to parse agent: {}", path.display()))?;
 
             // Store the file path
@@ -126,6 +134,7 @@ fn resolve_agent_conflicts(agents: Vec<AgentDefinition>) -> Vec<AgentDefinition>
 
 fn parse_agent_iter<I, Path: AsRef<str>, Content: AsRef<str>>(
     contents: I,
+    config: &ForgeConfig,
 ) -> anyhow::Result<Vec<AgentDefinition>>
 where
     I: Iterator<Item = (Path, Content)>,
@@ -133,13 +142,41 @@ where
     let mut agents = vec![];
 
     for (name, content) in contents {
-        let agent = parse_agent_file(content.as_ref())
+        let agent = apply_subagent_tool_config(parse_agent_file(content.as_ref())?, config)
             .with_context(|| format!("Failed to parse agent: {}", name.as_ref()))?;
 
         agents.push(agent);
     }
 
     Ok(agents)
+}
+
+fn apply_subagent_tool_config(
+    mut agent: AgentDefinition,
+    config: &ForgeConfig,
+) -> Result<AgentDefinition> {
+    if agent.id.as_str() != "forge" {
+        return Ok(agent);
+    }
+
+    let Some(tools) = agent.tools.as_mut() else {
+        return Ok(agent);
+    };
+
+    tools.retain(|tool| !matches!(tool.as_str(), "task" | "sage"));
+
+    let delegated_tool = if config.enable_subagents {
+        ToolName::new("task")
+    } else {
+        ToolName::new("sage")
+    };
+    let insert_index = tools
+        .iter()
+        .position(|tool| tool.as_str() == "mcp_*")
+        .unwrap_or(tools.len());
+    tools.insert(insert_index, delegated_tool);
+
+    Ok(agent)
 }
 
 /// Parse raw content into an AgentDefinition with YAML frontmatter
@@ -196,6 +233,8 @@ impl<F: FileInfoInfra + EnvironmentInfra<Config = ForgeConfig> + DirectoryReader
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::AgentId;
+    use insta::{assert_snapshot, assert_yaml_snapshot};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -229,6 +268,91 @@ mod tests {
         assert_eq!(
             actual.description.as_ref().unwrap(),
             "An advanced test agent with full configuration"
+        );
+    }
+
+    #[test]
+    fn test_parse_agent_file_renders_conditional_frontmatter_when_subagents_enabled() {
+        let fixture = r#"---
+id: "forge"
+tools:
+  - read
+  - task
+  - sage
+  - mcp_*
+---
+Body keeps {{tool_names.read}} untouched.
+"#;
+        let config = ForgeConfig { enable_subagents: true, ..Default::default() };
+
+        let actual =
+            apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
+
+        assert_eq!(actual.id, AgentId::new("forge"));
+        assert_eq!(
+            actual.system_prompt.unwrap().template,
+            "Body keeps {{tool_names.read}} untouched."
+        );
+        assert_yaml_snapshot!("parse_agent_file_subagents_enabled_tools", actual.tools);
+    }
+
+    #[test]
+    fn test_parse_agent_file_renders_conditional_frontmatter_when_subagents_disabled() {
+        let fixture = r#"---
+id: "forge"
+tools:
+  - read
+  - task
+  - sage
+  - mcp_*
+---
+Body keeps {{tool_names.read}} untouched.
+"#;
+        let config = ForgeConfig { enable_subagents: false, ..Default::default() };
+
+        let actual =
+            apply_subagent_tool_config(parse_agent_file(fixture).unwrap(), &config).unwrap();
+
+        assert_eq!(actual.id, AgentId::new("forge"));
+        assert_snapshot!(
+            "parse_agent_file_subagents_disabled_prompt",
+            actual.system_prompt.unwrap().template
+        );
+        assert_yaml_snapshot!("parse_agent_file_subagents_disabled_tools", actual.tools);
+    }
+
+    #[test]
+    fn test_parse_agent_file_preserves_runtime_user_prompt_variables() {
+        let fixture = r#"---
+id: "forge"
+tools:
+  - read
+  - task
+  - sage
+  - mcp_*
+user_prompt: |-
+  <{{event.name}}>{{event.value}}</{{event.name}}>
+  <system_date>{{current_date}}</system_date>
+---
+Body keeps {{tool_names.read}} untouched.
+"#;
+
+        let actual = parse_agent_file(fixture).unwrap();
+        let actual_user_prompt = actual.user_prompt.clone().unwrap().template;
+
+        assert_eq!(actual.id, AgentId::new("forge"));
+        assert_snapshot!(
+            "parse_agent_file_preserves_runtime_user_prompt_variables",
+            actual_user_prompt
+        );
+        assert_yaml_snapshot!(
+            "parse_agent_file_preserves_runtime_user_prompt_variables_tools",
+            apply_subagent_tool_config(
+                actual,
+                &ForgeConfig { enable_subagents: true, ..Default::default() }
+            )
+            .unwrap()
+            .tools
         );
     }
 }
