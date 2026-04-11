@@ -5,6 +5,7 @@ mod make_cerebras_compat;
 mod make_openai_compat;
 mod minimax;
 mod normalize_tool_schema;
+pub mod open_router_reasoning;
 mod pipeline;
 mod set_cache;
 mod set_reasoning_effort;
