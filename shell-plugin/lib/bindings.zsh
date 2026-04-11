@@ -5,6 +5,7 @@
 # Register ZLE widgets
 zle -N forge-accept-line
 zle -N forge-completion
+zle -N forge-paste-image
 
 # Custom bracketed-paste handler to fix syntax highlighting after paste
 # Addresses timing issues by ensuring buffer state stabilizes before prompt reset
@@ -29,3 +30,9 @@ bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
+
+# Key handler: Paste image from clipboard
+function forge-paste-image() {
+    _forge_action_paste_image
+}
+bindkey '^X^V' forge-paste-image
