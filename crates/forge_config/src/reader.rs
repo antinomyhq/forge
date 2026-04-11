@@ -53,27 +53,27 @@ impl ConfigReader {
     ///
     /// Resolution order:
     /// 1. `FORGE_CONFIG` environment variable, if set.
-    /// 2. `~/.forge`, if that directory exists.
-    /// 3. `~/forge` (legacy path) as a fallback, so users who have not yet run
-    ///    `forge config migrate` continue to read from their existing directory
-    ///    without disruption.
+    /// 2. `~/forge` (legacy path), if that directory exists, so users who have
+    ///    not yet run `forge config migrate` continue to read from their
+    ///    existing directory without disruption.
+    /// 3. `~/.forge` as the default path.
     pub fn base_path() -> PathBuf {
         if let Ok(path) = std::env::var("FORGE_CONFIG") {
             return PathBuf::from(path);
         }
 
-        let home = dirs::home_dir().unwrap_or(PathBuf::from("."));
-        let path = home.join(".forge");
+        let base = dirs::home_dir().unwrap_or(PathBuf::from("."));
+        let path = base.join("forge");
 
-        // Prefer ~/.forge when it exists; fall back to ~/forge for users who
-        // have not yet migrated.
+        // Prefer ~/forge (legacy) when it exists so existing users are not
+        // disrupted; fall back to ~/.forge as the default.
         if path.exists() {
-            tracing::info!("Using new path");
+            tracing::info!("Using legacy path");
             return path;
         }
 
-        tracing::info!("Using legacy path");
-        home.join("forge")
+        tracing::info!("Using new path");
+        base.join(".forge")
     }
 
     /// Adds the provided TOML string as a config source without touching the
@@ -197,12 +197,12 @@ mod tests {
     #[test]
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
         let actual = ConfigReader::base_path();
-        // Without FORGE_CONFIG set the path must be either ".forge" (new) or
-        // "forge" (legacy fallback when ~/forge exists on this machine).
+        // Without FORGE_CONFIG set the path must be either "forge" (legacy,
+        // preferred when ~/forge exists) or ".forge" (default new path).
         let name = actual.file_name().unwrap();
         assert!(
-            name == ".forge" || name == "forge",
-            "Expected base_path to end with '.forge' or 'forge', got: {:?}",
+            name == "forge" || name == ".forge",
+            "Expected base_path to end with 'forge' or '.forge', got: {:?}",
             name
         );
     }
