@@ -297,6 +297,7 @@ impl ForgeCommandManager {
                 }
                 Ok(SlashCommand::Rename(name))
             }
+            "/delete" => Ok(SlashCommand::Delete),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
