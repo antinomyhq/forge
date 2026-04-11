@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
-    StrategyFactory, UserInfra, WalkerInfra,
+    CommandInfra, DirectoryReaderInfra, ElicitationDispatcher, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    GrpcInfra, HttpInfra, McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, FileInfo as FileInfoData, McpServerConfig, ProviderId, URLParamSpec,
@@ -97,7 +97,7 @@ impl ForgeInfra {
                 output_printer.clone(),
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
-            mcp_server: ForgeMcpServer,
+            mcp_server: ForgeMcpServer::new(),
             walker_service: Arc::new(ForgeWalkerService::new()),
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new(env.clone())),
             http_service,
@@ -116,6 +116,26 @@ impl ForgeInfra {
     /// Returns an error if the disk read fails.
     pub fn config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
         self.config_infra.cached_config()
+    }
+
+    /// Plumb the shared elicitation dispatcher into the `ForgeMcpServer`
+    /// factory so every subsequently-constructed [`crate::ForgeMcpClient`]
+    /// sees a populated dispatcher slot and can route MCP elicitation
+    /// requests into the plugin hook pipeline.
+    ///
+    /// Wave F-2 wiring: this method exists so that `forge_api::ForgeAPI::init`
+    /// can close the `ForgeInfra` → `ForgeServices` chicken-and-egg cycle.
+    /// `ForgeInfra` is constructed BEFORE `ForgeServices` (it's a dependency,
+    /// not the other way around), so the dispatcher — which lives inside
+    /// `ForgeServices` — doesn't exist yet at `ForgeInfra::new` time. After
+    /// `Arc::new(ForgeServices::new(...))` returns and its own
+    /// `init_elicitation_dispatcher` has populated the internal `OnceLock`,
+    /// `forge_api` calls this method with a type-erased
+    /// `Arc<dyn ElicitationDispatcher>` view of the services'
+    /// `ForgeElicitationDispatcher`. First call wins — subsequent calls are
+    /// silently ignored per the `OnceCell` contract.
+    pub fn init_elicitation_dispatcher(&self, dispatcher: Arc<dyn ElicitationDispatcher>) {
+        self.mcp_server.set_elicitation_dispatcher(dispatcher);
     }
 }
 
@@ -233,9 +253,10 @@ impl CommandInfra for ForgeInfra {
         working_dir: PathBuf,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<std::collections::HashMap<String, String>>,
     ) -> anyhow::Result<CommandOutput> {
         self.command_executor_service
-            .execute_command(command, working_dir, silent, env_vars)
+            .execute_command(command, working_dir, silent, env_vars, extra_env)
             .await
     }
 
@@ -244,9 +265,10 @@ impl CommandInfra for ForgeInfra {
         command: &str,
         working_dir: PathBuf,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<std::collections::HashMap<String, String>>,
     ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
-            .execute_command_raw(command, working_dir, env_vars)
+            .execute_command_raw(command, working_dir, env_vars, extra_env)
             .await
     }
 }
@@ -280,11 +302,14 @@ impl McpServerInfra for ForgeInfra {
 
     async fn connect(
         &self,
+        server_name: &str,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
         environment: &forge_domain::Environment,
     ) -> anyhow::Result<Self::Client> {
-        self.mcp_server.connect(config, env_vars, environment).await
+        self.mcp_server
+            .connect(server_name, config, env_vars, environment)
+            .await
     }
 }
 

@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'full-stack plugin session started' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}

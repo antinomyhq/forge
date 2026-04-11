@@ -1,0 +1,7 @@
+{
+  "name": "dangerous-guard",
+  "version": "0.1.0",
+  "description": "Blocks dangerous bash commands before execution",
+  "author": { "name": "forge-test-fixtures" },
+  "hooks": "./hooks/hooks.json"
+}

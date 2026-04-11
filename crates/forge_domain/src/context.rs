@@ -244,6 +244,26 @@ impl ContextMessage {
         }
     }
 
+    /// Returns `true` when this message is a `<system_reminder>` injected by
+    /// a lifecycle hook (skill listing, doom-loop guidance, pending-todo
+    /// warnings, etc.) rather than genuine user input.
+    ///
+    /// Phase labelling is authoritative: historically, callers string-matched
+    /// against the `<system_reminder>` literal in message content, but that
+    /// is fragile (matches accidental mentions in user text) and couples
+    /// downstream code to the wire format. This helper delegates to
+    /// [`TextMessage::phase`] so compaction, UI transcripts, and test
+    /// assertions all agree on what counts as a reminder.
+    pub fn is_system_reminder(&self) -> bool {
+        match self {
+            ContextMessage::Text(message) => {
+                matches!(message.phase, Some(MessagePhase::SystemReminder))
+            }
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => false,
+        }
+    }
+
     /// Returns the images attached to this message.
     /// For `Text` messages, returns images from the `images` field.
     /// For legacy standalone `Image` messages, returns a single-element slice.
@@ -940,6 +960,40 @@ mod tests {
             request.messages[0],
             ContextMessage::system("A system message").into(),
         );
+    }
+
+    #[test]
+    fn test_is_system_reminder_positive() {
+        // system_reminder constructor must tag the phase so is_system_reminder
+        // returns true.
+        let actual = ContextMessage::system_reminder("<system_reminder>hi</system_reminder>", None)
+            .is_system_reminder();
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_is_system_reminder_rejects_plain_user_message() {
+        // A plain user message must NOT be treated as a reminder even when
+        // its content happens to mention `<system_reminder>` verbatim (a
+        // fragility that string-matching suffered from).
+        let actual = ContextMessage::user(
+            "Talk to me about <system_reminder> tags in Claude Code",
+            None,
+        )
+        .is_system_reminder();
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_system_reminder_rejects_system_message() {
+        let actual = ContextMessage::system("Some system prompt").is_system_reminder();
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_system_reminder_rejects_assistant_message() {
+        let actual = ContextMessage::assistant("Done", None, None, None).is_system_reminder();
+        assert!(!actual);
     }
 
     #[test]

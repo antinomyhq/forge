@@ -15,6 +15,7 @@ mod http;
 mod inquire;
 mod kv_storage;
 mod mcp_client;
+mod mcp_handler;
 mod mcp_server;
 mod walker;
 
@@ -25,3 +26,4 @@ pub use forge_infra::*;
 pub use http::sanitize_headers;
 pub use kv_storage::CacacheStorage;
 pub use mcp_client::*;
+pub use mcp_handler::ForgeMcpHandler;

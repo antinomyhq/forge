@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Compact, EventContext, MaxTokens, ModelId, ProviderId, ReasoningConfig,
-    SystemContext, Temperature, Template, ToolName, TopK, TopP,
+    Agent, AgentId, AgentSource, Compact, EventContext, MaxTokens, ModelId, ProviderId,
+    ReasoningConfig, SystemContext, Temperature, Template, ToolName, TopK, TopP,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -129,6 +129,11 @@ pub(crate) struct AgentDefinition {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_requests_per_turn: Option<usize>,
+
+    /// Origin of the agent definition. Set by the loader after parsing; not
+    /// part of the on-disk frontmatter schema so it is `#[serde(skip)]`.
+    #[serde(skip)]
+    pub source: AgentSource,
 }
 
 impl AgentDefinition {
@@ -162,6 +167,7 @@ impl AgentDefinition {
             max_tool_failure_per_turn: self.max_tool_failure_per_turn,
             max_requests_per_turn: self.max_requests_per_turn,
             path: self.path,
+            source: self.source,
         }
     }
 }

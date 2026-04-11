@@ -1,9 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
-use forge_app::{User, UserUsage};
-use forge_domain::{AgentId, Effort, ModelId, ProviderModels};
+use forge_app::{NotificationService, User, UserUsage};
+use forge_domain::{AgentId, Effort, ModelId, ProviderModels, SetupTrigger};
 use forge_stream::MpscStream;
 use futures::stream::BoxStream;
 use url::Url;
@@ -250,4 +251,76 @@ pub trait API: Sync + Send {
 
     /// Check the OAuth authentication status of an MCP server
     async fn mcp_auth_status(&self, server_url: &str) -> Result<String>;
+
+    /// List all discovered plugins alongside any load errors encountered
+    /// during discovery.
+    ///
+    /// This is the Phase 9 entry point for the `/plugin list` and
+    /// `/plugin info` slash commands. The result is cloned from the
+    /// [`PluginLoader`](forge_app::PluginLoader) cache, so repeated calls
+    /// cost a single filesystem scan per session. Call
+    /// [`API::reload_plugins`] to force a re-scan.
+    async fn list_plugins_with_errors(&self) -> Result<forge_domain::PluginLoadResult>;
+
+    /// Persist a plugin `enabled` override to the user's `.forge.toml`
+    /// under the `[plugins.<name>]` table.
+    ///
+    /// Used by `/plugin enable <name>` and `/plugin disable <name>`. The
+    /// write is lossy with respect to other config fields — it round-trips
+    /// [`ForgeConfig`] through [`ForgeConfig::read`] + [`ForgeConfig::write`]
+    /// so unrelated fields are preserved. Callers are expected to follow
+    /// up with [`API::reload_plugins`] to apply the change.
+    async fn set_plugin_enabled(&self, name: &str, enabled: bool) -> Result<()>;
+
+    /// Invalidate the plugin cache and reload every plugin-provided
+    /// component (skills, commands, agents). Mirrors
+    /// [`forge_app::PluginComponentsReloader::reload_plugin_components`].
+    ///
+    /// Used by `/plugin reload`, `/plugin enable`, and `/plugin disable`
+    /// to apply plugin state changes mid-session without restarting
+    /// Forge.
+    async fn reload_plugins(&self) -> Result<()>;
+
+    /// Returns a handle to the notification service for emitting
+    /// user-facing notifications (REPL idle, OAuth success, elicitation,
+    /// ...). Calling [`NotificationService::emit`] fires the
+    /// `Notification` lifecycle event through the plugin hook
+    /// dispatcher (observability only — hook errors never propagate)
+    /// and, on non-VS-Code TTY terminals, emits a best-effort terminal
+    /// bell.
+    ///
+    /// Construction is cheap: the returned handle holds only an `Arc`
+    /// to the services aggregate, so callers can either cache the
+    /// handle or construct one per emit.
+    fn notification_service(&self) -> Arc<dyn NotificationService>;
+
+    /// Fires the `Setup` lifecycle event with the given trigger.
+    ///
+    /// Plugin hooks can observe or log the event, but blocking errors
+    /// returned by hooks are intentionally ignored per Claude Code
+    /// semantics (`hooksConfigManager.ts:175`) — Setup runs before a
+    /// conversation exists, so there is nothing to block.
+    ///
+    /// Called by `UI::run_inner` when the user invokes
+    /// `forge --init` / `forge --init-only` / `forge --maintenance`.
+    /// Safe to call even when no plugins are configured.
+    async fn fire_setup_hook(&self, trigger: SetupTrigger) -> Result<()>;
+
+    /// Notifies the background `ConfigWatcher` that Forge itself is
+    /// about to write `path`, so the filesystem event that the
+    /// resulting save produces can be suppressed within the 5-second
+    /// internal-write window (see
+    /// [`forge_services::config_watcher`](https://docs.rs/forge_services)).
+    ///
+    /// This prevents Forge's own config writes (e.g. `/plugin enable`
+    /// updating `.forge.toml`) from round-tripping through the
+    /// `ConfigChange` plugin hook, which would otherwise see a
+    /// spurious "external" change every time the user flipped a
+    /// setting through the UI.
+    ///
+    /// Call sites should invoke this **immediately before** the
+    /// `fc.write()?` that persists the new config. The default impl
+    /// is a no-op so API implementations that don't own a watcher
+    /// (e.g. test doubles) can simply inherit it.
+    fn mark_config_write(&self, _path: &Path) {}
 }

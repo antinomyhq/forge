@@ -113,14 +113,36 @@ async fn run() -> Result<()> {
         .parse()
         .context("services_url in configuration must be a valid URL")?;
 
-    // Handle worktree creation if specified
+    // Handle worktree creation if specified.
+    //
+    // Wave E-2c-i: the `Sandbox::create` flow now fires the
+    // `WorktreeCreate` plugin hook, which requires access to the
+    // `Services` aggregate. The services live inside a `ForgeAPI`
+    // built via [`ForgeAPI::init`] — but that call needs a `cwd`,
+    // which is the very thing the sandbox is computing. We resolve
+    // the chicken-and-egg by bootstrapping a **temporary** API rooted
+    // at the current working directory purely to fire the hook; the
+    // temporary API is dropped before the real one is constructed
+    // with the resolved worktree path. This is only needed on the
+    // `--worktree` CLI path — every other startup flow goes straight
+    // to the main `ForgeAPI::init` at the bottom of this function.
     let cwd: PathBuf = match (&cli.sandbox, &cli.directory) {
         (Some(sandbox), Some(cli)) => {
-            let mut sandbox = Sandbox::new(sandbox).create()?;
+            let current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let bootstrap_api = ForgeAPI::init(current, config.clone(), services_url.clone());
+            let services = bootstrap_api.services();
+            drop(bootstrap_api);
+            let mut sandbox = Sandbox::new(sandbox, services).create().await?;
             sandbox.push(cli);
             sandbox
         }
-        (Some(sandbox), _) => Sandbox::new(sandbox).create()?,
+        (Some(sandbox), _) => {
+            let current = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let bootstrap_api = ForgeAPI::init(current, config.clone(), services_url.clone());
+            let services = bootstrap_api.services();
+            drop(bootstrap_api);
+            Sandbox::new(sandbox, services).create().await?
+        }
         (_, Some(cli)) => match cli.canonicalize() {
             Ok(cwd) => cwd,
             Err(_) => panic!("Invalid path: {}", cli.display()),

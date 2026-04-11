@@ -196,6 +196,9 @@ function forge-accept-line() {
         skill)
             _forge_action_skill
         ;;
+        plugin|pl)
+            _forge_action_plugin "$input_text"
+        ;;
         edit|ed)
             _forge_action_editor "$input_text"
             # Note: editor action intentionally modifies BUFFER and handles its own prompt reset

@@ -4,8 +4,8 @@ use std::sync::{Arc, LazyLock};
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::domain::{
-    ExecuteRule, Fetch, Permission, PermissionOperation, Policy, PolicyConfig, PolicyEngine,
-    ReadRule, Rule, WriteRule,
+    ExecuteRule, Fetch, Permission, PermissionOperation, PluginPermissionUpdate, Policy,
+    PolicyConfig, PolicyEngine, ReadRule, Rule, WriteRule,
 };
 use forge_app::{
     DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra,
@@ -156,6 +156,58 @@ where
         + DirectoryReaderInfra
         + UserInfra,
 {
+    async fn persist_plugin_permission_updates(
+        &self,
+        updates: &[PluginPermissionUpdate],
+    ) -> anyhow::Result<()> {
+        for update in updates {
+            match update {
+                PluginPermissionUpdate::AddRules { rules, behavior } => {
+                    let permission = match behavior.as_str() {
+                        "allow" => Permission::Allow,
+                        "deny" => Permission::Deny,
+                        "ask" | "confirm" => Permission::Confirm,
+                        other => {
+                            tracing::warn!(
+                                behavior = other,
+                                "unknown permission behavior in plugin update; skipping"
+                            );
+                            continue;
+                        }
+                    };
+                    for pattern in rules {
+                        // Determine rule type from pattern.
+                        // Patterns starting with `Bash(` are command rules;
+                        // patterns starting with `http` are fetch rules;
+                        // everything else is treated as a file write rule.
+                        let rule = if pattern.starts_with("Bash(") {
+                            let inner = pattern
+                                .strip_prefix("Bash(")
+                                .and_then(|s| s.strip_suffix(')'))
+                                .unwrap_or(pattern);
+                            Rule::Execute(ExecuteRule { command: inner.to_string(), dir: None })
+                        } else if pattern.starts_with("http://") || pattern.starts_with("https://")
+                        {
+                            Rule::Fetch(Fetch { url: pattern.clone(), dir: None })
+                        } else {
+                            Rule::Write(WriteRule { write: pattern.clone(), dir: None })
+                        };
+                        let policy = Policy::Simple { permission: permission.clone(), rule };
+                        self.modify_policy(policy).await?;
+                    }
+                }
+                PluginPermissionUpdate::SetMode { mode } => {
+                    tracing::info!(
+                        mode = mode.as_str(),
+                        "plugin requested setMode permission update; \
+                         Forge uses restricted: bool — ignoring"
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Check if an operation is allowed based on policies and handle user
     /// confirmation
     async fn check_operation_permission(

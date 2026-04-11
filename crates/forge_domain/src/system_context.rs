@@ -114,8 +114,7 @@ pub struct SystemContext {
 
     /// List of available skills.
     ///
-    /// **Deprecated:** Since Phase 0 of the Claude Code plugins integration
-    /// (2026-04), skills are no longer rendered into the system prompt.
+    /// **Deprecated:** Skills are no longer rendered into the system prompt.
     /// They are delivered per-turn via the `SkillListingHandler` lifecycle
     /// hook, which injects a `<system_reminder>` user-role message on every
     /// request. This field is kept only for backward compatibility with

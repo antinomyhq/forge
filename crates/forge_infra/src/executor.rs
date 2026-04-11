@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -30,6 +31,7 @@ impl ForgeCommandExecutorService {
         command_str: &str,
         working_dir: &Path,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<HashMap<String, String>>,
     ) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
@@ -86,6 +88,13 @@ impl ForgeCommandExecutorService {
             }
         }
 
+        // Set extra key-value environment variables (e.g. from session env cache)
+        if let Some(extra) = extra_env {
+            for (key, val) in extra {
+                command.env(key, val);
+            }
+        }
+
         command
     }
 
@@ -96,10 +105,11 @@ impl ForgeCommandExecutorService {
         working_dir: &Path,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<HashMap<String, String>>,
     ) -> anyhow::Result<CommandOutput> {
         let ready = self.ready.lock().await;
 
-        let mut prepared_command = self.prepare_command(&command, working_dir, env_vars);
+        let mut prepared_command = self.prepare_command(&command, working_dir, env_vars, extra_env);
 
         // Spawn the command
         let mut child = prepared_command.spawn()?;
@@ -203,8 +213,9 @@ impl CommandInfra for ForgeCommandExecutorService {
         working_dir: PathBuf,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<HashMap<String, String>>,
     ) -> anyhow::Result<CommandOutput> {
-        self.execute_command_internal(command, &working_dir, silent, env_vars)
+        self.execute_command_internal(command, &working_dir, silent, env_vars, extra_env)
             .await
     }
 
@@ -213,8 +224,9 @@ impl CommandInfra for ForgeCommandExecutorService {
         command: &str,
         working_dir: PathBuf,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<HashMap<String, String>>,
     ) -> anyhow::Result<std::process::ExitStatus> {
-        let mut prepared_command = self.prepare_command(command, &working_dir, env_vars);
+        let mut prepared_command = self.prepare_command(command, &working_dir, env_vars, extra_env);
 
         // overwrite the stdin, stdout and stderr to inherit
         prepared_command
@@ -257,7 +269,7 @@ mod tests {
         let dir = ".";
 
         let actual = fixture
-            .execute_command(cmd.to_string(), PathBuf::new().join(dir), false, None)
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir), false, None, None)
             .await
             .unwrap();
 
@@ -297,6 +309,7 @@ mod tests {
                 PathBuf::new().join("."),
                 false,
                 Some(vec!["TEST_ENV_VAR".to_string()]),
+                None,
             )
             .await
             .unwrap();
@@ -330,6 +343,7 @@ mod tests {
                 PathBuf::new().join("."),
                 false,
                 Some(vec!["MISSING_ENV_VAR".to_string()]),
+                None,
             )
             .await
             .unwrap();
@@ -349,6 +363,7 @@ mod tests {
                 PathBuf::new().join("."),
                 false,
                 Some(vec![]),
+                None,
             )
             .await
             .unwrap();
@@ -377,6 +392,7 @@ mod tests {
                 PathBuf::new().join("."),
                 false,
                 Some(vec!["FIRST_VAR".to_string(), "SECOND_VAR".to_string()]),
+                None,
             )
             .await
             .unwrap();
@@ -399,7 +415,7 @@ mod tests {
         let dir = ".";
 
         let actual = fixture
-            .execute_command(cmd.to_string(), PathBuf::new().join(dir), true, None)
+            .execute_command(cmd.to_string(), PathBuf::new().join(dir), true, None, None)
             .await
             .unwrap();
 

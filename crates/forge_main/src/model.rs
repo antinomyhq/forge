@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use forge_api::{Agent, Model, Template};
@@ -101,6 +102,7 @@ impl ForgeCommandManager {
                 | "commit"
                 | "rename"
                 | "rn"
+                | "plugin"
         )
     }
 
@@ -284,6 +286,69 @@ impl ForgeCommandManager {
                 Ok(SlashCommand::Commit { max_diff_size })
             }
             "/index" => Ok(SlashCommand::Index),
+            "/plugin" => {
+                // /plugin <subcommand> [args...]
+                let sub = parameters.first().copied().ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Usage: /plugin <list|enable|disable|info|reload|install> [args]"
+                    )
+                })?;
+
+                let rest = &parameters[1..];
+                let subcommand = match sub {
+                    "list" | "ls" => PluginSubcommand::List,
+                    "reload" => PluginSubcommand::Reload,
+                    "enable" => {
+                        let name = rest.join(" ").trim().to_string();
+                        if name.is_empty() {
+                            return Err(anyhow::anyhow!(
+                                "Usage: /plugin enable <name>. Please provide a plugin name."
+                            ));
+                        }
+                        PluginSubcommand::Enable { name }
+                    }
+                    "disable" => {
+                        let name = rest.join(" ").trim().to_string();
+                        if name.is_empty() {
+                            return Err(anyhow::anyhow!(
+                                "Usage: /plugin disable <name>. Please provide a plugin name."
+                            ));
+                        }
+                        PluginSubcommand::Disable { name }
+                    }
+                    "info" => {
+                        let name = rest.join(" ").trim().to_string();
+                        if name.is_empty() {
+                            return Err(anyhow::anyhow!(
+                                "Usage: /plugin info <name>. Please provide a plugin name."
+                            ));
+                        }
+                        PluginSubcommand::Info { name }
+                    }
+                    "install" => {
+                        // `install` takes a single path argument. We join
+                        // the remaining tokens with a single space so paths
+                        // containing spaces (e.g. `"/tmp/My Plugins/demo"`)
+                        // still work when quoted at the shell level and
+                        // arrive as multiple tokens here.
+                        let raw = rest.join(" ").trim().to_string();
+                        if raw.is_empty() {
+                            return Err(anyhow::anyhow!(
+                                "Usage: /plugin install <path>. Please provide a directory path."
+                            ));
+                        }
+                        PluginSubcommand::Install { path: PathBuf::from(raw) }
+                    }
+                    other => {
+                        return Err(anyhow::anyhow!(
+                            "Unknown /plugin subcommand '{other}'. Expected one of: \
+                             list, enable, disable, info, reload, install."
+                        ));
+                    }
+                };
+
+                Ok(SlashCommand::Plugin(subcommand))
+            }
             "/rename" | "/rn" => {
                 let name = parameters.join(" ");
                 let name = name.trim().to_string();
@@ -446,6 +511,43 @@ pub enum SlashCommand {
     /// Index the current workspace for semantic code search
     #[strum(props(usage = "Index the current workspace for semantic search"))]
     Index,
+
+    /// Manage Forge plugins: list/enable/disable/info/reload/install.
+    ///
+    /// This carries a [`PluginSubcommand`] describing which plugin
+    /// operation the user requested. Iteration over [`SlashCommand`]
+    /// (used to populate the default command list) produces a single
+    /// `Plugin(PluginSubcommand::List)` placeholder so `/help` shows one
+    /// `plugin` entry; the parser routes the individual subcommands
+    /// based on the remaining tokens.
+    #[strum(props(
+        usage = "Manage plugins. Usage: /plugin <list|enable|disable|info|reload|install> [args]"
+    ))]
+    Plugin(PluginSubcommand),
+}
+
+/// Sub-command carried by [`SlashCommand::Plugin`].
+///
+/// Mirrors the Phase 9 plan: `list`, `enable <name>`, `disable <name>`,
+/// `info <name>`, `reload`, and `install <path>`. The `install` flow is
+/// specified in
+/// `plans/2026-04-09-claude-code-plugins-v4/10-phase-9-plugin-cli.md`.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum PluginSubcommand {
+    /// `:plugin list` — show all discovered plugins.
+    #[default]
+    List,
+    /// `:plugin enable <name>` — mark a plugin as enabled in config.
+    Enable { name: String },
+    /// `:plugin disable <name>` — mark a plugin as disabled in config.
+    Disable { name: String },
+    /// `:plugin info <name>` — show manifest + component summary.
+    Info { name: String },
+    /// `:plugin reload` — invalidate plugin cache and reload components.
+    Reload,
+    /// `:plugin install <path>` — copy a plugin directory into the user
+    /// plugins folder, prompt for trust, and register it as disabled.
+    Install { path: PathBuf },
 }
 
 impl SlashCommand {
@@ -477,6 +579,7 @@ impl SlashCommand {
             SlashCommand::Rename(_) => "rename",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
+            SlashCommand::Plugin(_) => "plugin",
         }
     }
 
@@ -1300,5 +1403,211 @@ mod tests {
     fn test_rename_command_name() {
         let cmd = SlashCommand::Rename("test".to_string());
         assert_eq!(cmd.name(), "rename");
+    }
+
+    #[test]
+    fn test_parse_plugin_list() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin list").unwrap();
+        assert_eq!(actual, SlashCommand::Plugin(PluginSubcommand::List));
+    }
+
+    #[test]
+    fn test_parse_plugin_list_alias() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin ls").unwrap();
+        assert_eq!(actual, SlashCommand::Plugin(PluginSubcommand::List));
+    }
+
+    #[test]
+    fn test_parse_plugin_reload() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin reload").unwrap();
+        assert_eq!(actual, SlashCommand::Plugin(PluginSubcommand::Reload));
+    }
+
+    #[test]
+    fn test_parse_plugin_enable_with_name() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin enable prettier-format").unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Enable { name: "prettier-format".to_string() })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_disable_with_name() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin disable git-flow").unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Disable { name: "git-flow".to_string() })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_info_with_name() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin info bash-logger").unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Info { name: "bash-logger".to_string() })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_enable_multi_word_name_is_joined() {
+        // /plugin enable "my plugin" isn't supported; multi-token args are
+        // joined with single spaces for ergonomics even though canonical
+        // plugin names don't contain whitespace. This mirrors /rename.
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin enable   my   plugin").unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Enable { name: "my plugin".to_string() })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_no_subcommand_errors() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("Usage: /plugin"),
+            "expected usage hint, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_unknown_subcommand_errors() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin foo");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("Unknown /plugin subcommand 'foo'"),
+            "expected unknown-subcommand error, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_enable_without_name_errors() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin enable");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("plugin enable <name>"),
+            "expected usage hint for enable, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_disable_without_name_errors() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin disable");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_plugin_info_without_name_errors() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin info");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_plugin_install_with_path() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture
+            .parse("/plugin install /tmp/prettier-format")
+            .unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Install {
+                path: PathBuf::from("/tmp/prettier-format")
+            })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_install_with_relative_path() {
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture.parse("/plugin install ./local-plugin").unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Install {
+                path: PathBuf::from("./local-plugin")
+            })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_install_with_path_containing_spaces() {
+        // Users can quote the path at the shell level; here the parser
+        // joins tokens with single spaces so "/tmp/My Plugins/demo" is
+        // reconstructed from three input tokens.
+        let fixture = ForgeCommandManager::default();
+        let actual = fixture
+            .parse("/plugin install /tmp/My Plugins/demo")
+            .unwrap();
+        assert_eq!(
+            actual,
+            SlashCommand::Plugin(PluginSubcommand::Install {
+                path: PathBuf::from("/tmp/My Plugins/demo")
+            })
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_install_without_path_errors() {
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin install");
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("plugin install <path>"),
+            "expected usage hint for install, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_parse_plugin_unknown_subcommand_lists_install() {
+        // Regression guard: the error message must advertise install as
+        // a valid subcommand so users discover it via typos.
+        let fixture = ForgeCommandManager::default();
+        let result = fixture.parse("/plugin foo");
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("install"),
+            "expected install in error message, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn test_plugin_is_reserved_command() {
+        assert!(ForgeCommandManager::is_reserved_command("plugin"));
+    }
+
+    #[test]
+    fn test_plugin_command_name() {
+        let cmd = SlashCommand::Plugin(PluginSubcommand::List);
+        assert_eq!(cmd.name(), "plugin");
+        let cmd = SlashCommand::Plugin(PluginSubcommand::Enable { name: "x".to_string() });
+        assert_eq!(cmd.name(), "plugin");
+    }
+
+    #[test]
+    fn test_plugin_command_in_default_commands() {
+        let manager = ForgeCommandManager::default();
+        let commands = manager.list();
+        let contains_plugin = commands.iter().any(|cmd| cmd.name == "plugin");
+        assert!(
+            contains_plugin,
+            "Plugin command should be in default commands"
+        );
     }
 }

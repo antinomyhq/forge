@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Context, Error, Metrics, Result, TokenCount};
+use crate::{AggregatedHookResult, Context, Error, Metrics, Result, TokenCount};
 
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -46,6 +46,18 @@ pub struct Conversation {
     pub context: Option<Context>,
     pub metrics: Metrics,
     pub metadata: MetaData,
+    /// Aggregated result of the most recent plugin-hook dispatch.
+    ///
+    /// This field holds hook dispatch output (permission
+    /// decisions, additional context, system messages, ...) that the
+    /// orchestrator consumes after each fire. It is reset at the start
+    /// of every new lifecycle event via [`Conversation::reset_hook_result`].
+    ///
+    /// Marked `#[serde(skip, default)]` so it never appears in persisted
+    /// conversation records — hook results are transient per-event state
+    /// and must not leak into the database.
+    #[serde(skip, default)]
+    pub hook_result: AggregatedHookResult,
 }
 
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
@@ -71,6 +83,7 @@ impl Conversation {
             metadata: MetaData::new(created_at),
             title: None,
             context: None,
+            hook_result: AggregatedHookResult::default(),
         }
     }
     /// Creates a new conversation with a new conversation ID.
@@ -80,6 +93,14 @@ impl Conversation {
     /// having to manually create the ID.
     pub fn generate() -> Self {
         Self::new(ConversationId::generate())
+    }
+
+    /// Resets the aggregated hook result to its default (empty) value.
+    ///
+    /// Called by the orchestrator before firing each lifecycle event so
+    /// handlers see a fresh slate instead of the previous event's state.
+    pub fn reset_hook_result(&mut self) {
+        self.hook_result = AggregatedHookResult::default();
     }
 
     /// Generates an HTML representation of the conversation
@@ -354,5 +375,64 @@ mod tests {
         let expected = Some(0.05);
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_new_conversation_has_default_hook_result() {
+        let conversation = Conversation::generate();
+
+        assert!(conversation.hook_result.blocking_error.is_none());
+        assert!(conversation.hook_result.additional_contexts.is_empty());
+        assert!(conversation.hook_result.permission_behavior.is_none());
+    }
+
+    #[test]
+    fn test_reset_hook_result_clears_aggregated_fields() {
+        use serde_json::json;
+
+        use crate::{HookBlockingError, PermissionBehavior};
+
+        let mut conversation = Conversation::generate();
+        conversation.hook_result.blocking_error =
+            Some(HookBlockingError { message: "denied".to_string(), command: "echo".to_string() });
+        conversation.hook_result.permission_behavior = Some(PermissionBehavior::Deny);
+        conversation
+            .hook_result
+            .additional_contexts
+            .push("ctx".to_string());
+        // The three PermissionRequest fields must also be wiped by
+        // `reset_hook_result`. `AggregatedHookResult::default()` is what
+        // powers the reset, so this check effectively asserts that the
+        // new fields are included in the `Default` impl.
+        conversation.hook_result.updated_permissions = Some(json!({"rules": ["Bash(*)"]}));
+        conversation.hook_result.interrupt = true;
+        conversation.hook_result.retry = true;
+
+        conversation.reset_hook_result();
+
+        assert!(conversation.hook_result.blocking_error.is_none());
+        assert!(conversation.hook_result.permission_behavior.is_none());
+        assert!(conversation.hook_result.additional_contexts.is_empty());
+        assert!(conversation.hook_result.updated_permissions.is_none());
+        assert!(!conversation.hook_result.interrupt);
+        assert!(!conversation.hook_result.retry);
+    }
+
+    #[test]
+    fn test_hook_result_is_skipped_on_serialization() {
+        use crate::HookBlockingError;
+
+        let mut conversation = Conversation::generate();
+        conversation.hook_result.blocking_error =
+            Some(HookBlockingError { message: "denied".to_string(), command: "echo".to_string() });
+
+        let json = serde_json::to_value(&conversation).unwrap();
+
+        // `hook_result` must NOT be present in the serialized form so it
+        // never leaks into persisted conversation records.
+        assert!(
+            json.get("hook_result").is_none(),
+            "hook_result should be skipped on serialization, got: {json}"
+        );
     }
 }

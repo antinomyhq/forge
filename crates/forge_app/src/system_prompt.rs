@@ -92,8 +92,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 custom_rules.push(rule.as_str());
             });
 
-            // NOTE: Skills are no longer loaded into the system prompt. Since
-            // Phase 0 of the Claude Code plugins integration, the list of
+            // NOTE: Skills are no longer loaded into the system prompt. The list of
             // available skills is delivered per-turn via the
             // [`SkillListingHandler`] lifecycle hook (which injects a
             // `<system_reminder>` user message on every request). This means:

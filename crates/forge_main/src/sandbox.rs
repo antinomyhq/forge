@@ -1,139 +1,166 @@
 use std::path::PathBuf;
-use std::process::Command;
+use std::sync::Arc;
 
 use anyhow::{Context, Result, bail};
+use forge_app::Services;
 use forge_domain::TitleFormat;
+use forge_services::worktree_manager;
 
 use crate::title_display::TitleDisplayExt;
 
-pub struct Sandbox<'a> {
+/// Thin wrapper around [`worktree_manager::create_worktree`] that
+/// handles the `--worktree <name>` CLI flag path.
+///
+/// Responsibilities on top of the plain manager:
+///
+/// 1. Fires the `WorktreeCreate` plugin hook via
+///    [`forge_app::fire_worktree_create_hook`] so plugins can veto the creation
+///    or hand back a custom path.
+/// 2. Prints a user-facing status title with [`TitleFormat::info`] — something
+///    the manager itself must not do because the manager is shared with the
+///    future runtime `EnterWorktreeTool` path (deferred).
+/// 3. Canonicalizes a plugin-provided path before returning it.
+pub struct Sandbox<'a, S: Services + 'static> {
     dir: &'a str,
+    services: Arc<S>,
 }
 
-impl<'a> Sandbox<'a> {
-    pub fn new(dir: &'a str) -> Self {
-        Self { dir }
+impl<'a, S: Services + 'static> Sandbox<'a, S> {
+    pub fn new(dir: &'a str, services: Arc<S>) -> Self {
+        Self { dir, services }
     }
 
-    /// Handles worktree creation and returns the path to the worktree directory
-    pub fn create(&self) -> Result<PathBuf> {
+    /// Handles worktree creation and returns the path to the worktree
+    /// directory.
+    ///
+    /// # Plugin hook semantics
+    ///
+    /// - If a `WorktreeCreate` plugin hook sets `blocking_error`, the creation
+    ///   is aborted with that error message.
+    /// - If a plugin hook provides a `worktreePath` override, that path is
+    ///   validated (must exist) and canonicalized; the built-in `git worktree
+    ///   add` path is skipped entirely.
+    /// - Otherwise the manager's `git worktree add` path runs normally and the
+    ///   resulting path is returned.
+    ///
+    /// Hook dispatch errors are never fatal: they are handled
+    /// fail-open inside [`forge_app::fire_worktree_create_hook`],
+    /// which returns an empty aggregate on failure. Only git
+    /// errors from the fallback path and plugin-reported
+    /// `blocking_error`s propagate out of this function.
+    pub async fn create(&self) -> Result<PathBuf> {
         let worktree_name = self.dir;
-        // First check if we're in a git repository
-        let git_check = Command::new("git")
-            .args(["rev-parse", "--is-inside-work-tree"])
-            .output()
-            .context("Failed to check if current directory is a git repository")?;
 
-        if !git_check.status.success() {
-            bail!(
-                "Current directory is not inside a git repository. Worktree creation requires a git repository."
+        // Fire the WorktreeCreate plugin hook BEFORE touching git so
+        // plugins have a chance to veto or re-route the creation.
+        let hook_result =
+            forge_app::fire_worktree_create_hook(self.services.clone(), worktree_name.to_string())
+                .await;
+
+        // Check blocking_error first — plugin can veto worktree creation.
+        if let Some(err) = hook_result.blocking_error {
+            bail!("Worktree creation blocked by plugin hook: {}", err.message);
+        }
+
+        // If a plugin provided a worktreePath override, use it verbatim
+        // and skip the built-in `git worktree add` fallback.
+        let worktree_path: PathBuf = if let Some(path) = hook_result.worktree_path {
+            tracing::info!(
+                path = %path.display(),
+                "worktree path provided by WorktreeCreate plugin hook, skipping git worktree add"
             );
-        }
-
-        // Get the git root directory
-        let git_root_output = Command::new("git")
-            .args(["rev-parse", "--show-toplevel"])
-            .output()
-            .context("Failed to get git root directory")?;
-
-        if !git_root_output.status.success() {
-            bail!("Failed to determine git repository root");
-        }
-
-        let git_root = String::from_utf8(git_root_output.stdout)
-            .context("Git root path contains invalid UTF-8")?
-            .trim()
-            .to_string();
-
-        let git_root_path = PathBuf::from(&git_root);
-
-        // Get the parent directory of the git root
-        let parent_dir = git_root_path.parent().context(
-            "Git repository is at filesystem root - cannot create worktree in parent directory",
-        )?;
-
-        // Create the worktree path in the parent directory
-        let worktree_path = parent_dir.join(worktree_name);
-
-        // Check if worktree already exists
-        if worktree_path.exists() {
-            // Check if it's already a git worktree by checking if it has a .git file
-            // (worktree marker)
-            let git_file = worktree_path.join(".git");
-            if git_file.exists() {
-                let worktree_check = Command::new("git")
-                    .args(["rev-parse", "--is-inside-work-tree"])
-                    .current_dir(&worktree_path)
-                    .output()
-                    .context("Failed to check if target directory is a git worktree")?;
-
-                if worktree_check.status.success() {
-                    println!(
-                        "{}",
-                        TitleFormat::info("Worktree [Reused]")
-                            .sub_title(worktree_path.display().to_string())
-                            .display()
-                    );
-                    return worktree_path
-                        .canonicalize()
-                        .context("Failed to canonicalize worktree path");
-                }
+            if !path.exists() {
+                bail!(
+                    "Plugin-provided worktree path does not exist: {}",
+                    path.display()
+                );
             }
-
-            bail!(
-                "Directory '{}' already exists but is not a git worktree. Please remove it or choose a different name.",
-                worktree_path.display()
+            path.canonicalize()
+                .context("Failed to canonicalize plugin-provided worktree path")?
+        } else {
+            // No plugin override — fall back to the manager's
+            // built-in `git worktree add` flow. The manager is
+            // deliberately side-effect-free on stdout so the status
+            // print lives here in the wrapper.
+            let result = worktree_manager::create_worktree(worktree_name)?;
+            let title = if result.created {
+                "Worktree [Created]"
+            } else {
+                "Worktree [Reused]"
+            };
+            println!(
+                "{}",
+                TitleFormat::info(title)
+                    .sub_title(result.path.display().to_string())
+                    .display()
             );
+            result.path
+        };
+
+        Ok(worktree_path)
+    }
+
+    /// Remove a previously-created worktree and fire the `WorktreeRemove`
+    /// plugin hook.
+    ///
+    /// # Plugin hook semantics
+    ///
+    /// - The `WorktreeRemove` plugin hook is fired **before** any filesystem
+    ///   changes so plugins can veto the removal.
+    /// - If a plugin hook sets `blocking_error`, the removal is aborted with
+    ///   that error message.
+    /// - Otherwise, `git worktree remove --force <path>` is executed. If that
+    ///   fails (e.g. the path is not a git worktree), the directory is removed
+    ///   directly via `tokio::fs::remove_dir_all` as a fallback.
+    pub async fn remove(services: Arc<S>, worktree_path: PathBuf) -> Result<()> {
+        // Fire the WorktreeRemove plugin hook BEFORE touching the filesystem
+        // so plugins have a chance to veto the removal.
+        let hook_result =
+            forge_app::fire_worktree_remove_hook(services.clone(), worktree_path.clone()).await;
+
+        // Check blocking_error first — plugin can veto worktree removal.
+        if let Some(err) = hook_result.blocking_error {
+            bail!("Worktree removal blocked by plugin hook: {}", err.message);
         }
 
-        // Check if branch already exists
-        let branch_check = Command::new("git")
-            .args([
-                "rev-parse",
-                "--verify",
-                &format!("refs/heads/{worktree_name}"),
-            ])
-            .current_dir(&git_root_path)
+        // Attempt `git worktree remove --force <path>`.
+        let git_result = tokio::process::Command::new("git")
+            .args(["worktree", "remove", "--force"])
+            .arg(&worktree_path)
             .output()
-            .context("Failed to check if branch exists")?;
+            .await
+            .context("Failed to spawn git worktree remove")?;
 
-        let branch_exists = branch_check.status.success();
-
-        // Create the worktree
-        let mut worktree_cmd = Command::new("git");
-        worktree_cmd.args(["worktree", "add"]);
-
-        if !branch_exists {
-            // Create new branch from current HEAD
-            worktree_cmd.args(["-b", worktree_name]);
+        if git_result.status.success() {
+            tracing::info!(
+                path = %worktree_path.display(),
+                "worktree removed via git worktree remove"
+            );
+            return Ok(());
         }
 
-        worktree_cmd.args([worktree_path.to_str().unwrap()]);
-
-        if branch_exists {
-            worktree_cmd.arg(worktree_name);
-        }
-
-        let worktree_output = worktree_cmd
-            .current_dir(&git_root_path)
-            .output()
-            .context("Failed to create git worktree")?;
-
-        if !worktree_output.status.success() {
-            let stderr = String::from_utf8_lossy(&worktree_output.stderr);
-            bail!("Failed to create git worktree: {stderr}");
-        }
-
-        println!(
-            "{}",
-            TitleFormat::info("Worktree [Created]")
-                .sub_title(worktree_path.display().to_string())
-                .display()
+        // Fallback: the path may not be a git worktree (e.g. plugin-provided
+        // directory). Remove the directory tree directly.
+        tracing::warn!(
+            path = %worktree_path.display(),
+            stderr = %String::from_utf8_lossy(&git_result.stderr),
+            "git worktree remove failed, falling back to remove_dir_all"
         );
 
-        // Return the canonicalized path
-        worktree_path
-            .canonicalize()
-            .context("Failed to canonicalize worktree path")
+        tokio::fs::remove_dir_all(&worktree_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to remove worktree directory: {}",
+                    worktree_path.display()
+                )
+            })?;
+
+        tracing::info!(
+            path = %worktree_path.display(),
+            "worktree directory removed via remove_dir_all fallback"
+        );
+
+        Ok(())
     }
 }

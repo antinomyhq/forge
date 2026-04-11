@@ -48,6 +48,7 @@ lazy_static.workspace = true
 forge_json_repair.workspace = true
 
 tonic.workspace = true
+notify-debouncer-full = "0.5"
 
 
 [dev-dependencies]

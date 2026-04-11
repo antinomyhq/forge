@@ -1,0 +1,7 @@
+{
+  "name": "config-watcher",
+  "version": "0.1.0",
+  "description": "Logs config file changes",
+  "author": { "name": "forge-test-fixtures" },
+  "hooks": "./hooks/hooks.json"
+}

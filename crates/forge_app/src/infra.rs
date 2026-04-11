@@ -1,13 +1,18 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
-    OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AgentHookCommand, AuthCodeParams, CommandOutput, ConfigOperation, Context, Environment,
+    FileInfo, HookInput, HttpHookCommand, McpServerConfig, ModelId, OAuthConfig,
+    OAuthTokenResponse, PromptHookCommand, ShellHookCommand, ToolDefinition, ToolName, ToolOutput,
 };
+// Re-exported from `forge_domain` (the types live there so
+// `AggregatedHookResult::merge` can consume them without creating a
+// circular crate dependency).
+pub use forge_domain::{HookExecResult, HookOutcome};
 use reqwest::Response;
 use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
@@ -15,6 +20,12 @@ use serde::de::DeserializeOwned;
 use url::Url;
 
 use crate::{WalkedFile, Walker};
+
+mod elicitation;
+
+pub use elicitation::{
+    ElicitationAction, ElicitationDispatcher, ElicitationRequest, ElicitationResponse,
+};
 
 /// Infrastructure trait for accessing environment configuration, system
 /// variables, and persisted application configuration.
@@ -153,6 +164,7 @@ pub trait CommandInfra: Send + Sync {
         working_dir: PathBuf,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<std::collections::HashMap<String, String>>,
     ) -> anyhow::Result<CommandOutput>;
 
     /// execute the shell command on present stdio.
@@ -161,6 +173,7 @@ pub trait CommandInfra: Send + Sync {
         command: &str,
         working_dir: PathBuf,
         env_vars: Option<Vec<String>>,
+        extra_env: Option<std::collections::HashMap<String, String>>,
     ) -> anyhow::Result<std::process::ExitStatus>;
 }
 
@@ -214,6 +227,7 @@ pub trait McpServerInfra: Send + Sync + 'static {
     type Client: McpClientInfra;
     async fn connect(
         &self,
+        server_name: &str,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
         environment: &Environment,
@@ -402,6 +416,17 @@ pub trait AgentRepository: Send + Sync {
         provider_id: forge_domain::ProviderId,
         model_id: forge_domain::ModelId,
     ) -> anyhow::Result<Vec<forge_domain::Agent>>;
+
+    /// Drops any cached agent data so the next call to
+    /// [`get_agents`](Self::get_agents) re-reads from disk.
+    ///
+    /// Default implementation is a no-op for repositories that do not
+    /// maintain their own cache (e.g. `ForgeAgentRepository`, which
+    /// re-walks the agents directory on every call). Used by the
+    /// plugin hot-swap to pick up newly-installed plugin agents.
+    async fn reload(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
 }
 
 /// Infrastructure trait for providing shared gRPC channel
@@ -416,4 +441,121 @@ pub trait GrpcInfra: Send + Sync {
     /// Hydrates the gRPC channel by establishing and then dropping the
     /// connection
     fn hydrate(&self);
+}
+
+/// Infrastructure trait for executing hook commands defined in
+/// `hooks.json`.
+///
+/// Each method corresponds to one of the four hook command variants
+/// ([`forge_domain::HookCommand`]) and produces a uniform
+/// [`HookExecResult`] regardless of the underlying transport.
+///
+/// Implementations are responsible for:
+/// - Serializing the [`HookInput`] into the appropriate wire format (stdin
+///   JSON, HTTP POST body, or prompt argument).
+/// - Enforcing the per-hook timeout.
+/// - Attempting to parse the response as a [`HookOutput`] and falling back to
+///   plain text when parsing fails.
+/// - Translating exit codes / HTTP statuses / model errors into a
+///   [`HookOutcome`] using Claude Code's semantics.
+///
+/// All four variants are implemented. Shell hooks were wired first;
+/// HTTP, prompt, and agent executors followed.
+#[async_trait::async_trait]
+pub trait HookExecutorInfra: Send + Sync {
+    /// Execute a shell hook.
+    ///
+    /// `env_vars` is merged into the child process environment on top of
+    /// the inherited parent environment.
+    async fn execute_shell(
+        &self,
+        config: &ShellHookCommand,
+        input: &HookInput,
+        env_vars: HashMap<String, String>,
+    ) -> Result<HookExecResult>;
+
+    /// Execute an HTTP hook.
+    async fn execute_http(
+        &self,
+        config: &HttpHookCommand,
+        input: &HookInput,
+    ) -> Result<HookExecResult>;
+
+    /// Execute a prompt (single LLM call) hook.
+    async fn execute_prompt(
+        &self,
+        config: &PromptHookCommand,
+        input: &HookInput,
+    ) -> Result<HookExecResult>;
+
+    /// Execute a sub-agent hook.
+    async fn execute_agent(
+        &self,
+        config: &AgentHookCommand,
+        input: &HookInput,
+    ) -> Result<HookExecResult>;
+
+    /// Handle an interactive prompt request from a hook process.
+    ///
+    /// The Claude Code hook protocol allows hooks to request interactive
+    /// prompts via stdout during execution. When the shell executor
+    /// detects a prompt request JSON line, it calls this method to obtain
+    /// the user's response, then writes it back to the hook's stdin.
+    ///
+    /// The default implementation returns an error indicating prompts are
+    /// not supported (e.g., in headless mode). Implementations that have
+    /// access to a UI layer can override this to show interactive prompts.
+    async fn handle_hook_prompt(
+        &self,
+        _request: forge_domain::HookPromptRequest,
+    ) -> Result<forge_domain::HookPromptResponse> {
+        Err(anyhow::anyhow!(
+            "Interactive hook prompts are not supported in this mode"
+        ))
+    }
+
+    /// Execute a single non-streaming LLM call for prompt/agent hooks.
+    ///
+    /// This is the hook runtime's gateway to the chat completion API.
+    /// The caller provides a fully-constructed [`Context`] (system +
+    /// user messages, optional `response_format`, etc.) and a
+    /// [`ModelId`]. The implementation resolves the provider, calls
+    /// the model, and returns the raw text content.
+    ///
+    /// The default implementation returns an error; concrete
+    /// implementations that have access to the Services aggregate
+    /// override this to delegate to `ProviderService::chat`.
+    ///
+    /// Reference: `claude-code/src/utils/hooks/execPromptHook.ts:62-100`
+    async fn query_model_for_hook(&self, _model_id: &ModelId, _context: Context) -> Result<String> {
+        Err(anyhow::anyhow!(
+            "LLM calls for hooks are not available in this mode"
+        ))
+    }
+
+    /// Execute a multi-turn agent hook loop.
+    ///
+    /// The loop sends context to the LLM with tool definitions, executes
+    /// tool calls, and repeats until the model calls the `StructuredOutput`
+    /// tool (returning `{ok: bool, reason?: string}`) or `max_turns` is
+    /// reached.
+    ///
+    /// Returns `Ok(Some((ok, reason)))` when StructuredOutput was called,
+    /// `Ok(None)` when max turns hit without structured output.
+    ///
+    /// Default returns an error (for test mocks). Concrete implementations
+    /// override this.
+    ///
+    /// Reference: `claude-code/src/utils/hooks/execAgentHook.ts`
+    async fn execute_agent_loop(
+        &self,
+        _model_id: &ModelId,
+        _context: Context,
+        _max_turns: usize,
+        _timeout_secs: u64,
+    ) -> Result<Option<(bool, Option<String>)>> {
+        Err(anyhow::anyhow!(
+            "Multi-turn agent hook loops are not available in this mode"
+        ))
+    }
 }

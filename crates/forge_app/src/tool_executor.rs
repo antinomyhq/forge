@@ -5,6 +5,7 @@ use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
+use crate::lifecycle_fires::fire_cwd_changed_hook;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::{Services, ShellService};
 use crate::{
@@ -263,17 +264,27 @@ impl<
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
                 let normalized_cwd = self.normalize_path(cwd);
+                let default_cwd = self.services.get_environment().cwd.clone();
                 let output = self
                     .services
                     .execute(
                         input.command.clone(),
-                        PathBuf::from(normalized_cwd),
+                        PathBuf::from(normalized_cwd.clone()),
                         input.keep_ansi,
                         false,
                         input.env.clone(),
                         input.description.clone(),
                     )
                     .await?;
+
+                // Fire CwdChanged hook when the shell's effective cwd differs
+                // from the environment's default. Best-effort: failures are
+                // logged and discarded.
+                let new_cwd = PathBuf::from(&normalized_cwd);
+                if new_cwd != default_cwd {
+                    fire_cwd_changed_hook(self.services.clone(), default_cwd, new_cwd).await;
+                }
+
                 output.into()
             }
             ToolCatalog::Fetch(input) => {

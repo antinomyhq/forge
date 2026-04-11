@@ -1,0 +1,7 @@
+{
+  "name": "full-stack",
+  "version": "0.1.0",
+  "description": "Full-stack plugin with every component type",
+  "author": { "name": "forge-test-fixtures" },
+  "hooks": "./hooks/hooks.json"
+}

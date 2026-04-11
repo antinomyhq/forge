@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
 use forge_app::{
-    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
-    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
+    AgentRepository, AsyncHookResultQueue, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    HttpInfra, KVStore, McpServerInfra, Services, SessionEnvCache, StrategyFactory, UserInfra,
+    WalkerInfra,
 };
 use forge_domain::{
-    ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
-    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
+    ChatRepository, ConversationRepository, FuzzySearchRepository, LoadedPlugin, PluginLoadResult,
+    PluginRepository, ProviderRepository, SkillRepository, SnapshotRepository,
+    ValidationRepository, WorkspaceIndexRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -18,7 +20,9 @@ use crate::auth::ForgeAuthService;
 use crate::command::CommandLoaderService as ForgeCommandLoaderService;
 use crate::conversation::ForgeConversationService;
 use crate::discovery::ForgeDiscoveryService;
+use crate::elicitation_dispatcher::ForgeElicitationDispatcher;
 use crate::fd::FdDefault;
+use crate::hook_runtime::{ForgeHookConfigLoader, ForgeHookExecutor};
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
@@ -26,11 +30,36 @@ use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
-    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgePluginLoader, ForgeShell,
+    ForgeSkillFetch,
 };
 
 type McpService<F> = ForgeMcpService<ForgeMcpManager<F>, F, <F as McpServerInfra>::Client>;
 type AuthService<F> = ForgeAuthService<F>;
+
+/// Type-erased adapter that turns any `Arc<F: PluginRepository>` into an
+/// `Arc<dyn PluginRepository>`, so we can hand the plugin repository to
+/// services (like `CommandLoaderService`) that store a trait object.
+///
+/// Kept private to `forge_services` because it exists solely to bridge
+/// the generic infra into the dyn-object API used by downstream services.
+struct InfraPluginRepository<F> {
+    infra: Arc<F>,
+}
+
+#[async_trait::async_trait]
+impl<F> PluginRepository for InfraPluginRepository<F>
+where
+    F: PluginRepository + Send + Sync + 'static,
+{
+    async fn load_plugins(&self) -> anyhow::Result<Vec<LoadedPlugin>> {
+        self.infra.load_plugins().await
+    }
+
+    async fn load_plugins_with_errors(&self) -> anyhow::Result<PluginLoadResult> {
+        self.infra.load_plugins_with_errors().await
+    }
+}
 
 /// ForgeApp is the main application container that implements the App trait.
 /// It provides access to all core services required by the application.
@@ -82,6 +111,20 @@ pub struct ForgeServices<
     provider_auth_service: ForgeProviderAuthService<F>,
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
+    plugin_loader_service: Arc<ForgePluginLoader<F>>,
+    hook_config_loader_service: Arc<ForgeHookConfigLoader<F>>,
+    hook_executor_service: Arc<ForgeHookExecutor<F>>,
+    /// Shared queue for async-rewake hook results. Populated by the
+    /// shell executor's background tasks; drained by the orchestrator
+    /// between conversation turns.
+    async_hook_queue: AsyncHookResultQueue,
+    session_env_cache: SessionEnvCache,
+    /// Phase 8 elicitation dispatcher. Owns a `OnceLock<Arc<Self>>`
+    /// populated after construction via
+    /// [`ForgeServices::init_elicitation_dispatcher`]; see the
+    /// module-level doc on [`ForgeElicitationDispatcher`] for the
+    /// cycle rationale.
+    elicitation_dispatcher: Arc<ForgeElicitationDispatcher<ForgeServices<F>>>,
     infra: Arc<F>,
 }
 
@@ -104,11 +147,25 @@ impl<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
-        + ValidationRepository,
+        + PluginRepository
+        + ValidationRepository
+        + Send
+        + Sync
+        + 'static,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
-        let mcp_manager = Arc::new(ForgeMcpManager::new(infra.clone()));
+        // Plugin-aware MCP manager: plugin-contributed servers are merged
+        // into `read_mcp_config` output under the `"{plugin}:{server}"`
+        // namespace. Uses the same dyn-object adapter as the command /
+        // hook loaders so all three subsystems share one view of disk
+        // scans without coupling to the concrete infra type.
+        let mcp_plugin_repo: Arc<dyn PluginRepository> =
+            Arc::new(InfraPluginRepository { infra: infra.clone() });
+        let mcp_manager = Arc::new(ForgeMcpManager::with_plugin_repository(
+            infra.clone(),
+            mcp_plugin_repo,
+        ));
         let mcp_service = Arc::new(ForgeMcpService::new(mcp_manager.clone(), infra.clone()));
         let template_service = Arc::new(ForgeTemplateService::new(infra.clone()));
         let attachment_service = Arc::new(ForgeChatRequest::new(infra.clone()));
@@ -125,13 +182,19 @@ impl<
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
-        let shell_service = Arc::new(ForgeShell::new(infra.clone()));
+        let session_env_cache = SessionEnvCache::new();
+        let shell_service = Arc::new(ForgeShell::new(infra.clone(), session_env_cache.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
         let followup_service = Arc::new(ForgeFollowup::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
         let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(infra.clone()));
-        let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
+        let plugin_repository_dyn: Arc<dyn PluginRepository> =
+            Arc::new(InfraPluginRepository { infra: infra.clone() });
+        let command_loader_service = Arc::new(ForgeCommandLoaderService::new(
+            infra.clone(),
+            plugin_repository_dyn,
+        ));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
         let discovery = Arc::new(FdDefault::new(infra.clone()));
@@ -140,6 +203,38 @@ impl<
             discovery,
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
+        let plugin_loader_service = Arc::new(ForgePluginLoader::new(infra.clone()));
+        // Hook runtime: reuse the same dyn-object plugin repository adapter as
+        // the command loader so the loader caches disk scans independently from
+        // the command-level cache.
+        let hook_plugin_repo: Arc<dyn PluginRepository> =
+            Arc::new(InfraPluginRepository { infra: infra.clone() });
+        let hook_config_loader_service =
+            Arc::new(ForgeHookConfigLoader::new(infra.clone(), hook_plugin_repo));
+
+        // Create the async-rewake channel + queue. The sender goes into
+        // the hook executor; the receiver feeds a background pump that
+        // pushes results into the shared queue.
+        let async_hook_queue = AsyncHookResultQueue::new();
+        let (async_result_tx, mut async_result_rx) =
+            tokio::sync::mpsc::unbounded_channel::<forge_domain::PendingHookResult>();
+        {
+            let queue = async_hook_queue.clone();
+            tokio::spawn(async move {
+                while let Some(result) = async_result_rx.recv().await {
+                    queue.push(result).await;
+                }
+            });
+        }
+        let hook_executor_service =
+            Arc::new(ForgeHookExecutor::new(infra.clone()).with_async_result_tx(async_result_tx));
+
+        // Phase 8 elicitation dispatcher. Created with an empty
+        // services slot; populated by
+        // `init_elicitation_dispatcher` once `Arc<ForgeServices<F>>`
+        // exists. See the module-level doc on
+        // `ForgeElicitationDispatcher` for the cycle rationale.
+        let elicitation_dispatcher = Arc::new(ForgeElicitationDispatcher::new());
 
         Self {
             conversation_service,
@@ -168,9 +263,69 @@ impl<
             provider_auth_service,
             workspace_service,
             skill_service,
+            plugin_loader_service,
+            hook_config_loader_service,
+            hook_executor_service,
+            async_hook_queue,
+            session_env_cache,
+            elicitation_dispatcher,
             chat_service,
             infra,
         }
+    }
+
+    /// Populate the elicitation dispatcher's services slot. Must be
+    /// called from the `forge_api` layer immediately after
+    /// `Arc::new(ForgeServices::new(...))` returns so the dispatcher
+    /// can fire hooks against the fully-constructed aggregate. First
+    /// call wins; subsequent calls are silent no-ops per the
+    /// underlying [`std::sync::OnceLock`] contract.
+    ///
+    /// Until this method runs the dispatcher declines every request
+    /// with a warn log — see
+    /// [`ForgeElicitationDispatcher::elicit`].
+    pub fn init_elicitation_dispatcher(self: &Arc<Self>) {
+        self.elicitation_dispatcher.init(self.clone());
+    }
+
+    /// Populate the hook executor's LLM service handle. Must be called
+    /// from the `forge_api` layer immediately after
+    /// `Arc::new(ForgeServices::new(...))` returns — same timing as
+    /// `init_elicitation_dispatcher`.
+    ///
+    /// Until this method runs, prompt and agent hooks return an error
+    /// instead of making LLM calls.
+    pub fn init_hook_executor_services(self: &Arc<Self>)
+    where
+        ForgeServices<F>: forge_app::Services,
+    {
+        self.hook_executor_service.init_services(
+            self.clone() as std::sync::Arc<dyn crate::hook_runtime::executor::HookModelService>
+        );
+    }
+
+    /// Return a type-erased handle to the elicitation dispatcher so
+    /// it can be plumbed into [`forge_infra::ForgeInfra`] (which
+    /// doesn't know the concrete `ForgeServices<F>` type — and
+    /// shouldn't, to keep the `forge_infra` → `forge_app` dep graph
+    /// flowing in one direction).
+    ///
+    /// Wave F-2: used by `forge_api::ForgeAPI::init` to hand the
+    /// dispatcher to `ForgeMcpServer` via
+    /// `ForgeInfra::init_elicitation_dispatcher`, closing the loop
+    /// between the MCP client handler (which lives in `forge_infra`)
+    /// and the hook-fire pipeline (which lives in `forge_services`).
+    pub fn elicitation_dispatcher_arc(&self) -> Arc<dyn forge_app::ElicitationDispatcher>
+    where
+        ForgeServices<F>: forge_app::Services,
+    {
+        self.elicitation_dispatcher.clone()
+    }
+
+    /// Return a reference to the session env cache so the hook handler
+    /// can later share it.
+    pub fn session_env_cache(&self) -> &SessionEnvCache {
+        &self.session_env_cache
     }
 }
 
@@ -195,6 +350,7 @@ impl<
         + ProviderRepository
         + AgentRepository
         + SkillRepository
+        + PluginRepository
         + StrategyFactory
         + WorkspaceIndexRepository
         + ValidationRepository
@@ -234,6 +390,10 @@ impl<
     type ProviderService = ForgeProviderService<F>;
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F, FdDefault<F>>;
     type SkillFetchService = ForgeSkillFetch<F>;
+    type PluginLoader = ForgePluginLoader<F>;
+    type HookConfigLoader = ForgeHookConfigLoader<F>;
+    type HookExecutor = ForgeHookExecutor<F>;
+    type ElicitationDispatcher = ForgeElicitationDispatcher<ForgeServices<F>>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -332,6 +492,26 @@ impl<
     }
     fn skill_fetch_service(&self) -> &Self::SkillFetchService {
         &self.skill_service
+    }
+
+    fn plugin_loader(&self) -> &Self::PluginLoader {
+        &self.plugin_loader_service
+    }
+
+    fn hook_config_loader(&self) -> &Self::HookConfigLoader {
+        &self.hook_config_loader_service
+    }
+
+    fn hook_executor(&self) -> &Self::HookExecutor {
+        &self.hook_executor_service
+    }
+
+    fn elicitation_dispatcher(&self) -> &Self::ElicitationDispatcher {
+        &self.elicitation_dispatcher
+    }
+
+    fn async_hook_queue(&self) -> Option<&AsyncHookResultQueue> {
+        Some(&self.async_hook_queue)
     }
 
     fn provider_service(&self) -> &Self::ProviderService {

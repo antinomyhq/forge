@@ -8,6 +8,7 @@ mod fs_undo;
 mod fs_write;
 mod image_read;
 mod plan_create;
+mod plugin_loader;
 mod shell;
 mod skill;
 
@@ -21,5 +22,6 @@ pub use fs_undo::*;
 pub use fs_write::*;
 pub use image_read::*;
 pub use plan_create::*;
+pub use plugin_loader::*;
 pub use shell::*;
 pub use skill::*;

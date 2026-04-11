@@ -72,6 +72,10 @@
     "description": "List all available skills"
   },
   {
+    "command": "plugin",
+    "description": "Manage plugins (list, enable, disable, info, reload, install) [alias: pl]"
+  },
+  {
     "command": "commit",
     "description": "Directly commits AI generated commit message"
   },

@@ -1,0 +1,6 @@
+{
+  "name": "agent-provider",
+  "version": "0.1.0",
+  "description": "Provides a security reviewer agent",
+  "author": { "name": "forge-test-fixtures" }
+}

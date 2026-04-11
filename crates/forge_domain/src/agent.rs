@@ -102,6 +102,29 @@ pub fn estimate_token_count(count: usize) -> usize {
     count / 4
 }
 
+/// Where an [`Agent`] definition was loaded from. Mirrors
+/// [`crate::SkillSource`] / [`crate::CommandSource`] so the plugin
+/// pipeline can track provenance uniformly across the three asset types.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case", tag = "kind")]
+#[derive(Default)]
+pub enum AgentSource {
+    /// Compiled into the Forge binary.
+    #[default]
+    Builtin,
+    /// Contributed by an installed plugin.
+    Plugin {
+        /// Name of the plugin that owns the agent.
+        plugin_name: String,
+    },
+    /// User-global agent in `~/forge/agents/`.
+    GlobalUser,
+    /// Agent in the shared `~/.agents/` directory.
+    AgentsDir,
+    /// Project-local agent in `./.forge/agents/`.
+    ProjectCwd,
+}
+
 /// Runtime agent representation with required model and provider
 #[derive(Debug, Clone, PartialEq, Setters, Serialize, Deserialize, JsonSchema)]
 #[setters(strip_option, into)]
@@ -166,6 +189,12 @@ pub struct Agent {
 
     /// Maximum number of requests that can be made in a single turn
     pub max_requests_per_turn: Option<usize>,
+
+    /// Origin of the agent definition. Defaults to [`AgentSource::Builtin`]
+    /// and is `#[serde(default)]` so existing on-disk agent manifests
+    /// continue to deserialize without a `source` key.
+    #[serde(default)]
+    pub source: AgentSource,
 }
 
 impl Agent {
@@ -192,7 +221,15 @@ impl Agent {
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
             path: Default::default(),
+            source: AgentSource::default(),
         }
+    }
+
+    /// Builder-style override for [`Agent::source`]. Kept out of the
+    /// constructor so existing call sites remain source-compatible.
+    pub fn with_source(mut self, source: AgentSource) -> Self {
+        self.source = source;
+        self
     }
 
     /// Creates a ToolDefinition from this agent
@@ -233,6 +270,54 @@ impl From<Agent> for ToolDefinition {
             name,
             description,
             input_schema: schemars::schema_for!(crate::AgentInput),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    fn fixture_agent() -> Agent {
+        Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-test"),
+        )
+    }
+
+    #[test]
+    fn test_agent_default_source_is_builtin() {
+        let fixture = fixture_agent();
+        assert_eq!(fixture.source, AgentSource::Builtin);
+    }
+
+    #[test]
+    fn test_agent_with_source_plugin() {
+        let fixture =
+            fixture_agent().with_source(AgentSource::Plugin { plugin_name: "demo".into() });
+        assert_eq!(
+            fixture.source,
+            AgentSource::Plugin { plugin_name: "demo".into() }
+        );
+    }
+
+    #[test]
+    fn test_agent_source_serde_roundtrip() {
+        let variants = vec![
+            AgentSource::Builtin,
+            AgentSource::Plugin { plugin_name: "demo".into() },
+            AgentSource::GlobalUser,
+            AgentSource::AgentsDir,
+            AgentSource::ProjectCwd,
+        ];
+
+        for original in variants {
+            let json = serde_json::to_string(&original).unwrap();
+            let roundtrip: AgentSource = serde_json::from_str(&json).unwrap();
+            assert_eq!(roundtrip, original, "roundtrip failed for {json}");
         }
     }
 }

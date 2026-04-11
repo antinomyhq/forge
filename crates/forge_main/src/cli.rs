@@ -58,6 +58,31 @@ pub struct Cli {
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
 
+    /// Run first-time setup before starting the session.
+    ///
+    /// Fires the `Setup` lifecycle hook with `trigger=init` so plugin
+    /// hooks can run initialization scripts (dependency installs,
+    /// credential bootstraps, etc.). The session continues normally
+    /// after the hook completes — use `--init-only` to exit instead.
+    #[arg(long)]
+    pub init: bool,
+
+    /// Like `--init`, but exit after the `Setup` hook completes without
+    /// entering the REPL.
+    ///
+    /// Useful for CI and batch provisioning where you want to run the
+    /// plugin-defined setup steps once and return to the shell.
+    #[arg(long)]
+    pub init_only: bool,
+
+    /// Run a maintenance sweep before starting the session.
+    ///
+    /// Fires the `Setup` lifecycle hook with `trigger=maintenance` so
+    /// plugin hooks can run periodic cleanup (stale cache removal,
+    /// credential refresh, etc.).
+    #[arg(long)]
+    pub maintenance: bool,
+
     /// Top-level subcommands.
     #[command(subcommand)]
     pub subcommands: Option<TopLevelCommand>,
@@ -71,9 +96,14 @@ impl Cli {
     /// Determines whether the CLI should start in interactive mode.
     ///
     /// Returns true when no prompt, piped input, or subcommand is provided,
-    /// indicating the user wants to enter interactive mode.
+    /// indicating the user wants to enter interactive mode. The
+    /// `--init-only` flag also forces non-interactive mode so Setup can
+    /// run in CI/batch contexts without blocking on stdin.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
+        self.prompt.is_none()
+            && self.piped_input.is_none()
+            && self.subcommands.is_none()
+            && !self.init_only
     }
 }
 
@@ -129,6 +159,10 @@ pub enum TopLevelCommand {
     #[command(aliases = ["command", "commands"])]
     Cmd(CmdCommandGroup),
 
+    /// Manage plugins.
+    #[command(alias = "pl")]
+    Plugin(PluginCommandGroup),
+
     /// Manage workspaces for semantic search.
     Workspace(WorkspaceCommandGroup),
 
@@ -148,6 +182,55 @@ pub enum TopLevelCommand {
 
     /// Run diagnostics on shell environment (alias for `zsh doctor`).
     Doctor,
+
+    /// Accept workspace trust for the current directory.
+    ///
+    /// Creates a `.forge/.trust-accepted` marker file so that project-level
+    /// hooks in `.forge/hooks.json` are allowed to execute. Without this
+    /// marker, project hooks are silently skipped as a security measure.
+    Trust,
+}
+
+/// Command group for plugin management.
+#[derive(Parser, Debug, Clone)]
+pub struct PluginCommandGroup {
+    #[command(subcommand)]
+    pub command: PluginCommand,
+}
+
+/// Plugin management commands.
+#[derive(Subcommand, Debug, Clone)]
+pub enum PluginCommand {
+    /// List all discovered plugins.
+    #[command(alias = "ls")]
+    List,
+
+    /// Enable a plugin by name.
+    Enable {
+        /// Plugin name to enable.
+        name: String,
+    },
+
+    /// Disable a plugin by name.
+    Disable {
+        /// Plugin name to disable.
+        name: String,
+    },
+
+    /// Show detailed information about a plugin.
+    Info {
+        /// Plugin name to inspect.
+        name: String,
+    },
+
+    /// Reload all plugin-provided components.
+    Reload,
+
+    /// Install a plugin from a local directory path.
+    Install {
+        /// Path to the plugin directory.
+        path: std::path::PathBuf,
+    },
 }
 
 /// Command group for custom command management.
@@ -1828,5 +1911,66 @@ mod tests {
             _ => panic!("Expected Update command"),
         };
         assert!(!actual);
+    }
+
+    // ---- Wave B Phase 6B: Setup CLI flags ----
+
+    #[test]
+    fn test_cli_parses_init_flag() {
+        let fixture = Cli::parse_from(["forge", "--init"]);
+        assert!(fixture.init);
+        assert!(!fixture.init_only);
+        assert!(!fixture.maintenance);
+        // --init alone does not suppress the REPL.
+        assert!(fixture.is_interactive());
+    }
+
+    #[test]
+    fn test_cli_parses_init_only_flag() {
+        let fixture = Cli::parse_from(["forge", "--init-only"]);
+        assert!(!fixture.init);
+        assert!(fixture.init_only);
+        assert!(!fixture.maintenance);
+        // --init-only forces non-interactive mode so CI can run Setup
+        // without blocking on stdin.
+        assert!(!fixture.is_interactive());
+    }
+
+    #[test]
+    fn test_cli_parses_maintenance_flag() {
+        let fixture = Cli::parse_from(["forge", "--maintenance"]);
+        assert!(!fixture.init);
+        assert!(!fixture.init_only);
+        assert!(fixture.maintenance);
+        // Maintenance alone keeps the REPL interactive — only
+        // --init-only forces a one-shot exit.
+        assert!(fixture.is_interactive());
+    }
+
+    #[test]
+    fn test_cli_default_has_no_setup_flags() {
+        let fixture = Cli::parse_from(["forge"]);
+        assert!(!fixture.init);
+        assert!(!fixture.init_only);
+        assert!(!fixture.maintenance);
+        assert!(fixture.is_interactive());
+    }
+
+    #[test]
+    fn test_cli_init_only_overrides_interactive_even_with_nothing_else() {
+        // Belt-and-braces: make sure is_interactive() honours
+        // init_only independently of prompt/piped_input/subcommand.
+        let mut fixture = Cli::parse_from(["forge", "--init-only"]);
+        fixture.prompt = None;
+        fixture.piped_input = None;
+        fixture.subcommands = None;
+        assert!(!fixture.is_interactive());
+    }
+
+    #[test]
+    fn test_trust_command() {
+        let fixture = Cli::parse_from(["forge", "trust"]);
+        let actual = matches!(fixture.subcommands, Some(TopLevelCommand::Trust));
+        assert!(actual);
     }
 }

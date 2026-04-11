@@ -7,8 +7,8 @@ use derive_setters::Setters;
 use forge_config::ForgeConfig;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
-    Event, File, MessageEntry, Metrics, ModelId, ProviderId, Role, Skill, Template, ToolCallFull,
-    ToolDefinition, ToolResult,
+    Event, File, Hook, MessageEntry, Metrics, ModelId, ProviderId, Role, Skill, Template,
+    ToolCallFull, ToolDefinition, ToolResult,
 };
 use tokio::sync::Mutex;
 
@@ -81,6 +81,22 @@ pub struct TestContext {
     /// ForgeConfig used to populate TemplateConfig for
     /// system prompt rendering in tests.
     pub config: ForgeConfig,
+
+    /// Optional user-supplied [`Hook`] to merge on top of the default
+    /// hook chain wired by [`Runner::run`]. When set, tests can install
+    /// closure-based probes into any of the 16 Hook slots to assert on
+    /// fire-site behavior. The `Runner` consumes this slot via
+    /// `Option::take` and `Hook::zip`s it with the default harness hook.
+    #[setters(strip_option, into)]
+    pub hook: Option<Hook>,
+
+    /// Optional raw user prompt text plumbed through
+    /// [`Orchestrator::user_prompt`] for `UserPromptSubmit` fire-site
+    /// tests. When `Some`, the `Runner` passes it to the orchestrator
+    /// so the first-iteration `UserPromptSubmit` hook fires with this
+    /// payload.
+    #[setters(strip_option, into)]
+    pub user_prompt: Option<String>,
 }
 
 impl Default for TestContext {
@@ -120,6 +136,8 @@ impl Default for TestContext {
                 ToolDefinition::new("fs_read"),
                 ToolDefinition::new("fs_write"),
             ],
+            hook: None,
+            user_prompt: None,
         }
     }
 }

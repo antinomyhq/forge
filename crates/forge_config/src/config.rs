@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use derive_setters::Setters;
@@ -96,6 +96,46 @@ pub struct ProviderEntry {
     /// `["api_key"]` when omitted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub auth_methods: Vec<ProviderAuthMethod>,
+}
+
+/// Per-plugin user-facing settings.
+///
+/// Stored in `.forge.toml` under the `[plugins.<name>]` table. Plugins are
+/// always opt-out: a plugin discovered on disk but absent from this map is
+/// considered enabled. Set `enabled = false` to disable an installed plugin
+/// without removing its files.
+///
+/// ```toml
+/// [plugins.my-plugin]
+/// enabled = true
+///
+/// [plugins."untrusted-experiment"]
+/// enabled = false
+/// ```
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
+#[serde(rename_all = "snake_case")]
+pub struct PluginSetting {
+    /// Whether this plugin is currently active. Defaults to `true` when
+    /// the field is omitted, matching Claude Code's plugin enable model.
+    #[serde(default = "default_plugin_enabled")]
+    pub enabled: bool,
+    /// User-configured plugin options. Each key becomes a
+    /// `FORGE_PLUGIN_OPTION_<KEY>` environment variable in hook
+    /// subprocesses. Mirrors Claude Code's
+    /// `pluginConfigs[id].options` in `settings.json`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[dummy(default)]
+    pub options: Option<BTreeMap<String, serde_json::Value>>,
+}
+
+impl Default for PluginSetting {
+    fn default() -> Self {
+        Self { enabled: true, options: None }
+    }
+}
+
+const fn default_plugin_enabled() -> bool {
+    true
 }
 
 /// Top-level Forge configuration merged from all sources (defaults, file,
@@ -281,6 +321,29 @@ pub struct ForgeConfig {
     /// when a task ends and reminds the LLM about them.
     #[serde(default)]
     pub verify_todos: bool,
+
+    /// Per-plugin enable/disable overrides keyed by plugin name.
+    ///
+    /// Plugins discovered on disk but not listed here default to enabled.
+    /// Use this map to opt out of an installed plugin without removing its
+    /// files (`enabled = false`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugins: Option<BTreeMap<String, PluginSetting>>,
+
+    /// When true, only managed hooks run. User, project, plugin, and session
+    /// hooks are ignored.
+    #[serde(default)]
+    pub allow_managed_hooks_only: bool,
+
+    /// When true, ALL hooks are disabled (including managed).
+    #[serde(default)]
+    pub disable_all_hooks: bool,
+
+    /// Allowlist of URL patterns that HTTP hooks may target.
+    /// Supports `*` as wildcard (e.g., `https://hooks.example.com/*`).
+    /// `None` = all URLs allowed. Empty vec = no HTTP hooks allowed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allowed_http_hook_urls: Option<Vec<String>>,
 }
 
 impl ForgeConfig {

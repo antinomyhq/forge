@@ -145,6 +145,16 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
             apply_config_op(&mut fc, op);
         }
 
+        // TODO(wave-c-part-2-env-rs): mark this write as internal so
+        // the `ConfigWatcher` in `ForgeAPI` suppresses the resulting
+        // `ConfigChange { source: UserSettings }` hook. This requires
+        // threading a `mark_config_write` callback from `ForgeAPI`
+        // down into `ForgeInfra` (e.g. via a
+        // `OnceLock<Arc<dyn Fn(&Path) + Send + Sync>>` field) so this
+        // layer can invoke it without depending on `forge_api`.
+        // Currently skipped to keep the Wave C Part 2 MVP scope
+        // tight — the primary call site (`set_plugin_enabled` in
+        // `forge_api::forge_api`) is already wired.
         fc.write()?;
         debug!(config = ?fc, "written .forge.toml");
 

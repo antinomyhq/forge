@@ -61,7 +61,20 @@ impl<T: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> AgentSe
         context: &ToolCallContext,
         call: ToolCallFull,
     ) -> ToolResult {
-        let registry = ToolRegistry::new(Arc::new(self.clone()));
+        // Construct a fresh `PluginHookHandler` for this
+        // per-tool-call `ToolRegistry`. The blanket `AgentService::call`
+        // blanket-impl path is invoked by the main orchestrator when
+        // dispatching a tool call — each invocation builds a throwaway
+        // registry that lives only for the duration of the call. The
+        // handler's `once_fired` state is therefore scoped per tool
+        // call, which is fine because `SubagentStart` / `SubagentStop`
+        // fire sites only activate when the dispatched tool is the
+        // Task tool (or an agent-as-tool), and both of those semantics
+        // intentionally want a fresh handler instance per subagent
+        // invocation.
+        let services = Arc::new(self.clone());
+        let plugin_handler = crate::hooks::PluginHookHandler::new(services.clone());
+        let registry = ToolRegistry::new(services, plugin_handler);
         registry.call(agent, context, call).await
     }
 

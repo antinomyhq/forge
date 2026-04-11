@@ -14,6 +14,10 @@ codegen-units = 1
 opt-level = 3
 strip = true
 
+[profile.test]
+opt-level = 0
+debug = false  # skip debug-info generation — noticeably speeds up linking
+
 [workspace.dependencies]
 anyhow = "1.0.102"
 async-recursion = "1.1.1"

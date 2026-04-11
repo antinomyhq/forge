@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use async_trait::async_trait;
 use forge_domain::{
-    ContextMessage, Conversation, EndPayload, EventData, EventHandle, Template, TodoStatus,
+    ContextMessage, Conversation, EventData, EventHandle, StopPayload, Template, TodoStatus,
 };
 use forge_template::Element;
 use serde::Serialize;
@@ -39,10 +39,10 @@ impl PendingTodosHandler {
 }
 
 #[async_trait]
-impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
+impl EventHandle<EventData<StopPayload>> for PendingTodosHandler {
     async fn handle(
         &self,
-        _event: &EventData<EndPayload>,
+        _event: &EventData<StopPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         let pending_todos = conversation.metrics.get_active_todos();
@@ -134,7 +134,7 @@ impl EventHandle<EventData<EndPayload>> for PendingTodosHandler {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Agent, Context, Conversation, EndPayload, EventData, EventHandle, Metrics, ModelId, Todo,
+        Agent, Context, Conversation, EventData, EventHandle, Metrics, ModelId, StopPayload, Todo,
         TodoStatus,
     };
     use pretty_assertions::assert_eq;
@@ -156,8 +156,12 @@ mod tests {
         conversation
     }
 
-    fn fixture_event() -> EventData<EndPayload> {
-        EventData::new(fixture_agent(), ModelId::new("test-model"), EndPayload)
+    fn fixture_event() -> EventData<StopPayload> {
+        EventData::new(
+            fixture_agent(),
+            ModelId::new("test-model"),
+            StopPayload { stop_hook_active: false, last_assistant_message: None },
+        )
     }
 
     #[tokio::test]

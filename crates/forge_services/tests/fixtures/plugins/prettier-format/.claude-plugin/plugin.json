@@ -1,0 +1,7 @@
+{
+  "name": "prettier-format",
+  "version": "0.1.0",
+  "description": "Fake formatter that echoes a formatted message after Write tool calls",
+  "author": { "name": "forge-test-fixtures" },
+  "hooks": "./hooks/hooks.json"
+}

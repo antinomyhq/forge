@@ -1,0 +1,7 @@
+{
+  "name": "bash-logger",
+  "version": "0.1.0",
+  "description": "Logs Bash commands before execution",
+  "author": { "name": "forge-test-fixtures" },
+  "hooks": "./hooks/hooks.json"
+}

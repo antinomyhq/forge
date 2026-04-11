@@ -5,12 +5,12 @@ use std::str::FromStr;
 use std::sync::{Arc, OnceLock, RwLock};
 
 use backon::{ExponentialBuilder, Retryable};
-use forge_app::McpClientInfra;
+use forge_app::{ElicitationDispatcher, McpClientInfra};
 use forge_domain::{
     Environment, Image, McpHttpServer, McpServerConfig, ToolDefinition, ToolName, ToolOutput,
 };
 use http::{HeaderName, HeaderValue, header};
-use rmcp::model::{CallToolRequestParam, ClientInfo, Implementation, InitializeRequestParam};
+use rmcp::model::CallToolRequestParam;
 use rmcp::service::RunningService;
 use rmcp::transport::sse_client::SseClientConfig;
 use rmcp::transport::streamable_http_client::StreamableHttpClientTransportConfig;
@@ -20,37 +20,64 @@ use schemars::Schema;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::OnceCell;
 
 use crate::error::Error;
+use crate::mcp_handler::ForgeMcpHandler;
 
-const VERSION: &str = match option_env!("APP_VERSION") {
-    Some(val) => val,
-    None => env!("CARGO_PKG_VERSION"),
-};
-
-type RmcpClient = RunningService<RoleClient, InitializeRequestParam>;
+/// Wave F-2: rmcp's `RunningService` is generic over the
+/// [`Service`](rmcp::service::Service) type used for the initial
+/// `.serve(transport)` call. Before Wave F-2 we used rmcp's blanket
+/// `ClientHandler` impl on the plain `ClientInfo` struct, which gave
+/// us a `RunningService<RoleClient, InitializeRequestParam>`. Wave
+/// F-2 swaps that for [`ForgeMcpHandler`] so we can advertise the
+/// elicitation capability and override `create_elicitation`. The
+/// handle still derefs to `Peer<RoleClient>` (see rmcp's
+/// `impl<R, S> Deref for RunningService`), so `list_tools` /
+/// `call_tool` continue to work unchanged.
+type RmcpClient = RunningService<RoleClient, ForgeMcpHandler>;
 
 #[derive(Clone)]
 pub struct ForgeMcpClient {
+    /// Logical name of the MCP server, used as the `matcher` for the
+    /// `Elicitation` hook fire so plugins can target individual
+    /// servers (e.g. a plugin that only intercepts elicitation
+    /// requests from `github-mcp`). Populated by
+    /// [`crate::mcp_server::ForgeMcpServer::connect`] from the
+    /// `ServerName` that `ForgeMcpService` already knows about.
+    server_name: String,
     client: Arc<RwLock<Option<Arc<RmcpClient>>>>,
     config: McpServerConfig,
     env_vars: BTreeMap<String, String>,
     environment: Environment,
     resolved_config: Arc<OnceLock<anyhow::Result<McpServerConfig>>>,
+    /// Shared, late-init elicitation dispatcher slot owned by
+    /// [`crate::mcp_server::ForgeMcpServer`]. The slot is populated
+    /// by `forge_api::ForgeAPI::init` via
+    /// [`crate::ForgeInfra::init_elicitation_dispatcher`] after the
+    /// `ForgeServices` aggregate has been constructed. If the slot
+    /// is still empty at `connect` time (e.g. during a standalone
+    /// `mcp_auth` CLI flow), the handler gracefully degrades to
+    /// declining elicitation requests rather than panicking.
+    elicitation_dispatcher: Arc<OnceCell<Arc<dyn ElicitationDispatcher>>>,
 }
 
 impl ForgeMcpClient {
     pub fn new(
+        server_name: String,
         config: McpServerConfig,
         env_vars: &BTreeMap<String, String>,
         environment: Environment,
+        elicitation_dispatcher: Arc<OnceCell<Arc<dyn ElicitationDispatcher>>>,
     ) -> Self {
         Self {
+            server_name,
             client: Default::default(),
             config,
             env_vars: env_vars.clone(),
             environment,
             resolved_config: Arc::new(OnceLock::new()),
+            elicitation_dispatcher,
         }
     }
 
@@ -67,17 +94,21 @@ impl ForgeMcpClient {
             .map_err(|e| anyhow::anyhow!("{e}"))
     }
 
-    fn client_info(&self) -> ClientInfo {
-        ClientInfo {
-            protocol_version: Default::default(),
-            capabilities: Default::default(),
-            client_info: Implementation {
-                name: "Forge".to_string(),
-                version: VERSION.to_string(),
-                icons: None,
-                title: None,
-                website_url: None,
-            },
+    /// Build a [`ForgeMcpHandler`] for this client's server name,
+    /// attaching the shared dispatcher if it has already been
+    /// populated. Called once per `.serve(transport)` invocation so
+    /// that each rmcp `RunningService` carries a fresh handler
+    /// instance — rmcp consumes the handler by value during `serve`.
+    fn build_handler(&self) -> ForgeMcpHandler {
+        match self.elicitation_dispatcher.get() {
+            Some(dispatcher) => ForgeMcpHandler::new(self.server_name.clone(), dispatcher.clone()),
+            None => {
+                tracing::debug!(
+                    server = %self.server_name,
+                    "elicitation dispatcher slot is empty during MCP serve; handler will decline all elicitation requests"
+                );
+                ForgeMcpHandler::without_dispatcher(self.server_name.clone())
+            }
         }
     }
 
@@ -130,7 +161,7 @@ impl ForgeMcpClient {
                         }
                     });
                 }
-                Arc::new(self.client_info().serve(transport).await?)
+                Arc::new(self.build_handler().serve(transport).await?)
             }
             McpServerConfig::Http(http) => {
                 // Check if OAuth is explicitly disabled
@@ -186,7 +217,7 @@ impl ForgeMcpClient {
             client.clone(),
             StreamableHttpClientTransportConfig::with_uri(http.url.clone()),
         );
-        match self.client_info().serve(transport).await {
+        match self.build_handler().serve(transport).await {
             Ok(client) => Ok(client),
             Err(_e) => {
                 let transport = SseClientTransport::start_with_client(
@@ -194,7 +225,7 @@ impl ForgeMcpClient {
                     SseClientConfig { sse_endpoint: http.url.clone().into(), ..Default::default() },
                 )
                 .await?;
-                Ok(self.client_info().serve(transport).await?)
+                Ok(self.build_handler().serve(transport).await?)
             }
         }
     }
@@ -364,7 +395,7 @@ impl ForgeMcpClient {
             StreamableHttpClientTransportConfig::with_uri(http.url.clone()).auth_header(token),
         );
 
-        Ok(Arc::new(self.client_info().serve(transport).await?))
+        Ok(Arc::new(self.build_handler().serve(transport).await?))
     }
 
     /// Runs a local HTTP server to receive the OAuth callback, opens the

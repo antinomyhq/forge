@@ -1,0 +1,13 @@
+{
+  "name": "claude-code-demo",
+  "version": "0.1.0",
+  "description": "Claude Code 1:1 compatibility fixture used to verify ForgePluginRepository discovery.",
+  "author": {
+    "name": "Forge Test Harness",
+    "email": "test@forgecode.dev"
+  },
+  "commands": "./commands",
+  "skills": "./skills",
+  "agents": "./agents",
+  "hooks": "./hooks/hooks.json"
+}

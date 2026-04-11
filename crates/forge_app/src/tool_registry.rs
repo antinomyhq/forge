@@ -4,9 +4,11 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
-    Model, SystemContext, TemplateConfig, ToolCallContext, ToolCallFull, ToolCatalog,
-    ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Conversation, ConversationId,
+    Environment, EventData, EventHandle, InputModality, Model, PermissionBehavior,
+    PermissionDeniedPayload, PermissionRequestPayload, PluginPermissionUpdate, SystemContext,
+    TemplateConfig, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind, ToolName,
+    ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -18,6 +20,7 @@ use crate::agent_executor::AgentExecutor;
 use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
+use crate::hooks::PluginHookHandler;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
@@ -30,15 +33,22 @@ pub struct ToolRegistry<S> {
     agent_executor: AgentExecutor<S>,
     mcp_executor: McpExecutor<S>,
     services: Arc<S>,
+    /// Shared plugin hook dispatcher used for the
+    /// `PermissionRequest` / `PermissionDenied` fire sites inside
+    /// [`ToolRegistry::check_tool_permission`]. Cloned from the same
+    /// handler passed to [`AgentExecutor`] so the once-fired tracking
+    /// stays consistent across lifecycle events.
+    plugin_handler: PluginHookHandler<S>,
 }
 
 impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ToolRegistry<S> {
-    pub fn new(services: Arc<S>) -> Self {
+    pub fn new(services: Arc<S>, plugin_handler: PluginHookHandler<S>) -> Self {
         Self {
             services: services.clone(),
             tool_executor: ToolExecutor::new(services.clone()),
-            agent_executor: AgentExecutor::new(services.clone()),
+            agent_executor: AgentExecutor::new(services.clone(), plugin_handler.clone()),
             mcp_executor: McpExecutor::new(services.clone()),
+            plugin_handler,
         }
     }
 
@@ -60,7 +70,31 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ToolReg
             })?
     }
 
-    /// Check if a tool operation is allowed based on the workflow policies
+    /// Check if a tool operation is allowed based on the workflow policies.
+    ///
+    /// This is the fire site for the `PermissionRequest` and
+    /// `PermissionDenied` lifecycle events. The dispatch happens against a
+    /// **scratch** [`Conversation`] because the live orchestrator conversation
+    /// is not reachable through the [`crate::services::AgentService`] call
+    /// path (see `agent.rs:65-90`). All plugin-consume state
+    /// (`permission_behavior`, `blocking_error`, `interrupt`, `retry`,
+    /// `updated_permissions`) is actioned synchronously inside this function,
+    /// so nothing needs to escape the scratch buffer.
+    ///
+    /// Returns `Ok(true)` when the tool call is blocked (either by a plugin
+    /// hook's `Deny` decision, a plugin blocking_error, or the user /
+    /// policy layer denying via
+    /// [`crate::PolicyService::check_operation_permission`]).
+    /// Returns `Ok(false)` when the call is allowed.
+    ///
+    /// Errors are returned when the plugin dispatcher signals an `interrupt`,
+    /// which the caller is expected to propagate up the orchestrator stack.
+    ///
+    /// TODO(tool-registry-integration-tests): ToolRegistry lacks a
+    /// mock-Services test harness, so the plugin consume paths here are
+    /// covered only by dispatcher-level tests in
+    /// `crates/forge_app/src/hooks/plugin.rs`. A full integration suite
+    /// will be added once a ToolRegistry test harness is introduced.
     async fn check_tool_permission(
         &self,
         tool_input: &ToolCatalog,
@@ -68,26 +102,268 @@ impl<S: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>> ToolReg
     ) -> anyhow::Result<bool> {
         let cwd = self.services.get_environment().cwd;
         let operation = tool_input.to_policy_operation(cwd.clone());
-        if let Some(operation) = operation {
-            let decision = self.services.check_operation_permission(&operation).await?;
+        let Some(operation) = operation else {
+            return Ok(false);
+        };
 
-            // Send custom policy message to the user when a policy file was created
-            if let Some(policy_path) = decision.path {
-                use forge_domain::TitleFormat;
+        // Fire PermissionRequest before delegating to the policy
+        // service. Allows plugin hooks to auto-approve, auto-deny, mutate
+        // the tool input, or interrupt the session.
+        let tool_name = ToolName::new(tool_input);
+        let tool_input_value = serde_json::to_value(tool_input)
+            .ok()
+            .and_then(|v| v.get("arguments").cloned())
+            .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
 
-                use crate::utils::format_display_path;
-                context
-                    .send_tool_input(
-                        TitleFormat::debug("Permissions Update")
-                            .sub_title(format_display_path(policy_path.as_path(), &cwd)),
-                    )
-                    .await?;
+        // Dispatch PermissionRequest up to one retry cycle (`retry == true`
+        // on the aggregated result triggers a single re-fire per the plan).
+        let mut attempts: u8 = 0;
+        let aggregated = loop {
+            attempts += 1;
+            let Some(aggregated) = self
+                .fire_permission_request(&tool_name, &tool_input_value)
+                .await?
+            else {
+                // No agent registered yet (rare, e.g. early init) — skip
+                // the hook fire and fall through to the policy service.
+                break None;
+            };
+
+            if aggregated.retry && attempts < 2 {
+                tracing::debug!(
+                    tool_name = %tool_name,
+                    "plugin requested retry on PermissionRequest; re-firing once"
+                );
+                continue;
             }
-            if !decision.allowed {
+            break Some(aggregated);
+        };
+
+        if let Some(aggregated) = aggregated {
+            // Interrupt latches into an error that the orchestrator handles.
+            if aggregated.interrupt {
+                anyhow::bail!("session interrupted by plugin hook");
+            }
+
+            // Persist plugin-provided permission scopes.
+            if let Some(ref raw_updates) = aggregated.updated_permissions {
+                match serde_json::from_value::<Vec<PluginPermissionUpdate>>(raw_updates.clone()) {
+                    Ok(updates) if !updates.is_empty() => {
+                        if let Err(e) = self
+                            .services
+                            .persist_plugin_permission_updates(&updates)
+                            .await
+                        {
+                            tracing::warn!(
+                                tool_name = %tool_name,
+                                error = %e,
+                                "failed to persist plugin-provided permission updates"
+                            );
+                        }
+                    }
+                    Ok(_) => {} // empty array, no-op
+                    Err(e) => {
+                        tracing::warn!(
+                            tool_name = %tool_name,
+                            error = %e,
+                            "plugin returned malformed updated_permissions; skipping persistence"
+                        );
+                    }
+                }
+            }
+
+            // blocking_error → auto-deny + observability fire of PermissionDenied.
+            if let Some(err) = aggregated.blocking_error.as_ref() {
+                tracing::debug!(
+                    tool_name = %tool_name,
+                    reason = %err.message,
+                    "plugin blocking_error on PermissionRequest; auto-denying"
+                );
+                // TODO: richer reason extraction — current Claude Code emits
+                // a string blob; we forward the plugin's message verbatim.
+                let reason = err.message.clone();
+                self.fire_permission_denied(&tool_name, &tool_input_value, reason)
+                    .await?;
                 return Ok(true);
             }
+
+            // deny > ask > allow precedence permission_behavior consume.
+            match aggregated.permission_behavior {
+                Some(PermissionBehavior::Allow) => {
+                    tracing::debug!(
+                        tool_name = %tool_name,
+                        "plugin hook auto-approved via PermissionRequest"
+                    );
+                    return Ok(false);
+                }
+                Some(PermissionBehavior::Deny) => {
+                    tracing::debug!(
+                        tool_name = %tool_name,
+                        "plugin hook auto-denied via PermissionRequest"
+                    );
+                    self.fire_permission_denied(
+                        &tool_name,
+                        &tool_input_value,
+                        "denied by plugin hook".to_string(),
+                    )
+                    .await?;
+                    return Ok(true);
+                }
+                // Ask / None → fall through to the policy service.
+                Some(PermissionBehavior::Ask) | None => {}
+            }
+        }
+
+        let decision = self.services.check_operation_permission(&operation).await?;
+
+        // Send custom policy message to the user when a policy file was created
+        if let Some(policy_path) = decision.path {
+            use forge_domain::TitleFormat;
+
+            use crate::utils::format_display_path;
+            context
+                .send_tool_input(
+                    TitleFormat::debug("Permissions Update")
+                        .sub_title(format_display_path(policy_path.as_path(), &cwd)),
+                )
+                .await?;
+        }
+
+        if !decision.allowed {
+            // TODO: richer reason extraction — policy denials currently
+            // carry no structured reason; we forward a placeholder.
+            self.fire_permission_denied(&tool_name, &tool_input_value, "policy denied".to_string())
+                .await?;
+            return Ok(true);
         }
         Ok(false)
+    }
+
+    /// Fire a `PermissionRequest` lifecycle event through the plugin
+    /// dispatcher on a scratch conversation. Returns the drained
+    /// `AggregatedHookResult` so the caller can apply the consume logic, or
+    /// `None` when no agent is available to tag the event (very early init).
+    async fn fire_permission_request(
+        &self,
+        tool_name: &ToolName,
+        tool_input: &Value,
+    ) -> anyhow::Result<Option<forge_domain::AggregatedHookResult>> {
+        let Some((agent, mut scratch, session_id, transcript_path, cwd)) =
+            self.build_hook_dispatch_base().await?
+        else {
+            return Ok(None);
+        };
+        let model_id = agent.model.clone();
+
+        // TODO: compute real permission_suggestions from the policy engine —
+        // currently ships an empty vec; real suggestion logic is pending
+        // (see `hook_payloads.rs:476-479`).
+        let payload = PermissionRequestPayload {
+            tool_name: tool_name.as_str().to_string(),
+            tool_input: tool_input.clone(),
+            permission_suggestions: Vec::new(),
+        };
+        let event =
+            EventData::with_context(agent, model_id, session_id, transcript_path, cwd, payload);
+
+        <PluginHookHandler<S> as EventHandle<EventData<PermissionRequestPayload>>>::handle(
+            &self.plugin_handler,
+            &event,
+            &mut scratch,
+        )
+        .await?;
+
+        Ok(Some(std::mem::take(&mut scratch.hook_result)))
+    }
+
+    /// Fire a `PermissionDenied` lifecycle event through the plugin
+    /// dispatcher on a scratch conversation. Observability-only — the
+    /// aggregated result is drained and discarded per the plan at
+    /// `plans/2026-04-09-claude-code-plugins-v4/08-phase-7-t3-intermediate.md:
+    /// 175`.
+    async fn fire_permission_denied(
+        &self,
+        tool_name: &ToolName,
+        tool_input: &Value,
+        reason: String,
+    ) -> anyhow::Result<()> {
+        let Some((agent, mut scratch, session_id, transcript_path, cwd)) =
+            self.build_hook_dispatch_base().await?
+        else {
+            return Ok(());
+        };
+        let model_id = agent.model.clone();
+
+        // TODO: thread the real tool_use_id through the policy path —
+        // `ToolCallContext` does not carry it today, so an empty string
+        // is forwarded as a placeholder.
+        let payload = PermissionDeniedPayload {
+            tool_name: tool_name.as_str().to_string(),
+            tool_input: tool_input.clone(),
+            tool_use_id: String::new(),
+            reason,
+        };
+        let event =
+            EventData::with_context(agent, model_id, session_id, transcript_path, cwd, payload);
+
+        if let Err(err) = <PluginHookHandler<S> as EventHandle<
+            EventData<PermissionDeniedPayload>,
+        >>::handle(&self.plugin_handler, &event, &mut scratch)
+        .await
+        {
+            tracing::warn!(
+                tool_name = %tool_name,
+                error = ?err,
+                "PermissionDenied hook dispatch failed"
+            );
+        }
+
+        // Observability-only: drain and discard.
+        let _ = std::mem::take(&mut scratch.hook_result);
+        Ok(())
+    }
+
+    /// Build the common dispatch context for the PermissionRequest /
+    /// PermissionDenied fire sites: a scratch conversation, the active
+    /// agent (fallback to the first registered agent), and the session /
+    /// transcript / cwd metadata. Returns `None` when no agent can be
+    /// resolved — the caller must skip the fire in that case.
+    async fn build_hook_dispatch_base(
+        &self,
+    ) -> anyhow::Result<
+        Option<(
+            Agent,
+            Conversation,
+            String,
+            std::path::PathBuf,
+            std::path::PathBuf,
+        )>,
+    > {
+        let agent_opt = match self.services.get_active_agent_id().await {
+            Ok(Some(active_id)) => self.services.get_agent(&active_id).await.ok().flatten(),
+            _ => None,
+        };
+        let agent = match agent_opt {
+            Some(a) => a,
+            None => match self
+                .services
+                .get_agents()
+                .await
+                .ok()
+                .and_then(|agents| agents.into_iter().next())
+            {
+                Some(a) => a,
+                None => return Ok(None),
+            },
+        };
+
+        let environment = self.services.get_environment();
+        let scratch = Conversation::new(ConversationId::generate());
+        let session_id = scratch.id.into_string();
+        let transcript_path = environment.transcript_path(&session_id);
+        let cwd = environment.cwd.clone();
+
+        Ok(Some((agent, scratch, session_id, transcript_path, cwd)))
     }
 
     async fn call_inner(

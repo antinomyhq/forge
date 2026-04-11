@@ -5,8 +5,8 @@ use url::Url;
 
 use crate::{
     AnyProvider, AuthCredential, ChatCompletionMessage, Context, Conversation, ConversationId,
-    MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate, ResultStream,
-    SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
+    LoadedPlugin, MigrationResult, Model, ModelId, PluginLoadResult, Provider, ProviderId,
+    ProviderTemplate, ResultStream, SearchMatch, Skill, Snapshot, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -183,6 +183,53 @@ pub trait SkillRepository: Send + Sync {
     /// # Errors
     /// Returns an error if skill loading fails
     async fn load_skills(&self) -> Result<Vec<Skill>>;
+
+    /// Drops any cached skill data so the next call to
+    /// [`load_skills`](Self::load_skills) re-reads from disk.
+    ///
+    /// Default implementation is a no-op for repositories that do not
+    /// maintain their own cache. Used by plugin hot-swap to
+    /// pick up newly-installed plugin skills without requiring a
+    /// process restart.
+    async fn reload(&self) -> Result<()> {
+        Ok(())
+    }
+}
+
+/// Repository for discovering Forge plugins on disk.
+///
+/// Implementations scan the global (`~/forge/plugins/`) and project-local
+/// (`./.forge/plugins/`) directories for plugin manifests, parse them, and
+/// return runtime [`LoadedPlugin`] descriptors. Errors encountered while
+/// loading individual plugins must be reported via tracing without aborting
+/// the whole discovery — that gives the CLI a chance to show "broken plugin"
+/// entries instead of failing to start.
+#[async_trait::async_trait]
+pub trait PluginRepository: Send + Sync {
+    /// Discovers all available plugins from configured directories.
+    ///
+    /// This is the lossy legacy entry point: it drops per-plugin error
+    /// details and returns only the successful load results. New callers
+    /// that want to surface broken plugins in `:plugin list` should use
+    /// [`load_plugins_with_errors`](Self::load_plugins_with_errors)
+    /// instead.
+    ///
+    /// # Errors
+    /// Returns an error only if a top-level filesystem operation fails.
+    /// Per-plugin parsing errors are logged and skipped.
+    async fn load_plugins(&self) -> Result<Vec<LoadedPlugin>>;
+
+    /// Discovers all plugins and returns both the successes and any
+    /// per-plugin errors encountered along the way.
+    ///
+    /// Used by the `:plugin list` command (and anywhere else a
+    /// "broken plugin" diagnostic surface is wanted) so that a malformed
+    /// manifest or unreadable `hooks.json` doesn't silently disappear.
+    ///
+    /// # Errors
+    /// Only top-level filesystem failures bubble up. Per-plugin errors
+    /// land in the returned [`PluginLoadResult::errors`] field.
+    async fn load_plugins_with_errors(&self) -> Result<PluginLoadResult>;
 }
 
 /// Repository for validating file syntax

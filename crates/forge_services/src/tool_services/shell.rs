@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use forge_app::domain::Environment;
-use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
+use forge_app::{CommandInfra, EnvironmentInfra, SessionEnvCache, ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
 
 // Strips out the ansi codes from content.
@@ -20,13 +20,14 @@ fn strip_ansi(content: String) -> String {
 pub struct ForgeShell<I> {
     env: Environment,
     infra: Arc<I>,
+    session_env_cache: SessionEnvCache,
 }
 
 impl<I: EnvironmentInfra> ForgeShell<I> {
     /// Create a new Shell with environment configuration
-    pub fn new(infra: Arc<I>) -> Self {
+    pub fn new(infra: Arc<I>, session_env_cache: SessionEnvCache) -> Self {
         let env = infra.get_environment();
-        Self { env, infra }
+        Self { env, infra, session_env_cache }
     }
 
     fn validate_command(command: &str) -> anyhow::Result<()> {
@@ -50,9 +51,14 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
 
+        let extra_env = {
+            let vars = self.session_env_cache.get_vars().await;
+            if vars.is_empty() { None } else { Some(vars) }
+        };
+
         let mut output = self
             .infra
-            .execute_command(command, cwd, silent, env_vars)
+            .execute_command(command, cwd, silent, env_vars, extra_env)
             .await?;
 
         if !keep_ansi {
@@ -88,6 +94,7 @@ mod tests {
             _working_dir: PathBuf,
             _silent: bool,
             env_vars: Option<Vec<String>>,
+            _extra_env: Option<std::collections::HashMap<String, String>>,
         ) -> anyhow::Result<CommandOutput> {
             // Verify that environment variables are passed through correctly
             assert_eq!(env_vars, self.expected_env_vars);
@@ -105,6 +112,7 @@ mod tests {
             _command: &str,
             _working_dir: PathBuf,
             _env_vars: Option<Vec<String>>,
+            _extra_env: Option<std::collections::HashMap<String, String>>,
         ) -> anyhow::Result<std::process::ExitStatus> {
             unimplemented!()
         }
@@ -137,9 +145,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_service_forwards_env_vars() {
-        let fixture = ForgeShell::new(Arc::new(MockCommandInfra {
-            expected_env_vars: Some(vec!["PATH".to_string(), "HOME".to_string()]),
-        }));
+        let fixture = ForgeShell::new(
+            Arc::new(MockCommandInfra {
+                expected_env_vars: Some(vec!["PATH".to_string(), "HOME".to_string()]),
+            }),
+            SessionEnvCache::new(),
+        );
 
         let actual = fixture
             .execute(
@@ -159,7 +170,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_service_forwards_no_env_vars() {
-        let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
+        let fixture = ForgeShell::new(
+            Arc::new(MockCommandInfra { expected_env_vars: None }),
+            SessionEnvCache::new(),
+        );
 
         let actual = fixture
             .execute(
@@ -179,9 +193,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_service_forwards_empty_env_vars() {
-        let fixture = ForgeShell::new(Arc::new(MockCommandInfra {
-            expected_env_vars: Some(vec![]),
-        }));
+        let fixture = ForgeShell::new(
+            Arc::new(MockCommandInfra { expected_env_vars: Some(vec![]) }),
+            SessionEnvCache::new(),
+        );
 
         let actual = fixture
             .execute(
@@ -201,7 +216,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_service_with_description() {
-        let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
+        let fixture = ForgeShell::new(
+            Arc::new(MockCommandInfra { expected_env_vars: None }),
+            SessionEnvCache::new(),
+        );
 
         let actual = fixture
             .execute(
@@ -225,7 +243,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_service_without_description() {
-        let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
+        let fixture = ForgeShell::new(
+            Arc::new(MockCommandInfra { expected_env_vars: None }),
+            SessionEnvCache::new(),
+        );
 
         let actual = fixture
             .execute(

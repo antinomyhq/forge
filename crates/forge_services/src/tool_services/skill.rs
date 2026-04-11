@@ -36,13 +36,24 @@ impl<R: forge_domain::SkillRepository> SkillFetchService for ForgeSkillFetch<R> 
         let skills = self.get_or_load_skills().await?;
 
         // Find the requested skill
-        skills
+        let skill = skills
             .iter()
             .find(|skill| skill.name == skill_name)
             .cloned()
             .ok_or_else(|| {
                 anyhow!("Skill '{skill_name}' not found. Please check the available skills list.")
-            })
+            })?;
+
+        // Mirror Claude Code's `disable-model-invocation` flag: such skills can
+        // only be invoked by the user via a slash command, never by the LLM.
+        if skill.disable_model_invocation {
+            return Err(anyhow!(
+                "Skill '{name}' is marked disable-model-invocation and cannot be invoked by the model. Users can invoke it with /{name}.",
+                name = skill_name
+            ));
+        }
+
+        Ok(skill)
     }
 
     async fn list_skills(&self) -> anyhow::Result<Vec<Skill>> {
@@ -247,5 +258,28 @@ mod tests {
 
         // Assert: repository still untouched.
         assert_eq!(repo.load_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_skill_blocks_disable_model_invocation() {
+        // Fixture: a skill marked `disable_model_invocation = true` must
+        // never be returned to the model. Mirrors Claude Code's
+        // `disable-model-invocation` frontmatter flag.
+        let skills = vec![
+            Skill::new("private", "Private skill body", "Internal-only skill")
+                .path("/skills/private.md")
+                .disable_model_invocation(true),
+        ];
+        let repo = MockSkillRepository::new(skills);
+        let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
+
+        // Act
+        let actual = fetch_service.fetch_skill("private".to_string()).await;
+
+        // Assert
+        assert!(actual.is_err());
+        let error = actual.unwrap_err().to_string();
+        let expected = "Skill 'private' is marked disable-model-invocation and cannot be invoked by the model. Users can invoke it with /private.";
+        assert_eq!(error, expected);
     }
 }

@@ -34,14 +34,14 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use forge_domain::{
-    AgentId, ContextMessage, Conversation, ConversationId, EventData, EventHandle, RequestPayload,
-    Skill,
+    AgentId, ContextMessage, Conversation, ConversationId, EventData, EventHandle,
+    InvocableCommand, RequestPayload,
 };
 use forge_template::Element;
 use tokio::sync::Mutex;
 use tracing::{debug, warn};
 
-use crate::SkillFetchService;
+use crate::{InvocableCommandsProvider, SkillFetchService};
 
 /// Default fraction of the context window reserved for the skill catalog.
 ///
@@ -61,44 +61,13 @@ pub const DEFAULT_CONTEXT_TOKENS: u64 = 200_000;
 /// elsewhere in Forge (`ContextMessage::token_count_approx`).
 const CHARS_PER_TOKEN: usize = 4;
 
-/// Minimum number of skills to show in a single turn even if the budget is
-/// tight. Guarantees that *something* is surfaced to the LLM when skills exist.
-const MIN_SKILLS_PER_TURN: usize = 1;
+/// Minimum number of entries to show in a single turn even if the budget is
+/// tight. Guarantees that *something* is surfaced to the LLM when any
+/// invocables exist.
+const MIN_INVOCABLES_PER_TURN: usize = 1;
 
-/// Lightweight catalog entry derived from a [`Skill`].
-///
-/// Only the fields needed for listing (name + description) are kept. The full
-/// skill body is loaded lazily on demand via `skill_fetch`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SkillListing {
-    /// Skill identifier as it should be passed to `skill_fetch`.
-    pub name: String,
-    /// One-line description shown to the LLM in the catalog.
-    pub description: String,
-}
-
-impl SkillListing {
-    /// Creates a new listing entry from raw parts.
-    ///
-    /// Only used by unit tests today; production code builds `SkillListing`
-    /// values via the [`From<&Skill>`] impl below.
-    #[cfg(test)]
-    fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
-        Self { name: name.into(), description: description.into() }
-    }
-}
-
-impl From<&Skill> for SkillListing {
-    fn from(skill: &Skill) -> Self {
-        Self {
-            name: skill.name.clone(),
-            description: skill.description.clone(),
-        }
-    }
-}
-
-/// Formats a set of [`SkillListing`] entries into a catalog string, keeping
-/// the total size under a token budget.
+/// Formats a set of [`InvocableCommand`] entries into a catalog string,
+/// keeping the total size under a token budget.
 ///
 /// The format is deliberately simple and close to Claude Code's
 /// `formatCommandsWithinBudget`:
@@ -115,33 +84,36 @@ impl From<&Skill> for SkillListing {
 /// budget is exhausted; at that point a summary footer noting how many
 /// entries were omitted is appended if there is room.
 ///
-/// If the budget is tight, at least [`MIN_SKILLS_PER_TURN`] entries are
+/// If the budget is tight, at least [`MIN_INVOCABLES_PER_TURN`] entries are
 /// always emitted so the LLM sees *something* — otherwise the catalog would
 /// be silently empty and the reminder message would carry no information.
 ///
-/// Returns `None` when `skills` is empty (the caller should not inject a
+/// Returns `None` when `invocables` is empty (the caller should not inject a
 /// reminder at all in that case).
-pub fn format_skills_within_budget(skills: &[SkillListing], budget_tokens: u64) -> Option<String> {
-    if skills.is_empty() {
+pub fn format_invocables_within_budget(
+    invocables: &[InvocableCommand],
+    budget_tokens: u64,
+) -> Option<String> {
+    if invocables.is_empty() {
         return None;
     }
 
     let budget_chars = (budget_tokens as usize).saturating_mul(CHARS_PER_TOKEN);
 
-    let mut lines = Vec::with_capacity(skills.len());
+    let mut lines = Vec::with_capacity(invocables.len());
     let mut used_chars: usize = 0;
     let mut dropped: usize = 0;
 
-    for (idx, skill) in skills.iter().enumerate() {
-        let line = format_line(skill);
+    for (idx, invocable) in invocables.iter().enumerate() {
+        let line = format_line(invocable);
         let line_len = line.len() + 1; // + newline
 
-        // Always admit the first MIN_SKILLS_PER_TURN entries so the catalog
-        // never ends up empty when some skills exist.
-        let is_minimum = idx < MIN_SKILLS_PER_TURN;
+        // Always admit the first MIN_INVOCABLES_PER_TURN entries so the
+        // catalog never ends up empty when some invocables exist.
+        let is_minimum = idx < MIN_INVOCABLES_PER_TURN;
 
         if !is_minimum && used_chars.saturating_add(line_len) > budget_chars {
-            dropped = skills.len() - idx;
+            dropped = invocables.len() - idx;
             break;
         }
 
@@ -158,19 +130,19 @@ pub fn format_skills_within_budget(skills: &[SkillListing], budget_tokens: u64) 
     Some(lines.join("\n"))
 }
 
-fn format_line(skill: &SkillListing) -> String {
+fn format_line(invocable: &InvocableCommand) -> String {
     // Collapse description whitespace so multi-line summaries don't break the
     // single-line list format.
-    let description: String = skill
+    let description: String = invocable
         .description
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
 
     if description.is_empty() {
-        format!("- {}", skill.name)
+        format!("- {}", invocable.name)
     } else {
-        format!("- {}: {}", skill.name, description)
+        format!("- {}: {}", invocable.name, description)
     }
 }
 
@@ -188,53 +160,79 @@ pub fn build_skill_reminder(catalog: &str) -> String {
     Element::new("system_reminder").cdata(body).render()
 }
 
-/// Per-conversation / per-agent delta cache recording which skills have
+/// Per-conversation / per-agent delta cache recording which invocables have
 /// already been announced to the LLM.
 ///
 /// The key is `(ConversationId, AgentId)` because each agent in a multi-agent
 /// conversation maintains its own context stream and must be informed
-/// independently.
+/// independently. The inner `HashSet<String>` keys on `InvocableCommand::name`;
+/// since skills and plugin commands are already namespaced (`plugin:skill`,
+/// `plugin:group:command`) there is no collision risk between the two kinds.
 #[derive(Debug, Default)]
 struct DeltaCache {
     sent: Mutex<HashMap<(ConversationId, AgentId), HashSet<String>>>,
 }
 
 impl DeltaCache {
-    /// Returns the subset of `skills` that has not yet been announced to the
-    /// given conversation/agent pair, and records the complete set as sent.
+    /// Returns the subset of `invocables` that has not yet been announced to
+    /// the given conversation/agent pair, and records the complete set as
+    /// sent.
     ///
-    /// The returned list preserves the ordering of `skills`.
+    /// The returned list preserves the ordering of `invocables`.
     async fn delta(
         &self,
         conversation_id: ConversationId,
         agent_id: AgentId,
-        skills: &[SkillListing],
-    ) -> Vec<SkillListing> {
+        invocables: &[InvocableCommand],
+    ) -> Vec<InvocableCommand> {
         let mut guard = self.sent.lock().await;
         let seen = guard.entry((conversation_id, agent_id)).or_default();
 
         let mut delta = Vec::new();
-        for skill in skills {
-            if seen.insert(skill.name.clone()) {
-                delta.push(skill.clone());
+        for invocable in invocables {
+            if seen.insert(invocable.name.clone()) {
+                delta.push(invocable.clone());
             }
         }
         delta
     }
 
-    /// Forgets all send history for a conversation. Invoked during
-    /// `SessionEnd` to prevent the cache from growing unbounded across
-    /// restart / resume cycles. (Not wired yet in Phase 0; exposed for future
-    /// use.)
-    #[allow(dead_code)]
+    /// Forgets all send history for a conversation (across every agent).
+    ///
+    /// Used in two scenarios:
+    /// - `SessionEnd` cleanup, to prevent the cache from growing unbounded
+    ///   across restart / resume cycles.
+    /// - Plugin hot-reload: when a plugin is enabled or disabled the skill
+    ///   catalog may change and every agent in the conversation needs to see a
+    ///   fresh announcement on the next turn.
+    ///
+    /// Removes every `(conversation_id, *)` entry regardless of which agent
+    /// had previously been announced to.
+    ///
+    /// Reached only via [`SkillListingHandler::reset_sent_skills`].
+    #[allow(dead_code)] // Unused: SkillListingHandler is ephemeral (recreated per chat() call).
     async fn forget(&self, conversation_id: ConversationId) {
         let mut guard = self.sent.lock().await;
         guard.retain(|(conv, _), _| *conv != conversation_id);
     }
+
+    /// Drops the entire send history for every conversation and agent.
+    ///
+    /// Intended for global plugin hot-reload scenarios (e.g. `:plugin
+    /// reload`) where the skill universe has fundamentally changed and all
+    /// active conversations must re-announce their catalogs on the next
+    /// turn.
+    ///
+    /// Reached only via [`SkillListingHandler::reset_all`].
+    #[allow(dead_code)] // Unused: SkillListingHandler is ephemeral (recreated per chat() call).
+    async fn forget_all(&self) {
+        let mut guard = self.sent.lock().await;
+        guard.clear();
+    }
 }
 
-/// Lifecycle hook that injects a `<system_reminder>` skill catalog before
-/// every LLM request.
+/// Lifecycle hook that injects a `<system_reminder>` invocables catalog
+/// (skills + commands) before every LLM request.
 ///
 /// This is wired as part of the `on_request` hook chain in
 /// [`ForgeApp::chat`](crate::app::ForgeApp::chat) and runs after existing
@@ -243,17 +241,24 @@ impl DeltaCache {
 /// # Lifecycle
 ///
 /// On each invocation the handler:
-/// 1. Loads the current list of skills from [`SkillFetchService::list_skills`]
-///    (which goes through an internal cache).
-/// 2. Computes the *delta* against what has already been announced to the
+/// 1. Loads the current list of invocables from
+///    [`InvocableCommandsProvider::list_invocable_commands`] (which aggregates
+///    [`SkillFetchService::list_skills`] and
+///    [`crate::CommandLoaderService::get_commands`] through their respective
+///    caches).
+/// 2. Filters out entries with `disable_model_invocation: true` so the LLM
+///    never sees skills that are deliberately hidden from model invocation
+///    (mirrors `claude-code/src/commands.ts:563-581`).
+/// 3. Computes the *delta* against what has already been announced to the
 ///    `(conversation_id, agent_id)` pair.
-/// 3. If the delta is non-empty, formats it under the budget and appends a
+/// 4. If the delta is non-empty, formats it under the budget and appends a
 ///    single `ContextMessage::system_reminder` to `conversation.context`.
 ///
 /// # Error handling
 ///
-/// Skill-listing failures are logged at `warn` level and treated as a no-op
-/// so that a transient repository error never breaks the main request flow.
+/// Invocables-listing failures are logged at `warn` level and treated as a
+/// no-op so that a transient repository error never breaks the main request
+/// flow.
 pub struct SkillListingHandler<S> {
     service: Arc<S>,
     cache: Arc<DeltaCache>,
@@ -274,7 +279,7 @@ impl<S> SkillListingHandler<S> {
 
     /// Overrides the fraction of the context window used for the catalog.
     /// Primarily useful for tests.
-    #[allow(dead_code)]
+    #[allow(dead_code)] // builder method used in tests
     pub fn budget_fraction(mut self, fraction: f64) -> Self {
         self.budget_fraction = fraction;
         self
@@ -291,52 +296,88 @@ impl<S> SkillListingHandler<S> {
         let raw = (self.context_tokens as f64 * self.budget_fraction).floor();
         raw.max(0.0) as u64
     }
+
+    /// Forgets the per-agent delta cache for a single conversation.
+    ///
+    /// After this call, the next turn on any agent in the supplied
+    /// conversation will re-announce the full skill catalog. Use this from
+    /// plugin hot-reload paths (`:plugin enable`, `:plugin disable`,
+    /// `:plugin reload`) when the plugin change is scoped to a specific
+    /// conversation — for a global reset that covers every in-flight
+    /// conversation, call [`reset_all`](Self::reset_all) instead.
+    ///
+    /// Removes every `(conversation_id, *)` entry regardless of which agent
+    /// had previously seen the catalog, so multi-agent conversations
+    /// (`forge` + `sage` + `muse`) all receive a fresh reminder on their
+    /// respective next turns.
+    #[allow(dead_code)] // Unused: SkillListingHandler is ephemeral (recreated per chat() call).
+    pub async fn reset_sent_skills(&self, conversation_id: &ConversationId) {
+        self.cache.forget(*conversation_id).await;
+    }
+
+    /// Drops the delta cache for every conversation and every agent.
+    ///
+    /// Intended for global plugin hot-reload scenarios where the skill
+    /// universe has fundamentally changed (e.g. a plugin providing five
+    /// skills was just disabled). Every active conversation will see a
+    /// fresh, possibly smaller, catalog on its next turn.
+    #[allow(dead_code)] // Unused: SkillListingHandler is ephemeral (recreated per chat() call).
+    pub async fn reset_all(&self) {
+        self.cache.forget_all().await;
+    }
 }
 
 #[async_trait]
 impl<S> EventHandle<EventData<RequestPayload>> for SkillListingHandler<S>
 where
-    S: SkillFetchService + Send + Sync + 'static,
+    S: InvocableCommandsProvider + Send + Sync + 'static,
 {
     async fn handle(
         &self,
         event: &EventData<RequestPayload>,
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        // Load skills. A repository failure must NOT break the request, so
-        // we downgrade errors to warnings and bail out early.
-        let skills = match self.service.list_skills().await {
-            Ok(skills) => skills,
+        // Load invocables (skills + commands). A repository failure must
+        // NOT break the request, so we downgrade errors to warnings and
+        // bail out early.
+        let invocables = match self.service.list_invocable_commands().await {
+            Ok(list) => list,
             Err(err) => {
                 warn!(
                     agent_id = %event.agent.id,
                     error = %err,
-                    "Failed to load skills for <system_reminder> catalog; skipping"
+                    "Failed to load invocable commands for <system_reminder> catalog; skipping"
                 );
                 return Ok(());
             }
         };
 
-        if skills.is_empty() {
+        // Filter out entries that are explicitly hidden from the model.
+        // Mirrors Claude Code's `disable-model-invocation` handling at
+        // `claude-code/src/commands.ts:563-581`.
+        let visible: Vec<InvocableCommand> = invocables
+            .into_iter()
+            .filter(|inv| !inv.disable_model_invocation)
+            .collect();
+
+        if visible.is_empty() {
             return Ok(());
         }
 
-        let listings: Vec<SkillListing> = skills.iter().map(SkillListing::from).collect();
-
         let delta = self
             .cache
-            .delta(conversation.id, event.agent.id.clone(), &listings)
+            .delta(conversation.id, event.agent.id.clone(), &visible)
             .await;
 
         if delta.is_empty() {
             debug!(
                 agent_id = %event.agent.id,
-                "Skill catalog unchanged since previous turn; skipping reminder"
+                "Invocables catalog unchanged since previous turn; skipping reminder"
             );
             return Ok(());
         }
 
-        let Some(catalog) = format_skills_within_budget(&delta, self.budget_tokens()) else {
+        let Some(catalog) = format_invocables_within_budget(&delta, self.budget_tokens()) else {
             return Ok(());
         };
 
@@ -359,8 +400,8 @@ where
             agent_id = %event.agent.id,
             request_count = event.payload.request_count,
             announced = delta.len(),
-            total = listings.len(),
-            "Injected <system_reminder> skill catalog"
+            total = visible.len(),
+            "Injected <system_reminder> invocables catalog"
         );
 
         Ok(())
@@ -492,64 +533,88 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, EventData, EventHandle, ModelId,
-        ProviderId, RequestPayload, Skill,
+        Agent, AgentId, Context, Conversation, ConversationId, EventData, EventHandle,
+        InvocableCommand, InvocableKind, InvocableSource, ModelId, ProviderId, RequestPayload,
+        Skill,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::SkillFetchService;
+    use crate::{InvocableCommandsProvider, SkillFetchService};
+
+    /// Builds a minimal [`InvocableCommand`] fixture for tests.
+    fn invocable(name: &str, description: &str) -> InvocableCommand {
+        InvocableCommand {
+            name: name.to_string(),
+            description: description.to_string(),
+            when_to_use: None,
+            kind: InvocableKind::Skill,
+            source: InvocableSource::Builtin,
+            disable_model_invocation: false,
+            user_invocable: true,
+        }
+    }
+
+    /// Builds a [`InvocableCommand`] fixture tagged as a command.
+    fn invocable_command(name: &str, description: &str) -> InvocableCommand {
+        InvocableCommand {
+            name: name.to_string(),
+            description: description.to_string(),
+            when_to_use: None,
+            kind: InvocableKind::Command,
+            source: InvocableSource::Builtin,
+            disable_model_invocation: false,
+            user_invocable: true,
+        }
+    }
 
     // --- Budget formatter -------------------------------------------------
 
     #[test]
     fn test_format_single_skill() {
-        let fixture = vec![SkillListing::new("pdf", "Handle PDF files")];
-        let actual = format_skills_within_budget(&fixture, 1_000).unwrap();
+        let fixture = vec![invocable("pdf", "Handle PDF files")];
+        let actual = format_invocables_within_budget(&fixture, 1_000).unwrap();
         let expected = "- pdf: Handle PDF files";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_format_multiple_skills_sorted_by_input_order() {
-        let fixture = vec![
-            SkillListing::new("b-skill", "B"),
-            SkillListing::new("a-skill", "A"),
-        ];
-        let actual = format_skills_within_budget(&fixture, 1_000).unwrap();
+        let fixture = vec![invocable("b-skill", "B"), invocable("a-skill", "A")];
+        let actual = format_invocables_within_budget(&fixture, 1_000).unwrap();
         let expected = "- b-skill: B\n- a-skill: A";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_format_collapses_multiline_descriptions() {
-        let fixture = vec![SkillListing::new(
+        let fixture = vec![invocable(
             "pdf",
             "Handle PDF\n  files\n  with   embedded fonts",
         )];
-        let actual = format_skills_within_budget(&fixture, 1_000).unwrap();
+        let actual = format_invocables_within_budget(&fixture, 1_000).unwrap();
         let expected = "- pdf: Handle PDF files with embedded fonts";
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_format_empty_returns_none() {
-        let fixture: Vec<SkillListing> = vec![];
-        let actual = format_skills_within_budget(&fixture, 1_000);
+        let fixture: Vec<InvocableCommand> = vec![];
+        let actual = format_invocables_within_budget(&fixture, 1_000);
         assert!(actual.is_none());
     }
 
     #[test]
     fn test_format_budget_truncation_keeps_minimum() {
         // Budget of 2 tokens = 8 chars, way below any single entry.
-        // The formatter must still emit at least MIN_SKILLS_PER_TURN skills
-        // and mark the rest as dropped.
+        // The formatter must still emit at least MIN_INVOCABLES_PER_TURN
+        // entries and mark the rest as dropped.
         let fixture = vec![
-            SkillListing::new("a-skill", "descriptive text here"),
-            SkillListing::new("b-skill", "another description"),
-            SkillListing::new("c-skill", "yet another one"),
+            invocable("a-skill", "descriptive text here"),
+            invocable("b-skill", "another description"),
+            invocable("c-skill", "yet another one"),
         ];
-        let actual = format_skills_within_budget(&fixture, 2).unwrap();
+        let actual = format_invocables_within_budget(&fixture, 2).unwrap();
         assert!(
             actual.contains("a-skill"),
             "minimum skill not present: {actual}"
@@ -562,9 +627,22 @@ mod tests {
 
     #[test]
     fn test_format_missing_description() {
-        let fixture = vec![SkillListing::new("bare", "")];
-        let actual = format_skills_within_budget(&fixture, 1_000).unwrap();
+        let fixture = vec![invocable("bare", "")];
+        let actual = format_invocables_within_budget(&fixture, 1_000).unwrap();
         let expected = "- bare";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_mixes_skills_and_commands() {
+        // Commands and skills should appear in the same catalog, in the
+        // order supplied by the aggregator.
+        let fixture = vec![
+            invocable("pdf", "Handle PDF files"),
+            invocable_command("deploy", "Ship to prod"),
+        ];
+        let actual = format_invocables_within_budget(&fixture, 1_000).unwrap();
+        let expected = "- pdf: Handle PDF files\n- deploy: Ship to prod";
         assert_eq!(actual, expected);
     }
 
@@ -587,11 +665,11 @@ mod tests {
         let cache = DeltaCache::default();
         let conv = ConversationId::generate();
         let agent = AgentId::new("forge");
-        let skills = vec![SkillListing::new("a", "A"), SkillListing::new("b", "B")];
+        let items = vec![invocable("a", "A"), invocable("b", "B")];
 
-        let actual = cache.delta(conv, agent, &skills).await;
+        let actual = cache.delta(conv, agent, &items).await;
 
-        assert_eq!(actual, skills);
+        assert_eq!(actual, items);
     }
 
     #[tokio::test]
@@ -599,10 +677,10 @@ mod tests {
         let cache = DeltaCache::default();
         let conv = ConversationId::generate();
         let agent = AgentId::new("forge");
-        let skills = vec![SkillListing::new("a", "A")];
+        let items = vec![invocable("a", "A")];
 
-        let _ = cache.delta(conv, agent.clone(), &skills).await;
-        let actual = cache.delta(conv, agent, &skills).await;
+        let _ = cache.delta(conv, agent.clone(), &items).await;
+        let actual = cache.delta(conv, agent, &items).await;
 
         assert!(actual.is_empty());
     }
@@ -613,13 +691,13 @@ mod tests {
         let conv = ConversationId::generate();
         let agent = AgentId::new("forge");
 
-        let first = vec![SkillListing::new("a", "A")];
+        let first = vec![invocable("a", "A")];
         let _ = cache.delta(conv, agent.clone(), &first).await;
 
-        let second = vec![SkillListing::new("a", "A"), SkillListing::new("b", "B")];
+        let second = vec![invocable("a", "A"), invocable("b", "B")];
         let actual = cache.delta(conv, agent, &second).await;
 
-        let expected = vec![SkillListing::new("b", "B")];
+        let expected = vec![invocable("b", "B")];
         assert_eq!(actual, expected);
     }
 
@@ -627,35 +705,151 @@ mod tests {
     async fn test_delta_cache_independent_per_agent() {
         let cache = DeltaCache::default();
         let conv = ConversationId::generate();
-        let skills = vec![SkillListing::new("a", "A")];
+        let items = vec![invocable("a", "A")];
 
-        let _ = cache.delta(conv, AgentId::new("forge"), &skills).await;
-        let actual = cache.delta(conv, AgentId::new("sage"), &skills).await;
+        let _ = cache.delta(conv, AgentId::new("forge"), &items).await;
+        let actual = cache.delta(conv, AgentId::new("sage"), &items).await;
 
         // sage has never seen the skill, so it gets the full list back.
-        assert_eq!(actual, skills);
+        assert_eq!(actual, items);
     }
 
     #[tokio::test]
     async fn test_delta_cache_independent_per_conversation() {
         let cache = DeltaCache::default();
         let agent = AgentId::new("forge");
-        let skills = vec![SkillListing::new("a", "A")];
+        let items = vec![invocable("a", "A")];
 
         let _ = cache
-            .delta(ConversationId::generate(), agent.clone(), &skills)
+            .delta(ConversationId::generate(), agent.clone(), &items)
             .await;
-        let actual = cache
-            .delta(ConversationId::generate(), agent, &skills)
-            .await;
+        let actual = cache.delta(ConversationId::generate(), agent, &items).await;
 
-        assert_eq!(actual, skills);
+        assert_eq!(actual, items);
+    }
+
+    #[tokio::test]
+    async fn test_delta_cache_forget_removes_all_agents_for_conversation() {
+        // Plugin hot-reload scenario: `forget` must drop every
+        // `(conversation, *)` entry, not just one specific agent.
+        let cache = DeltaCache::default();
+        let conv = ConversationId::generate();
+        let other_conv = ConversationId::generate();
+        let items = vec![invocable("a", "A")];
+
+        let _ = cache.delta(conv, AgentId::new("forge"), &items).await;
+        let _ = cache.delta(conv, AgentId::new("sage"), &items).await;
+        let _ = cache.delta(other_conv, AgentId::new("forge"), &items).await;
+
+        cache.forget(conv).await;
+
+        // Both agents in the target conversation must see a fresh catalog.
+        let forge_after = cache.delta(conv, AgentId::new("forge"), &items).await;
+        assert_eq!(forge_after, items);
+        let sage_after = cache.delta(conv, AgentId::new("sage"), &items).await;
+        assert_eq!(sage_after, items);
+
+        // The unrelated conversation must still be cached.
+        let other_after = cache.delta(other_conv, AgentId::new("forge"), &items).await;
+        assert!(other_after.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_delta_cache_forget_all_clears_everything() {
+        let cache = DeltaCache::default();
+        let conv_a = ConversationId::generate();
+        let conv_b = ConversationId::generate();
+        let items = vec![invocable("a", "A"), invocable("b", "B")];
+
+        let _ = cache.delta(conv_a, AgentId::new("forge"), &items).await;
+        let _ = cache.delta(conv_a, AgentId::new("sage"), &items).await;
+        let _ = cache.delta(conv_b, AgentId::new("forge"), &items).await;
+
+        cache.forget_all().await;
+
+        // Every (conversation, agent) pair is now fresh again.
+        assert_eq!(
+            cache.delta(conv_a, AgentId::new("forge"), &items).await,
+            items
+        );
+        assert_eq!(
+            cache.delta(conv_a, AgentId::new("sage"), &items).await,
+            items
+        );
+        assert_eq!(
+            cache.delta(conv_b, AgentId::new("forge"), &items).await,
+            items
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handler_reset_sent_skills_reannounces_next_turn() {
+        // Plugin hot-reload: after `reset_sent_skills`, a conversation that
+        // previously had its catalog injected must receive a fresh reminder
+        // on its next turn.
+        let service = Arc::new(MockSkillService::new(vec![Skill::new(
+            "pdf",
+            "",
+            "Handle PDF files",
+        )]));
+        let handler = SkillListingHandler::new(service);
+        let mut conv = fixture_conversation();
+        let event = fixture_event("forge");
+
+        // First turn — reminder injected.
+        handler.handle(&event, &mut conv).await.unwrap();
+        // Second turn — delta cache says "nothing new", no reminder.
+        handler.handle(&event, &mut conv).await.unwrap();
+        assert_eq!(conv.context.as_ref().unwrap().messages.len(), 1);
+
+        // Plugin hot-reload event fires: reset the send history for this
+        // conversation.
+        handler.reset_sent_skills(&conv.id).await;
+
+        // Third turn — a fresh reminder must appear because the cache was
+        // cleared.
+        handler.handle(&event, &mut conv).await.unwrap();
+        assert_eq!(conv.context.as_ref().unwrap().messages.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_handler_reset_all_reannounces_every_conversation() {
+        // Plugin hot-reload: `reset_all` must clear the cache for every
+        // active conversation, not just one.
+        let service = Arc::new(MockSkillService::new(vec![Skill::new(
+            "pdf",
+            "",
+            "Handle PDF files",
+        )]));
+        let handler = SkillListingHandler::new(service);
+        let mut conv_a = fixture_conversation();
+        let mut conv_b = fixture_conversation();
+        let event = fixture_event("forge");
+
+        // Announce to both conversations; further calls are no-ops thanks
+        // to the delta cache.
+        handler.handle(&event, &mut conv_a).await.unwrap();
+        handler.handle(&event, &mut conv_a).await.unwrap();
+        handler.handle(&event, &mut conv_b).await.unwrap();
+        handler.handle(&event, &mut conv_b).await.unwrap();
+        assert_eq!(conv_a.context.as_ref().unwrap().messages.len(), 1);
+        assert_eq!(conv_b.context.as_ref().unwrap().messages.len(), 1);
+
+        handler.reset_all().await;
+
+        // Next turn on each conversation must re-announce.
+        handler.handle(&event, &mut conv_a).await.unwrap();
+        handler.handle(&event, &mut conv_b).await.unwrap();
+        assert_eq!(conv_a.context.as_ref().unwrap().messages.len(), 2);
+        assert_eq!(conv_b.context.as_ref().unwrap().messages.len(), 2);
     }
 
     // --- Handler integration ---------------------------------------------
 
-    /// Minimal mock service that returns a fixed skill list and counts
-    /// invocations.
+    /// Minimal mock service that returns a fixed skill list, counts
+    /// invocations, and doubles as a direct [`InvocableCommandsProvider`] so
+    /// the tests do not have to go through the full
+    /// [`Services`](crate::Services) aggregate.
     struct MockSkillService {
         skills: Vec<Skill>,
         calls: AtomicUsize,
@@ -689,6 +883,34 @@ mod tests {
 
         async fn invalidate_cache(&self) {
             self.invalidations.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl InvocableCommandsProvider for MockSkillService {
+        async fn list_invocable_commands(&self) -> anyhow::Result<Vec<InvocableCommand>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            Ok(self.skills.iter().map(InvocableCommand::from).collect())
+        }
+    }
+
+    /// Mock that returns a fixed slice of [`InvocableCommand`]s directly
+    /// (skills + commands mixed). Used to exercise the handler's filtering
+    /// behaviour without having to go through `Skill`/`Command`.
+    struct MockInvocableService {
+        invocables: Vec<InvocableCommand>,
+    }
+
+    impl MockInvocableService {
+        fn new(invocables: Vec<InvocableCommand>) -> Self {
+            Self { invocables }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl InvocableCommandsProvider for MockInvocableService {
+        async fn list_invocable_commands(&self) -> anyhow::Result<Vec<InvocableCommand>> {
+            Ok(self.invocables.clone())
         }
     }
 
@@ -810,6 +1032,64 @@ mod tests {
         let ctx = conv.context.as_ref().unwrap();
         // Each agent should have received its own reminder.
         assert_eq!(ctx.messages.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_handler_filters_disable_model_invocation() {
+        // Entries flagged `disable_model_invocation: true` must be filtered
+        // out before they reach the reminder envelope.
+        let hidden = InvocableCommand {
+            name: "secret".to_string(),
+            description: "hidden skill".to_string(),
+            when_to_use: None,
+            kind: InvocableKind::Skill,
+            source: InvocableSource::Builtin,
+            disable_model_invocation: true,
+            user_invocable: true,
+        };
+        let visible = invocable("pdf", "Handle PDF files");
+        let service = Arc::new(MockInvocableService::new(vec![hidden, visible]));
+        let handler = SkillListingHandler::new(service);
+        let mut conv = fixture_conversation();
+        let event = fixture_event("forge");
+
+        handler.handle(&event, &mut conv).await.unwrap();
+
+        let ctx = conv.context.as_ref().unwrap();
+        assert_eq!(ctx.messages.len(), 1);
+        let content = ctx.messages[0].content().unwrap();
+        assert!(
+            content.contains("pdf"),
+            "visible skill must be listed: {content}"
+        );
+        assert!(
+            !content.contains("secret"),
+            "disabled skill must NOT be listed: {content}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_handler_noop_when_all_entries_are_hidden() {
+        // If every entry has `disable_model_invocation: true`, the handler
+        // should skip the reminder entirely rather than emit an empty one.
+        let hidden_only = InvocableCommand {
+            name: "secret".to_string(),
+            description: "hidden".to_string(),
+            when_to_use: None,
+            kind: InvocableKind::Skill,
+            source: InvocableSource::Builtin,
+            disable_model_invocation: true,
+            user_invocable: true,
+        };
+        let service = Arc::new(MockInvocableService::new(vec![hidden_only]));
+        let handler = SkillListingHandler::new(service);
+        let mut conv = fixture_conversation();
+        let event = fixture_event("forge");
+
+        handler.handle(&event, &mut conv).await.unwrap();
+
+        let ctx = conv.context.as_ref().unwrap();
+        assert!(ctx.messages.is_empty());
     }
 
     #[test]

@@ -1,0 +1,6 @@
+{
+  "name": "skill-provider",
+  "version": "0.1.0",
+  "description": "Provides 3 skills for code inspection, refactoring, and debugging",
+  "author": { "name": "forge-test-fixtures" }
+}

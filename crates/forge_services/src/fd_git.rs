@@ -38,6 +38,7 @@ impl<F: CommandInfra> FsGit<F> {
                 dir_path.to_path_buf(),
                 true,
                 None,
+                None,
             )
             .await?;
 

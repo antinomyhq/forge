@@ -1,0 +1,6 @@
+# Wave G-1 fixture plugin files must be committed, including the
+# `.mcp.json` sidecar used by the `full-stack` fixture. The repo-root
+# `.gitignore` excludes `.mcp.json` globally (to avoid committing
+# developer-local MCP configs), so we explicitly un-ignore it here so
+# the fixture survives fresh clones.
+!full-stack/.mcp.json

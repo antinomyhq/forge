@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "ConfigChange": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'config-watcher: config file changed' >&2"
+          }
+        ]
+      }
+    ]
+  }
+}

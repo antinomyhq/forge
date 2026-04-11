@@ -19,8 +19,8 @@ use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
-    AgentExt, AgentService, AttachmentService, EnvironmentInfra, ShellOutput, ShellService,
-    SkillFetchService, TemplateService,
+    AgentExt, AgentService, AttachmentService, EnvironmentInfra, InvocableCommandsProvider,
+    ShellOutput, ShellService, SkillFetchService, TemplateService,
 };
 
 static TEMPLATE_DIR: Dir<'static> = include_dir!("$CARGO_MANIFEST_DIR/../../templates");
@@ -135,17 +135,30 @@ impl Runner {
 
         let orch = Orchestrator::new(services.clone(), conversation, agent, setup.config.clone())
             .error_tracker(ToolErrorTracker::new(3))
-            .tool_definitions(system_tools)
-            .hook(Arc::new(
-                Hook::default()
-                    .on_request(
-                        DoomLoopDetector::default().and(SkillListingHandler::new(services.clone())),
-                    )
-                    .on_end(PendingTodosHandler::new()),
-            ))
-            .sender(tx);
+            .tool_definitions(system_tools);
 
-        let (mut orch, runner) = (orch, services);
+        // Merge user-supplied test Hook on top of the default harness
+        // hook chain so closure probes installed via
+        // `TestContext::hook(...)` can observe any of the 16 Hook
+        // slots firing during orchestration.
+        let default_hook = Hook::default()
+            .on_request(DoomLoopDetector::default().and(SkillListingHandler::new(services.clone())))
+            .on_stop(PendingTodosHandler::new());
+        let merged_hook = if let Some(test_hook) = setup.hook.take() {
+            default_hook.zip(test_hook)
+        } else {
+            default_hook
+        };
+        let mut orch = orch.hook(Arc::new(merged_hook)).sender(tx);
+
+        // Plumb the raw user prompt for `UserPromptSubmit` fire-site
+        // tests. When set, the orchestrator will fire
+        // `UserPromptSubmit` on the first iteration of the run loop.
+        if let Some(prompt) = setup.user_prompt.take() {
+            orch = orch.user_prompt(prompt);
+        }
+
+        let runner = services;
 
         let result = orch.run().await;
         drop(orch);
@@ -246,6 +259,21 @@ impl SkillFetchService for Runner {
 
     async fn invalidate_cache(&self) {
         // MockSkillList is always fresh; nothing to invalidate.
+    }
+}
+
+/// Test-only [`InvocableCommandsProvider`] impl that mirrors the production
+/// `Services` blanket impl for the orch spec harness. The orch runner does
+/// not configure a command loader, so commands always come back empty and
+/// the unified listing degenerates to `list_skills()`-converted invocables.
+#[async_trait::async_trait]
+impl InvocableCommandsProvider for Runner {
+    async fn list_invocable_commands(&self) -> anyhow::Result<Vec<forge_domain::InvocableCommand>> {
+        let skills = self.mock_skills.snapshot().await;
+        Ok(skills
+            .iter()
+            .map(forge_domain::InvocableCommand::from)
+            .collect())
     }
 }
 

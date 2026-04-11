@@ -1,0 +1,6 @@
+{
+  "name": "command-provider",
+  "version": "0.1.0",
+  "description": "Provides greet and status slash commands",
+  "author": { "name": "forge-test-fixtures" }
+}

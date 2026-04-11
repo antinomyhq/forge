@@ -131,6 +131,54 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
+    /// Returns the global plugins directory path (~/forge/plugins)
+    ///
+    /// This is the default location for user-installed plugins. Each
+    /// subdirectory is a plugin root containing a `plugin.json` (or
+    /// `.forge-plugin/plugin.json` / `.claude-plugin/plugin.json`) manifest.
+    pub fn plugin_path(&self) -> PathBuf {
+        self.base_path.join("plugins")
+    }
+
+    /// Returns the transcript file path for a given session id.
+    ///
+    /// Transcripts live at `<base>/transcripts/<session_id>.jsonl`. This
+    /// method only computes the path — callers are responsible for
+    /// creating the parent directory and writing transcript events.
+    pub fn transcript_path(&self, session_id: &str) -> PathBuf {
+        self.base_path
+            .join("transcripts")
+            .join(format!("{session_id}.jsonl"))
+    }
+
+    /// Returns the project-local plugins directory path (.forge/plugins)
+    ///
+    /// Plugins discovered here are scoped to the current workspace and take
+    /// precedence over plugins from `plugin_path()` when there is a name
+    /// conflict.
+    pub fn plugin_cwd_path(&self) -> PathBuf {
+        self.cwd.join(".forge/plugins")
+    }
+
+    /// Returns the global Claude Code plugins directory (~/.claude/plugins).
+    ///
+    /// Enables Forge to discover plugins installed by Claude Code (e.g. via
+    /// `npx <plugin> install`). Returns `None` when the home directory is
+    /// unknown.
+    pub fn claude_plugin_path(&self) -> Option<PathBuf> {
+        self.home.as_ref().map(|h| h.join(".claude/plugins"))
+    }
+
+    /// Returns the project-local Claude Code plugins directory
+    /// (.claude/plugins).
+    ///
+    /// Mirrors `plugin_cwd_path()` but for the Claude Code layout.
+    /// Forge-native project plugins (`.forge/plugins/`) take precedence
+    /// over these when there is a name conflict.
+    pub fn claude_plugin_cwd_path(&self) -> PathBuf {
+        self.cwd.join(".claude/plugins")
+    }
+
     /// Returns the global commands directory path (base_path/commands)
     pub fn command_path(&self) -> PathBuf {
         self.base_path.join("commands")
@@ -379,5 +427,102 @@ mod tests {
         let expected = PathBuf::from("/home/user/.forge/provider.json");
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plugin_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/forge"));
+
+        let actual = fixture.plugin_path();
+        let expected = PathBuf::from("/home/user/forge/plugins");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plugin_cwd_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.plugin_cwd_path();
+        let expected = PathBuf::from("/projects/my-app/.forge/plugins");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_plugin_paths_independent() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture
+            .cwd(PathBuf::from("/projects/my-app"))
+            .base_path(PathBuf::from("/home/user/forge"));
+
+        let global_path = fixture.plugin_path();
+        let local_path = fixture.plugin_cwd_path();
+
+        let expected_global = PathBuf::from("/home/user/forge/plugins");
+        let expected_local = PathBuf::from("/projects/my-app/.forge/plugins");
+
+        assert_eq!(global_path, expected_global);
+        assert_eq!(local_path, expected_local);
+        assert_ne!(global_path, local_path);
+    }
+
+    #[test]
+    fn test_claude_plugin_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.home(PathBuf::from("/home/user"));
+
+        let actual = fixture.claude_plugin_path();
+        let expected = Some(PathBuf::from("/home/user/.claude/plugins"));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_claude_plugin_path_no_home() {
+        let fixture: Environment = Faker.fake();
+        let mut fixture = fixture;
+        fixture.home = None;
+
+        let actual = fixture.claude_plugin_path();
+
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_claude_plugin_cwd_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.claude_plugin_cwd_path();
+        let expected = PathBuf::from("/projects/my-app/.claude/plugins");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_transcript_path_uses_base_path_and_session_id() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/forge"));
+
+        let actual = fixture.transcript_path("sess-abc");
+        let expected = PathBuf::from("/home/user/forge/transcripts/sess-abc.jsonl");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_transcript_path_distinct_sessions_produce_distinct_paths() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/forge"));
+
+        let a = fixture.transcript_path("sess-a");
+        let b = fixture.transcript_path("sess-b");
+
+        assert_ne!(a, b);
+        assert!(a.ends_with("sess-a.jsonl"));
+        assert!(b.ends_with("sess-b.jsonl"));
     }
 }
