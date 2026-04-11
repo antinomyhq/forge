@@ -460,7 +460,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                         self.on_zsh_keyboard().await?;
                     }
                     crate::cli::ZshCommandGroup::Format { buffer } => {
-                        print!("{}", crate::editor::wrap_pasted_text(&buffer));
+                        print!("{}", crate::zsh::paste::wrap_pasted_text(&buffer));
                         return Ok(());
                     }
                 }
