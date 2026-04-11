@@ -165,12 +165,22 @@ mod tests {
     }
 
     impl EnvGuard {
-        /// Sets each `(key, value)` pair in the environment, returning a guard
-        /// that cleans them up on drop.
+        /// Acquires [`ENV_MUTEX`], sets each `(key, value)` pair in the
+        /// environment, and removes each key in `remove` if present. All
+        /// set keys are cleaned up on drop.
         #[must_use]
         fn set(pairs: &[(&'static str, &str)]) -> Self {
+            Self::set_and_remove(pairs, &[])
+        }
+
+        /// Like [`set`] but also removes the listed keys before the test runs.
+        #[must_use]
+        fn set_and_remove(pairs: &[(&'static str, &str)], remove: &[&'static str]) -> Self {
             let lock = ENV_MUTEX.lock().unwrap_or_else(|e| e.into_inner());
             let keys = pairs.iter().map(|(k, _)| *k).collect();
+            for key in remove {
+                unsafe { std::env::remove_var(key) };
+            }
             for (key, value) in pairs {
                 unsafe { std::env::set_var(key, value) };
             }
@@ -198,8 +208,7 @@ mod tests {
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
         // Hold the env mutex and ensure FORGE_CONFIG is absent so this test
         // cannot race with test_base_path_uses_forge_config_env_var.
-        let _guard = EnvGuard::set(&[]);
-        unsafe { std::env::remove_var("FORGE_CONFIG") };
+        let _guard = EnvGuard::set_and_remove(&[], &["FORGE_CONFIG"]);
 
         let actual = ConfigReader::base_path();
         // Without FORGE_CONFIG set the path must be either "forge" (legacy,
