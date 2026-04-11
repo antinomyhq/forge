@@ -42,13 +42,14 @@ fn build_hook_env_vars(
 ) -> HashMap<String, String> {
     let mut vars = HashMap::new();
 
-    vars.insert(
-        "FORGE_PROJECT_DIR".to_string(),
-        project_dir.display().to_string(),
-    );
+    let project_dir_str = project_dir.display().to_string();
+    vars.insert("FORGE_PROJECT_DIR".to_string(), project_dir_str.clone());
+    vars.insert("CLAUDE_PROJECT_DIR".to_string(), project_dir_str);
 
     if let Some(root) = plugin_root {
-        vars.insert("FORGE_PLUGIN_ROOT".to_string(), root.display().to_string());
+        let root_str = root.display().to_string();
+        vars.insert("FORGE_PLUGIN_ROOT".to_string(), root_str.clone());
+        vars.insert("CLAUDE_PLUGIN_ROOT".to_string(), root_str);
     }
 
     if let Some(name) = plugin_name {
@@ -68,6 +69,7 @@ fn build_hook_env_vars(
     }
 
     vars.insert("FORGE_SESSION_ID".to_string(), session_id.to_string());
+    vars.insert("CLAUDE_SESSION_ID".to_string(), session_id.to_string());
     vars.insert("FORGE_ENV_FILE".to_string(), env_file.display().to_string());
 
     vars
@@ -98,7 +100,15 @@ mod tests {
             Some("/proj")
         );
         assert_eq!(
+            actual.get("CLAUDE_PROJECT_DIR").map(String::as_str),
+            Some("/proj")
+        );
+        assert_eq!(
             actual.get("FORGE_SESSION_ID").map(String::as_str),
+            Some("sess-1")
+        );
+        assert_eq!(
+            actual.get("CLAUDE_SESSION_ID").map(String::as_str),
             Some("sess-1")
         );
         assert_eq!(
@@ -106,6 +116,7 @@ mod tests {
             Some("/tmp/env")
         );
         assert!(!actual.contains_key("FORGE_PLUGIN_ROOT"));
+        assert!(!actual.contains_key("CLAUDE_PLUGIN_ROOT"));
         assert!(!actual.contains_key("FORGE_PLUGIN_DATA"));
     }
 
@@ -124,6 +135,10 @@ mod tests {
 
         assert_eq!(
             actual.get("FORGE_PLUGIN_ROOT").map(String::as_str),
+            Some("/plugins/demo")
+        );
+        assert_eq!(
+            actual.get("CLAUDE_PLUGIN_ROOT").map(String::as_str),
             Some("/plugins/demo")
         );
         assert_eq!(

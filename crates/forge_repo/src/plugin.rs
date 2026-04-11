@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use anyhow::Context as _;
 use forge_app::domain::{
-    LoadedPlugin, McpServerConfig, PluginComponentPath, PluginLoadError, PluginLoadErrorKind,
-    PluginLoadResult, PluginManifest, PluginRepository, PluginSource,
+    LoadedPlugin, MarketplaceManifest, McpServerConfig, PluginComponentPath, PluginLoadError,
+    PluginLoadErrorKind, PluginLoadResult, PluginManifest, PluginRepository, PluginSource,
 };
 use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra};
 use forge_config::PluginSetting;
@@ -158,6 +158,13 @@ where
     /// are logged via `tracing::warn` for immediate operator visibility
     /// and also accumulated into the returned error vector so the Phase 9
     /// `:plugin list` command can surface them to the user.
+    ///
+    /// ## Marketplace and cache directory support
+    ///
+    /// When a child directory has no manifest, the scanner checks for
+    /// `marketplace.json` (marketplace indirection) and, for directories
+    /// named `cache` or `marketplaces`, recurses one additional level to
+    /// discover plugins inside Claude Code's nested directory layouts.
     async fn scan_root(
         &self,
         root: &Path,
@@ -173,31 +180,83 @@ where
             .await
             .with_context(|| format!("Failed to list plugin root: {}", root.display()))?;
 
-        let load_futs = entries
+        let child_dirs: Vec<PathBuf> = entries
             .into_iter()
             .filter(|(_, is_dir)| *is_dir)
-            .map(|(path, _)| {
-                let infra = Arc::clone(&self.infra);
-                let source_copy = source;
-                async move {
-                    let result = load_one_plugin(infra, path.clone(), source_copy).await;
-                    (path, result)
-                }
-            });
+            .map(|(path, _)| path)
+            .collect();
+
+        let load_futs = child_dirs.iter().map(|path| {
+            let infra = Arc::clone(&self.infra);
+            let source_copy = source;
+            let path = path.clone();
+            async move {
+                let result = load_one_plugin(Arc::clone(&infra), path.clone(), source_copy).await;
+                (path, result)
+            }
+        });
 
         let results = join_all(load_futs).await;
         let mut plugins = Vec::new();
         let mut errors = Vec::new();
         for (path, res) in results {
             match res {
-                Ok(Some(plugin)) => plugins.push(plugin),
-                Ok(None) => {}
+                Ok(Some(plugin)) => {
+                    // A manifest was found, but check if marketplace.json
+                    // also exists — if so, the marketplace indirection
+                    // takes precedence (the repo-root manifest is just
+                    // metadata, not the real plugin).
+                    match self.try_marketplace_resolution(&path, source).await {
+                        Ok(Some(mp_plugins)) => plugins.extend(mp_plugins),
+                        Ok(None) => plugins.push(plugin),
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed marketplace resolution for {}: {e:#}",
+                                path.display()
+                            );
+                            // Fall back to the repo-root plugin.
+                            plugins.push(plugin);
+                        }
+                    }
+                }
+                Ok(None) => {
+                    // No manifest found — try marketplace.json indirection.
+                    let mp_result = self
+                        .try_marketplace_resolution(&path, source)
+                        .await;
+                    match mp_result {
+                        Ok(Some(mp_plugins)) => plugins.extend(mp_plugins),
+                        Ok(None) => {
+                            // Not a marketplace dir either. If this is a
+                            // known container directory (cache/ or
+                            // marketplaces/), recurse one level deeper.
+                            if is_container_dir(&path) {
+                                let (sub_plugins, sub_errors) =
+                                    self.scan_container_children(&path, source).await;
+                                plugins.extend(sub_plugins);
+                                errors.extend(sub_errors);
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed marketplace resolution for {}: {e:#}",
+                                path.display()
+                            );
+                            let plugin_name =
+                                path.file_name().and_then(|s| s.to_str()).map(String::from);
+                            errors.push(PluginLoadError {
+                                plugin_name,
+                                path,
+                                kind: PluginLoadErrorKind::Other,
+                                error: format!("{e:#}"),
+                            });
+                        }
+                    }
+                }
                 Err(e) => {
                     tracing::warn!("Failed to load plugin: {e:#}");
-                    // Capture the directory name (if any) as a best-effort
-                    // plugin identifier; callers render this alongside the
-                    // error message in `:plugin list`.
-                    let plugin_name = path.file_name().and_then(|s| s.to_str()).map(String::from);
+                    let plugin_name =
+                        path.file_name().and_then(|s| s.to_str()).map(String::from);
                     errors.push(PluginLoadError {
                         plugin_name,
                         path,
@@ -209,6 +268,201 @@ where
         }
 
         Ok((plugins, errors))
+    }
+
+    /// Checks for a `marketplace.json` inside a directory and, if found,
+    /// resolves each plugin entry by calling [`load_one_plugin`] on the
+    /// resolved source path.
+    ///
+    /// Returns `Ok(Some(plugins))` when a marketplace manifest was found
+    /// and at least one entry was resolved, `Ok(None)` when no
+    /// marketplace manifest exists, or `Err` on I/O / parse failures.
+    async fn try_marketplace_resolution(
+        &self,
+        dir: &Path,
+        source: PluginSource,
+    ) -> anyhow::Result<Option<Vec<LoadedPlugin>>> {
+        let manifest_path = match find_marketplace_manifest(&self.infra, dir).await? {
+            Some(p) => p,
+            None => return Ok(None),
+        };
+
+        let raw = self
+            .infra
+            .read_utf8(&manifest_path)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to read marketplace manifest: {}",
+                    manifest_path.display()
+                )
+            })?;
+
+        let mp: MarketplaceManifest = serde_json::from_str(&raw).with_context(|| {
+            format!(
+                "Failed to parse marketplace manifest: {}",
+                manifest_path.display()
+            )
+        })?;
+
+        let mut resolved = Vec::new();
+        for entry in &mp.plugins {
+            let effective_root = dir.join(&entry.source);
+            if !self.infra.exists(&effective_root).await.unwrap_or(false) {
+                tracing::warn!(
+                    "Marketplace entry source path does not exist: {} (from {})",
+                    effective_root.display(),
+                    manifest_path.display()
+                );
+                continue;
+            }
+
+            match load_one_plugin(Arc::clone(&self.infra), effective_root.clone(), source).await {
+                Ok(Some(plugin)) => resolved.push(plugin),
+                Ok(None) => {
+                    tracing::warn!(
+                        "Marketplace source {} has no plugin manifest",
+                        effective_root.display()
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to load marketplace plugin at {}: {e:#}",
+                        effective_root.display()
+                    );
+                }
+            }
+        }
+
+        if resolved.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(resolved))
+        }
+    }
+
+    /// Scans children of a container directory (`cache/` or
+    /// `marketplaces/`) one level deeper, trying both direct plugin
+    /// loading and marketplace resolution on each grandchild.
+    ///
+    /// This handles Claude Code's nested layouts:
+    /// - `marketplaces/<author>/` (has marketplace.json)
+    /// - `cache/<author>/<plugin>/<version>/` (has plugin.json directly)
+    async fn scan_container_children(
+        &self,
+        container: &Path,
+        source: PluginSource,
+    ) -> (Vec<LoadedPlugin>, Vec<PluginLoadError>) {
+        let mut plugins = Vec::new();
+        let mut errors = Vec::new();
+
+        let entries = match self.infra.list_directory_entries(container).await {
+            Ok(e) => e,
+            Err(e) => {
+                tracing::warn!(
+                    "Failed to list container directory {}: {e:#}",
+                    container.display()
+                );
+                return (plugins, errors);
+            }
+        };
+
+        let child_dirs: Vec<PathBuf> = entries
+            .into_iter()
+            .filter(|(_, is_dir)| *is_dir)
+            .map(|(path, _)| path)
+            .collect();
+
+        for child in &child_dirs {
+            // Try direct plugin load first.
+            match load_one_plugin(Arc::clone(&self.infra), child.clone(), source).await {
+                Ok(Some(plugin)) => {
+                    plugins.push(plugin);
+                    continue;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    tracing::warn!("Failed to load plugin in container child: {e:#}");
+                    let plugin_name =
+                        child.file_name().and_then(|s| s.to_str()).map(String::from);
+                    errors.push(PluginLoadError {
+                        plugin_name,
+                        path: child.clone(),
+                        kind: PluginLoadErrorKind::Other,
+                        error: format!("{e:#}"),
+                    });
+                    continue;
+                }
+            }
+
+            // Try marketplace resolution.
+            match self.try_marketplace_resolution(child, source).await {
+                Ok(Some(mp_plugins)) => {
+                    plugins.extend(mp_plugins);
+                    continue;
+                }
+                Ok(None) => {}
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed marketplace resolution in container child {}: {e:#}",
+                        child.display()
+                    );
+                }
+            }
+
+            // For cache/ layout: recurse one more level
+            // (cache/<author>/<plugin>/ or cache/<author>/<plugin>/<version>/)
+            let grandchildren = match self.infra.list_directory_entries(child).await {
+                Ok(e) => e,
+                Err(_) => continue,
+            };
+
+            for (grandchild, is_dir) in grandchildren {
+                if !is_dir {
+                    continue;
+                }
+                match load_one_plugin(Arc::clone(&self.infra), grandchild.clone(), source).await {
+                    Ok(Some(plugin)) => plugins.push(plugin),
+                    Ok(None) => {
+                        // One more level for versioned directories
+                        // (cache/<author>/<plugin>/<version>/)
+                        let versions = match self.infra.list_directory_entries(&grandchild).await {
+                            Ok(e) => e,
+                            Err(_) => continue,
+                        };
+                        for (version_dir, is_dir) in versions {
+                            if !is_dir {
+                                continue;
+                            }
+                            match load_one_plugin(
+                                Arc::clone(&self.infra),
+                                version_dir.clone(),
+                                source,
+                            )
+                            .await
+                            {
+                                Ok(Some(plugin)) => plugins.push(plugin),
+                                Ok(None) => {}
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Failed to load versioned plugin at {}: {e:#}",
+                                        version_dir.display()
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(
+                            "Failed to load plugin at {}: {e:#}",
+                            grandchild.display()
+                        );
+                    }
+                }
+            }
+        }
+
+        (plugins, errors)
     }
 }
 
@@ -314,6 +568,41 @@ where
     }
 
     Ok(found.into_iter().next())
+}
+
+/// Locates a `marketplace.json` inside a plugin directory.
+///
+/// Probes two locations:
+/// 1. `<dir>/.claude-plugin/marketplace.json`
+/// 2. `<dir>/marketplace.json`
+///
+/// Returns the first existing path or `None`.
+async fn find_marketplace_manifest<I>(infra: &Arc<I>, dir: &Path) -> anyhow::Result<Option<PathBuf>>
+where
+    I: FileInfoInfra,
+{
+    let candidates = [
+        dir.join(".claude-plugin").join("marketplace.json"),
+        dir.join("marketplace.json"),
+    ];
+
+    for candidate in &candidates {
+        if infra.exists(candidate).await? {
+            return Ok(Some(candidate.clone()));
+        }
+    }
+
+    Ok(None)
+}
+
+/// Returns `true` when the directory basename is a known Claude Code
+/// container directory (`cache` or `marketplaces`) that may contain
+/// nested plugin hierarchies.
+fn is_container_dir(path: &Path) -> bool {
+    matches!(
+        path.file_name().and_then(|s| s.to_str()),
+        Some("cache" | "marketplaces")
+    )
 }
 
 /// Resolves a component directory list (`commands`, `agents`, `skills`).
@@ -604,13 +893,18 @@ mod tests {
             errors.is_empty(),
             "Claude Code fixture must load cleanly, but got errors: {errors:?}"
         );
+        // Expect 2 plugins: the existing claude_code_plugin and the
+        // marketplace-resolved inner-plugin from marketplace_author.
         assert_eq!(
             plugins.len(),
-            1,
-            "Expected exactly one plugin under the fixture root"
+            2,
+            "Expected exactly two plugins under the fixture root, got {:?}",
+            plugins.iter().map(|p| &p.name).collect::<Vec<_>>()
         );
 
-        let plugin = &plugins[0];
+        let plugin = plugins.iter().find(|p| p.name == "claude-code-demo").expect(
+            "claude-code-demo plugin should be discovered",
+        );
         assert_eq!(plugin.name, "claude-code-demo");
         assert_eq!(plugin.manifest.version.as_deref(), Some("0.1.0"));
         assert_eq!(
@@ -948,5 +1242,222 @@ mod tests {
             "winning plugin's path should be under the project root, got {:?}",
             resolved[0].path
         );
+    }
+
+    // =========================================================================
+    // Marketplace plugin discovery tests (Phase 1 — Tasks 1.2/1.4)
+    // =========================================================================
+
+    /// Marketplace fixture root containing a `.claude-plugin/marketplace.json`
+    /// that points at `./plugin` as the real plugin directory.
+    fn marketplace_fixtures_root() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src")
+            .join("fixtures")
+            .join("plugins")
+    }
+
+    /// `scan_root` discovers the nested `inner-plugin` via marketplace.json
+    /// indirection, not the repo-root `marketplace-root` manifest.
+    #[tokio::test]
+    async fn test_scan_root_discovers_marketplace_nested_plugin() {
+        let fixture_root = marketplace_fixtures_root();
+        let repo = fixture_plugin_repo();
+        let (plugins, errors) = repo
+            .scan_root(&fixture_root, PluginSource::ClaudeCode)
+            .await
+            .expect("scan_root should succeed for the marketplace fixture");
+
+        assert!(
+            errors.is_empty(),
+            "marketplace fixture must load cleanly, got errors: {errors:?}"
+        );
+
+        let inner = plugins.iter().find(|p| p.name == "inner-plugin");
+        assert!(
+            inner.is_some(),
+            "scan_root must discover the nested inner-plugin; found: {:?}",
+            plugins.iter().map(|p| &p.name).collect::<Vec<_>>()
+        );
+
+        // The repo-root `marketplace-root` should NOT appear as a separate
+        // plugin — marketplace.json presence tells the scanner to skip the
+        // repo-root manifest.
+        let root_plugin = plugins.iter().find(|p| p.name == "marketplace-root");
+        assert!(
+            root_plugin.is_none(),
+            "repo-root marketplace-root should not be loaded as a separate plugin"
+        );
+    }
+
+    /// The marketplace-resolved plugin has the correct name from its own
+    /// manifest, not the marketplace entry's name.
+    #[tokio::test]
+    async fn test_marketplace_plugin_has_correct_name() {
+        let fixture_root = marketplace_fixtures_root();
+        let repo = fixture_plugin_repo();
+        let (plugins, _) = repo
+            .scan_root(&fixture_root, PluginSource::ClaudeCode)
+            .await
+            .unwrap();
+
+        let inner = plugins
+            .iter()
+            .find(|p| p.name == "inner-plugin")
+            .expect("inner-plugin should be discovered");
+        assert_eq!(inner.manifest.name.as_deref(), Some("inner-plugin"));
+        assert_eq!(
+            inner.manifest.description.as_deref(),
+            Some("The actual plugin inside the marketplace")
+        );
+    }
+
+    /// Skills paths resolve to the nested plugin's skills directory.
+    #[tokio::test]
+    async fn test_marketplace_plugin_skills_paths() {
+        let fixture_root = marketplace_fixtures_root();
+        let repo = fixture_plugin_repo();
+        let (plugins, _) = repo
+            .scan_root(&fixture_root, PluginSource::ClaudeCode)
+            .await
+            .unwrap();
+
+        let inner = plugins
+            .iter()
+            .find(|p| p.name == "inner-plugin")
+            .expect("inner-plugin should be discovered");
+        assert_eq!(inner.skills_paths.len(), 1);
+        assert!(
+            inner.skills_paths[0].ends_with("marketplace_author/plugin/skills"),
+            "skills path should resolve to nested plugin's skills, got {:?}",
+            inner.skills_paths[0]
+        );
+    }
+
+    /// Commands paths resolve to the nested plugin's commands directory.
+    #[tokio::test]
+    async fn test_marketplace_plugin_commands_paths() {
+        let fixture_root = marketplace_fixtures_root();
+        let repo = fixture_plugin_repo();
+        let (plugins, _) = repo
+            .scan_root(&fixture_root, PluginSource::ClaudeCode)
+            .await
+            .unwrap();
+
+        let inner = plugins
+            .iter()
+            .find(|p| p.name == "inner-plugin")
+            .expect("inner-plugin should be discovered");
+        assert_eq!(inner.commands_paths.len(), 1);
+        assert!(
+            inner.commands_paths[0].ends_with("marketplace_author/plugin/commands"),
+            "commands path should resolve to nested plugin's commands, got {:?}",
+            inner.commands_paths[0]
+        );
+    }
+
+    /// MCP servers from the nested `.mcp.json` sidecar are picked up.
+    #[tokio::test]
+    async fn test_marketplace_plugin_mcp_servers() {
+        let fixture_root = marketplace_fixtures_root();
+        let repo = fixture_plugin_repo();
+        let (plugins, _) = repo
+            .scan_root(&fixture_root, PluginSource::ClaudeCode)
+            .await
+            .unwrap();
+
+        let inner = plugins
+            .iter()
+            .find(|p| p.name == "inner-plugin")
+            .expect("inner-plugin should be discovered");
+        let mcp = inner
+            .mcp_servers
+            .as_ref()
+            .expect("inner-plugin must have MCP servers from .mcp.json sidecar");
+        assert_eq!(
+            mcp.len(),
+            1,
+            "expected 1 MCP server, got {:?}",
+            mcp.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            mcp.contains_key("demo-server"),
+            "expected demo-server MCP entry, got {:?}",
+            mcp.keys().collect::<Vec<_>>()
+        );
+    }
+
+    /// Container directories (cache/, marketplaces/) are recursed into.
+    #[tokio::test]
+    async fn test_scan_root_recurses_into_container_dirs() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // Simulate: root/marketplaces/author/ with marketplace.json
+        let author_dir = root.join("marketplaces").join("test-author");
+        let plugin_dir = author_dir.join("plugin");
+        fs::create_dir_all(author_dir.join(".claude-plugin")).unwrap();
+        fs::create_dir_all(plugin_dir.join(".claude-plugin")).unwrap();
+
+        fs::write(
+            author_dir.join(".claude-plugin").join("marketplace.json"),
+            r#"{ "plugins": [{ "source": "./plugin" }] }"#,
+        )
+        .unwrap();
+        fs::write(
+            plugin_dir.join(".claude-plugin").join("plugin.json"),
+            r#"{ "name": "container-nested" }"#,
+        )
+        .unwrap();
+
+        let repo = fixture_plugin_repo();
+        let (plugins, errors) = repo
+            .scan_root(root, PluginSource::ClaudeCode)
+            .await
+            .unwrap();
+
+        assert!(errors.is_empty(), "no errors expected, got: {errors:?}");
+        assert_eq!(
+            plugins.len(),
+            1,
+            "expected 1 plugin from marketplaces/ container, got {:?}",
+            plugins.iter().map(|p| &p.name).collect::<Vec<_>>()
+        );
+        assert_eq!(plugins[0].name, "container-nested");
+    }
+
+    /// Cache container directory with versioned layout is recursed into.
+    #[tokio::test]
+    async fn test_scan_root_recurses_into_cache_versioned_layout() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // Simulate: root/cache/author/plugin-name/1.0.0/ with plugin.json
+        let version_dir = root
+            .join("cache")
+            .join("author")
+            .join("my-plugin")
+            .join("1.0.0");
+        fs::create_dir_all(version_dir.join(".claude-plugin")).unwrap();
+        fs::write(
+            version_dir.join(".claude-plugin").join("plugin.json"),
+            r#"{ "name": "cached-plugin", "version": "1.0.0" }"#,
+        )
+        .unwrap();
+
+        let repo = fixture_plugin_repo();
+        let (plugins, errors) = repo
+            .scan_root(root, PluginSource::ClaudeCode)
+            .await
+            .unwrap();
+
+        assert!(errors.is_empty(), "no errors expected, got: {errors:?}");
+        assert_eq!(
+            plugins.len(),
+            1,
+            "expected 1 plugin from cache/ versioned layout, got {:?}",
+            plugins.iter().map(|p| &p.name).collect::<Vec<_>>()
+        );
+        assert_eq!(plugins[0].name, "cached-plugin");
     }
 }

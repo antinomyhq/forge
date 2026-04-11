@@ -1,0 +1,11 @@
+{
+  "name": "test-author",
+  "plugins": [
+    {
+      "name": "inner-plugin",
+      "source": "./plugin",
+      "version": "1.0.0",
+      "description": "Nested plugin inside marketplace"
+    }
+  ]
+}

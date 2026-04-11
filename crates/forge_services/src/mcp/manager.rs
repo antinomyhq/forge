@@ -19,6 +19,12 @@ use merge::Merge;
 const FORGE_PLUGIN_ROOT_ENV: &str = "FORGE_PLUGIN_ROOT";
 const FORGE_PROJECT_DIR_ENV: &str = "FORGE_PROJECT_DIR";
 
+/// Claude Code compatibility aliases — injected alongside the `FORGE_*`
+/// counterparts so marketplace plugins that reference `$CLAUDE_*` variables
+/// work under Forge without modification.
+const CLAUDE_PLUGIN_ROOT_ENV_ALIAS: &str = "CLAUDE_PLUGIN_ROOT";
+const CLAUDE_PROJECT_DIR_ENV_ALIAS: &str = "CLAUDE_PROJECT_DIR";
+
 pub struct ForgeMcpManager<I> {
     infra: Arc<I>,
     /// Optional plugin repository used to discover plugin-contributed MCP
@@ -118,7 +124,15 @@ where
                             .or_insert_with(|| plugin_root.clone());
                         stdio
                             .env
+                            .entry(CLAUDE_PLUGIN_ROOT_ENV_ALIAS.to_string())
+                            .or_insert_with(|| plugin_root.clone());
+                        stdio
+                            .env
                             .entry(FORGE_PROJECT_DIR_ENV.to_string())
+                            .or_insert_with(|| project_dir.clone());
+                        stdio
+                            .env
+                            .entry(CLAUDE_PROJECT_DIR_ENV_ALIAS.to_string())
                             .or_insert_with(|| project_dir.clone());
                         McpServerConfig::Stdio(stdio)
                     }
@@ -435,7 +449,15 @@ mod tests {
             Some("/tmp/plugins/acme")
         );
         assert_eq!(
+            stdio.env.get(CLAUDE_PLUGIN_ROOT_ENV_ALIAS).map(String::as_str),
+            Some("/tmp/plugins/acme")
+        );
+        assert_eq!(
             stdio.env.get(FORGE_PROJECT_DIR_ENV).map(String::as_str),
+            Some("/workspace/test")
+        );
+        assert_eq!(
+            stdio.env.get(CLAUDE_PROJECT_DIR_ENV_ALIAS).map(String::as_str),
             Some("/workspace/test")
         );
     }
@@ -475,6 +497,16 @@ mod tests {
         // wasn't present.
         assert_eq!(
             stdio.env.get(FORGE_PROJECT_DIR_ENV).map(String::as_str),
+            Some("/workspace/test")
+        );
+        // CLAUDE_* aliases should also be injected.
+        assert_eq!(
+            stdio.env.get(CLAUDE_PLUGIN_ROOT_ENV_ALIAS).map(String::as_str),
+            Some("/tmp/plugins/acme"),
+            "CLAUDE_PLUGIN_ROOT should be injected from plugin path"
+        );
+        assert_eq!(
+            stdio.env.get(CLAUDE_PROJECT_DIR_ENV_ALIAS).map(String::as_str),
             Some("/workspace/test")
         );
     }

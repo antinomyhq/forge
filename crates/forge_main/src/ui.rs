@@ -138,7 +138,12 @@ fn format_plugin_components(plugin: &forge_domain::LoadedPlugin) -> String {
         0
     };
     let mcp = plugin.mcp_servers.as_ref().map(|m| m.len()).unwrap_or(0);
-    format!("{skills} skills, {commands} cmds, {hooks} hooks, {agents} agents, {mcp} mcp")
+    let modes = count_entries(&plugin.path, "modes");
+    let mut parts = format!("{skills} skills, {commands} cmds, {hooks} hooks, {agents} agents, {mcp} mcp");
+    if modes > 0 {
+        parts.push_str(&format!(", {modes} modes"));
+    }
+    parts
 }
 
 /// Directory entries to skip when copying a plugin into the user plugins
@@ -4730,6 +4735,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             "none"
         };
         let mcp_count = plugin.mcp_servers.as_ref().map(|m| m.len()).unwrap_or(0);
+        let modes_count = count_entries(&plugin.path, "modes");
 
         info = info
             .add_title("COMPONENTS")
@@ -4738,6 +4744,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .add_key_value("Agents Paths", agents_count.to_string())
             .add_key_value("Hooks", hooks_status)
             .add_key_value("MCP Servers", mcp_count.to_string());
+
+        if modes_count > 0 {
+            info = info.add_key_value("Modes", modes_count.to_string());
+        }
 
         self.writeln(info)?;
         Ok(())
@@ -4823,6 +4833,58 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             )
         })?;
 
+        // --- 2b. Check for marketplace indirection ---
+        // If a sibling marketplace.json exists next to the manifest, it
+        // points to the real plugin root. Re-resolve source, manifest,
+        // and name from the effective root.
+        let (source, manifest, name) = {
+            let marketplace_path = manifest_path
+                .parent()
+                .map(|p| p.join("marketplace.json"));
+            if let Some(mp) = marketplace_path.filter(|p| p.exists()) {
+                let mp_raw = std::fs::read_to_string(&mp)
+                    .with_context(|| {
+                        format!("Failed to read marketplace manifest: {}", mp.display())
+                    })?;
+                let mp_manifest: forge_domain::MarketplaceManifest =
+                    serde_json::from_str(&mp_raw).with_context(|| {
+                        format!("Failed to parse marketplace manifest: {}", mp.display())
+                    })?;
+
+                if let Some(entry) = mp_manifest.plugins.first() {
+                    let effective_root = source.join(&entry.source);
+                    let effective_root =
+                        std::fs::canonicalize(&effective_root).with_context(|| {
+                            format!(
+                                "Marketplace source path does not exist: {}",
+                                effective_root.display()
+                            )
+                        })?;
+
+                    // Re-locate manifest in the effective root.
+                    let effective_manifest_path =
+                        find_install_manifest(&effective_root)?.ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "No plugin manifest found in marketplace source: {}",
+                                effective_root.display()
+                            )
+                        })?;
+                    let effective_raw = std::fs::read_to_string(&effective_manifest_path)?;
+                    let effective_manifest: forge_domain::PluginManifest =
+                        serde_json::from_str(&effective_raw)?;
+                    let effective_name = effective_manifest
+                        .name
+                        .clone()
+                        .unwrap_or_else(|| name.clone());
+                    (effective_root, effective_manifest, effective_name)
+                } else {
+                    (source, manifest, name)
+                }
+            } else {
+                (source, manifest, name)
+            }
+        };
+
         // --- 3. Compute target path and check for overwrite ---
         let env = self.api.environment();
         let target = env.plugin_path().join(&name);
@@ -4861,7 +4923,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         let has_hooks = source.join("hooks/hooks.json").exists()
             || source.join("hooks.json").exists()
             || manifest.hooks.is_some();
-        let mcp_count = manifest.mcp_servers.as_ref().map(|m| m.len()).unwrap_or(0);
+        let mcp_count = {
+            let mut count = manifest.mcp_servers.as_ref().map(|m| m.len()).unwrap_or(0);
+            // Also count MCP servers from .mcp.json sidecar (Claude Code
+            // plugins typically declare MCP servers there, not inline).
+            let sidecar = source.join(".mcp.json");
+            if sidecar.exists() {
+                if let Ok(raw) = std::fs::read_to_string(&sidecar) {
+                    #[derive(serde::Deserialize)]
+                    struct McpJsonFile {
+                        #[serde(default, alias = "mcpServers")]
+                        mcp_servers: std::collections::BTreeMap<String, serde_json::Value>,
+                    }
+                    if let Ok(parsed) = serde_json::from_str::<McpJsonFile>(&raw) {
+                        // Only count sidecar servers not already in the manifest.
+                        for key in parsed.mcp_servers.keys() {
+                            if !manifest
+                                .mcp_servers
+                                .as_ref()
+                                .map(|m| m.contains_key(key))
+                                .unwrap_or(false)
+                            {
+                                count += 1;
+                            }
+                        }
+                    }
+                }
+            }
+            count
+        };
 
         let mut trust = Info::new()
             .add_title("PLUGIN INSTALLATION")
@@ -4875,6 +4965,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             trust = trust.add_key_value("Description", description);
         }
 
+        let modes_count = count_entries(&source, "modes");
+
         trust = trust
             .add_title("COMPONENTS")
             .add_key_value("Skills", skills_count.to_string())
@@ -4882,6 +4974,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .add_key_value("Agents", agents_count.to_string())
             .add_key_value("Hooks", if has_hooks { "present" } else { "none" })
             .add_key_value("MCP Servers", mcp_count.to_string());
+
+        if modes_count > 0 {
+            trust = trust.add_key_value("Modes", modes_count.to_string());
+        }
 
         self.writeln(trust)?;
         self.writeln_title(TitleFormat::warning(
@@ -4936,4 +5032,161 @@ mod tests {
     // ForgeWidget::confirm is not easily mockable in the current
     // architecture. The functionality is tested through integration tests
     // instead.
+
+    use pretty_assertions::assert_eq;
+    use tempfile::TempDir;
+
+    use super::*;
+
+    /// `find_install_manifest` finds `.claude-plugin/plugin.json` in the
+    /// repo root when present.
+    #[test]
+    fn test_find_install_manifest_claude_plugin() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        std::fs::create_dir_all(root.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            root.join(".claude-plugin").join("plugin.json"),
+            r#"{ "name": "test" }"#,
+        )
+        .unwrap();
+
+        let actual = find_install_manifest(root).unwrap();
+        assert!(actual.is_some());
+        assert!(actual.unwrap().ends_with(".claude-plugin/plugin.json"));
+    }
+
+    /// `find_install_manifest` returns `None` when no manifest exists.
+    #[test]
+    fn test_find_install_manifest_returns_none_for_empty_dir() {
+        let temp = TempDir::new().unwrap();
+        let actual = find_install_manifest(temp.path()).unwrap();
+        assert_eq!(actual, None);
+    }
+
+    /// Marketplace detection resolves to the nested plugin root,
+    /// not the repo-root manifest.
+    #[test]
+    fn test_marketplace_resolution_finds_nested_plugin() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // Set up marketplace repo structure.
+        std::fs::create_dir_all(root.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            root.join(".claude-plugin").join("plugin.json"),
+            r#"{ "name": "repo-root", "version": "1.0.0" }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            root.join(".claude-plugin").join("marketplace.json"),
+            r#"{ "plugins": [{ "name": "nested", "source": "./plugin" }] }"#,
+        )
+        .unwrap();
+
+        // Set up nested plugin.
+        let plugin_dir = root.join("plugin");
+        std::fs::create_dir_all(plugin_dir.join(".claude-plugin")).unwrap();
+        std::fs::write(
+            plugin_dir.join(".claude-plugin").join("plugin.json"),
+            r#"{ "name": "nested-plugin", "version": "2.0.0" }"#,
+        )
+        .unwrap();
+
+        // Simulate the marketplace resolution logic from on_plugin_install.
+        let manifest_path = find_install_manifest(root).unwrap().unwrap();
+        let manifest_raw = std::fs::read_to_string(&manifest_path).unwrap();
+        let manifest: forge_domain::PluginManifest =
+            serde_json::from_str(&manifest_raw).unwrap();
+        let name = manifest.name.clone().unwrap();
+        assert_eq!(name, "repo-root");
+
+        // Check for marketplace.json sibling.
+        let mp_path = manifest_path.parent().unwrap().join("marketplace.json");
+        assert!(mp_path.exists(), "marketplace.json should exist");
+
+        let mp_raw = std::fs::read_to_string(&mp_path).unwrap();
+        let mp: forge_domain::MarketplaceManifest = serde_json::from_str(&mp_raw).unwrap();
+        assert_eq!(mp.plugins.len(), 1);
+        assert_eq!(mp.plugins[0].source, "./plugin");
+
+        // Resolve effective root.
+        let effective_root = std::fs::canonicalize(root.join(&mp.plugins[0].source)).unwrap();
+        let effective_manifest = find_install_manifest(&effective_root).unwrap().unwrap();
+        let effective_raw = std::fs::read_to_string(&effective_manifest).unwrap();
+        let effective: forge_domain::PluginManifest =
+            serde_json::from_str(&effective_raw).unwrap();
+        assert_eq!(effective.name.as_deref(), Some("nested-plugin"));
+        assert_eq!(effective.version.as_deref(), Some("2.0.0"));
+    }
+
+    /// `count_entries` returns the correct count for a populated
+    /// subdirectory and 0 for missing ones.
+    #[test]
+    fn test_count_entries_on_effective_root() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // Create skills directory with 3 entries.
+        let skills = root.join("skills");
+        std::fs::create_dir_all(&skills).unwrap();
+        std::fs::create_dir(skills.join("skill-a")).unwrap();
+        std::fs::create_dir(skills.join("skill-b")).unwrap();
+        std::fs::create_dir(skills.join("skill-c")).unwrap();
+
+        // Create commands directory with 1 entry.
+        let commands = root.join("commands");
+        std::fs::create_dir_all(&commands).unwrap();
+        std::fs::write(commands.join("cmd.md"), "test").unwrap();
+
+        assert_eq!(count_entries(root, "skills"), 3);
+        assert_eq!(count_entries(root, "commands"), 1);
+        assert_eq!(count_entries(root, "agents"), 0);
+    }
+
+    /// MCP server count includes sidecar `.mcp.json` entries.
+    #[test]
+    fn test_mcp_sidecar_count() {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+
+        // Write a .mcp.json sidecar with 2 servers.
+        std::fs::write(
+            root.join(".mcp.json"),
+            r#"{
+                "mcpServers": {
+                    "server-a": { "command": "node", "args": ["a.js"] },
+                    "server-b": { "command": "node", "args": ["b.js"] }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        // Simulate the MCP count logic from on_plugin_install.
+        let manifest = forge_domain::PluginManifest::default();
+        let mut count = manifest.mcp_servers.as_ref().map(|m| m.len()).unwrap_or(0);
+        let sidecar = root.join(".mcp.json");
+        if sidecar.exists() {
+            if let Ok(raw) = std::fs::read_to_string(&sidecar) {
+                #[derive(serde::Deserialize)]
+                struct McpJsonFile {
+                    #[serde(default, alias = "mcpServers")]
+                    mcp_servers: std::collections::BTreeMap<String, serde_json::Value>,
+                }
+                if let Ok(parsed) = serde_json::from_str::<McpJsonFile>(&raw) {
+                    for key in parsed.mcp_servers.keys() {
+                        if !manifest
+                            .mcp_servers
+                            .as_ref()
+                            .map(|m| m.contains_key(key))
+                            .unwrap_or(false)
+                        {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(count, 2);
+    }
 }

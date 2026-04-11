@@ -170,6 +170,47 @@ pub struct PluginHooksConfig {
     pub raw: serde_json::Value,
 }
 
+/// Claude Code marketplace manifest, parsed from `marketplace.json`.
+///
+/// A marketplace directory wraps one or more plugins with a `source` field
+/// that points to the real plugin root relative to the `marketplace.json`
+/// location. Forge uses this indirection to discover plugins inside
+/// `~/.claude/plugins/marketplaces/<author>/` hierarchies.
+///
+/// Reference: Claude Code's marketplace install flow.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarketplaceManifest {
+    /// Display name of the marketplace (usually the author/org handle).
+    #[serde(default)]
+    pub name: Option<String>,
+
+    /// One or more plugin entries with their source paths.
+    #[serde(default)]
+    pub plugins: Vec<MarketplacePluginEntry>,
+}
+
+/// A single plugin entry inside a [`MarketplaceManifest`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarketplacePluginEntry {
+    /// Plugin name (may differ from the directory name).
+    #[serde(default)]
+    pub name: Option<String>,
+
+    /// Relative path from the marketplace root to the plugin directory
+    /// (e.g. `"./plugin"`).
+    pub source: String,
+
+    /// Plugin version string.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+
+    /// Plugin description.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// Where a plugin was discovered. Used by the loader for precedence rules
 /// (Project > Global > Builtin) and shown to the user in `:plugin list`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -513,6 +554,97 @@ mod tests {
 
         let expected = PluginLoadResult { plugins, errors };
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_marketplace_manifest_full() {
+        let json = r#"{
+            "name": "test-author",
+            "plugins": [
+                {
+                    "name": "inner-plugin",
+                    "source": "./plugin",
+                    "version": "1.0.0",
+                    "description": "Nested plugin inside marketplace"
+                }
+            ]
+        }"#;
+        let actual: MarketplaceManifest = serde_json::from_str(json).unwrap();
+        let expected = MarketplaceManifest {
+            name: Some("test-author".to_string()),
+            plugins: vec![MarketplacePluginEntry {
+                name: Some("inner-plugin".to_string()),
+                source: "./plugin".to_string(),
+                version: Some("1.0.0".to_string()),
+                description: Some("Nested plugin inside marketplace".to_string()),
+            }],
+        };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_marketplace_manifest_minimal() {
+        let json = r#"{ "plugins": [{ "source": "./plugin" }] }"#;
+        let actual: MarketplaceManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(actual.name, None);
+        assert_eq!(actual.plugins.len(), 1);
+        assert_eq!(actual.plugins[0].source, "./plugin");
+        assert_eq!(actual.plugins[0].name, None);
+        assert_eq!(actual.plugins[0].version, None);
+        assert_eq!(actual.plugins[0].description, None);
+    }
+
+    #[test]
+    fn test_parse_marketplace_manifest_empty_plugins() {
+        let json = r#"{ "name": "empty-marketplace" }"#;
+        let actual: MarketplaceManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(actual.name, Some("empty-marketplace".to_string()));
+        assert!(actual.plugins.is_empty());
+    }
+
+    #[test]
+    fn test_parse_marketplace_manifest_multiple_plugins() {
+        let json = r#"{
+            "name": "multi-author",
+            "plugins": [
+                { "name": "plugin-a", "source": "./a" },
+                { "name": "plugin-b", "source": "./b", "version": "2.0.0" }
+            ]
+        }"#;
+        let actual: MarketplaceManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(actual.plugins.len(), 2);
+        assert_eq!(actual.plugins[0].name.as_deref(), Some("plugin-a"));
+        assert_eq!(actual.plugins[0].source, "./a");
+        assert_eq!(actual.plugins[1].name.as_deref(), Some("plugin-b"));
+        assert_eq!(actual.plugins[1].source, "./b");
+        assert_eq!(actual.plugins[1].version.as_deref(), Some("2.0.0"));
+    }
+
+    #[test]
+    fn test_parse_marketplace_manifest_camel_case_compat() {
+        // Verify camelCase fields work (Claude Code wire format)
+        let json = r#"{
+            "name": "test",
+            "plugins": [{ "source": "./plugin" }]
+        }"#;
+        let actual: MarketplaceManifest = serde_json::from_str(json).unwrap();
+        assert_eq!(actual.plugins.len(), 1);
+    }
+
+    #[test]
+    fn test_parse_marketplace_manifest_roundtrip() {
+        let manifest = MarketplaceManifest {
+            name: Some("round-trip".to_string()),
+            plugins: vec![MarketplacePluginEntry {
+                name: Some("demo".to_string()),
+                source: "./plugin".to_string(),
+                version: Some("1.0.0".to_string()),
+                description: None,
+            }],
+        };
+        let json = serde_json::to_string(&manifest).unwrap();
+        let actual: MarketplaceManifest = serde_json::from_str(&json).unwrap();
+        assert_eq!(actual, manifest);
     }
 
     #[test]

@@ -47,6 +47,13 @@ const FORGE_PLUGIN_ROOT: &str = "FORGE_PLUGIN_ROOT";
 const FORGE_PLUGIN_DATA: &str = "FORGE_PLUGIN_DATA";
 const FORGE_PLUGIN_OPTION_PREFIX: &str = "FORGE_PLUGIN_OPTION_";
 const FORGE_ENV_FILE: &str = "FORGE_ENV_FILE";
+
+// Claude Code compatibility aliases — injected alongside the FORGE_*
+// counterparts so marketplace plugins that reference $CLAUDE_* variables
+// work under Forge without modification.
+const CLAUDE_PLUGIN_ROOT: &str = "CLAUDE_PLUGIN_ROOT";
+const CLAUDE_PROJECT_DIR: &str = "CLAUDE_PROJECT_DIR";
+const CLAUDE_SESSION_ID: &str = "CLAUDE_SESSION_ID";
 /// Subdirectory under `base_path` where per-plugin data is stored.
 const PLUGIN_DATA_DIR: &str = "plugin-data";
 
@@ -260,15 +267,17 @@ impl<S: Services> PluginHookHandler<S> {
 
                         // Build FORGE_* env vars from the available context.
                         let mut env_vars = HashMap::new();
-                        env_vars.insert(
-                            FORGE_PROJECT_DIR.to_string(),
-                            input.base.cwd.display().to_string(),
-                        );
+                        let cwd_str = input.base.cwd.display().to_string();
+                        env_vars.insert(FORGE_PROJECT_DIR.to_string(), cwd_str.clone());
+                        env_vars.insert(CLAUDE_PROJECT_DIR.to_string(), cwd_str);
                         env_vars
                             .insert(FORGE_SESSION_ID.to_string(), input.base.session_id.clone());
+                        env_vars
+                            .insert(CLAUDE_SESSION_ID.to_string(), input.base.session_id.clone());
                         if let Some(ref root) = source.plugin_root {
-                            env_vars
-                                .insert(FORGE_PLUGIN_ROOT.to_string(), root.display().to_string());
+                            let root_str = root.display().to_string();
+                            env_vars.insert(FORGE_PLUGIN_ROOT.to_string(), root_str.clone());
+                            env_vars.insert(CLAUDE_PLUGIN_ROOT.to_string(), root_str);
                         }
                         if let Some(ref name) = source.plugin_name {
                             let data_dir = base_path.join(PLUGIN_DATA_DIR).join(name);
