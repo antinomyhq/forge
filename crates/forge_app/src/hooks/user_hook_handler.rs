@@ -84,20 +84,22 @@ impl<I> UserHookHandler<I> {
         for groups in config.events.values() {
             for group in groups {
                 if let Some(pattern) = &group.matcher
-                    && !pattern.is_empty() && !cache.contains_key(pattern) {
-                        match Regex::new(pattern) {
-                            Ok(re) => {
-                                cache.insert(pattern.clone(), re);
-                            }
-                            Err(e) => {
-                                warn!(
-                                    pattern = pattern,
-                                    error = %e,
-                                    "Invalid regex in hook matcher, will be skipped at match time"
-                                );
-                            }
+                    && !pattern.is_empty()
+                    && !cache.contains_key(pattern)
+                {
+                    match Regex::new(pattern) {
+                        Ok(re) => {
+                            cache.insert(pattern.clone(), re);
+                        }
+                        Err(e) => {
+                            warn!(
+                                pattern = pattern,
+                                error = %e,
+                                "Invalid regex in hook matcher, will be skipped at match time"
+                            );
                         }
                     }
+                }
             }
         }
         cache
@@ -150,9 +152,9 @@ impl<I> UserHookHandler<I> {
                     // Matcher specified but no subject to match against; skip
                     false
                 }
-                (Some(pattern), Some(subj)) => regex_cache
-                    .get(pattern)
-                    .is_some_and(|re| re.is_match(subj)),
+                (Some(pattern), Some(subj)) => {
+                    regex_cache.get(pattern).is_some_and(|re| re.is_match(subj))
+                }
             };
 
             if matches {
@@ -840,10 +842,12 @@ mod tests {
         let mut cache = HashMap::new();
         for group in groups {
             if let Some(pattern) = &group.matcher
-                && !pattern.is_empty() && !cache.contains_key(pattern)
-                    && let Ok(re) = Regex::new(pattern) {
-                        cache.insert(pattern.clone(), re);
-                    }
+                && !pattern.is_empty()
+                && !cache.contains_key(pattern)
+                && let Ok(re) = Regex::new(pattern)
+            {
+                cache.insert(pattern.clone(), re);
+            }
         }
         cache
     }
