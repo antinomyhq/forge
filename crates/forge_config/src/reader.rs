@@ -196,6 +196,11 @@ mod tests {
 
     #[test]
     fn test_base_path_falls_back_to_home_dir_when_env_var_absent() {
+        // Hold the env mutex and ensure FORGE_CONFIG is absent so this test
+        // cannot race with test_base_path_uses_forge_config_env_var.
+        let _guard = EnvGuard::set(&[]);
+        unsafe { std::env::remove_var("FORGE_CONFIG") };
+
         let actual = ConfigReader::base_path();
         // Without FORGE_CONFIG set the path must be either "forge" (legacy,
         // preferred when ~/forge exists) or ".forge" (default new path).
