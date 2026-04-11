@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -97,13 +98,22 @@ pub struct StreamingWriter<P: ConsoleWriter> {
     active: Option<ActiveRenderer<P>>,
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
+    /// Tracks whether the last byte written to the terminal was a newline.
+    /// Shared with the active `StreamDirectWriter` so it stays up-to-date
+    /// across writes. Initialized to `true` (cursor starts at column 0).
+    ends_with_newline: Arc<AtomicBool>,
 }
 
 impl<P: ConsoleWriter + 'static> StreamingWriter<P> {
     /// Creates a new stream writer with the given shared spinner and output
     /// printer.
     pub fn new(spinner: SharedSpinner<P>, printer: Arc<P>) -> Self {
-        Self { active: None, spinner, printer }
+        Self {
+            active: None,
+            spinner,
+            printer,
+            ends_with_newline: Arc::new(AtomicBool::new(true)),
+        }
     }
 
     /// Writes markdown content with normal styling.
@@ -120,6 +130,21 @@ impl<P: ConsoleWriter + 'static> StreamingWriter<P> {
     pub fn finish(&mut self) -> Result<()> {
         if let Some(active) = self.active.take() {
             active.finish()?;
+            // Ensure the cursor is on a fresh line after the response.
+            //
+            // Short responses (e.g. "Hi!") are rendered as plain inline text
+            // without a trailing newline, leaving the cursor on the same line
+            // as the content. The indicatif spinner's background tick thread
+            // can then draw on that same line, and when finish_and_clear() is
+            // later called it erases both the spinner AND the response text.
+            //
+            // Writing a '\n' here moves the cursor to a new line before any
+            // subsequent spinner operations, preventing the erasure.
+            if !self.ends_with_newline.load(Ordering::Relaxed) {
+                let _ = self.printer.write(b"\n");
+                let _ = self.printer.flush();
+                self.ends_with_newline.store(true, Ordering::Relaxed);
+            }
         }
         Ok(())
     }
@@ -144,6 +169,7 @@ impl<P: ConsoleWriter + 'static> StreamingWriter<P> {
                 spinner: self.spinner.clone(),
                 printer: self.printer.clone(),
                 style: new_style,
+                ends_with_newline: self.ends_with_newline.clone(),
             };
             let renderer = StreamdownRenderer::new(writer, term_width());
             self.active = Some(ActiveRenderer { renderer, style: new_style });
@@ -175,6 +201,8 @@ struct StreamDirectWriter<P: ConsoleWriter> {
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
     style: Style,
+    /// Shared flag that tracks whether the last written byte was '\n'.
+    ends_with_newline: Arc<AtomicBool>,
 }
 
 impl<P: ConsoleWriter> StreamDirectWriter<P> {
@@ -207,7 +235,10 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
         self.printer.flush()?;
 
         // Track if we ended on a newline - only safe to show spinner at line start
-        if buf.last() == Some(&b'\n') {
+        let last_is_newline = buf.last() == Some(&b'\n');
+        self.ends_with_newline
+            .store(last_is_newline, Ordering::Relaxed);
+        if last_is_newline {
             self.resume_spinner();
         }
 
