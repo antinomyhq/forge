@@ -43,6 +43,7 @@ tracing.workspace = true
 chrono.workspace = true
 serde_json.workspace = true
 serde.workspace = true
+toml_edit.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 
@@ -52,6 +53,7 @@ update-informer = { version = "1.2.0", default-features = false, features = [
     "ureq",
     "rustls-tls",
 ] }
+dirs.workspace = true
 open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
@@ -67,6 +69,7 @@ strip-ansi-escapes.workspace = true
 terminal_size = "0.4"
 rustls.workspace = true
 tempfile.workspace = true
+tiny_http.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 enable-ansi-support.workspace = true

@@ -34,3 +34,7 @@ typeset -h _FORGE_PREVIOUS_CONVERSATION_ID
 # invocation for the lifetime of the current shell session.
 typeset -h _FORGE_SESSION_MODEL
 typeset -h _FORGE_SESSION_PROVIDER
+
+# Session-scoped reasoning effort override (set via :reasoning-effort / :re).
+# When non-empty, exported as FORGE_REASONING__EFFORT for every forge invocation.
+typeset -h _FORGE_SESSION_REASONING_EFFORT
