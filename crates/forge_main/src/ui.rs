@@ -462,6 +462,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
                 }
                 return Ok(());
             }
+            TopLevelCommand::Fish(fish_group) => {
+                match fish_group {
+                    crate::cli::FishCommandGroup::Plugin => {
+                        self.on_fish_plugin().await?;
+                    }
+                    crate::cli::FishCommandGroup::Theme => {
+                        self.on_fish_theme().await?;
+                    }
+                    crate::cli::FishCommandGroup::Doctor => {
+                        self.on_fish_doctor().await?;
+                    }
+                    crate::cli::FishCommandGroup::Rprompt => {
+                        if let Some(text) = self.handle_fish_rprompt_command().await {
+                            print!("{}", text)
+                        }
+                        return Ok(());
+                    }
+                    crate::cli::FishCommandGroup::Setup => {
+                        self.on_fish_setup().await?;
+                    }
+                    crate::cli::FishCommandGroup::Keyboard => {
+                        self.on_fish_keyboard().await?;
+                    }
+                }
+                return Ok(());
+            }
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Import(import_args) => {
                     let scope: forge_domain::Scope = import_args.scope.into();
@@ -1665,6 +1691,137 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
         crate::zsh::run_zsh_keyboard()?;
 
         Ok(())
+    }
+
+    /// Generate Fish plugin script
+    async fn on_fish_plugin(&self) -> anyhow::Result<()> {
+        let plugin = crate::fish::generate_fish_plugin()?;
+        println!("{plugin}");
+        Ok(())
+    }
+
+    /// Generate Fish theme
+    async fn on_fish_theme(&self) -> anyhow::Result<()> {
+        let theme = crate::fish::generate_fish_theme()?;
+        println!("{theme}");
+        Ok(())
+    }
+
+    /// Run Fish environment diagnostics
+    async fn on_fish_doctor(&mut self) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+        crate::fish::run_fish_doctor()?;
+        Ok(())
+    }
+
+    /// Show Fish keyboard shortcuts
+    async fn on_fish_keyboard(&mut self) -> anyhow::Result<()> {
+        self.spinner.stop(None)?;
+        crate::fish::run_fish_keyboard()?;
+        Ok(())
+    }
+
+    /// Setup Fish integration by updating config.fish
+    async fn on_fish_setup(&mut self) -> anyhow::Result<()> {
+        // Check nerd font support
+        println!();
+        println!(
+            "{} {} {}",
+            "󱙺".bold(),
+            "FORGE 33.0k".bold(),
+            " tonic-1.0".cyan()
+        );
+
+        let can_see_nerd_fonts =
+            ForgeWidget::confirm("Can you see all the icons clearly without any overlap?")
+                .with_default(true)
+                .prompt()?;
+
+        let disable_nerd_font = match can_see_nerd_fonts {
+            Some(true) => {
+                println!();
+                false
+            }
+            Some(false) => {
+                println!();
+                println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
+                println!();
+                println!("   You can enable them later by:");
+                println!(
+                    "   1. Installing a Nerd Font from: {}",
+                    "https://www.nerdfonts.com/".dimmed()
+                );
+                println!("   2. Configuring your terminal to use a Nerd Font");
+                println!(
+                    "   3. Removing {} from your config.fish",
+                    "NERD_FONT=0".dimmed()
+                );
+                println!();
+                true
+            }
+            None => {
+                println!();
+                false
+            }
+        };
+
+        // Ask about editor preference
+        let editor_options = vec![
+            "Use system default ($EDITOR)",
+            "VS Code (code --wait)",
+            "Vim",
+            "Neovim (nvim)",
+            "Nano",
+            "Emacs",
+            "Sublime Text (subl --wait)",
+            "Skip - I'll configure it later",
+        ];
+
+        let selected_editor = ForgeWidget::select(
+            "Which editor would you like to use for editing prompts?",
+            editor_options,
+        )
+        .prompt()?;
+
+        let forge_editor = match selected_editor {
+            Some("Use system default ($EDITOR)") => None,
+            Some("VS Code (code --wait)") => Some("code --wait"),
+            Some("Vim") => Some("vim"),
+            Some("Neovim (nvim)") => Some("nvim"),
+            Some("Nano") => Some("nano"),
+            Some("Emacs") => Some("emacs"),
+            Some("Sublime Text (subl --wait)") => Some("subl --wait"),
+            Some("Skip - I'll configure it later") => None,
+            _ => None,
+        };
+
+        self.spinner.start(Some("Configuring Fish"))?;
+        let result = crate::fish::setup_fish_integration(disable_nerd_font, forge_editor)?;
+        self.spinner.stop(None)?;
+
+        if let Some(backup_path) = result.backup_path {
+            self.writeln_title(TitleFormat::debug(format!(
+                "backup created at {}",
+                backup_path.display()
+            )))?;
+        }
+
+        self.writeln_title(TitleFormat::info(result.message))?;
+
+        self.writeln_title(TitleFormat::debug("running forge fish doctor"))?;
+        println!();
+        let doctor_result = self.on_fish_doctor().await;
+
+        if doctor_result.is_ok() {
+            self.writeln_title(TitleFormat::action(
+                "run `exec fish` now (or open a new terminal window) to load the updated shell config",
+            ))?;
+            self.writeln_title(TitleFormat::action(
+                "run `: Hi` after restarting your shell to confirm everything works",
+            ))?;
+        }
+
+        doctor_result
     }
 
     /// Install the Forge VS Code extension
@@ -3803,6 +3960,63 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
             .use_nerd_font(use_nerd_font);
+
+        Some(rprompt.to_string())
+    }
+
+    async fn handle_fish_rprompt_command(&mut self) -> Option<String> {
+        use crate::fish::FishRPrompt;
+
+        let cid = std::env::var("_FORGE_CONVERSATION_ID")
+            .ok()
+            .filter(|text| !text.trim().is_empty())
+            .and_then(|str| ConversationId::from_str(str.as_str()).ok());
+
+        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
+            if let Some(cid) = cid {
+                self.api.conversation(&cid).await.ok().flatten()
+            } else {
+                None
+            }
+        });
+
+        let cost = if let Some(ref conv) = conversation {
+            let related_conversations = self.fetch_related_conversations(conv).await;
+            let all_conversations: Vec<_> = std::iter::once(conv)
+                .chain(related_conversations.iter())
+                .cloned()
+                .collect();
+            Conversation::total_cost(&all_conversations)
+        } else {
+            None
+        };
+
+        let use_nerd_font = std::env::var("NERD_FONT")
+            .or_else(|_| std::env::var("USE_NERD_FONT"))
+            .map(|val| val == "1")
+            .unwrap_or(true);
+
+        let currency_symbol =
+            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
+
+        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
+            .ok()
+            .and_then(|val| val.parse::<f64>().ok())
+            .unwrap_or(1.0);
+
+        let rprompt = FishRPrompt::default()
+            .agent(
+                std::env::var("_FORGE_ACTIVE_AGENT")
+                    .ok()
+                    .filter(|text| !text.trim().is_empty())
+                    .map(AgentId::new),
+            )
+            .model(model_id)
+            .token_count(conversation.and_then(|conversation| conversation.token_count()))
+            .cost(cost)
+            .use_nerd_font(use_nerd_font)
+            .currency_symbol(currency_symbol)
+            .conversion_ratio(conversion_ratio);
 
         Some(rprompt.to_string())
     }
