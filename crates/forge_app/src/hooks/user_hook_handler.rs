@@ -83,8 +83,8 @@ impl<I> UserHookHandler<I> {
         let mut cache = HashMap::new();
         for groups in config.events.values() {
             for group in groups {
-                if let Some(pattern) = &group.matcher {
-                    if !pattern.is_empty() && !cache.contains_key(pattern) {
+                if let Some(pattern) = &group.matcher
+                    && !pattern.is_empty() && !cache.contains_key(pattern) {
                         match Regex::new(pattern) {
                             Ok(re) => {
                                 cache.insert(pattern.clone(), re);
@@ -98,7 +98,6 @@ impl<I> UserHookHandler<I> {
                             }
                         }
                     }
-                }
             }
         }
         cache
@@ -151,11 +150,9 @@ impl<I> UserHookHandler<I> {
                     // Matcher specified but no subject to match against; skip
                     false
                 }
-                (Some(pattern), Some(subj)) => {
-                    regex_cache
-                        .get(pattern)
-                        .map_or(false, |re| re.is_match(subj))
-                }
+                (Some(pattern), Some(subj)) => regex_cache
+                    .get(pattern)
+                    .is_some_and(|re| re.is_match(subj)),
             };
 
             if matches {
@@ -842,13 +839,11 @@ mod tests {
     fn regex_cache_from_groups(groups: &[UserHookMatcherGroup]) -> HashMap<String, Regex> {
         let mut cache = HashMap::new();
         for group in groups {
-            if let Some(pattern) = &group.matcher {
-                if !pattern.is_empty() && !cache.contains_key(pattern) {
-                    if let Ok(re) = Regex::new(pattern) {
+            if let Some(pattern) = &group.matcher
+                && !pattern.is_empty() && !cache.contains_key(pattern)
+                    && let Ok(re) = Regex::new(pattern) {
                         cache.insert(pattern.clone(), re);
                     }
-                }
-            }
         }
         cache
     }
@@ -857,7 +852,8 @@ mod tests {
     fn test_find_matching_hooks_no_matcher_fires_unconditionally() {
         let groups = vec![make_group(None, &["echo hi"])];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].command, Some("echo hi".to_string()));
     }
@@ -874,7 +870,8 @@ mod tests {
     fn test_find_matching_hooks_regex_match() {
         let groups = vec![make_group(Some("Bash"), &["block.sh"])];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
         assert_eq!(actual.len(), 1);
     }
 
@@ -882,7 +879,8 @@ mod tests {
     fn test_find_matching_hooks_regex_no_match() {
         let groups = vec![make_group(Some("Bash"), &["block.sh"])];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Write"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Write"), &cache);
         assert!(actual.is_empty());
     }
 
@@ -890,7 +888,8 @@ mod tests {
     fn test_find_matching_hooks_regex_partial_match() {
         let groups = vec![make_group(Some("Bash|Write"), &["check.sh"])];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
         assert_eq!(actual.len(), 1);
     }
 
@@ -915,7 +914,8 @@ mod tests {
     fn test_find_matching_hooks_empty_matcher_fires_with_subject() {
         let groups = vec![make_group(Some(""), &["pre-tool.sh"])];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].command, Some("pre-tool.sh".to_string()));
     }
@@ -924,7 +924,8 @@ mod tests {
     fn test_find_matching_hooks_invalid_regex_skipped() {
         let groups = vec![make_group(Some("[invalid"), &["block.sh"])];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("anything"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("anything"), &cache);
         assert!(actual.is_empty());
     }
 
@@ -936,7 +937,8 @@ mod tests {
             make_group(None, &["always.sh"]),
         ];
         let cache = regex_cache_from_groups(&groups);
-        let actual = UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
+        let actual =
+            UserHookHandler::<NullInfra>::find_matching_hooks(&groups, Some("Bash"), &cache);
         assert_eq!(actual.len(), 2); // Bash match + unconditional
     }
 
