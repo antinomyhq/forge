@@ -761,13 +761,23 @@ mod tests {
     use forge_api::{Environment, EventValue};
     use pretty_assertions::assert_eq;
 
-    // Helper to create minimal test environment
+    // Helper to create minimal test environment.
+    //
+    // When `home` is `None` the generated `Environment.home` is explicitly
+    // set to `None` so the test is deterministic. Without this, Faker may
+    // produce a random `home` that happens to be a prefix of the test path,
+    // causing `strip_prefix` to succeed and the test to flake.
     fn create_env(os: &str, home: Option<&str>) -> Environment {
         use fake::{Fake, Faker};
         let mut fixture: Environment = Faker.fake();
         fixture = fixture.os(os.to_string());
-        if let Some(home_path) = home {
-            fixture = fixture.home(PathBuf::from(home_path));
+        match home {
+            Some(home_path) => {
+                fixture.home = Some(PathBuf::from(home_path));
+            }
+            None => {
+                fixture.home = None;
+            }
         }
         fixture
     }

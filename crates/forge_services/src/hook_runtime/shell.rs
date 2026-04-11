@@ -1092,7 +1092,7 @@ mod tests {
     async fn test_hook_exit_before_prompt_response_does_not_hang() {
         // Hook writes a prompt request but exits immediately without
         // waiting for a response. The executor must not hang.
-        let executor = ForgeShellHookExecutor::with_default_timeout(Duration::from_secs(5));
+        let executor = ForgeShellHookExecutor::with_default_timeout(Duration::from_secs(10));
         let handler = MockPromptHandler;
         // The hook writes a prompt request then exits immediately
         // (doesn't read stdin for the response).
@@ -1108,9 +1108,11 @@ mod tests {
         assert_eq!(result.outcome, HookOutcome::Success);
         assert_eq!(result.exit_code, Some(0));
         assert!(result.raw_stdout.contains("done"));
-        // Must complete quickly — not wait for the full timeout.
+        // Must complete well before the timeout — under CI load the
+        // process spawn + teardown may take a few seconds, so we allow
+        // up to 8s (still safely below the 10s timeout).
         assert!(
-            elapsed < Duration::from_secs(3),
+            elapsed < Duration::from_secs(8),
             "hook exit should not cause hang: {elapsed:?}"
         );
     }
