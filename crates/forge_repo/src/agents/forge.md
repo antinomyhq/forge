@@ -24,11 +24,11 @@ user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
   {{#if terminal_context}}
-  <terminal_context>
+  <command_trace>
   {{#each terminal_context.commands}}
   <command exit_code="{{exit_code}}">{{command}}</command>
   {{/each}}
-  </terminal_context>
+  </command_trace>
   {{/if}}
 ---
 
