@@ -1,20 +1,35 @@
-use forge_app::EnvironmentInfra;
+use std::sync::Arc;
+
 use forge_domain::{TerminalContext, TerminalCommand};
+
+use crate::EnvironmentInfra;
+
+/// Environment variable exported by the zsh plugin containing colon-separated
+/// command strings.
+pub const ENV_TERM_COMMANDS: &str = "FORGE_TERM_COMMANDS";
+
+/// Environment variable exported by the zsh plugin containing colon-separated
+/// exit codes corresponding to [`ENV_TERM_COMMANDS`].
+pub const ENV_TERM_EXIT_CODES: &str = "FORGE_TERM_EXIT_CODES";
+
+/// Environment variable exported by the zsh plugin containing colon-separated
+/// Unix timestamps corresponding to [`ENV_TERM_COMMANDS`].
+pub const ENV_TERM_TIMESTAMPS: &str = "FORGE_TERM_TIMESTAMPS";
 
 /// Service that reads terminal context from environment variables exported by
 /// the zsh plugin and constructs a structured [`TerminalContext`].
 ///
 /// The zsh plugin exports three colon-separated environment variables before
 /// invoking forge:
-/// - `FORGE_TERM_COMMANDS`   — the command strings
-/// - `FORGE_TERM_EXIT_CODES` — the corresponding exit codes
-/// - `FORGE_TERM_TIMESTAMPS` — the corresponding Unix timestamps
+/// - [`ENV_TERM_COMMANDS`]   — the command strings
+/// - [`ENV_TERM_EXIT_CODES`] — the corresponding exit codes
+/// - [`ENV_TERM_TIMESTAMPS`] — the corresponding Unix timestamps
 #[derive(Clone)]
-pub struct TerminalContextService<S>(std::sync::Arc<S>);
+pub struct TerminalContextService<S>(Arc<S>);
 
 impl<S> TerminalContextService<S> {
     /// Creates a new `TerminalContextService` backed by the provided infrastructure.
-    pub fn new(infra: std::sync::Arc<S>) -> Self {
+    pub fn new(infra: Arc<S>) -> Self {
         Self(infra)
     }
 }
@@ -25,23 +40,15 @@ impl<S: EnvironmentInfra> TerminalContextService<S> {
     /// Returns `None` if none of the required variables are set or if no
     /// commands were recorded.
     pub fn get_terminal_context(&self) -> Option<TerminalContext> {
-
-        // FIXME: Move the env variable names to a const
-        // FIXME: Add use `_FORGE_TERM_...` as the prefix
-        let commands_raw = self.0.get_env_var("FORGE_TERM_COMMANDS")?;
-        let exit_codes_raw = self
-            .0
-            .get_env_var("FORGE_TERM_EXIT_CODES")
-            .unwrap_or_default();
-        let timestamps_raw = self
-            .0
-            .get_env_var("FORGE_TERM_TIMESTAMPS")
-            .unwrap_or_default();
+        let commands_raw = self.0.get_env_var(ENV_TERM_COMMANDS)?;
 
         let commands: Vec<String> = split_env_list(&commands_raw);
         if commands.is_empty() {
             return None;
         }
+
+        let exit_codes_raw = self.0.get_env_var(ENV_TERM_EXIT_CODES).unwrap_or_default();
+        let timestamps_raw = self.0.get_env_var(ENV_TERM_TIMESTAMPS).unwrap_or_default();
 
         let exit_codes: Vec<i32> = split_env_list(&exit_codes_raw)
             .iter()
@@ -53,7 +60,7 @@ impl<S: EnvironmentInfra> TerminalContextService<S> {
             .map(|s| s.parse::<u64>().unwrap_or(0))
             .collect();
 
-        // Zip the three lists together, stopping at the shortest
+        // Zip the three lists together; pad missing exit codes/timestamps with 0
         let entries: Vec<TerminalCommand> = commands
             .into_iter()
             .zip(
@@ -85,7 +92,7 @@ impl<S: EnvironmentInfra> TerminalContextService<S> {
 
 /// Splits a colon-separated environment variable value into a list of strings,
 /// filtering out any empty segments produced by leading/trailing/double colons.
-fn split_env_list(raw: &str) -> Vec<String> {
+pub fn split_env_list(raw: &str) -> Vec<String> {
     raw.split(':')
         .map(str::trim)
         .filter(|s| !s.is_empty())
@@ -118,7 +125,7 @@ mod tests {
         }
     }
 
-    impl forge_app::EnvironmentInfra for MockInfra {
+    impl crate::EnvironmentInfra for MockInfra {
         type Config = forge_config::ForgeConfig;
 
         fn get_environment(&self) -> Environment {
@@ -155,18 +162,18 @@ mod tests {
 
     #[test]
     fn test_empty_commands_returns_none() {
-        let fixture = TerminalContextService::new(MockInfra::new(&[
-            ("FORGE_TERM_COMMANDS", ""),
-        ]));
+        let fixture =
+            TerminalContextService::new(MockInfra::new(&[(ENV_TERM_COMMANDS, "")]));
         let actual = fixture.get_terminal_context();
         assert_eq!(actual, None);
     }
 
     #[test]
     fn test_single_command_no_extras() {
-        let fixture = TerminalContextService::new(MockInfra::new(&[
-            ("FORGE_TERM_COMMANDS", "cargo build"),
-        ]));
+        let fixture = TerminalContextService::new(MockInfra::new(&[(
+            ENV_TERM_COMMANDS,
+            "cargo build",
+        )]));
         let actual = fixture.get_terminal_context();
         let expected = Some(TerminalContext {
             commands: vec![TerminalCommand {
@@ -181,9 +188,9 @@ mod tests {
     #[test]
     fn test_multiple_commands_with_exit_codes_and_timestamps() {
         let fixture = TerminalContextService::new(MockInfra::new(&[
-            ("FORGE_TERM_COMMANDS", "ls:cargo test:git status"),
-            ("FORGE_TERM_EXIT_CODES", "0:1:0"),
-            ("FORGE_TERM_TIMESTAMPS", "1700000001:1700000002:1700000003"),
+            (ENV_TERM_COMMANDS, "ls:cargo test:git status"),
+            (ENV_TERM_EXIT_CODES, "0:1:0"),
+            (ENV_TERM_TIMESTAMPS, "1700000001:1700000002:1700000003"),
         ]));
         let actual = fixture.get_terminal_context();
         let expected = Some(TerminalContext {

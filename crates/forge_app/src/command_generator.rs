@@ -7,6 +7,7 @@ use serde::Deserialize;
 
 use crate::{
     AppConfigService, EnvironmentInfra, FileDiscoveryService, ProviderService, TemplateEngine,
+    TerminalContextService,
 };
 /// Response struct for shell command generation using JSON format
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -64,12 +65,18 @@ where
         };
 
         // Build user prompt with task, optionally including terminal context
-        let user_content = match self.read_terminal_context() {
-            Some(ctx) => format!(
-                "<terminal_context>\n{}\n</terminal_context>\n\n<task>{}</task>",
-                ctx,
-                prompt.as_str()
-            ),
+        let terminal_ctx =
+            TerminalContextService::new(self.services.clone()).get_terminal_context();
+        let user_content = match terminal_ctx {
+            Some(ctx) => {
+                let rendered = TemplateEngine::default()
+                    .render("forge-terminal-context.md", &serde_json::to_value(&ctx)?)?;
+                format!(
+                    "<terminal_context>\n{}\n</terminal_context>\n\n<task>{}</task>",
+                    rendered,
+                    prompt.as_str()
+                )
+            }
             None => format!("<task>{}</task>", prompt.as_str()),
         };
 
@@ -91,43 +98,6 @@ where
             })?;
 
         Ok(response.command)
-    }
-
-    /// Reads terminal context from environment variables set by the zsh plugin.
-    ///
-    /// Returns `None` if `FORGE_TERM_COMMANDS` is not set or is empty.
-
-    // FIXME: Reuse TerminalContextService over here
-    fn read_terminal_context(&self) -> Option<TerminalContext> {
-        let commands_raw = self.services.get_env_var("FORGE_TERM_COMMANDS")?;
-        let commands: Vec<String> = commands_raw
-            .split(':')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(String::from)
-            .collect();
-        if commands.is_empty() {
-            return None;
-        }
-        let exit_codes: Vec<i32> = self
-            .services
-            .get_env_var("FORGE_TERM_EXIT_CODES")
-            .unwrap_or_default()
-            .split(':')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(|s| s.parse::<i32>().unwrap_or(0))
-            .collect();
-        let timestamps: Vec<u64> = self
-            .services
-            .get_env_var("FORGE_TERM_TIMESTAMPS")
-            .unwrap_or_default()
-            .split(':')
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(|s| s.parse::<u64>().unwrap_or(0))
-            .collect();
-        Some(TerminalContext::new(commands, exit_codes, timestamps))
     }
 
     /// Creates a context with system and user messages for the LLM

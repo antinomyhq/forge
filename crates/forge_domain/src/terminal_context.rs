@@ -1,5 +1,5 @@
 /// A single command entry captured by the shell plugin.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct TerminalCommand {
     /// The command text as entered by the user.
     pub command: String,
@@ -16,7 +16,7 @@ pub struct TerminalCommand {
 /// - `FORGE_TERM_COMMANDS`   — colon-separated command strings
 /// - `FORGE_TERM_EXIT_CODES` — colon-separated exit codes
 /// - `FORGE_TERM_TIMESTAMPS` — colon-separated Unix timestamps
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
 pub struct TerminalContext {
     /// Ordered list of recent commands, from oldest to newest.
     pub commands: Vec<TerminalCommand>,
@@ -49,21 +49,5 @@ impl TerminalContext {
     /// Returns `true` if there are no recorded commands.
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
-    }
-}
-
-// FIXME: Drop `Display` use TemplateEngine to render the logic using template
-// Define the template in md format inside the /template dirs
-impl std::fmt::Display for TerminalContext {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for entry in &self.commands {
-            let status = if entry.exit_code == 0 {
-                "ok".to_string()
-            } else {
-                format!("FAILED (exit {})", entry.exit_code)
-            };
-            writeln!(f, "- `{}` [{}] @ {}", entry.command, status, entry.timestamp)?;
-        }
-        Ok(())
     }
 }
