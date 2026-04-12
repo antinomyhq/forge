@@ -85,20 +85,21 @@ fn unescape_backslashes(s: &str) -> Option<String> {
     Some(out)
 }
 
-/// Checks whether `candidate` resolves to an existing absolute file path.
+/// Checks whether `candidate` resolves to an existing absolute file or
+/// directory path.
 ///
 /// Tries the raw string first, then falls back to un-escaping backslashes
 /// (for terminals that send `/path/my\ file.txt`). Returns the resolved
-/// clean path on success, or `None` if no file was found.
+/// clean path on success, or `None` if no match was found.
 fn resolve_file_path(candidate: &str) -> Option<String> {
     let path = Path::new(candidate);
-    if path.is_absolute() && path.is_file() {
+    if path.is_absolute() && path.exists() {
         return Some(candidate.to_string());
     }
     // Try un-escaping backslashes (e.g. Ghostty sends `/path/my\ file.txt`)
     if let Some(unescaped) = unescape_backslashes(candidate) {
         let path = Path::new(&unescaped);
-        if path.is_absolute() && path.is_file() {
+        if path.is_absolute() && path.exists() {
             return Some(unescaped);
         }
     }
@@ -479,5 +480,50 @@ mod tests {
     fn test_resolve_file_path_nonexistent() {
         let actual = resolve_file_path("/nonexistent/file.txt");
         assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_resolve_file_path_directory() {
+        // /tmp is a real directory on macOS/Linux
+        let actual = resolve_file_path("/tmp");
+        assert_eq!(actual, Some("/tmp".to_string()));
+    }
+
+    #[test]
+    fn test_wrap_pasted_text_directory_path() {
+        // /tmp is a real directory, so it should be wrapped
+        let fixture = "/tmp";
+        let actual = wrap_pasted_text(fixture);
+        let expected = "@[/tmp]";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_wrap_pasted_text_directory_in_sentence() {
+        let fixture = "look at /tmp please";
+        let actual = wrap_pasted_text(fixture);
+        let expected = "look at @[/tmp] please";
+        assert_eq!(actual, expected);
+    }
+
+    // -- Tests for VSCode-style drag-and-drop (path sent via sendText) -------
+
+    #[test]
+    fn test_wrap_pasted_text_vscode_quoted_path() {
+        // VSCode's preparePathForShell may single-quote paths with spaces
+        let (path, _dir) = create_file_with_spaces("my file.txt");
+        let fixture = format!("'{path}'");
+        let actual = wrap_pasted_text(&fixture);
+        let expected = format!("@[{path}]");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_wrap_pasted_text_vscode_plain_path() {
+        // VSCode sends a plain path for files without spaces
+        let fixture = "/usr/bin/env";
+        let actual = wrap_pasted_text(fixture);
+        let expected = "@[/usr/bin/env]";
+        assert_eq!(actual, expected);
     }
 }
