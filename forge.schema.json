@@ -302,6 +302,11 @@
         }
       ]
     },
+    "terminal_context": {
+      "description": "Whether to include terminal context (recent shell commands, exit codes,\nand timestamps) in the user prompt. When enabled, the shell plugin\nexports the captured command history and the Rust service injects it\ninto the rendered prompt via [`EventContext`].",
+      "type": "boolean",
+      "default": true
+    },
     "tool_supported": {
       "description": "Whether tool use is supported in the current environment; when false,\nall tool calls are disabled.",
       "type": "boolean",

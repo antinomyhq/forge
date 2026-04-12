@@ -1,5 +1,5 @@
 /// A single command entry captured by the shell plugin.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TerminalCommand {
     /// The command text as entered by the user.
     pub command: String,
@@ -16,7 +16,7 @@ pub struct TerminalCommand {
 /// - `FORGE_TERM_COMMANDS`   — colon-separated command strings
 /// - `FORGE_TERM_EXIT_CODES` — colon-separated exit codes
 /// - `FORGE_TERM_TIMESTAMPS` — colon-separated Unix timestamps
-#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub struct TerminalContext {
     /// Ordered list of recent commands, from oldest to newest.
     pub commands: Vec<TerminalCommand>,
@@ -47,17 +47,4 @@ impl TerminalContext {
         self.commands.is_empty()
     }
 
-    /// Renders the terminal context as an XML element using [`forge_template::Element`].
-    ///
-    /// Each command is represented as an `<entry>` child with nested
-    /// `<command>`, `<exit_code>`, and `<timestamp>` elements.
-    pub fn render(&self) -> forge_template::Element {
-        use forge_template::Element;
-        Element::new("terminal_context").append(self.commands.iter().map(|cmd| {
-            Element::new("entry")
-                .append(Element::new("command").text(&cmd.command))
-                .append(Element::new("exit_code").text(cmd.exit_code.to_string()))
-                .append(Element::new("timestamp").text(cmd.timestamp.to_string()))
-        }))
-    }
 }

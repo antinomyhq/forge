@@ -16,7 +16,9 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AttachmentService + EnvironmentInfra> UserPromptGenerator<S> {
+impl<S: AttachmentService + EnvironmentInfra<Config = forge_config::ForgeConfig>>
+    UserPromptGenerator<S>
+{
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -52,8 +54,6 @@ impl<S: AttachmentService + EnvironmentInfra> UserPromptGenerator<S> {
         } else {
             conversation
         };
-
-        let conversation = self.add_terminal_context(conversation);
 
         Ok(conversation)
     }
@@ -108,32 +108,6 @@ impl<S: AttachmentService + EnvironmentInfra> UserPromptGenerator<S> {
         content
     }
 
-    /// Adds the terminal context as a droppable user message if available.
-    ///
-    /// Reads terminal context from environment variables via [`TerminalContextService`]
-    /// and appends it as a droppable message so it can be removed during context
-    /// compression.
-    fn add_terminal_context(&self, mut conversation: Conversation) -> Conversation {
-        let Some(rendered) = TerminalContextService::new(self.services.clone()).render() else {
-            return conversation;
-        };
-
-        let mut context = conversation.context.take().unwrap_or_default();
-        let message = TextMessage {
-            role: Role::User,
-            content: rendered,
-            raw_content: None,
-            tool_calls: None,
-            thought_signature: None,
-            reasoning_details: None,
-            model: Some(self.agent.model.clone()),
-            droppable: true,
-            phase: None,
-        };
-        context = context.add_message(ContextMessage::Text(message));
-        conversation.context(context)
-    }
-
     /// Adds additional context (piped input) as a droppable user message
     async fn add_additional_context(
         &self,
@@ -169,53 +143,66 @@ impl<S: AttachmentService + EnvironmentInfra> UserPromptGenerator<S> {
         let event_value = self.event.value.clone();
         let template_engine = TemplateEngine::default();
 
-        let content =
-            if let Some(user_prompt) = &self.agent.user_prompt
-                && self.event.value.is_some()
-            {
-                let user_input = self
-                    .event
-                    .value
-                    .as_ref()
-                    .and_then(|v| v.as_user_prompt().map(|u| u.as_str().to_string()))
-                    .unwrap_or_default();
-                let mut event_context = EventContext::new(EventContextValue::new(user_input))
-                    .current_date(self.current_time.format("%Y-%m-%d").to_string());
+        let content = if let Some(user_prompt) = &self.agent.user_prompt
+            && self.event.value.is_some()
+        {
+            let user_input = self
+                .event
+                .value
+                .as_ref()
+                .and_then(|v| v.as_user_prompt().map(|u| u.as_str().to_string()))
+                .unwrap_or_default();
+            let mut event_context = EventContext::new(EventContextValue::new(user_input))
+                .current_date(self.current_time.format("%Y-%m-%d").to_string());
 
-                // Check if context already contains user messages to determine if it's feedback
-                let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
+            // Check if context already contains user messages to determine if it's feedback
+            let has_user_messages = context.messages.iter().any(|msg| msg.has_role(Role::User));
 
-                if has_user_messages {
-                    event_context = event_context.into_feedback();
-                } else {
-                    event_context = event_context.into_task();
+            if has_user_messages {
+                event_context = event_context.into_feedback();
+            } else {
+                event_context = event_context.into_task();
+            }
+
+            debug!(event_context = ?event_context, "Event context");
+
+            // Render the command first.
+            let event_context = match self.event.value.as_ref().and_then(|v| v.as_command()) {
+                Some(command) => {
+                    let rendered_prompt = template_engine.render_template(
+                        command.template.clone(),
+                        &json!({"parameters": command.parameters.join(" ")}),
+                    )?;
+                    event_context.event(EventContextValue::new(rendered_prompt))
                 }
+                None => event_context,
+            };
 
-                debug!(event_context = ?event_context, "Event context");
-
-                // Render the command first.
-                let event_context = match self.event.value.as_ref().and_then(|v| v.as_command()) {
-                    Some(command) => {
-                        let rendered_prompt = template_engine.render_template(
-                            command.template.clone(),
-                            &json!({"parameters": command.parameters.join(" ")}),
-                        )?;
-                        event_context.event(EventContextValue::new(rendered_prompt))
+            // Inject terminal context into the event context if enabled in config.
+            let event_context =
+                match self.services.get_config().map(|c| c.terminal_context) {
+                    Ok(true) => {
+                        match TerminalContextService::new(self.services.clone())
+                            .get_terminal_context()
+                        {
+                            Some(ctx) => event_context.terminal_context(Some(ctx)),
+                            None => event_context,
+                        }
                     }
-                    None => event_context,
+                    _ => event_context,
                 };
 
-                // Render the event value into agent's user prompt template.
-                Some(template_engine.render_template(
-                    Template::new(user_prompt.template.as_str()),
-                    &event_context,
-                )?)
-            } else {
-                // Use the raw event value as content if no user_prompt is provided
-                event_value
-                    .as_ref()
-                    .and_then(|v| v.as_user_prompt().map(|p| p.deref().to_owned()))
-            };
+            // Render the event value into agent's user prompt template.
+            Some(template_engine.render_template(
+                Template::new(user_prompt.template.as_str()),
+                &event_context,
+            )?)
+        } else {
+            // Use the raw event value as content if no user_prompt is provided
+            event_value
+                .as_ref()
+                .and_then(|v| v.as_user_prompt().map(|p| p.deref().to_owned()))
+        };
 
         if let Some(content) = &content {
             // Create User Message
@@ -446,11 +433,25 @@ mod tests {
 
         impl crate::EnvironmentInfra for MockServiceWithFiles {
             type Config = forge_config::ForgeConfig;
-            fn get_environment(&self) -> forge_domain::Environment { use fake::{Fake,Faker}; Faker.fake() }
-            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> { Ok(forge_config::ForgeConfig::default()) }
-            async fn update_environment(&self, _ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> { Ok(()) }
-            fn get_env_var(&self, _key: &str) -> Option<String> { None }
-            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> { Default::default() }
+            fn get_environment(&self) -> forge_domain::Environment {
+                use fake::{Fake, Faker};
+                Faker.fake()
+            }
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+                Ok(forge_config::ForgeConfig::default())
+            }
+            async fn update_environment(
+                &self,
+                _ops: Vec<forge_domain::ConfigOperation>,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+            fn get_env_var(&self, _key: &str) -> Option<String> {
+                None
+            }
+            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+                Default::default()
+            }
         }
 
         #[async_trait::async_trait]
@@ -536,11 +537,25 @@ mod tests {
 
         impl crate::EnvironmentInfra for MockServiceWithTodos {
             type Config = forge_config::ForgeConfig;
-            fn get_environment(&self) -> forge_domain::Environment { use fake::{Fake,Faker}; Faker.fake() }
-            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> { Ok(forge_config::ForgeConfig::default()) }
-            async fn update_environment(&self, _ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> { Ok(()) }
-            fn get_env_var(&self, _key: &str) -> Option<String> { None }
-            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> { Default::default() }
+            fn get_environment(&self) -> forge_domain::Environment {
+                use fake::{Fake, Faker};
+                Faker.fake()
+            }
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+                Ok(forge_config::ForgeConfig::default())
+            }
+            async fn update_environment(
+                &self,
+                _ops: Vec<forge_domain::ConfigOperation>,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+            fn get_env_var(&self, _key: &str) -> Option<String> {
+                None
+            }
+            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+                Default::default()
+            }
         }
 
         #[async_trait::async_trait]
@@ -622,11 +637,25 @@ mod tests {
 
         impl crate::EnvironmentInfra for MockServiceNoTodos {
             type Config = forge_config::ForgeConfig;
-            fn get_environment(&self) -> forge_domain::Environment { use fake::{Fake,Faker}; Faker.fake() }
-            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> { Ok(forge_config::ForgeConfig::default()) }
-            async fn update_environment(&self, _ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> { Ok(()) }
-            fn get_env_var(&self, _key: &str) -> Option<String> { None }
-            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> { Default::default() }
+            fn get_environment(&self) -> forge_domain::Environment {
+                use fake::{Fake, Faker};
+                Faker.fake()
+            }
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+                Ok(forge_config::ForgeConfig::default())
+            }
+            async fn update_environment(
+                &self,
+                _ops: Vec<forge_domain::ConfigOperation>,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+            fn get_env_var(&self, _key: &str) -> Option<String> {
+                None
+            }
+            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+                Default::default()
+            }
         }
 
         #[async_trait::async_trait]

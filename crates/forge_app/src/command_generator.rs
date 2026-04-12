@@ -67,14 +67,26 @@ where
         };
 
         // Build user prompt with task, optionally including terminal context.
-        // Rendering is handled entirely by TerminalContextService::render().
         let terminal_service = TerminalContextService::new(self.services.clone());
-        let user_content = match terminal_service.render() {
-            Some(rendered) => format!(
-                "{}\n\n<task>{}</task>",
-                rendered,
-                prompt.as_str()
-            ),
+        let user_content = match terminal_service.get_terminal_context() {
+            Some(ctx) => {
+                let entries: String = ctx
+                    .commands
+                    .iter()
+                    .map(|cmd| {
+                        // FIXME: Use element type to create this markup
+                        format!(
+                            "<entry><command>{}</command><exit_code>{}</exit_code><timestamp>{}</timestamp></entry>",
+                            cmd.command, cmd.exit_code, cmd.timestamp
+                        )
+                    })
+                    .collect();
+                format!(
+                    "<terminal_context>{}</terminal_context>\n\n<task>{}</task>",
+                    entries,
+                    prompt.as_str()
+                )
+            }
             None => format!("<task>{}</task>", prompt.as_str()),
         };
 

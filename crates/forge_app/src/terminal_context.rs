@@ -90,13 +90,6 @@ impl<S: EnvironmentInfra> TerminalContextService<S> {
         }
     }
 
-    /// Reads the terminal context from environment variables and renders it as
-    /// an XML string via [`TerminalContext::render`].
-    ///
-    /// Returns `None` if no terminal context is available.
-    pub fn render(&self) -> Option<String> {
-        self.get_terminal_context().map(|ctx| ctx.render().to_string())
-    }
 }
 
 /// Splits a colon-separated environment variable value into a list of strings,
