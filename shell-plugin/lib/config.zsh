@@ -42,21 +42,18 @@ typeset -h _FORGE_SESSION_REASONING_EFFORT
 
 # Terminal context capture settings
 # Master switch for terminal context capture (preexec/precmd hooks)
-# FIXME: This feature should be controlled via `forge_config::Config`
-# Move all the configurations to the Config
-# FIXME: Rename variables to FORGE_TERM_* suggesting its terminal related
-typeset -h _FORGE_CTX_ENABLED="${FORGE_CTX_ENABLED:-true}"
+typeset -h _FORGE_TERM_ENABLED="${FORGE_TERM_ENABLED:-true}"
 # Maximum number of commands to keep in the ring buffer (metadata: cmd + exit code)
-typeset -h _FORGE_CTX_MAX_ENTRIES="${FORGE_CTX_MAX_ENTRIES:-10}"
+typeset -h _FORGE_TERM_MAX_ENTRIES="${FORGE_TERM_MAX_ENTRIES:-10}"
 # Number of recent commands to include full output for
-typeset -h _FORGE_CTX_FULL_OUTPUT_COUNT="${FORGE_CTX_FULL_OUTPUT_COUNT:-5}"
+typeset -h _FORGE_TERM_FULL_OUTPUT_COUNT="${FORGE_TERM_FULL_OUTPUT_COUNT:-5}"
 # Maximum output lines per command block
-typeset -h _FORGE_CTX_MAX_LINES_PER_CMD="${FORGE_CTX_MAX_LINES_PER_CMD:-200}"
+typeset -h _FORGE_TERM_MAX_LINES_PER_CMD="${FORGE_TERM_MAX_LINES_PER_CMD:-200}"
 # Scrollback lines to capture from the terminal for command block extraction
-typeset -h _FORGE_CTX_SCROLLBACK_LINES="${FORGE_CTX_SCROLLBACK_LINES:-1000}"
+typeset -h _FORGE_TERM_SCROLLBACK_LINES="${FORGE_TERM_SCROLLBACK_LINES:-1000}"
 # OSC 133 semantic prompt marker emission: "auto", "on", or "off"
-typeset -h _FORGE_CTX_OSC133="${FORGE_CTX_OSC133:-auto}"
+typeset -h _FORGE_TERM_OSC133="${FORGE_TERM_OSC133:-auto}"
 # Ring buffer arrays for context capture
-typeset -ha _FORGE_CTX_COMMANDS=()
-typeset -ha _FORGE_CTX_EXIT_CODES=()
-typeset -ha _FORGE_CTX_TIMESTAMPS=()
+typeset -ha _FORGE_TERM_COMMANDS=()
+typeset -ha _FORGE_TERM_EXIT_CODES=()
+typeset -ha _FORGE_TERM_TIMESTAMPS=()

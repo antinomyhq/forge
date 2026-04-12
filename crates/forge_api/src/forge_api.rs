@@ -8,7 +8,8 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
     FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkspaceService,
+    ProviderAuthService, ProviderService, Services, TerminalContextRepo, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_config::ForgeConfig;
 use forge_domain::{Agent, ConsoleWriter, *};
@@ -63,7 +64,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 
 #[async_trait::async_trait]
 impl<
-    A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>,
+    A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig> + TerminalContextRepo,
     F: CommandInfra
         + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + SkillRepository
@@ -311,16 +312,13 @@ impl<
     async fn get_skills(&self) -> Result<Vec<Skill>> {
         self.infra.load_skills().await
     }
-    // FIXME: Revert this file to that in main
     async fn generate_command(
         &self,
         prompt: UserPrompt,
-
-        shell_context: Option<String>,
     ) -> Result<String> {
         use forge_app::CommandGenerator;
         let generator = CommandGenerator::new(self.services.clone());
-        generator.generate(prompt, shell_context).await
+        generator.generate(prompt).await
     }
 
     async fn init_provider_auth(

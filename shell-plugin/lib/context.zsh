@@ -18,26 +18,32 @@
 # Determines whether OSC 133 semantic markers should be emitted.
 # Auto-detection is conservative: only emit for terminals known to support it
 # to avoid garbled output in unsupported terminals.
+# The detection result is cached per session in _FORGE_TERM_OSC133_CACHED
+# ("1" = emit, "0" = don't emit) to avoid repeated detection overhead.
+typeset -g _FORGE_TERM_OSC133_CACHED=""
 function _forge_osc133_should_emit() {
-    // FIXME: Detect and cache for the session
-    case "$_FORGE_CTX_OSC133" in
-        on)  return 0 ;;
-        off) return 1 ;;
+    if [[ -n "$_FORGE_TERM_OSC133_CACHED" ]]; then
+        [[ "$_FORGE_TERM_OSC133_CACHED" == "1" ]] && return 0 || return 1
+    fi
+    case "$_FORGE_TERM_OSC133" in
+        on)  _FORGE_TERM_OSC133_CACHED="1"; return 0 ;;
+        off) _FORGE_TERM_OSC133_CACHED="0"; return 1 ;;
         auto)
             # Kitty sets KITTY_PID
-            [[ -n "${KITTY_PID:-}" ]] && return 0
+            if [[ -n "${KITTY_PID:-}" ]]; then _FORGE_TERM_OSC133_CACHED="1"; return 0; fi
             # Detect by TERM_PROGRAM
             case "${TERM_PROGRAM:-}" in
-                WezTerm|iTerm.app|vscode) return 0 ;;
+                WezTerm|iTerm.app|vscode) _FORGE_TERM_OSC133_CACHED="1"; return 0 ;;
             esac
             # Foot terminal
-            [[ "${TERM:-}" == "foot"* ]] && return 0
+            if [[ "${TERM:-}" == "foot"* ]]; then _FORGE_TERM_OSC133_CACHED="1"; return 0; fi
             # Ghostty
-            [[ "${TERM_PROGRAM:-}" == "ghostty" ]] && return 0
+            if [[ "${TERM_PROGRAM:-}" == "ghostty" ]]; then _FORGE_TERM_OSC133_CACHED="1"; return 0; fi
             # Unknown terminal: don't emit
+            _FORGE_TERM_OSC133_CACHED="0"
             return 1
             ;;
-        *)   return 1 ;;
+        *)   _FORGE_TERM_OSC133_CACHED="0"; return 1 ;;
     esac
 }
 
@@ -53,17 +59,17 @@ function _forge_osc133_emit() {
 # ---------------------------------------------------------------------------
 
 # Ring buffer storage uses parallel arrays declared in config.zsh:
-#   _FORGE_CTX_COMMANDS, _FORGE_CTX_EXIT_CODES, _FORGE_CTX_TIMESTAMPS
+#   _FORGE_TERM_COMMANDS, _FORGE_TERM_EXIT_CODES, _FORGE_TERM_TIMESTAMPS
 # Pending command state:
-typeset -g _FORGE_CTX_PENDING_CMD=""
-typeset -g _FORGE_CTX_PENDING_TS=""
+typeset -g _FORGE_TERM_PENDING_CMD=""
+typeset -g _FORGE_TERM_PENDING_TS=""
 
 # Called before each command executes.
 # Records the command text and timestamp, emits OSC 133 B+C markers.
 function _forge_context_preexec() {
-    [[ "$_FORGE_CTX_ENABLED" != "true" ]] && return
-    _FORGE_CTX_PENDING_CMD="$1"
-    _FORGE_CTX_PENDING_TS="$(date +%s)"
+    [[ "$_FORGE_TERM_ENABLED" != "true" ]] && return
+    _FORGE_TERM_PENDING_CMD="$1"
+    _FORGE_TERM_PENDING_TS="$(date +%s)"
     # OSC 133 B: prompt end / command start
     _forge_osc133_emit "B"
     # OSC 133 C: command output start
@@ -74,26 +80,26 @@ function _forge_context_preexec() {
 # Captures exit code, pushes to ring buffer, emits OSC 133 D+A markers.
 function _forge_context_precmd() {
     local last_exit=$?  # MUST be first line to capture exit code
-    [[ "$_FORGE_CTX_ENABLED" != "true" ]] && return
+    [[ "$_FORGE_TERM_ENABLED" != "true" ]] && return
 
     # OSC 133 D: command finished with exit code
     _forge_osc133_emit "D;$last_exit"
 
     # Only record if we have a pending command from preexec
-    if [[ -n "$_FORGE_CTX_PENDING_CMD" ]]; then
-        _FORGE_CTX_COMMANDS+=("$_FORGE_CTX_PENDING_CMD")
-        _FORGE_CTX_EXIT_CODES+=("$last_exit")
-        _FORGE_CTX_TIMESTAMPS+=("$_FORGE_CTX_PENDING_TS")
+    if [[ -n "$_FORGE_TERM_PENDING_CMD" ]]; then
+        _FORGE_TERM_COMMANDS+=("$_FORGE_TERM_PENDING_CMD")
+        _FORGE_TERM_EXIT_CODES+=("$last_exit")
+        _FORGE_TERM_TIMESTAMPS+=("$_FORGE_TERM_PENDING_TS")
 
         # Trim ring buffer to max size
-        while (( ${#_FORGE_CTX_COMMANDS} > _FORGE_CTX_MAX_ENTRIES )); do
-            shift _FORGE_CTX_COMMANDS
-            shift _FORGE_CTX_EXIT_CODES
-            shift _FORGE_CTX_TIMESTAMPS
+        while (( ${#_FORGE_TERM_COMMANDS} > _FORGE_TERM_MAX_ENTRIES )); do
+            shift _FORGE_TERM_COMMANDS
+            shift _FORGE_TERM_EXIT_CODES
+            shift _FORGE_TERM_TIMESTAMPS
         done
 
-        _FORGE_CTX_PENDING_CMD=""
-        _FORGE_CTX_PENDING_TS=""
+        _FORGE_TERM_PENDING_CMD=""
+        _FORGE_TERM_PENDING_TS=""
     fi
 
     # OSC 133 A: prompt start (for the next prompt)
@@ -105,11 +111,11 @@ function _forge_context_precmd() {
 # ---------------------------------------------------------------------------
 
 # Captures raw scrollback text from the terminal. The amount captured is
-# controlled by _FORGE_CTX_SCROLLBACK_LINES.
+# controlled by _FORGE_TERM_SCROLLBACK_LINES.
 # Returns the scrollback on stdout, or returns 1 if unavailable.
 # Priority: Kitty > WezTerm > Zellij > tmux > none
 function _forge_capture_scrollback() {
-    local lines="${_FORGE_CTX_SCROLLBACK_LINES:-1000}"
+    local lines="${_FORGE_TERM_SCROLLBACK_LINES:-1000}"
     local output=""
 
     # Priority 1: Kitty — get full scrollback (OSC 133 aware)
@@ -166,7 +172,7 @@ function _forge_extract_block() {
     local scrollback="$1"
     local cmd="$2"
     local next_cmd="$3"
-    local max_lines="${_FORGE_CTX_MAX_LINES_PER_CMD:-200}"
+    local max_lines="${_FORGE_TERM_MAX_LINES_PER_CMD:-200}"
 
     # Find the LAST occurrence of this command in scrollback (most recent run)
     local cmd_line
@@ -196,28 +202,20 @@ function _forge_extract_block() {
     return 0
 }
 
-# FIXME: Templating should be implemented in templates dir in a .md file
-# Create a new serializable type to pass to that template for rendering
-
-# ---------------------------------------------------------------------------
-# Context builder
-# ---------------------------------------------------------------------------
-
-# Builds a shell context file containing:
+# FIXME: Drop this function completely - we will render it in a service by reading all the variables and exposing them via TerminalContext domain type
+# Builds a shell context string containing:
 # 1. Metadata for all commands in ring buffer (last N commands + exit codes)
 # 2. Full output blocks for the most recent M commands (extracted from scrollback)
 #
-# Writes to a temp file and echoes the path on stdout.
+# Exports the context as the FORGE_TERM_CONTEXT environment variable so that
+# forge can read it without requiring a temp file.
 # Returns non-zero if context is disabled or empty.
 function _forge_build_shell_context() {
-    [[ "$_FORGE_CTX_ENABLED" != "true" ]] && return 1
-    [[ ${#_FORGE_CTX_COMMANDS} -eq 0 ]] && return 1
+    [[ "$_FORGE_TERM_ENABLED" != "true" ]] && return 1
+    [[ ${#_FORGE_TERM_COMMANDS} -eq 0 ]] && return 1
 
-    local ctx_file
-    ctx_file=$(mktemp "${TMPDIR:-/tmp}/forge-ctx-XXXXXX") || return 1
-
-    local count=${#_FORGE_CTX_COMMANDS}
-    local full_output_count="${_FORGE_CTX_FULL_OUTPUT_COUNT:-5}"
+    local count=${#_FORGE_TERM_COMMANDS}
+    local full_output_count="${_FORGE_TERM_FULL_OUTPUT_COUNT:-5}"
 
     # Determine which commands get full output (the most recent N)
     local full_output_start=$(( count - full_output_count + 1 ))
@@ -227,7 +225,8 @@ function _forge_build_shell_context() {
     local scrollback=""
     scrollback=$(_forge_capture_scrollback 2>/dev/null)
 
-    {
+    local ctx_content
+    ctx_content=$({
         echo "# Terminal Context"
         echo ""
         echo "The following is the user's recent terminal activity. Commands are listed"
@@ -241,14 +240,14 @@ function _forge_build_shell_context() {
             echo ""
             for (( i=1; i < full_output_start; i++ )); do
                 local ts_human
-                ts_human=$(date -d "@${_FORGE_CTX_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
-                    || date -r "${_FORGE_CTX_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
-                    || echo "${_FORGE_CTX_TIMESTAMPS[$i]}")
+                ts_human=$(date -d "@${_FORGE_TERM_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
+                    || date -r "${_FORGE_TERM_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
+                    || echo "${_FORGE_TERM_TIMESTAMPS[$i]}")
                 local exit_marker=""
-                if [[ "${_FORGE_CTX_EXIT_CODES[$i]}" != "0" ]]; then
-                    exit_marker=" [EXIT CODE: ${_FORGE_CTX_EXIT_CODES[$i]}]"
+                if [[ "${_FORGE_TERM_EXIT_CODES[$i]}" != "0" ]]; then
+                    exit_marker=" [EXIT CODE: ${_FORGE_TERM_EXIT_CODES[$i]}]"
                 fi
-                echo "- \`${_FORGE_CTX_COMMANDS[$i]}\` at ${ts_human}${exit_marker}"
+                echo "- \`${_FORGE_TERM_COMMANDS[$i]}\` at ${ts_human}${exit_marker}"
             done
             echo ""
         fi
@@ -258,12 +257,12 @@ function _forge_build_shell_context() {
         echo ""
 
         for (( i=full_output_start; i <= count; i++ )); do
-            local cmd="${_FORGE_CTX_COMMANDS[$i]}"
-            local exit_code="${_FORGE_CTX_EXIT_CODES[$i]}"
+            local cmd="${_FORGE_TERM_COMMANDS[$i]}"
+            local exit_code="${_FORGE_TERM_EXIT_CODES[$i]}"
             local ts_human
-            ts_human=$(date -d "@${_FORGE_CTX_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
-                || date -r "${_FORGE_CTX_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
-                || echo "${_FORGE_CTX_TIMESTAMPS[$i]}")
+            ts_human=$(date -d "@${_FORGE_TERM_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
+                || date -r "${_FORGE_TERM_TIMESTAMPS[$i]}" '+%H:%M:%S' 2>/dev/null \
+                || echo "${_FORGE_TERM_TIMESTAMPS[$i]}")
 
             local status_label="ok"
             [[ "$exit_code" != "0" ]] && status_label="FAILED (exit ${exit_code})"
@@ -276,7 +275,7 @@ function _forge_build_shell_context() {
                 # Determine the next command string for boundary detection
                 local next_cmd=""
                 if (( i < count )); then
-                    next_cmd="${_FORGE_CTX_COMMANDS[$((i+1))]}"
+                    next_cmd="${_FORGE_TERM_COMMANDS[$((i+1))]}"
                 fi
 
                 local block
@@ -293,20 +292,18 @@ function _forge_build_shell_context() {
             fi
             echo ""
         done
-    } > "$ctx_file"
+    })
 
-    echo "$ctx_file"
+    export FORGE_TERM_CONTEXT="$ctx_content"
     return 0
 }
 
-# ---------------------------------------------------------------------------
 # Hook registration
-# ---------------------------------------------------------------------------
 
 # Register using standard zsh hook arrays for coexistence with other plugins.
 # precmd is prepended so it runs first and captures the real $? from the
 # command, before other plugins (powerlevel10k, starship, etc.) overwrite it.
-if [[ "$_FORGE_CTX_ENABLED" == "true" ]]; then
+if [[ "$_FORGE_TERM_ENABLED" == "true" ]]; then
     preexec_functions+=(_forge_context_preexec)
     precmd_functions=(_forge_context_precmd "${precmd_functions[@]}")
 fi

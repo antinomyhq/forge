@@ -7,8 +7,8 @@ use serde::Deserialize;
 
 use crate::{
     AppConfigService, EnvironmentInfra, FileDiscoveryService, ProviderService, TemplateEngine,
+    TerminalContextRepo,
 };
-
 /// Response struct for shell command generation using JSON format
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -25,7 +25,11 @@ pub struct CommandGenerator<S> {
 
 impl<S> CommandGenerator<S>
 where
-    S: EnvironmentInfra + FileDiscoveryService + ProviderService + AppConfigService,
+    S: EnvironmentInfra
+        + FileDiscoveryService
+        + ProviderService
+        + AppConfigService
+        + TerminalContextRepo,
 {
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
@@ -34,17 +38,13 @@ where
 
     /// Generates a shell command from a natural language prompt.
     ///
-    /// When `shell_context` is provided (from the zsh plugin's terminal context
-    /// capture), it is included in the user prompt so the LLM can reference
-    /// recent commands, exit codes, and terminal output.
+    /// Terminal context is read automatically from the `FORGE_TERM_CONTEXT`
+    /// environment variable via the [`TerminalContextRepo`] and included in the
+    /// user prompt so the LLM can reference recent commands, exit codes, and
+    /// terminal output.
     pub async fn generate(
         &self,
         prompt: UserPrompt,
-        // FIXME: Drop this parameter
-        // Create a domain + repo + service that extract the terminal variables, renders them and makes it available here directly via a service
-        // Repo should read the data from env variables and create a domain type - TerminalContext
-        // We use TerminalContext to render a template that we use to render the prompt
-        shell_context: Option<String>,
     ) -> Result<String> {
         // Get system information for context
         let env = self.services.get_environment();
@@ -72,10 +72,10 @@ where
         };
 
         // Build user prompt with task, optionally including terminal context
-        let user_content = match shell_context {
+        let user_content = match self.services.get_terminal_context() {
             Some(ctx) => format!(
                 "<terminal_context>\n{}\n</terminal_context>\n\n<task>{}</task>",
-                ctx,
+                ctx.as_str(),
                 prompt.as_str()
             ),
             None => format!("<task>{}</task>", prompt.as_str()),
@@ -135,6 +135,7 @@ mod tests {
         response: Arc<Mutex<Option<String>>>,
         captured_context: Arc<Mutex<Option<Context>>>,
         environment: Environment,
+        terminal_context: Option<String>,
     }
 
     impl MockServices {
@@ -152,7 +153,25 @@ mod tests {
                 response: Arc::new(Mutex::new(Some(response.to_string()))),
                 captured_context: Arc::new(Mutex::new(None)),
                 environment: env,
+                terminal_context: None,
             })
+        }
+
+        fn with_terminal_context(self: Arc<Self>, ctx: &str) -> Arc<Self> {
+            // Safety: only called during test setup before sharing
+            Arc::new(Self {
+                files: self.files.clone(),
+                response: self.response.clone(),
+                captured_context: self.captured_context.clone(),
+                environment: self.environment.clone(),
+                terminal_context: Some(ctx.to_string()),
+            })
+        }
+    }
+
+    impl TerminalContextRepo for MockServices {
+        fn get_terminal_context(&self) -> Option<TerminalContext> {
+            self.terminal_context.clone().map(TerminalContext::new)
         }
     }
 
@@ -307,7 +326,7 @@ mod tests {
         let generator = CommandGenerator::new(fixture.clone());
 
         let actual = generator
-            .generate(UserPrompt::from("list all files".to_string()), None)
+            .generate(UserPrompt::from("list all files".to_string()))
             .await
             .unwrap();
 
@@ -322,7 +341,7 @@ mod tests {
         let generator = CommandGenerator::new(fixture.clone());
 
         let actual = generator
-            .generate(UserPrompt::from("show current directory".to_string()), None)
+            .generate(UserPrompt::from("show current directory".to_string()))
             .await
             .unwrap();
 
@@ -333,20 +352,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_with_shell_context() {
+        let ctx_str = "## Recent Commands\n| # | Command | Exit | Time |\n|---|---------|------|------|\n| 1 | cargo build | 101 | 12:00:00 |";
         let fixture = MockServices::new(
             r#"{"command": "cargo build --release"}"#,
             vec![("Cargo.toml", false)],
-        );
+        )
+        .with_terminal_context(ctx_str);
         let generator = CommandGenerator::new(fixture.clone());
-        let shell_context = Some(
-            "## Recent Commands\n| # | Command | Exit | Time |\n|---|---------|------|------|\n| 1 | cargo build | 101 | 12:00:00 |".to_string(),
-        );
 
         let actual = generator
-            .generate(
-                UserPrompt::from("fix the command I just ran".to_string()),
-                shell_context,
-            )
+            .generate(UserPrompt::from("fix the command I just ran".to_string()))
             .await
             .unwrap();
 
@@ -371,7 +386,7 @@ mod tests {
         let generator = CommandGenerator::new(fixture);
 
         let actual = generator
-            .generate(UserPrompt::from("do something".to_string()), None)
+            .generate(UserPrompt::from("do something".to_string()))
             .await;
 
         assert!(actual.is_err());

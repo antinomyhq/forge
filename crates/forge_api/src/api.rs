@@ -175,15 +175,11 @@ pub trait API: Sync + Send {
 
     /// List of available skills
     async fn get_skills(&self) -> Result<Vec<Skill>>;
-    // FIXME: Revert this file to that in main
+
     /// Generate a shell command from natural language prompt
     async fn generate_command(
         &self,
         prompt: UserPrompt,
-
-        // FIXME: drop this parameter
-        // We will implement an repo to extract/parse and render terminal data
-        shell_context: Option<String>,
     ) -> Result<String>;
 
     /// Initiate provider auth flow

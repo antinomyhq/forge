@@ -1810,12 +1810,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
         self.spinner.start(Some("Generating"))?;
 
-        // FIXME: Revert this file to main
-        // UserPrompt rendering is a complex process and already abstracted out
-        // Use that process to use the new services/repos to render the prompt and add it to the context
-        let shell_context = self.cli.shell_context_content.clone();
-
-        match self.api.generate_command(prompt, shell_context).await {
+        match self.api.generate_command(prompt).await {
             Ok(command) => {
                 self.spinner.stop(None)?;
                 self.writeln(command)?;
@@ -3150,17 +3145,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             None => Event::empty(),
         };
 
-        // Build additional context from shell context and/or piped input.
-        // Shell context (from --shell-context) is always included when available.
+        // Build additional context from piped input.
         // Piped input is only additional context when BOTH --prompt and piped
         // input are provided (e.g., `echo "context" | forge -p "question"`).
         // When only piped input is provided (no --prompt), it's already used as
         // the main content via the `content` parameter.
         let mut additional_parts: Vec<String> = Vec::new();
-
-        if let Some(shell_ctx) = self.cli.shell_context_content.clone() {
-            additional_parts.push(shell_ctx);
-        }
 
         let piped_input = self.cli.piped_input.clone();
         let has_explicit_prompt = self.cli.prompt.is_some();
