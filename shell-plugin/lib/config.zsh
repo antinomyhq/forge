@@ -39,12 +39,12 @@ typeset -h _FORGE_SESSION_PROVIDER
 # When non-empty, exported as FORGE_REASONING__EFFORT for every forge invocation.
 typeset -h _FORGE_SESSION_REASONING_EFFORT
 
-
+# FIXME: Drop unused variables
 # Terminal context capture settings
 # Master switch for terminal context capture (preexec/precmd hooks)
 typeset -h _FORGE_TERM_ENABLED="${FORGE_TERM_ENABLED:-true}"
 # Maximum number of commands to keep in the ring buffer (metadata: cmd + exit code)
-typeset -h _FORGE_TERM_MAX_ENTRIES="${FORGE_TERM_MAX_ENTRIES:-10}"
+typeset -h _FORGE_TERM_MAX_ENTRIES="${FORGE_TERM_MAX_ENTRIES:-100}"
 # Number of recent commands to include full output for
 typeset -h _FORGE_TERM_FULL_OUTPUT_COUNT="${FORGE_TERM_FULL_OUTPUT_COUNT:-5}"
 # Maximum output lines per command block

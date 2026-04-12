@@ -168,6 +168,7 @@ function _forge_capture_scrollback() {
 #
 # Args: $1=scrollback, $2=command string, $3=next command string (or empty)
 # Outputs the extracted block on stdout, truncated to max lines per command.
+# FIXME: Drop this function if its unused
 function _forge_extract_block() {
     local scrollback="$1"
     local cmd="$2"
