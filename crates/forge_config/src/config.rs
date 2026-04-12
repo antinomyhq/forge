@@ -98,6 +98,10 @@ pub struct ProviderEntry {
     pub auth_methods: Vec<ProviderAuthMethod>,
 }
 
+fn default_true() -> bool {
+    true
+}
+
 /// Top-level Forge configuration merged from all sources (defaults, file,
 /// environment).
 #[derive(Default, Debug, Setters, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Dummy)]
@@ -281,6 +285,13 @@ pub struct ForgeConfig {
     /// when a task ends and reminds the LLM about them.
     #[serde(default)]
     pub verify_todos: bool,
+
+    /// Whether to include terminal context (recent shell commands, exit codes,
+    /// and timestamps) in the user prompt. When enabled, the shell plugin
+    /// exports the captured command history and the Rust service injects it
+    /// into the rendered prompt via [`EventContext`].
+    #[serde(default = "default_true")]
+    pub terminal_context: bool,
 }
 
 impl ForgeConfig {

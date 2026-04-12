@@ -39,6 +39,18 @@ function _forge_exec_interactive() {
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     local -a cmd
     cmd=($_FORGE_BIN --agent "$agent_id")
+
+    # Expose terminal context arrays as colon-separated env vars so that the
+    # Rust TerminalContextService can read them via get_env_var.
+    # Use `local -x` so the variables are exported only for the duration of
+    # this function call (i.e. inherited by the child forge process) and do
+    # not leak into the caller's shell environment.
+    if [[ "$_FORGE_TERM_ENABLED" == "true" && ${#_FORGE_TERM_COMMANDS} -gt 0 ]]; then
+        local -x _FORGE_TERM_COMMANDS="${(j.:.)_FORGE_TERM_COMMANDS}"
+        local -x _FORGE_TERM_EXIT_CODES="${(j.:.)_FORGE_TERM_EXIT_CODES}"
+        local -x _FORGE_TERM_TIMESTAMPS="${(j.:.)_FORGE_TERM_TIMESTAMPS}"
+    fi
+
     cmd+=("$@")
     [[ -n "$_FORGE_SESSION_MODEL" ]] && local -x FORGE_SESSION__MODEL_ID="$_FORGE_SESSION_MODEL"
     [[ -n "$_FORGE_SESSION_PROVIDER" ]] && local -x FORGE_SESSION__PROVIDER_ID="$_FORGE_SESSION_PROVIDER"
