@@ -3393,6 +3393,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
             ChatResponse::TaskReasoning { content } => {
                 writer.write_dimmed(&content)?;
             }
+            ChatResponse::UsageUpdate { usage } => {
+                self.spinner.update_usage(&usage)?;
+            }
             ChatResponse::TaskComplete => {
                 writer.finish()?;
                 if let Some(conversation_id) = self.state.conversation_id {
