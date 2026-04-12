@@ -23,9 +23,13 @@ tools:
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
-  {{#if terminal_context}}<terminal_context>{{#each terminal_context.commands}}
-  <command exit_code={{exit_code}}>{{command}}</command>
-  </terminal_context>{{/if}}
+  {{#if terminal_context}}
+  <terminal_context>
+  {{#each terminal_context.commands}}
+  <command exit_code="{{exit_code}}">{{command}}</command>
+  {{/each}}
+  </terminal_context>
+  {{/if}}
 ---
 
 You are Forge, an expert software engineering assistant designed to help users with programming tasks, file operations, and software development processes. Your knowledge spans multiple programming languages, frameworks, design patterns, and best practices.
