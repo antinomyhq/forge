@@ -81,12 +81,15 @@ function _forge_action_suggest() {
     
     echo
 
-    # Export terminal context arrays as colon-separated env vars so that the
+    # Expose terminal context arrays as colon-separated env vars so that the
     # Rust TerminalContextService can read them via get_env_var.
+    # Use `local -x` so the variables are exported only for the duration of
+    # this function call (i.e. inherited by the child forge process) and do
+    # not leak into the caller's shell environment.
     if [[ "$_FORGE_TERM_ENABLED" == "true" && ${#_FORGE_TERM_COMMANDS} -gt 0 ]]; then
-        export FORGE_TERM_COMMANDS="${(j.:.)_FORGE_TERM_COMMANDS}"
-        export FORGE_TERM_EXIT_CODES="${(j.:.)_FORGE_TERM_EXIT_CODES}"
-        export FORGE_TERM_TIMESTAMPS="${(j.:.)_FORGE_TERM_TIMESTAMPS}"
+        local -x _FORGE_TERM_COMMANDS="${(j.:.)_FORGE_TERM_COMMANDS}"
+        local -x _FORGE_TERM_EXIT_CODES="${(j.:.)_FORGE_TERM_EXIT_CODES}"
+        local -x _FORGE_TERM_TIMESTAMPS="${(j.:.)_FORGE_TERM_TIMESTAMPS}"
     fi
 
     # Generate the command
