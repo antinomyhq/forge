@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use forge_domain::{TerminalContext, TerminalCommand};
+use forge_domain::{TerminalCommand, TerminalContext};
 
 use crate::EnvironmentInfra;
 
+// FIXME: The env variable names have to start with an `_` - update the zsh implementation also
 /// Environment variable exported by the zsh plugin containing colon-separated
 /// command strings.
 pub const ENV_TERM_COMMANDS: &str = "FORGE_TERM_COMMANDS";
@@ -28,7 +29,8 @@ pub const ENV_TERM_TIMESTAMPS: &str = "FORGE_TERM_TIMESTAMPS";
 pub struct TerminalContextService<S>(Arc<S>);
 
 impl<S> TerminalContextService<S> {
-    /// Creates a new `TerminalContextService` backed by the provided infrastructure.
+    /// Creates a new `TerminalContextService` backed by the provided
+    /// infrastructure.
     pub fn new(infra: Arc<S>) -> Self {
         Self(infra)
     }
@@ -162,18 +164,15 @@ mod tests {
 
     #[test]
     fn test_empty_commands_returns_none() {
-        let fixture =
-            TerminalContextService::new(MockInfra::new(&[(ENV_TERM_COMMANDS, "")]));
+        let fixture = TerminalContextService::new(MockInfra::new(&[(ENV_TERM_COMMANDS, "")]));
         let actual = fixture.get_terminal_context();
         assert_eq!(actual, None);
     }
 
     #[test]
     fn test_single_command_no_extras() {
-        let fixture = TerminalContextService::new(MockInfra::new(&[(
-            ENV_TERM_COMMANDS,
-            "cargo build",
-        )]));
+        let fixture =
+            TerminalContextService::new(MockInfra::new(&[(ENV_TERM_COMMANDS, "cargo build")]));
         let actual = fixture.get_terminal_context();
         let expected = Some(TerminalContext {
             commands: vec![TerminalCommand {

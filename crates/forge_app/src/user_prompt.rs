@@ -52,6 +52,9 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         } else {
             conversation
         };
+
+        // FIXME: Use TerminalContextService here to add the context of the terminal into the conversation
+
         Ok(conversation)
     }
 

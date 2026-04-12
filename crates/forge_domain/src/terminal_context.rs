@@ -28,11 +28,7 @@ impl TerminalContext {
     /// All three slices must have the same length; entries at the same index
     /// are combined into a single [`TerminalCommand`].  If the lengths differ,
     /// the shortest slice determines how many entries are produced.
-    pub fn new(
-        commands: Vec<String>,
-        exit_codes: Vec<i32>,
-        timestamps: Vec<u64>,
-    ) -> Self {
+    pub fn new(commands: Vec<String>, exit_codes: Vec<i32>, timestamps: Vec<u64>) -> Self {
         let entries = commands
             .into_iter()
             .zip(exit_codes)
@@ -50,4 +46,6 @@ impl TerminalContext {
     pub fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }
+
+    // FIXME: Add a `render` method on TemplateContext which will internally use the `Element` type to render the TerminalContext
 }

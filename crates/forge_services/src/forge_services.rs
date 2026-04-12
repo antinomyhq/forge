@@ -9,6 +9,7 @@ use forge_domain::{
     ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
     SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
 };
+
 use crate::ForgeProviderAuthService;
 use crate::agent_registry::ForgeAgentRegistryService;
 use crate::app_config::ForgeAppConfigService;
@@ -381,4 +382,3 @@ impl<
         self.infra.get_env_vars()
     }
 }
-
