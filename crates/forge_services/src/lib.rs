@@ -21,6 +21,7 @@ mod provider_service;
 mod range;
 mod sync;
 mod template;
+mod terminal_context;
 mod tool_services;
 mod utils;
 
@@ -34,6 +35,7 @@ pub use forge_services::*;
 pub use instructions::*;
 pub use policy::*;
 pub use provider_auth::*;
+pub use terminal_context::*;
 
 /// Converts a type from its external representation into its domain model
 /// representation.

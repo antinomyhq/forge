@@ -40,8 +40,13 @@ function _forge_exec_interactive() {
     local -a cmd
     cmd=($_FORGE_BIN --agent "$agent_id")
 
-    # Build terminal context and export it as FORGE_TERM_CONTEXT env var
-    _forge_build_shell_context
+    # Export terminal context arrays as colon-separated env vars so that the
+    # Rust TerminalContextService can read them via get_env_var.
+    if [[ "$_FORGE_TERM_ENABLED" == "true" && ${#_FORGE_TERM_COMMANDS} -gt 0 ]]; then
+        export FORGE_TERM_COMMANDS="${(j.:.)_FORGE_TERM_COMMANDS}"
+        export FORGE_TERM_EXIT_CODES="${(j.:.)_FORGE_TERM_EXIT_CODES}"
+        export FORGE_TERM_TIMESTAMPS="${(j.:.)_FORGE_TERM_TIMESTAMPS}"
+    fi
 
     cmd+=("$@")
     [[ -n "$_FORGE_SESSION_MODEL" ]] && local -x FORGE_SESSION__MODEL_ID="$_FORGE_SESSION_MODEL"

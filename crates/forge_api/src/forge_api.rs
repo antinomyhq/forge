@@ -8,7 +8,7 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
     FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, TerminalContextRepo, User, UserUsage, Walker,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
 };
 use forge_config::ForgeConfig;
@@ -64,7 +64,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 
 #[async_trait::async_trait]
 impl<
-    A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig> + TerminalContextRepo,
+    A: Services + EnvironmentInfra<Config = forge_config::ForgeConfig>,
     F: CommandInfra
         + EnvironmentInfra<Config = forge_config::ForgeConfig>
         + SkillRepository

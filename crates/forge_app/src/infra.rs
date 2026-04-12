@@ -6,7 +6,7 @@ use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
     AuthCodeParams, CommandOutput, ConfigOperation, Environment, FileInfo, McpServerConfig,
-    OAuthConfig, OAuthTokenResponse, TerminalContext, ToolDefinition, ToolName, ToolOutput,
+    OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -46,21 +46,6 @@ pub trait EnvironmentInfra: Send + Sync {
         &self,
         ops: Vec<ConfigOperation>,
     ) -> impl std::future::Future<Output = anyhow::Result<()>> + Send;
-}
-
-// FIXME: We can drop this infra completely and directly access infra.get_env_var
-// Keep the feature in the services though.
-
-/// Repository for reading terminal context from environment variables.
-///
-/// Reads the `FORGE_TERM_CONTEXT` environment variable set by the zsh plugin
-/// before invoking forge, and returns it as a [`TerminalContext`] domain type.
-pub trait TerminalContextRepo: Send + Sync {
-    /// Returns the terminal context if available.
-    ///
-    /// Reads the `FORGE_TERM_CONTEXT` environment variable. Returns `None` if
-    /// the variable is not set or contains only whitespace.
-    fn get_terminal_context(&self) -> Option<TerminalContext>;
 }
 
 /// Repository for accessing system environment information

@@ -7,7 +7,6 @@ use serde::Deserialize;
 
 use crate::{
     AppConfigService, EnvironmentInfra, FileDiscoveryService, ProviderService, TemplateEngine,
-    TerminalContextRepo,
 };
 /// Response struct for shell command generation using JSON format
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -25,11 +24,7 @@ pub struct CommandGenerator<S> {
 
 impl<S> CommandGenerator<S>
 where
-    S: EnvironmentInfra
-        + FileDiscoveryService
-        + ProviderService
-        + AppConfigService
-        + TerminalContextRepo,
+    S: EnvironmentInfra + FileDiscoveryService + ProviderService + AppConfigService,
 {
     /// Creates a new CommandGenerator instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
@@ -38,14 +33,11 @@ where
 
     /// Generates a shell command from a natural language prompt.
     ///
-    /// Terminal context is read automatically from the `FORGE_TERM_CONTEXT`
-    /// environment variable via the [`TerminalContextRepo`] and included in the
-    /// user prompt so the LLM can reference recent commands, exit codes, and
-    /// terminal output.
-    pub async fn generate(
-        &self,
-        prompt: UserPrompt,
-    ) -> Result<String> {
+    /// Terminal context is read automatically from the `FORGE_TERM_COMMANDS`,
+    /// `FORGE_TERM_EXIT_CODES`, and `FORGE_TERM_TIMESTAMPS` environment variables
+    /// exported by the zsh plugin, and included in the user prompt so the LLM
+    /// can reference recent commands, exit codes, and timestamps.
+    pub async fn generate(&self, prompt: UserPrompt) -> Result<String> {
         // Get system information for context
         let env = self.services.get_environment();
 
@@ -72,10 +64,10 @@ where
         };
 
         // Build user prompt with task, optionally including terminal context
-        let user_content = match self.services.get_terminal_context() {
+        let user_content = match self.read_terminal_context() {
             Some(ctx) => format!(
                 "<terminal_context>\n{}\n</terminal_context>\n\n<task>{}</task>",
-                ctx.as_str(),
+                ctx,
                 prompt.as_str()
             ),
             None => format!("<task>{}</task>", prompt.as_str()),
@@ -99,6 +91,43 @@ where
             })?;
 
         Ok(response.command)
+    }
+
+    /// Reads terminal context from environment variables set by the zsh plugin.
+    ///
+    /// Returns `None` if `FORGE_TERM_COMMANDS` is not set or is empty.
+
+    // FIXME: Reuse TerminalContextService over here
+    fn read_terminal_context(&self) -> Option<TerminalContext> {
+        let commands_raw = self.services.get_env_var("FORGE_TERM_COMMANDS")?;
+        let commands: Vec<String> = commands_raw
+            .split(':')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(String::from)
+            .collect();
+        if commands.is_empty() {
+            return None;
+        }
+        let exit_codes: Vec<i32> = self
+            .services
+            .get_env_var("FORGE_TERM_EXIT_CODES")
+            .unwrap_or_default()
+            .split(':')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<i32>().unwrap_or(0))
+            .collect();
+        let timestamps: Vec<u64> = self
+            .services
+            .get_env_var("FORGE_TERM_TIMESTAMPS")
+            .unwrap_or_default()
+            .split(':')
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<u64>().unwrap_or(0))
+            .collect();
+        Some(TerminalContext::new(commands, exit_codes, timestamps))
     }
 
     /// Creates a context with system and user messages for the LLM
@@ -135,7 +164,7 @@ mod tests {
         response: Arc<Mutex<Option<String>>>,
         captured_context: Arc<Mutex<Option<Context>>>,
         environment: Environment,
-        terminal_context: Option<String>,
+        env_vars: std::collections::BTreeMap<String, String>,
     }
 
     impl MockServices {
@@ -153,25 +182,27 @@ mod tests {
                 response: Arc::new(Mutex::new(Some(response.to_string()))),
                 captured_context: Arc::new(Mutex::new(None)),
                 environment: env,
-                terminal_context: None,
+                env_vars: std::collections::BTreeMap::new(),
             })
         }
 
-        fn with_terminal_context(self: Arc<Self>, ctx: &str) -> Arc<Self> {
-            // Safety: only called during test setup before sharing
+        fn with_terminal_context(
+            self: Arc<Self>,
+            commands: &str,
+            exit_codes: &str,
+            timestamps: &str,
+        ) -> Arc<Self> {
+            let mut env_vars = self.env_vars.clone();
+            env_vars.insert("FORGE_TERM_COMMANDS".to_string(), commands.to_string());
+            env_vars.insert("FORGE_TERM_EXIT_CODES".to_string(), exit_codes.to_string());
+            env_vars.insert("FORGE_TERM_TIMESTAMPS".to_string(), timestamps.to_string());
             Arc::new(Self {
                 files: self.files.clone(),
                 response: self.response.clone(),
                 captured_context: self.captured_context.clone(),
                 environment: self.environment.clone(),
-                terminal_context: Some(ctx.to_string()),
+                env_vars,
             })
-        }
-    }
-
-    impl TerminalContextRepo for MockServices {
-        fn get_terminal_context(&self) -> Option<TerminalContext> {
-            self.terminal_context.clone().map(TerminalContext::new)
         }
     }
 
@@ -193,12 +224,12 @@ mod tests {
             unimplemented!()
         }
 
-        fn get_env_var(&self, _key: &str) -> Option<String> {
-            None
+        fn get_env_var(&self, key: &str) -> Option<String> {
+            self.env_vars.get(key).cloned()
         }
 
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
-            std::collections::BTreeMap::new()
+            self.env_vars.clone()
         }
     }
 
@@ -352,12 +383,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_with_shell_context() {
-        let ctx_str = "## Recent Commands\n| # | Command | Exit | Time |\n|---|---------|------|------|\n| 1 | cargo build | 101 | 12:00:00 |";
         let fixture = MockServices::new(
             r#"{"command": "cargo build --release"}"#,
             vec![("Cargo.toml", false)],
         )
-        .with_terminal_context(ctx_str);
+        .with_terminal_context("cargo build", "101", "1700000000");
         let generator = CommandGenerator::new(fixture.clone());
 
         let actual = generator

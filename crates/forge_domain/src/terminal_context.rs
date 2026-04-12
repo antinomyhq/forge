@@ -1,32 +1,69 @@
-/// Represents the terminal context captured by the shell plugin.
-///
-/// Contains the serialized string of recent shell commands, exit codes, and
-/// terminal output that the zsh plugin exports via the `FORGE_TERM_CONTEXT`
-/// environment variable before invoking forge.
+/// A single command entry captured by the shell plugin.
 #[derive(Debug, Clone, PartialEq, Eq)]
-// FIXME: Add fields to extract data for each env variable instead of a concatenated text
-pub struct TerminalContext(String);
+pub struct TerminalCommand {
+    /// The command text as entered by the user.
+    pub command: String,
+    /// The exit code produced by the command.
+    pub exit_code: i32,
+    /// Unix timestamp (seconds since epoch) when the command was run.
+    pub timestamp: u64,
+}
+
+/// Structured terminal context captured by the shell plugin.
+///
+/// Each field corresponds to one of the environment variables exported by the
+/// zsh plugin before invoking forge:
+/// - `FORGE_TERM_COMMANDS`   — colon-separated command strings
+/// - `FORGE_TERM_EXIT_CODES` — colon-separated exit codes
+/// - `FORGE_TERM_TIMESTAMPS` — colon-separated Unix timestamps
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TerminalContext {
+    /// Ordered list of recent commands, from oldest to newest.
+    pub commands: Vec<TerminalCommand>,
+}
 
 impl TerminalContext {
-    /// Creates a new `TerminalContext` from a raw string.
-    pub fn new(content: impl Into<String>) -> Self {
-        Self(content.into())
+    /// Creates a new `TerminalContext` from parallel vectors of command data.
+    ///
+    /// All three slices must have the same length; entries at the same index
+    /// are combined into a single [`TerminalCommand`].  If the lengths differ,
+    /// the shortest slice determines how many entries are produced.
+    pub fn new(
+        commands: Vec<String>,
+        exit_codes: Vec<i32>,
+        timestamps: Vec<u64>,
+    ) -> Self {
+        let entries = commands
+            .into_iter()
+            .zip(exit_codes)
+            .zip(timestamps)
+            .map(|((command, exit_code), timestamp)| TerminalCommand {
+                command,
+                exit_code,
+                timestamp,
+            })
+            .collect();
+        Self { commands: entries }
     }
 
-    /// Returns the raw context string.
-    pub fn as_str(&self) -> &str {
-        &self.0
+    /// Returns `true` if there are no recorded commands.
+    pub fn is_empty(&self) -> bool {
+        self.commands.is_empty()
     }
 }
 
-impl From<String> for TerminalContext {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
-}
-
-impl From<&str> for TerminalContext {
-    fn from(s: &str) -> Self {
-        Self(s.to_string())
+// FIXME: Drop `Display` use TemplateEngine to render the logic using template
+// Define the template in md format inside the /template dirs
+impl std::fmt::Display for TerminalContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for entry in &self.commands {
+            let status = if entry.exit_code == 0 {
+                "ok".to_string()
+            } else {
+                format!("FAILED (exit {})", entry.exit_code)
+            };
+            writeln!(f, "- `{}` [{}] @ {}", entry.command, status, entry.timestamp)?;
+        }
+        Ok(())
     }
 }

@@ -3,13 +3,12 @@ use std::sync::Arc;
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
     FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
-    McpServerInfra, Services, StrategyFactory, TerminalContextRepo, UserInfra, WalkerInfra,
+    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     ChatRepository, ConversationRepository, FuzzySearchRepository, ProviderRepository,
     SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
 };
-
 use crate::ForgeProviderAuthService;
 use crate::agent_registry::ForgeAgentRegistryService;
 use crate::app_config::ForgeAppConfigService;
@@ -383,32 +382,3 @@ impl<
     }
 }
 
-impl<
-    F: EnvironmentInfra<Config = forge_config::ForgeConfig>
-        + HttpInfra
-        + McpServerInfra
-        + WalkerInfra
-        + SnapshotRepository
-        + ConversationRepository
-        + KVStore
-        + ChatRepository
-        + ProviderRepository
-        + WorkspaceIndexRepository
-        + AgentRepository
-        + SkillRepository
-        + ValidationRepository
-        + Send
-        + Sync,
-> TerminalContextRepo for ForgeServices<F>
-{
-    fn get_terminal_context(&self) -> Option<forge_domain::TerminalContext> {
-        // FIXME: Create a new service for getting terminal context and here we simply route the call to that service
-        let value = self.infra.get_env_var("FORGE_TERM_CONTEXT")?;
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(forge_domain::TerminalContext::new(trimmed))
-        }
-    }
-}
