@@ -29,6 +29,8 @@ pub struct Cli {
     #[arg(skip)]
     pub piped_input: Option<String>,
 
+    
+    // FIXME: Drop this CLI parameter
     /// Path to a file containing shell terminal context (recent commands, exit
     /// codes, terminal output). Populated by the zsh plugin to provide
     /// terminal context when invoking forge from the shell.

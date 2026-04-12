@@ -1809,6 +1809,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn(ForgeConfig) -> A + Send + Sync> UI
     /// Handle the cmd command - generates shell command from natural language
     async fn on_cmd(&mut self, prompt: UserPrompt) -> anyhow::Result<()> {
         self.spinner.start(Some("Generating"))?;
+
+        // FIXME: Revert this file to main
+        // UserPrompt rendering is a complex process and already abstracted out
+        // Use that process to use the new services/repos to render the prompt and add it to the context
         let shell_context = self.cli.shell_context_content.clone();
 
         match self.api.generate_command(prompt, shell_context).await {

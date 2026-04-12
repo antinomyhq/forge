@@ -19,6 +19,7 @@
 # Auto-detection is conservative: only emit for terminals known to support it
 # to avoid garbled output in unsupported terminals.
 function _forge_osc133_should_emit() {
+    // FIXME: Detect and cache for the session
     case "$_FORGE_CTX_OSC133" in
         on)  return 0 ;;
         off) return 1 ;;
@@ -194,6 +195,9 @@ function _forge_extract_block() {
     echo "$scrollback" | tail -n +"$output_start" | head -"$max_lines"
     return 0
 }
+
+# FIXME: Templating should be implemented in templates dir in a .md file
+# Create a new serializable type to pass to that template for rendering
 
 # ---------------------------------------------------------------------------
 # Context builder

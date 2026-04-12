@@ -40,6 +40,10 @@ where
     pub async fn generate(
         &self,
         prompt: UserPrompt,
+        // FIXME: Drop this parameter
+        // Create a domain + repo + service that extract the terminal variables, renders them and makes it available here directly via a service
+        // Repo should read the data from env variables and create a domain type - TerminalContext
+        // We use TerminalContext to render a template that we use to render the prompt
         shell_context: Option<String>,
     ) -> Result<String> {
         // Get system information for context

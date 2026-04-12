@@ -311,10 +311,11 @@ impl<
     async fn get_skills(&self) -> Result<Vec<Skill>> {
         self.infra.load_skills().await
     }
-
+    // FIXME: Revert this file to that in main
     async fn generate_command(
         &self,
         prompt: UserPrompt,
+
         shell_context: Option<String>,
     ) -> Result<String> {
         use forge_app::CommandGenerator;

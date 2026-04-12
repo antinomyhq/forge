@@ -1,3 +1,4 @@
+# FIXME: Revert this file to main
 #!/usr/bin/env zsh
 
 # Core utility functions for forge plugin
@@ -40,6 +41,8 @@ function _forge_exec_interactive() {
     local -a cmd
     cmd=($_FORGE_BIN --agent "$agent_id")
 
+    # FIXME: We will implement a repo to get terminal context 
+    # We don't need a ctx file - revert to `branch main`
     # Build shell context and pass via temp file
     local ctx_file=""
     if ctx_file=$(_forge_build_shell_context); then
@@ -52,6 +55,8 @@ function _forge_exec_interactive() {
     [[ -n "$_FORGE_SESSION_REASONING_EFFORT" ]] && local -x FORGE_REASONING__EFFORT="$_FORGE_SESSION_REASONING_EFFORT"
     "${cmd[@]}" </dev/tty >/dev/tty
 
+    # FIXME: We will implement a repo to get terminal context 
+    # Revert to `branch main`
     # Clean up temp file
     [[ -n "$ctx_file" ]] && rm -f "$ctx_file" 2>/dev/null
 }

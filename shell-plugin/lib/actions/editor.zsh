@@ -81,6 +81,8 @@ function _forge_action_suggest() {
     
     echo
 
+    # FIXME: Revert this file to that in main
+    
     # Build shell context and pass via temp file (same pattern as _forge_exec_interactive)
     local ctx_file=""
     local -a ctx_args=()
