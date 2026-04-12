@@ -2,8 +2,8 @@
 //!
 //! When the terminal sends a bracketed-paste event (e.g. from a drag-and-drop),
 //! this module checks whether the pasted text is an existing file path and,
-//! if so, wraps it in `@[...]` syntax so the user sees the reference immediately
-//! in the input field.
+//! if so, wraps it in `@[...]` syntax so the user sees the reference
+//! immediately in the input field.
 
 use std::path::Path;
 

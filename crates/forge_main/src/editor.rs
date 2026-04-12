@@ -178,4 +178,3 @@ impl From<Signal> for ReadResult {
         }
     }
 }
-
