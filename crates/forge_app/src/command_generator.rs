@@ -74,10 +74,9 @@ where
             Some(ctx) => {
                 let terminal_elm =
                     Element::new("terminal_context").append(ctx.commands.iter().map(|cmd| {
-                        Element::new("entry")
-                            .append(Element::new("command").text(&cmd.command))
-                            .append(Element::new("exit_code").text(cmd.exit_code.to_string()))
-                            .append(Element::new("timestamp").text(cmd.timestamp.to_string()))
+                        Element::new("command")
+                            .attr("exit_code", cmd.exit_code.to_string())
+                            .text(&cmd.command)
                     }));
                 format!("{}\n\n{}", terminal_elm.render(), task_elm.render())
             }
