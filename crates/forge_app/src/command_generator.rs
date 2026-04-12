@@ -9,6 +9,7 @@ use crate::{
     AppConfigService, EnvironmentInfra, FileDiscoveryService, ProviderService, TemplateEngine,
     TerminalContextService,
 };
+
 /// Response struct for shell command generation using JSON format
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -65,22 +66,15 @@ where
             }
         };
 
-        // FIXME: Move the template engine rendering logic also into TerminalContextService
-
-
-        // Build user prompt with task, optionally including terminal context
-        let terminal_ctx =
-            TerminalContextService::new(self.services.clone()).get_terminal_context();
-        let user_content = match terminal_ctx {
-            Some(ctx) => {
-                let rendered = TemplateEngine::default()
-                    .render("forge-terminal-context.md", &serde_json::to_value(&ctx)?)?;
-                format!(
-                    "<terminal_context>\n{}\n</terminal_context>\n\n<task>{}</task>",
-                    rendered,
-                    prompt.as_str()
-                )
-            }
+        // Build user prompt with task, optionally including terminal context.
+        // Rendering is handled entirely by TerminalContextService::render().
+        let terminal_service = TerminalContextService::new(self.services.clone());
+        let user_content = match terminal_service.render() {
+            Some(rendered) => format!(
+                "{}\n\n<task>{}</task>",
+                rendered,
+                prompt.as_str()
+            ),
             None => format!("<task>{}</task>", prompt.as_str()),
         };
 
@@ -167,9 +161,9 @@ mod tests {
             timestamps: &str,
         ) -> Arc<Self> {
             let mut env_vars = self.env_vars.clone();
-            env_vars.insert("FORGE_TERM_COMMANDS".to_string(), commands.to_string());
-            env_vars.insert("FORGE_TERM_EXIT_CODES".to_string(), exit_codes.to_string());
-            env_vars.insert("FORGE_TERM_TIMESTAMPS".to_string(), timestamps.to_string());
+            env_vars.insert("_FORGE_TERM_COMMANDS".to_string(), commands.to_string());
+            env_vars.insert("_FORGE_TERM_EXIT_CODES".to_string(), exit_codes.to_string());
+            env_vars.insert("_FORGE_TERM_TIMESTAMPS".to_string(), timestamps.to_string());
             Arc::new(Self {
                 files: self.files.clone(),
                 response: self.response.clone(),

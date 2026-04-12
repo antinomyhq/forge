@@ -4,18 +4,17 @@ use forge_domain::{TerminalCommand, TerminalContext};
 
 use crate::EnvironmentInfra;
 
-// FIXME: The env variable names have to start with an `_` - update the zsh implementation also
 /// Environment variable exported by the zsh plugin containing colon-separated
 /// command strings.
-pub const ENV_TERM_COMMANDS: &str = "FORGE_TERM_COMMANDS";
+pub const ENV_TERM_COMMANDS: &str = "_FORGE_TERM_COMMANDS";
 
 /// Environment variable exported by the zsh plugin containing colon-separated
 /// exit codes corresponding to [`ENV_TERM_COMMANDS`].
-pub const ENV_TERM_EXIT_CODES: &str = "FORGE_TERM_EXIT_CODES";
+pub const ENV_TERM_EXIT_CODES: &str = "_FORGE_TERM_EXIT_CODES";
 
 /// Environment variable exported by the zsh plugin containing colon-separated
 /// Unix timestamps corresponding to [`ENV_TERM_COMMANDS`].
-pub const ENV_TERM_TIMESTAMPS: &str = "FORGE_TERM_TIMESTAMPS";
+pub const ENV_TERM_TIMESTAMPS: &str = "_FORGE_TERM_TIMESTAMPS";
 
 /// Service that reads terminal context from environment variables exported by
 /// the zsh plugin and constructs a structured [`TerminalContext`].
@@ -89,6 +88,14 @@ impl<S: EnvironmentInfra> TerminalContextService<S> {
         } else {
             Some(TerminalContext { commands: entries })
         }
+    }
+
+    /// Reads the terminal context from environment variables and renders it as
+    /// an XML string via [`TerminalContext::render`].
+    ///
+    /// Returns `None` if no terminal context is available.
+    pub fn render(&self) -> Option<String> {
+        self.get_terminal_context().map(|ctx| ctx.render().to_string())
     }
 }
 

@@ -5,7 +5,7 @@ use forge_domain::{Agent, *};
 use serde_json::json;
 use tracing::debug;
 
-use crate::{AttachmentService, TemplateEngine};
+use crate::{AttachmentService, EnvironmentInfra, TemplateEngine, TerminalContextService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -16,7 +16,7 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AttachmentService> UserPromptGenerator<S> {
+impl<S: AttachmentService + EnvironmentInfra> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -53,7 +53,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
             conversation
         };
 
-        // FIXME: Use TerminalContextService here to add the context of the terminal into the conversation
+        let conversation = self.add_terminal_context(conversation);
 
         Ok(conversation)
     }
@@ -106,6 +106,32 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         }
 
         content
+    }
+
+    /// Adds the terminal context as a droppable user message if available.
+    ///
+    /// Reads terminal context from environment variables via [`TerminalContextService`]
+    /// and appends it as a droppable message so it can be removed during context
+    /// compression.
+    fn add_terminal_context(&self, mut conversation: Conversation) -> Conversation {
+        let Some(rendered) = TerminalContextService::new(self.services.clone()).render() else {
+            return conversation;
+        };
+
+        let mut context = conversation.context.take().unwrap_or_default();
+        let message = TextMessage {
+            role: Role::User,
+            content: rendered,
+            raw_content: None,
+            tool_calls: None,
+            thought_signature: None,
+            reasoning_details: None,
+            model: Some(self.agent.model.clone()),
+            droppable: true,
+            phase: None,
+        };
+        context = context.add_message(ContextMessage::Text(message));
+        conversation.context(context)
     }
 
     /// Adds additional context (piped input) as a droppable user message
@@ -264,6 +290,34 @@ mod tests {
         }
     }
 
+    impl crate::EnvironmentInfra for MockService {
+        type Config = forge_config::ForgeConfig;
+
+        fn get_environment(&self) -> forge_domain::Environment {
+            use fake::{Fake, Faker};
+            Faker.fake()
+        }
+
+        fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> {
+            Ok(forge_config::ForgeConfig::default())
+        }
+
+        async fn update_environment(
+            &self,
+            _ops: Vec<forge_domain::ConfigOperation>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            Default::default()
+        }
+    }
+
     fn fixture_agent_without_user_prompt() -> Agent {
         Agent::new(
             AgentId::from("test_agent"),
@@ -390,6 +444,15 @@ mod tests {
         // Setup - Create a service that returns file attachments
         struct MockServiceWithFiles;
 
+        impl crate::EnvironmentInfra for MockServiceWithFiles {
+            type Config = forge_config::ForgeConfig;
+            fn get_environment(&self) -> forge_domain::Environment { use fake::{Fake,Faker}; Faker.fake() }
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> { Ok(forge_config::ForgeConfig::default()) }
+            async fn update_environment(&self, _ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> { Ok(()) }
+            fn get_env_var(&self, _key: &str) -> Option<String> { None }
+            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> { Default::default() }
+        }
+
         #[async_trait::async_trait]
         impl AttachmentService for MockServiceWithFiles {
             async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
@@ -471,6 +534,15 @@ mod tests {
         // Setup - Simple mock that returns no attachments
         struct MockServiceWithTodos;
 
+        impl crate::EnvironmentInfra for MockServiceWithTodos {
+            type Config = forge_config::ForgeConfig;
+            fn get_environment(&self) -> forge_domain::Environment { use fake::{Fake,Faker}; Faker.fake() }
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> { Ok(forge_config::ForgeConfig::default()) }
+            async fn update_environment(&self, _ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> { Ok(()) }
+            fn get_env_var(&self, _key: &str) -> Option<String> { None }
+            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> { Default::default() }
+        }
+
         #[async_trait::async_trait]
         impl AttachmentService for MockServiceWithTodos {
             async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
@@ -547,6 +619,15 @@ mod tests {
     async fn test_todos_not_injected_on_new_conversation() {
         // Setup - Simple mock with no attachments
         struct MockServiceNoTodos;
+
+        impl crate::EnvironmentInfra for MockServiceNoTodos {
+            type Config = forge_config::ForgeConfig;
+            fn get_environment(&self) -> forge_domain::Environment { use fake::{Fake,Faker}; Faker.fake() }
+            fn get_config(&self) -> anyhow::Result<forge_config::ForgeConfig> { Ok(forge_config::ForgeConfig::default()) }
+            async fn update_environment(&self, _ops: Vec<forge_domain::ConfigOperation>) -> anyhow::Result<()> { Ok(()) }
+            fn get_env_var(&self, _key: &str) -> Option<String> { None }
+            fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> { Default::default() }
+        }
 
         #[async_trait::async_trait]
         impl AttachmentService for MockServiceNoTodos {
