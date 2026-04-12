@@ -67,27 +67,21 @@ where
         };
 
         // Build user prompt with task, optionally including terminal context.
+        use forge_template::Element;
+        let task_elm = Element::new("task").text(prompt.as_str());
         let terminal_service = TerminalContextService::new(self.services.clone());
         let user_content = match terminal_service.get_terminal_context() {
             Some(ctx) => {
-                let entries: String = ctx
-                    .commands
-                    .iter()
-                    .map(|cmd| {
-                        // FIXME: Use element type to create this markup
-                        format!(
-                            "<entry><command>{}</command><exit_code>{}</exit_code><timestamp>{}</timestamp></entry>",
-                            cmd.command, cmd.exit_code, cmd.timestamp
-                        )
-                    })
-                    .collect();
-                format!(
-                    "<terminal_context>{}</terminal_context>\n\n<task>{}</task>",
-                    entries,
-                    prompt.as_str()
-                )
+                let terminal_elm =
+                    Element::new("terminal_context").append(ctx.commands.iter().map(|cmd| {
+                        Element::new("entry")
+                            .append(Element::new("command").text(&cmd.command))
+                            .append(Element::new("exit_code").text(cmd.exit_code.to_string()))
+                            .append(Element::new("timestamp").text(cmd.timestamp.to_string()))
+                    }));
+                format!("{}\n\n{}", terminal_elm.render(), task_elm.render())
             }
-            None => format!("<task>{}</task>", prompt.as_str()),
+            None => task_elm.render(),
         };
 
         // Create context with system and user prompts
